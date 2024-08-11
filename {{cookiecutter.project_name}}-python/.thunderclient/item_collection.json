@@ -1,0 +1,127 @@
+{
+    "clientName": "Thunder Client",
+    "collectionName": "{{ cookiecutter.project_name }}s Requests",
+    "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+    "dateExported": "2024-08-10T22:25:59.850Z",
+    "version": "1.2",
+    "folders": [],
+    "requests": [
+        {
+            "_id": "a26e1715-1b03-4e9a-855a-1694f972b6da",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Get {{ cookiecutter.project_name }}s",
+            "url": "http://localhost:7071/api/{{ cookiecutter.project_endpoint }}s",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "c9e0f3f9-2f59-4adc-97af-a1b63c03db81",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Get {{ cookiecutter.project_name }} by ID",
+            "url": "http://localhost:7071/api/{{ cookiecutter.project_endpoint }}s/{{ '{{itemId}}' }}",
+            "method": "GET",
+            "sortNum": 20000,
+            "created": "2024-08-10T20:26:15.998Z",
+            "modified": "2024-08-10T20:42:41.531Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "0f157099-1bbf-49ed-b06d-c089c868b488",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Create {{ cookiecutter.project_name }}",
+            "url": "http://localhost:7071/api/{{ cookiecutter.project_endpoint }}s",
+            "method": "POST",
+            "sortNum": 30000,
+            "created": "2024-08-10T20:26:20.281Z",
+            "modified": "2024-08-10T21:37:03.009Z",
+            "headers": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"Item1\",\n  \"type\": \"item\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "201"
+                },
+                {
+                    "type": "set-env-var",
+                    "custom": "json.id",
+                    "action": "setto",
+                    "value": "{{ '{{itemId}}' }}"
+                }
+            ]
+        },
+        {
+            "_id": "6f0060e6-1215-46cf-9fcf-58978b949064",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Update {{ cookiecutter.project_name }}",
+            "url": "http://localhost:7071/api/{{ cookiecutter.project_endpoint }}s/{{ '{{itemId}}' }}",
+            "method": "PATCH",
+            "sortNum": 40000,
+            "created": "2024-08-10T20:26:22.436Z",
+            "modified": "2024-08-10T20:41:19.211Z",
+            "headers": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"Item1-Update\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "55de1112-4666-402b-8831-58937afbe355",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Delete {{ cookiecutter.project_name }}",
+            "url": "http://localhost:7071/api/{{ cookiecutter.project_endpoint }}s/{{ '{{itemId}}' }}",
+            "method": "DELETE",
+            "sortNum": 50000,
+            "created": "2024-08-10T20:26:54.814Z",
+            "modified": "2024-08-10T20:41:58.983Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        }
+    ],
+    "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
+}

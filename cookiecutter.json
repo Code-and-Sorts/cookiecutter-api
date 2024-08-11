@@ -1,0 +1,21 @@
+{
+    "project_name": "Cookiecutter API",
+    "project_description": "This is a template repository for API projects.",
+    "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_') }}",
+    "project_endpoint": "{{ cookiecutter.project_name.lower().replace(' ', '-') }}",
+    "author": "Code and Sorts (Colby Timm)",
+    "cloud_service": [
+        "Azure Function App"
+    ],
+    "language": [
+        "Python"
+    ],
+    "open_source_license": [
+        "MIT license",
+        "BSD license",
+        "ISC license",
+        "Apache Software License 2.0",
+        "GNU General Public License v3",
+        "Not open source"
+    ]
+}
