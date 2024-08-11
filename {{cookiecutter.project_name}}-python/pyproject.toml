@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "api"
+version = "0.1.0"
+description = ""
+authors = ["Colby Timm <timmcolby@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+azure-cosmos = "^4.7.0"
+pytest-mock = "^3.14.0"
+
+[tool.poetry.group.dev.dependencies]
+azure-functions = "1.20.0"
+pytest = "^8.3.2"
+pytest-cov = "^5.0.0"
+pydantic = "^2.8.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
