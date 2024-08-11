@@ -7,42 +7,39 @@ class ExampleModel(BaseModel):
     name: str
     type: str
 
-# Test detect_error for BaseError
-def test_detect_error_base_error():
-    try:
-        raise BaseError("Test")
-    except Exception as error:
-        response = detect_error(error)
-        assert isinstance(response, func.HttpResponse)
-        assert response.status_code == 500
-        assert response.get_body().decode() == '{"type":"UnknownError","message":"Test"}'
+def describe_detect_error():
+    def test_base_error_response():
+        try:
+            raise BaseError("Test")
+        except Exception as error:
+            response = detect_error(error)
+            assert isinstance(response, func.HttpResponse)
+            assert response.status_code == 500
+            assert response.get_body().decode() == '{"type":"UnknownError","message":"Test"}'
 
-# Test detect_error for ValidationError
-def test_detect_error_validation_error():
-    try:
-        raise ValidationError()
-    except Exception as error:
-        response = detect_error(error)
-        assert isinstance(response, func.HttpResponse)
-        assert response.status_code == 422
-        assert response.get_body().decode() == '{"type":"ValidationError","message":"Validation Error."}'
+    def test_validation_error_response():
+        try:
+            raise ValidationError()
+        except Exception as error:
+            response = detect_error(error)
+            assert isinstance(response, func.HttpResponse)
+            assert response.status_code == 422
+            assert response.get_body().decode() == '{"type":"ValidationError","message":"Validation Error."}'
 
-# Test detect_error for Pydantic ValidationError
-def test_detect_error_pydantic_validation_error():
-    try:
-        ExampleModel(name="Test").model_dump()
-    except Exception as error:
-        response = detect_error(error)
-        assert isinstance(response, func.HttpResponse)
-        assert response.status_code == 422
-        assert '"type":"ValidationError"' in response.get_body().decode()
+    def test_pydantic_validation_error_response():
+        try:
+            ExampleModel(name="Test").model_dump()
+        except Exception as error:
+            response = detect_error(error)
+            assert isinstance(response, func.HttpResponse)
+            assert response.status_code == 422
+            assert '"type":"ValidationError"' in response.get_body().decode()
 
-# Test detect_error for unknown error
-def test_detect_error_unknown_error():
-    try:
-        raise Exception()
-    except Exception as error:
-        response = detect_error(error)
-        assert isinstance(response, func.HttpResponse)
-        assert response.status_code == 500
-        assert response.get_body().decode() == '{"type":"UnknownError","message":"Unknown Error."}'
+    def test_generic_exception_response():
+        try:
+            raise Exception()
+        except Exception as error:
+            response = detect_error(error)
+            assert isinstance(response, func.HttpResponse)
+            assert response.status_code == 500
+            assert response.get_body().decode() == '{"type":"UnknownError","message":"Unknown Error."}'

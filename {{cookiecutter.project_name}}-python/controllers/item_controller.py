@@ -2,7 +2,6 @@ from typing import List
 import azure.functions as func
 from services import ItemService
 from models import ItemResponse, Item
-from errors import NotFoundError
 
 class ItemController:
     def __init__(self, service: ItemService):
@@ -10,10 +9,7 @@ class ItemController:
 
     def get_by_id(self, req: func.HttpRequest) -> ItemResponse:
         item_id: str = req.route_params.get('item_id')
-        item = self.service.get_by_id(item_id)
-        if item:
-            return item
-        raise NotFoundError()
+        return self.service.get_by_id(item_id)
 
     def get_list(self) -> List[ItemResponse]:
         return self.service.get_list()
@@ -33,7 +29,3 @@ class ItemController:
     def soft_delete(self, req: func.HttpRequest):
         item_id = req.route_params.get('item_id')
         self.service.soft_delete(item_id)
-        # if success:
-        #     return func.HttpResponse(status_code=204)
-        # else:
-        #     return func.HttpResponse(status_code=404)

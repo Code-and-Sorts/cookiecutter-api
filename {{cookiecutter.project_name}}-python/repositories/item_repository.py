@@ -1,5 +1,5 @@
 from azure.cosmos import CosmosClient
-from azure.cosmos.errors import CosmosAccessConditionFailedError
+from azure.cosmos.exceptions import CosmosAccessConditionFailedError
 from typing import List, Optional
 from models import Item, ItemResponse, BaseItem
 from errors import ProxyError, NotFoundError
