@@ -1,17 +1,21 @@
 [tool.poetry]
-name = "api"
+name = "{{ cookiecutter.project_name }}"
 version = "0.1.0"
-description = ""
-authors = ["Colby Timm <timmcolby@gmail.com>"]
+description = "{{ cookiecutter.project_description }}"
+authors = ["{{ cookiecutter.author }}"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 azure-cosmos = "^4.7.0"
+{%- endif %}
 pytest-mock = "^3.14.0"
 
 [tool.poetry.group.dev.dependencies]
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 azure-functions = "1.20.0"
+{%- endif %}
 pytest = "^8.3.2"
 pytest-cov = "^5.0.0"
 pydantic = "^2.8.2"
