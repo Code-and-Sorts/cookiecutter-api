@@ -20,7 +20,7 @@ controller = {{ cookiecutter.project_class_name }}Controller(service)
 
 @bp.route(route="{{ cookiecutter.project_endpoint }}/{item_id}", methods=[func.HttpMethod.GET])
 async def get_by_id(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Get item by ID processed a request.")
+    logging.info("Get {{ cookiecutter.project_endpoint }} by ID processed a request.")
 
     try:
         item = controller.get_by_id(req)

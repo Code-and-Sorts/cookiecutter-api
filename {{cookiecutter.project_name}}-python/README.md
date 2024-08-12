@@ -87,19 +87,9 @@ make test
 
 ## License
 
-This project is licensed under the 
-{% if cookiecutter.open_source_license == 'MIT license' -%}
-MIT License
-{% elif cookiecutter.open_source_license == 'BSD license' %}
-BSD License
-{% elif cookiecutter.open_source_license == 'ISC license' -%}
-ISC License
-{% elif cookiecutter.open_source_license == 'Apache Software License 2.0' -%}
-Apache Software License 2.0
-{% elif cookiecutter.open_source_license == 'GNU General Public License v3' -%}
-GNU General Public License v3
-{% endif %}
-. See the LICENSE file for details.
+This project is licensed under the {% if cookiecutter.open_source_license == 'MIT license' -%}MIT License{% elif cookiecutter.open_source_license == 'BSD license' %}
+BSD License{% elif cookiecutter.open_source_license == 'ISC license' -%}ISC License{% elif cookiecutter.open_source_license == 'Apache Software License 2.0' -%}Apache Software License 2.0{% elif cookiecutter.open_source_license == 'GNU General Public License v3' -%}GNU General Public License v3
+{% endif %}. See the LICENSE file for details.
 
 ---
 
