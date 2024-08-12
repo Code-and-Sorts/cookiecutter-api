@@ -1,3 +1,4 @@
-from .item import Item, BaseItem, ItemResponse
+from .{{cookiecutter.project_slug}} import {{ cookiecutter.project_class_name }}, Base{{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response
 
-__all__ = ["Item","BaseItem","ItemResponse"]
+__all__ = ["{{ cookiecutter.project_class_name }}","Base{{ cookiecutter.project_class_name }}","{{ cookiecutter.project_class_name }}Response"]
+Item

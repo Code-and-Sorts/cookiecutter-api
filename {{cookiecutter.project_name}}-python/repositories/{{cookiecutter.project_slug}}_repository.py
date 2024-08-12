@@ -1,8 +1,8 @@
 from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError
 from typing import List, Optional
-from models import Item, ItemResponse, BaseItem
-from errors import ProxyError, NotFoundError
+from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response, Base{{ cookiecutter.project_class_name }}
+from errors import NotFoundError
 
 class Database:
     def __init__(
@@ -17,13 +17,13 @@ class Database:
             self.name = name
             self.container_name = container_name
 
-class ItemRepository:
+class {{ cookiecutter.project_class_name }}Repository:
     def __init__(self, database: Database):
         self.client = CosmosClient(database._endpoint, database._key)
         self.database_client = self.client.get_database_client(database.name)
         self.container_client = self.database_client.get_container_client(database.container_name)
 
-    def get_by_id(self, item_id: str) -> Optional[ItemResponse]:
+    def get_by_id(self, item_id: str) -> Optional[{{ cookiecutter.project_class_name }}Response]:
         query = "SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false"
         parameters = [
             { "name": "@id", "value": item_id }
@@ -34,25 +34,25 @@ class ItemRepository:
             enable_cross_partition_query=True
         )
         for item in items:
-            return ItemResponse.model_validate(item)
+            return {{ cookiecutter.project_class_name }}Response.model_validate(item)
 
         raise NotFoundError()
 
-    def get_list(self) -> List[ItemResponse | None]:
+    def get_list(self) -> List[{{ cookiecutter.project_class_name }}Response | None]:
         query = "SELECT * FROM c WHERE c.isDeleted = false"
         items = self.container_client.query_items(query, enable_cross_partition_query=True)
 
         if items:
-            return [ItemResponse.model_validate(item) for item in items]
+            return [{{ cookiecutter.project_class_name }}Response.model_validate(item) for item in items]
         return []
 
-    def create(self, item: Item) -> ItemResponse:
+    def create(self, item: {{ cookiecutter.project_class_name }}) -> {{ cookiecutter.project_class_name }}Response:
         item_dict = item.model_dump(exclude_none=True)
         created_item = self.container_client.create_item(item_dict)
 
-        return ItemResponse.model_validate(created_item)
+        return {{ cookiecutter.project_class_name }}Response.model_validate(created_item)
 
-    def update(self, item: BaseItem) -> Optional[ItemResponse]:
+    def update(self, item: Base{{ cookiecutter.project_class_name }}) -> Optional[{{ cookiecutter.project_class_name }}Response]:
         new_item_dict = item.model_dump(exclude_none=True)
         previous_item = self.get_by_id(item.id)
         previous_item_dict = previous_item.model_dump(exclude_none=True)
@@ -61,7 +61,7 @@ class ItemRepository:
         patched_item = {**previous_item_dict,**new_item_dict}
         updated_item = self.container_client.upsert_item(patched_item)
 
-        return ItemResponse.model_validate(updated_item)
+        return {{ cookiecutter.project_class_name }}Response.model_validate(updated_item)
 
     def delete(self, item_id: str):
         filter = "from c WHERE c.isDeleted = false"

@@ -1,9 +1,9 @@
 import os
 import logging
 import azure.functions as func
-from controllers import ItemController
-from services import ItemService
-from repositories import ItemRepository, Database
+from controllers import {{ cookiecutter.project_class_name }}Controller
+from services import {{ cookiecutter.project_class_name }}Service
+from repositories import {{ cookiecutter.project_class_name }}Repository, Database
 from utils import detect_error, response_generator
 
 bp = func.Blueprint()
@@ -14,11 +14,11 @@ database = Database(
     name=os.getenv("Cosmos_Db_Database_Name"),
     container_name=os.getenv("Cosmos_Db_Container_Name")
 )
-repository = ItemRepository(database)
-service = ItemService(repository)
-controller = ItemController(service)
+repository = {{ cookiecutter.project_class_name }}Repository(database)
+service = {{ cookiecutter.project_class_name }}Service(repository)
+controller = {{ cookiecutter.project_class_name }}Controller(service)
 
-@bp.route(route="items/{item_id}", methods=[func.HttpMethod.GET])
+@bp.route(route="{{ cookiecutter.project_endpoint }}/{item_id}", methods=[func.HttpMethod.GET])
 async def get_by_id(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Get item by ID processed a request.")
 
@@ -29,9 +29,9 @@ async def get_by_id(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as error:
         return detect_error(error)
 
-@bp.route(route="items", methods=[func.HttpMethod.GET])
+@bp.route(route="{{ cookiecutter.project_endpoint }}", methods=[func.HttpMethod.GET])
 async def get_list(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Get items list processed a request.")
+    logging.info("Get {{ cookiecutter.project_endpoint }} list processed a request.")
 
     try:
         items = controller.get_list()
@@ -41,7 +41,7 @@ async def get_list(req: func.HttpRequest) -> func.HttpResponse:
         print(str(error))
         return detect_error(error)
 
-@bp.route(route="items", methods=[func.HttpMethod.POST])
+@bp.route(route="{{ cookiecutter.project_endpoint }}", methods=[func.HttpMethod.POST])
 async def create(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Create item processed a request.")
 
@@ -52,7 +52,7 @@ async def create(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as error:
         return detect_error(error)
 
-@bp.route(route="items/{item_id}", methods=[func.HttpMethod.PATCH])
+@bp.route(route="{{ cookiecutter.project_endpoint }}/{item_id}", methods=[func.HttpMethod.PATCH])
 async def update(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Patch item processed a request.")
 
@@ -63,14 +63,14 @@ async def update(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as error:
         return detect_error(error)
 
-@bp.route(route="items/{item_id}", methods=[func.HttpMethod.DELETE])
+@bp.route(route="{{ cookiecutter.project_endpoint }}/{item_id}", methods=[func.HttpMethod.DELETE])
 async def delete(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Delete item processed a request.")
 
     try:
         controller.soft_delete(req)
         return func.HttpResponse(
-            body="Item deleted.",
+            body="{{ cookiecutter.project_class_name }} deleted.",
             status_code=200
         )
 

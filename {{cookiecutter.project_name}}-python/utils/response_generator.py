@@ -1,8 +1,8 @@
 import json
 from azure.functions import HttpResponse
-from models import ItemResponse
+from models import {{ cookiecutter.project_class_name }}Response
 
-def response_generator(items: ItemResponse | list, status_code: int = 200) -> HttpResponse:
+def response_generator(items: {{ cookiecutter.project_class_name }}Response | list, status_code: int = 200) -> HttpResponse:
     if isinstance(items, list):
         if not items:
             return HttpResponse(

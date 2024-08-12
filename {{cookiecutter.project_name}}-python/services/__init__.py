@@ -1,3 +1,3 @@
-from .item_service import ItemService
+from .{{cookiecutter.project_slug}}_service import {{ cookiecutter.project_class_name }}Service
 
-__all__ = ["ItemService"]
+__all__ = ["{{ cookiecutter.project_class_name }}Service"]

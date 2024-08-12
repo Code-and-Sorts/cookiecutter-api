@@ -6,7 +6,7 @@ authors = ["{{ cookiecutter.author }}"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "3.11.9"
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 azure-cosmos = "^4.7.0"
 {%- endif %}
