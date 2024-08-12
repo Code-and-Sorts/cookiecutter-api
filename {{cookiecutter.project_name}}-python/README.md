@@ -21,6 +21,8 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - Poetry for Dependency Management: Manages all Python dependencies with Poetry, making the development environment consistent and easy to set up.
 
+- Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
+
 ## Prerequisites
 
 - Python 3.11
