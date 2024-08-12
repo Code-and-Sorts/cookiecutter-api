@@ -48,18 +48,6 @@ cookiecutter gh:Code-and-Sorts/cookiecutter-api
 cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git
 ```
 
-Run the following to install the environment:
-
-```console
-make install
-```
-
-To run the newly created project, run:
-
-```console
-make run
-```
-
 ## Acknowledgements
 
 Florian Maas' [cookiecutter-poetry](https://github.com/fpgmaas/cookiecutter-poetry) repository was a very helpful resource for building out this Cookiecutter template. 
