@@ -57,5 +57,7 @@ runs:
 
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-      run: poetry install --no-interaction
+      run: |
+        cd "Test Project-python"
+        poetry install --no-interaction
       shell: bash
