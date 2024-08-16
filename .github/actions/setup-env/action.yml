@@ -10,9 +10,6 @@ inputs:
 runs:
   using: "composite"
 
-  env:
-    POETRY_VERSION_VAR: "1.8.3"
-
   steps:
     - name: Set up python
       uses: actions/setup-python@v5
@@ -21,7 +18,7 @@ runs:
 
     - name: Install Poetry
       env:
-        POETRY_VERSION: ${{ env.GLOBAL_VAR }}
+        POETRY_VERSION: "1.8.3"
       run: curl -sSL https://install.python-poetry.org | python - -y
       shell: bash
 
@@ -44,6 +41,7 @@ runs:
       run: |
         source .venv/bin/activate
         pip install cookiecutter
+      shell: bash
     
     - name: Create Cookiecutter Template
       run: cookiecutter .
