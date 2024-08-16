@@ -38,9 +38,7 @@ runs:
         key: venv-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
     - name: Install Cookiecutter
-      run: |
-        source .venv/bin/activate
-        pip install cookiecutter
+      run: pip install cookiecutter
       shell: bash
     
     - name: Create Cookiecutter Template
