@@ -87,6 +87,22 @@ Ensure your code is working as expected by running unit tests using pytest:
 make test
 ```
 
+## Repository structure
+
+```text
+├── cookiecutter-template-python
+│   ├── .thunderclient     - Thunderclient collection
+│   ├── blueprints         - Function App methods
+│   ├── controllers        - Controllers
+│   ├── errors             - Custom errors
+│   ├── models             - Pydantic models
+│   ├── repositories       - Cosmos DB repository
+│   ├── services           - Services
+│   └── utils              - Error detect & response generator utilities
+│
+└── function_app.py        - Function App entry method
+```
+
 ## License
 
 This project is licensed under the {% if cookiecutter.open_source_license == 'MIT license' -%}MIT License{% elif cookiecutter.open_source_license == 'BSD license' %}
