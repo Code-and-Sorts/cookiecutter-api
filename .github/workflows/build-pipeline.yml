@@ -23,12 +23,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-
-      - name: 
       
       - name: Set up the environment
         uses: ./.github/actions/setup-poetry-env
         with:
           python-version: ${{ matrix.python-version }}
-
-
