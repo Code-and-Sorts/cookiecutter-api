@@ -1,5 +1,7 @@
 # Cookiecutter API
 
+[![.github/workflows/build-pipeline.yml](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml/badge.svg?branch=main)](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml)
+
 This is a modern Cookiecutter template to create REST APIs for multiple cloud platforms in multiple languages. This template currently supports the following cloud platforms and languages:
 
 - [x] Azure Function Apps
