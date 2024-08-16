@@ -42,7 +42,17 @@ runs:
       shell: bash
     
     - name: Create Cookiecutter Template
-      run: cookiecutter .
+      run: |
+        cookiecutter . --no-input \
+          project_name = "Test Project" \
+          project_description = "Test project description" \
+          project_slug = "test_project" \
+          project_endpoint = "test-project" \
+          project_class_name = "TestProject" \
+          author = "Colby Timm" \
+          cloud_service = "Azure Function App" \
+          language = "Python" \
+          open_source_license = "MIT license"
       shell: bash
 
     - name: Install dependencies
