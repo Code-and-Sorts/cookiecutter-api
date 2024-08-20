@@ -31,5 +31,5 @@ jobs:
 
       - name: Run unit tests
         run: |
-          cd "Test Project-python"
+          cd "Kitten-Claws-python"
           make test
