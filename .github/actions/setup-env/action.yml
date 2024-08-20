@@ -58,6 +58,6 @@ runs:
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
-        cd "Test Project-python"
+        cd "Kitten-Claws-python"
         poetry install --no-interaction
       shell: bash
