@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from azure.functions import HttpRequest
-from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}IdValidation
+from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}IdValidation
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
 from unittest.mock import patch
@@ -21,7 +21,7 @@ def describe_item_controller():
             mock_request = MagicMock(spec=HttpRequest)
             mock_request.route_params = {'item_id': 'ac1df01c-7ece-4a20-ab60-179829dad8f5'}
 
-            expected_response = {{ cookiecutter.project_class_name }}Response(id="ac1df01c-7ece-4a20-ab60-179829dad8f5", name="mockItem", type="mockType")
+            expected_response = {{ cookiecutter.project_class_name }}Response(id="ac1df01c-7ece-4a20-ab60-179829dad8f5", name="mock{{ cookiecutter.project_class_name }}", type="mockType")
             mock_service.get_by_id.return_value = expected_response
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:

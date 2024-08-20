@@ -12,6 +12,7 @@ python = ">=3.9,<3.12"
 azure-cosmos = "^4.7.0"
 {%- endif %}
 pytest-mock = "^3.14.0"
+pytest-describe = "^2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}

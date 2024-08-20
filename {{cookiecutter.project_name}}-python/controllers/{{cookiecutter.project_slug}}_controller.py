@@ -1,7 +1,7 @@
 from typing import List
 import azure.functions as func
 from services import {{ cookiecutter.project_class_name }}Service
-from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}
+from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}IdValidation
 
 class {{ cookiecutter.project_class_name }}Controller:
     def __init__(self, service: {{ cookiecutter.project_class_name }}Service):
@@ -9,6 +9,7 @@ class {{ cookiecutter.project_class_name }}Controller:
 
     def get_by_id(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = req.route_params.get('item_id')
+        {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
         return self.service.get_by_id(item_id)
 
     def get_list(self) -> List[{{ cookiecutter.project_class_name }}Response]:
