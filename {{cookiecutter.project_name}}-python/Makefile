@@ -20,9 +20,9 @@ clean-build: ## Clean build artifacts
 	@rm -rf dist
 
 .PHONY: test
-test: ## Test the code with pytest.
-	@echo "🧪 Testing code: Running pytest"
-	@poetry run pytest --cov --cov-config=pyproject.toml --cov-report=xml tests
+test: ## Test the code with pytest unit tests.
+	@echo "🧪 Testing code: Running pytest unit tests"
+	@poetry run pytest --cov
 
 .PHONY: help
 help:

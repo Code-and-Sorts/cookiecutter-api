@@ -44,12 +44,12 @@ runs:
     - name: Create Cookiecutter Template
       run: |
         cookiecutter . --no-input \
-          project_name="Test Project" \
-          project_description="Test project description" \
-          project_slug="test_project" \
-          project_endpoint="test-project" \
-          project_class_name="TestProject" \
-          author="Colby Timm" \
+          project_name="Kitten-Claws" \
+          project_description="Kitties got claws...beware" \
+          project_slug="kitty_cats" \
+          project_endpoint="kitties" \
+          project_class_name="Meow" \
+          author="Sir Meowsalots" \
           cloud_service="Azure Function App" \
           language="Python" \
           open_source_license="MIT license"
