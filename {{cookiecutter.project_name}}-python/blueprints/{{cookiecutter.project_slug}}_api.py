@@ -1,6 +1,7 @@
 import os
 import logging
 import azure.functions as func
+from azure.cosmos import CosmosClient
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
 from repositories import {{ cookiecutter.project_class_name }}Repository, Database
@@ -14,7 +15,10 @@ database = Database(
     name=os.getenv("Cosmos_Db_Database_Name"),
     container_name=os.getenv("Cosmos_Db_Container_Name")
 )
-repository = {{ cookiecutter.project_class_name }}Repository(database)
+client = CosmosClient(database._endpoint, database._key)
+database_client = client.get_database_client(database.name)
+container_client = database_client.get_container_client(database.container_name)
+repository = {{ cookiecutter.project_class_name }}Repository(container_client)
 service = {{ cookiecutter.project_class_name }}Service(repository)
 controller = {{ cookiecutter.project_class_name }}Controller(service)
 
@@ -38,7 +42,6 @@ async def get_list(req: func.HttpRequest) -> func.HttpResponse:
         return response_generator(items)
 
     except Exception as error:
-        print(str(error))
         return detect_error(error)
 
 @bp.route(route="{{ cookiecutter.project_endpoint }}", methods=[func.HttpMethod.POST])

@@ -1,7 +1,7 @@
-from azure.cosmos import CosmosClient, ContainerProxy
+from azure.cosmos import ContainerProxy
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError
 from typing import List, Optional
-from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response, Base{{ cookiecutter.project_class_name }}
+from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response
 from errors import NotFoundError
 
 class Database:

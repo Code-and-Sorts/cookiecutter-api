@@ -8,6 +8,10 @@
         {
             "name": "itemId",
             "value": ""
+        },
+        {
+            "name": "baseUrl",
+            "value": "http://localhost:7071"
         }
     ],
     "ref": "nW-55ooxl117SeBjI11ySYJwUP4IXtpUAhEiaQcH23Xw-me2NnVtfHEfBCVxY_Qb"
