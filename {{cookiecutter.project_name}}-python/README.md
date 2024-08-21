@@ -25,13 +25,13 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 ## Prerequisites
 
-- Python 3.11
+- Python >=3.7, <=3.11
 
-- [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools)
+- [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 
-- Azure CLI: To deploy and manage Azure Function Apps.
+- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/): To deploy and manage Azure Function Apps.
 
-- Poetry: For dependency management and virtual environment setup.
+- [Poetry](https://python-poetry.org/): For dependency management and virtual environment setup.
 
 - Azure Account: An active Azure subscription for deploying the Function App.
 
@@ -39,11 +39,15 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 ## Setup and Installation
 
-1. Install Poetry
+1. Install Azure Functions Core Tools
+
+    Follow the [documentation](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=windows%2Cisolated-process%2Cnode-v4%2Cpython-v2%2Chttp-trigger%2Ccontainer-apps&pivots=programming-language-python#install-the-azure-functions-core-tools) to install Azure Function Core Tools based on your operating system.
+
+2. Install Poetry
 
     If you haven't already installed Poetry, you can do so by following the [official installation guide](https://python-poetry.org/docs/).
 
-2. Install Dependencies
+3. Install Dependencies
 
     Install all dependencies and set up the virtual environment:
 
@@ -53,15 +57,15 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
     To be able to run the project locally, set the environment variable values in the local.settings.json project file.
 
-3. Run the API Locally
+4. Run the API Locally
 
     ```console
     make run
     ```
 
-    This command starts the local development server, where you can interact with your API endpoints.
+    This command starts the local development server using the Azure Function Core Tools, where you can interact with your API endpoints.
 
-4. Thunderclient
+5. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 

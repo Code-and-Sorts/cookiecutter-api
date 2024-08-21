@@ -18,10 +18,6 @@ class Database:
             self.container_name = container_name
 
 class {{ cookiecutter.project_class_name }}Repository:
-    # def __init__(self, database: Database):
-    #     self.client = CosmosClient(database._endpoint, database._key)
-    #     self.database_client = self.client.get_database_client(database.name)
-    #     self.container_client = self.database_client.get_container_client(database.container_name)
     def __init__(self, container_client: ContainerProxy):
         self.container_client = container_client
 
