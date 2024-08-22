@@ -8,8 +8,8 @@
   </tr>
 </table>
 
-[![.github/workflows/build-pipeline.yml](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml/badge.svg?branch=main)](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml)
-[![License](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api)](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-pipeline.yml?branch=main&label=Build&style=for-the-badge)
+![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge)
 
 This is a modern 🍪 Cookiecutter template to create REST APIs for multiple cloud platforms in multiple languages. This template supports the multiple cloud platforms and languages.
 
