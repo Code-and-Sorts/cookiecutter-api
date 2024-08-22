@@ -1,12 +1,15 @@
 <img src="./.docs/imgs/cookiecutter_api_header.jpg">
 
-<div style="display: flex; justify-content: center; align-items: center;">
-  <img src="./.docs/imgs/stars.gif" width="32">
-  <h1 style="margin: 0 10px;">Cookiecutter API</h1>
-  <img src="./.docs/imgs/stars.gif" width="32">
-</div>
+<table style="display: flex; justify-content: center; align-items: center;">
+  <tr>
+    <td><img src="./.docs/imgs/stars.gif" width="32"></td>
+    <td><h1>Cookiecutter API</h1></td>
+    <td><img src="./.docs/imgs/stars.gif" width="32"></td>
+  </tr>
+</table>
 
 [![.github/workflows/build-pipeline.yml](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml/badge.svg?branch=main)](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml)
+[![License](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api)](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api)
 
 This is a modern 🍪 Cookiecutter template to create REST APIs for multiple cloud platforms in multiple languages. This template supports the multiple cloud platforms and languages.
 
