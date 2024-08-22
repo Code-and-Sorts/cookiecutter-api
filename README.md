@@ -1,12 +1,8 @@
 <img src="./.docs/imgs/cookiecutter_api_header.jpg">
 
-<table style="display: flex; justify-content: center; align-items: center;">
-  <tr>
-    <td><img src="./.docs/imgs/stars.gif" width="32"></td>
-    <td><h1>Cookiecutter API</h1></td>
-    <td><img src="./.docs/imgs/stars.gif" width="32"></td>
-  </tr>
-</table>
+<img src="./.docs/imgs/stars.gif" width="32">
+<h1 align="center"> Cookiecutter API </h1>
+<img src="./.docs/imgs/stars.gif" width="32">
 
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-pipeline.yml?branch=main&label=Build&style=for-the-badge)
 ![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge)
