@@ -1,4 +1,10 @@
-# <img src="./.docs/imgs/stars.gif" width="32"> Cookiecutter API <img src="./.docs/imgs/stars.gif" width="32">
+<img src="./.docs/imgs/cookiecutter_api_header.jpg">
+
+<div style="display: flex; justify-content: center; align-items: center;">
+  <img src="./.docs/imgs/stars.gif" width="32">
+  <h1 style="margin: 0 10px;">Cookiecutter API</h1>
+  <img src="./.docs/imgs/stars.gif" width="32">
+</div>
 
 [![.github/workflows/build-pipeline.yml](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml/badge.svg?branch=main)](https://github.com/Code-and-Sorts/cookiecutter-api/actions/workflows/build-pipeline.yml)
 
