@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "{{ cookiecutter.project_name }}"
+version = "0.1.0"
+description = "{{ cookiecutter.project_description }}"
+authors = ["{{ cookiecutter.author }}"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+azure-cosmos = "^4.7.0"
+{%- endif %}
+pytest-mock = "^3.14.0"
+pytest-describe = "^2.2.0"
+
+[tool.poetry.group.dev.dependencies]
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+azure-functions = "1.20.0"
+{%- endif %}
+pytest = "^8.3.2"
+pytest-cov = "^5.0.0"
+pydantic = "^2.8.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
