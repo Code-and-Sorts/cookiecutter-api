@@ -1,10 +1,12 @@
 <img src="./.docs/imgs/cookiecutter_api_header.jpg">
 
-<p align="center">
-  <img src="./.docs/imgs/stars.gif" width="32">
-  <h1> Cookiecutter API </h1>
-  <img src="./.docs/imgs/stars.gif" width="32">
-</p>
+<div align="center">
+  <p>
+    <img src="./.docs/imgs/stars.gif" width="32">
+    <h1> Cookiecutter API </h1>
+    <img src="./.docs/imgs/stars.gif" width="32">
+  </p>
+</div>
 
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-pipeline.yml?branch=main&label=Build&style=for-the-badge)
 ![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge)
@@ -65,7 +67,8 @@ Follow the prompts and answer them with your own desired options.
     - <img src="./.docs/imgs/golang.svg" width="18"> Go
 
 ---
-Each project follows the controller-service-repository pattern.
+> [!NOTE]  
+> Each project follows the controller-service-repository pattern.
 
 ## 🎯 Examples
 
