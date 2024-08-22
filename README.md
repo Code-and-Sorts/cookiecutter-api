@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="./.docs/imgs/stars.gif" width="32" style="vertical-align: middle;">
-  <span style="font-size: 2em; margin: 0 10px; vertical-align: middle;">Cookiecutter API</span>
+  <strong style="font-size: 2em; vertical-align: middle;">Cookiecutter API</strong>
   <img src="./.docs/imgs/stars.gif" width="32" style="vertical-align: middle;">
 </div>
 
