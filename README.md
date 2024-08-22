@@ -1,11 +1,9 @@
 <img src="./.docs/imgs/cookiecutter_api_header.jpg">
 
 <div align="center">
-  <p>
-    <img src="./.docs/imgs/stars.gif" width="32">
-    <h1> Cookiecutter API </h1>
-    <img src="./.docs/imgs/stars.gif" width="32">
-  </p>
+  <img src="./.docs/imgs/stars.gif" width="32" style="vertical-align: middle;">
+  <span style="font-size: 2em; margin: 0 10px; vertical-align: middle;">Cookiecutter API</span>
+  <img src="./.docs/imgs/stars.gif" width="32" style="vertical-align: middle;">
 </div>
 
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-pipeline.yml?branch=main&label=Build&style=for-the-badge)
