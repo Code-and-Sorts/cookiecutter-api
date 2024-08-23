@@ -67,7 +67,7 @@ Follow the prompts and answer them with your own desired options.
 ## 🎯 Examples
 
 Python
-- Function App Example
+- [Function App Example](https://github.com/Code-and-Sorts/cookie-py-az-func-api)
 
 ## 📚 Resources
 
