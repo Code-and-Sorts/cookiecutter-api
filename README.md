@@ -32,6 +32,8 @@ cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git
 
 Follow the prompts and answer them with your own desired options.
 
+## 🌟 Supported Templates
+
 <table style="width:100%;">
   <tr>
     <th style="width:18px;" rowspan="2"></th>
