@@ -32,33 +32,43 @@ cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git
 
 Follow the prompts and answer them with your own desired options.
 
-## ✅ Implemented
-
-### <img src="./.docs/imgs/azure.svg" width="22"> Azure
-- <img src="./.docs/imgs/function-app.svg" width="18"> Azure Function Apps
-    - <img src="./.docs/imgs/python.svg" width="18"> Python
-
-## 📋 To-Do
-
-### <img src="./.docs/imgs/azure.svg" width="22"> Azure
-- <img src="./.docs/imgs/function-app.svg" width="18"> Azure Function Apps
-    - <img src="./.docs/imgs/dotnet.svg" width="18"> dotnet
-    - <img src="./.docs/imgs/typescript.svg" width="18"> NodeJS
-    - <img src="./.docs/imgs/golang.svg" width="18"> Go
-
-### <img src="./.docs/imgs/google-cloud.svg" width="22"> Google Cloud
-- <img src="./.docs/imgs/cloud-function.svg" width="18"> Cloud Functions
-    - <img src="./.docs/imgs/python.svg" width="18"> Python
-    - <img src="./.docs/imgs/dotnet.svg" width="18"> dotnet
-    - <img src="./.docs/imgs/typescript.svg" width="18"> NodeJS
-    - <img src="./.docs/imgs/golang.svg" width="18"> Go
-
-### <img src="./.docs/imgs/aws.svg" width="22"> AWS
-- <img src="./.docs/imgs/lambda.svg" width="18"> Lambda
-    - <img src="./.docs/imgs/python.svg" width="18"> Python
-    - <img src="./.docs/imgs/dotnet.svg" width="18"> dotnet
-    - <img src="./.docs/imgs/typescript.svg" width="18"> NodeJS
-    - <img src="./.docs/imgs/golang.svg" width="18"> Go
+<table style="width:100%;">
+  <tr>
+    <th style="width:18px;" rowspan="2"></th>
+    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
+    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
+    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"></td>
+    <td style="text-align:center;"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"></td>
+    <td style="text-align:center;"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/python.svg" width="18" title="Python"></td>
+    <td style="text-align:center;"><span title="Complete">✅</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
+    <td style="text-align:center;"><span title="Complete">✅</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
+    <td style="text-align:center;"><span title="Complete">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+</table>
 
 ---
 > [!NOTE]  
