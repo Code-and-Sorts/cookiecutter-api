@@ -1,4 +1,4 @@
-name: "setup-env"
+name: "setup-env-python"
 description: "Composite action to setup the Python and poetry environment."
 
 inputs:
@@ -40,7 +40,7 @@ runs:
     - name: Install Cookiecutter
       run: pip install cookiecutter
       shell: bash
-    
+
     - name: Create Cookiecutter Template
       run: |
         cookiecutter . --no-input \
@@ -48,7 +48,8 @@ runs:
           project_description="Kitties got claws...beware" \
           project_slug="kitty_cats" \
           project_endpoint="kitties" \
-          project_class_name="Meow" \
+          project_lower_camel_name="kittyCat" \
+          project_class_name="KittyCat" \
           author="Sir Meowsalots" \
           cloud_service="Azure Function App" \
           language="Python" \
@@ -61,3 +62,8 @@ runs:
         cd "Kitten-Claws-python"
         poetry install --no-interaction
       shell: bash
+
+    - name: Run unit tests
+        run: |
+          cd "Kitten-Claws-python"
+          make test

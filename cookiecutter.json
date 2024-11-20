@@ -3,13 +3,15 @@
     "project_description": "This is a template repository for API projects.",
     "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_') }}",
     "project_endpoint": "{{ cookiecutter.project_name.lower().replace(' ', '-') }}",
-    "project_class_name": "",
+    "project_lower_camel_name": "{{cookiecutter.project_name | to_lower_camel }}",
+    "project_class_name": "{{cookiecutter.project_name | to_camel }}",
     "author": "Code and Sorts (Colby Timm)",
     "cloud_service": [
         "Azure Function App"
     ],
     "language": [
-        "Python"
+        "Python",
+        "Typescript"
     ],
     "open_source_license": [
         "MIT license",
@@ -19,5 +21,8 @@
         "GNU General Public License v3",
         "Not open source"
     ],
-    "_local_settings": "local.settings"
+    "_local_settings": "local.settings",
+    "_extensions": [
+        "jinja2_strcase.StrcaseExtension"
+    ]
 }

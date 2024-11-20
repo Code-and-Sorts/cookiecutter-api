@@ -18,18 +18,24 @@ jobs:
           - ubuntu-latest
           - macos-latest
           - windows-latest
-        python-version: ["3.10","3.11"]
+        template-type:
+          - name: python
+            python-version: ["3.10", "3.11"]
+          - name: typescript
+            node-version: ["18"]
       fail-fast: false
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      
-      - name: Set up the environment
-        uses: ./.github/actions/setup-env
-        with:
-          python-version: ${{ matrix.python-version }}
 
-      - name: Run unit tests
-        run: |
-          cd "Kitten-Claws-python"
-          make test
+      - name: Set up Python environment
+        if: ${{ matrix.template-type.name == 'python' }}
+        uses: ./.github/actions/python-action
+        with:
+          python-version: ${{ matrix.template-type.python-version }}
+
+      - name: Set up NodeJS environment
+        if: ${{ matrix.template-type.name == 'typescript' }}
+        uses: ./.github/actions/typescript-action
+        with:
+          node-version: ${{ matrix.template-type.node-version }}

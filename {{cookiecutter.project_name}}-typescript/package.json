@@ -1,0 +1,33 @@
+{
+  "name": "{{cookiecutter.project_endpoint}}",
+  "version": "1.0.0",
+  "description": "{{cookiecutter.project_description}}",
+  "packageManager": "yarn@4.1.1",
+  "main": "dist/functions/*.js",
+  "scripts": {
+    "build": "rm -rf dist && tsc && tsc-alias",
+    "start": "func start --typescript",
+    "test:unit": "yarn jest --verbose --coverage"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.0.0",
+    "@azure/functions": "^4.6.0",
+    "dotenv": "^16.4.5",
+    "inversify": "^6.0.2",
+    "reflect-metadata": "^0.2.1",
+    "uuid": "^11.0.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.30",
+    "azure-functions-core-tools": "^4.x",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.0",
+    "ts-jest": "^29.1.2",
+    "tsc-alias": "^1.8.8",
+    "typescript": "^5.4.3"
+  },
+  "author": "{{cookiecutter.author}}",
+  "license": "ISC"
+}
