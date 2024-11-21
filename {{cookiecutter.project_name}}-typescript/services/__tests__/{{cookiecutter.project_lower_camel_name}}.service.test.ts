@@ -2,8 +2,8 @@ process.env.COSMOS_DB_URL = 'https://cosmos-mock.documents.azure.com:443/';
 process.env.COSMOS_DB_KEY = 'mock-cosmos-key';
 
 import { injectable } from 'inversify';
-import { {{cookiecutter.project_class_name}}Service } from '@service';
-import { {{cookiecutter.project_class_name}}Repository } from '@repository';
+import { {{cookiecutter.project_class_name}}Service } from '@services';
+import { {{cookiecutter.project_class_name}}Repository } from '@repositories';
 import { {{cookiecutter.project_class_name}}EntitySchema } from '@models';
 
 let mockResult;

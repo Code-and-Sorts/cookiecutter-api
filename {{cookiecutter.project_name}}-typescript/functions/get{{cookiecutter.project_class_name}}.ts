@@ -1,5 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { {{cookiecutter.project_class_name}}Controller } from '@controller';
+import { {{cookiecutter.project_class_name}}Controller } from '@controllers';
 import { container } from '@config/inversity.config';
 import { detectError } from '@utils';
 

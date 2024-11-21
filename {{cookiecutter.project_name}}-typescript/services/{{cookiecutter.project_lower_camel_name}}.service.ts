@@ -1,5 +1,5 @@
 import { inject, injectable } from 'inversify';
-import { {{cookiecutter.project_class_name}}Repository } from '@repository';
+import { {{cookiecutter.project_class_name}}Repository } from '@repositories';
 import {
   {{cookiecutter.project_class_name}},
   {{cookiecutter.project_class_name}}Response,

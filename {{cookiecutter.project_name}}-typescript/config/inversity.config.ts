@@ -1,9 +1,9 @@
 import "reflect-metadata";
 import { Container } from 'inversify';
 import { CosmosClient } from '@azure/cosmos';
-import { {{cookiecutter.project_class_name}}Repository } from '@repository';
-import { {{cookiecutter.project_class_name}}Controller } from '@controller';
-import { {{cookiecutter.project_class_name}}Service, SchemaValidator } from '@service';
+import { {{cookiecutter.project_class_name}}Repository } from '@repositories';
+import { {{cookiecutter.project_class_name}}Controller } from '@controllers';
+import { {{cookiecutter.project_class_name}}Service, SchemaValidator } from '@services';
 import { env } from '@models';
 
 const client = new CosmosClient({

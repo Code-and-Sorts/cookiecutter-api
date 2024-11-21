@@ -1,14 +1,14 @@
 process.env.COSMOS_DB_URL = 'https://cosmos-mock.documents.azure.com:443/';
 process.env.COSMOS_DB_KEY = 'mock-cosmos-key';
 
-import { {{cookiecutter.project_class_name}}Controller } from '@controller';
-import { {{cookiecutter.project_class_name}}Service } from '@service';
+import { {{cookiecutter.project_class_name}}Controller } from '@controllers';
+import { {{cookiecutter.project_class_name}}Service } from '@services';
 import {
     {{cookiecutter.project_class_name}}RequestSchema,
     {{cookiecutter.project_class_name}}UpdateSchema,
     GuidSchema,
 } from '@models';
-import { SchemaValidator } from '@service';
+import { SchemaValidator } from '@services';
 import { ValidationError } from '@errors';
 import { injectable } from 'inversify';
 

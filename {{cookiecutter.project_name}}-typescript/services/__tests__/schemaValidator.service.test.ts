@@ -3,7 +3,7 @@ process.env.COSMOS_DB_KEY = 'mock-cosmos-key';
 
 import { ValidationError } from '@errors';
 import { BaseSchema, GuidSchema } from '@models';
-import { SchemaValidator } from '@service';
+import { SchemaValidator } from '@services';
 
 describe('SchemaValidator', () => {
     process.env.COSMOS_DB_URL = 'mockCosmosDbUrl';

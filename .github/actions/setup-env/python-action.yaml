@@ -4,7 +4,7 @@ description: "Composite action to setup the Python and poetry environment."
 inputs:
   python-version:
     required: false
-    description: "The python version to use"
+    description: "The Python version to use"
     default: "3.11"
 
 runs:
@@ -37,25 +37,6 @@ runs:
         path: .venv
         key: venv-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
-    - name: Install Cookiecutter
-      run: pip install cookiecutter
-      shell: bash
-
-    - name: Create Cookiecutter Template
-      run: |
-        cookiecutter . --no-input \
-          project_name="Kitten-Claws" \
-          project_description="Kitties got claws...beware" \
-          project_slug="kitty_cats" \
-          project_endpoint="kitties" \
-          project_lower_camel_name="kittyCat" \
-          project_class_name="KittyCat" \
-          author="Sir Meowsalots" \
-          cloud_service="Azure Function App" \
-          language="Python" \
-          open_source_license="MIT license"
-      shell: bash
-
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
@@ -66,4 +47,4 @@ runs:
     - name: Run unit tests
         run: |
           cd "Kitten-Claws-python"
-          make test
+          make test-unit

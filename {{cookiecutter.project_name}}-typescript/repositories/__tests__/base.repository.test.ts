@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { BaseRepository } from '@repository';
+import { BaseRepository } from '@repositories';
 import { Container } from '@azure/cosmos';
 import { NotFoundError, ProxyError } from '@errors';
 

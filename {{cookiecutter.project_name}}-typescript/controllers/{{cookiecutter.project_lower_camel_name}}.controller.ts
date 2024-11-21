@@ -1,6 +1,6 @@
 import { inject, injectable } from 'inversify';
 import 'reflect-metadata';
-import { {{cookiecutter.project_class_name}}Service } from '@service';
+import { {{cookiecutter.project_class_name}}Service } from '@services';
 import {
   {{cookiecutter.project_class_name}},
   {{cookiecutter.project_class_name}}RequestSchema,
@@ -9,7 +9,7 @@ import {
   GuidSchema,
 } from '@models';
 import { ValidationError } from '@errors';
-import { SchemaValidator } from '@service';
+import { SchemaValidator } from '@services';
 
 @injectable()
 export class {{cookiecutter.project_class_name}}Controller {

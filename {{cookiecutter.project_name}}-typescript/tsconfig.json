@@ -12,14 +12,14 @@
       "@config/*": [
         "config/*"
       ],
-      "@controller": [
-        "controller/index"
+      "@controllers": [
+        "controllers/index"
       ],
-      "@service": [
-        "service/index"
+      "@services": [
+        "services/index"
       ],
-      "@repository": [
-        "repository/index"
+      "@repositories": [
+        "repositories/index"
       ],
       "@models": [
         "types/models/index"

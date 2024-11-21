@@ -88,7 +88,7 @@ poetry remove <package-name>
 Ensure your code is working as expected by running unit tests using pytest:
 
 ```bash
-make test
+make test-unit
 ```
 
 ## Repository structure
