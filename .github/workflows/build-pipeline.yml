@@ -32,8 +32,8 @@ jobs:
       - name: Setup Cookiecutter Template
         uses: ./.github/actions/setup-cookiecutter-template
         with:
-          template-language: ${{ matrix.template-type.name }}
-          template-cloud-service: ${{ matrix.template-type.cloud-service }}
+          template-language: "${{ matrix.template-type.name }}"
+          template-cloud-service: "${{ matrix.template-type.cloud-service }}"
 
       - name: Set up Python environment
         if: ${{ matrix.template-type.name == 'Python' }}
