@@ -41,8 +41,8 @@ jobs:
       #   with:
       #     python-version: ${{ matrix.template-type.python-version }}
 
-      # - name: Set up NodeJS environment
-      #   if: ${{ matrix.template-type.name == 'Typescript' }}
-      #   uses: ./.github/actions/setup-typescript
-      #   with:
-      #     node-version: ${{ matrix.template-type.node-version }}
+      - name: Set up Typescript environment
+        if: ${{ matrix.template-type.name == 'Typescript' }}
+        uses: ./.github/actions/setup-typescript
+        with:
+          node-version: ${{ matrix.template-type.node-version }}
