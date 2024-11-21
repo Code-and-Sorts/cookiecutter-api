@@ -1,4 +1,4 @@
-name: "setup-cookiecutter"
+name: "setup-cookiecutter-template"
 description: "Composite action to setup the Cookiecutter template."
 
 inputs:

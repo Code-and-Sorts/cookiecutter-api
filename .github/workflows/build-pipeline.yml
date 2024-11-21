@@ -31,19 +31,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Cookiecutter Template
-        uses: ./.github/actions/setup-env/cookiecutter-action
+        uses: ./.github/actions/setup-cookiecutter-template
         with:
           template-language: ${{ matrix.template-type.name }}
           template-cloud-service: ${{ matrix.template-type.cloud-service }}
 
       - name: Set up Python environment
         if: ${{ matrix.template-type.name == 'Python' }}
-        uses: ./.github/actions/setup-env/python-action
+        uses: ./.github/actions/setup-python
         with:
           python-version: ${{ matrix.template-type.python-version }}
 
       - name: Set up NodeJS environment
         if: ${{ matrix.template-type.name == 'Typescript' }}
-        uses: ./.github/actions/setup-env/typescript-action
+        uses: ./.github/actions/setup-typescript
         with:
           node-version: ${{ matrix.template-type.node-version }}

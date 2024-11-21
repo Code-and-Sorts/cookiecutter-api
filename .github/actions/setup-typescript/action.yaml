@@ -1,4 +1,4 @@
-name: "setup-env-nodejs"
+name: "setup-typescript"
 description: "Composite action to setup the NodeJS and yarn environment."
 
 inputs:

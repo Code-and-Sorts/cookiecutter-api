@@ -1,5 +1,5 @@
-name: "setup-env-python"
-description: "Composite action to setup the Python and poetry environment."
+name: "setup-python"
+description: "Composite action to setup the Python and Poetry environment."
 
 inputs:
   python-version:
