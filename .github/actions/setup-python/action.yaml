@@ -45,6 +45,7 @@ runs:
       shell: bash
 
     - name: Run unit tests
-        run: |
-          cd "Kitten-Claws-python"
-          make test-unit
+      run: |
+        cd "Kitten-Claws-python"
+        make test-unit
+      shell: bash

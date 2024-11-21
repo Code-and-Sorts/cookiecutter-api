@@ -1,5 +1,4 @@
-# GitHub Build Pipeline
-name: Cookiecutter API Build
+name: Python Cookiecutter API Build
 
 on:
   push:

@@ -17,6 +17,7 @@ runs:
         node-version: ${{ inputs.node-version }}
 
     - run: corepack enable
+      shell: bash
 
     - name: Run install
       uses: borales/actions-yarn@v4
