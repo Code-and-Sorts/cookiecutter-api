@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build-python:
+  build-typescript:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -35,7 +35,33 @@ jobs:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
 
-      - name: Set up Typescript environment
-        uses: ./.github/actions/setup-typescript
+      # - name: Set up Typescript environment
+      #   uses: ./.github/actions/setup-typescript
+      #   with:
+      #     node-version: ${{ matrix.node-version }}
+
+      - name: Setup Node ${{ matrix.node-version }} Environment
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+
+      - run: corepack enable
+        shell: bash
+
+      - name: Run install
+        uses: borales/actions-yarn@v4
+        with:
+          cmd: install
+          dir: Kitten-Claws-typescript
+
+      - name: Run build
+        uses: borales/actions-yarn@v4
+        with:
+          cmd: build
+          dir: Kitten-Claws-typescript
+
+      - name: Unit tests
+        uses: borales/actions-yarn@v4
+        with:
+          cmd: test:unit
+          dir: Kitten-Claws-typescript
