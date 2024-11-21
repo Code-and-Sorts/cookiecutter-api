@@ -19,10 +19,10 @@ jobs:
           # - windows-latest
         template-type:
           - name: Python
-            cloud-service: ["Azure Function App"]
+            cloud-service: "Azure Function App"
             python-version: ["3.10", "3.11"]
           - name: Typescript
-            cloud-service: ["Azure Function App"]
+            cloud-service: "Azure Function App"
             node-version: ["18.x", "20.x"]
       fail-fast: false
     steps:
@@ -32,17 +32,17 @@ jobs:
       - name: Setup Cookiecutter Template
         uses: ./.github/actions/setup-cookiecutter-template
         with:
-          template-language: "${{ matrix.template-type.name }}"
-          template-cloud-service: "${{ matrix.template-type.cloud-service }}"
+          template-language: ${{ matrix.template-type.name }}
+          template-cloud-service: ${{ matrix.template-type.cloud-service }}
 
-      - name: Set up Python environment
-        if: ${{ matrix.template-type.name == 'Python' }}
-        uses: ./.github/actions/setup-python
-        with:
-          python-version: ${{ matrix.template-type.python-version }}
+      # - name: Set up Python environment
+      #   if: ${{ matrix.template-type.name == 'Python' }}
+      #   uses: ./.github/actions/setup-python
+      #   with:
+      #     python-version: ${{ matrix.template-type.python-version }}
 
-      - name: Set up NodeJS environment
-        if: ${{ matrix.template-type.name == 'Typescript' }}
-        uses: ./.github/actions/setup-typescript
-        with:
-          node-version: ${{ matrix.template-type.node-version }}
+      # - name: Set up NodeJS environment
+      #   if: ${{ matrix.template-type.name == 'Typescript' }}
+      #   uses: ./.github/actions/setup-typescript
+      #   with:
+      #     node-version: ${{ matrix.template-type.node-version }}
