@@ -23,7 +23,7 @@ runs:
       shell: bash
 
     - name: Install Cookiecutter Extensions
-      run: $ pip install jinja2-strcase
+      run: pip install jinja2-strcase
       shell: bash
 
     - name: Create Cookiecutter Template
