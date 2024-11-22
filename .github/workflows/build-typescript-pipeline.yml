@@ -80,16 +80,16 @@ jobs:
         uses: borales/actions-yarn@v4
         with:
           cmd: install
-          dir: Kitten-Claws-typescript
+          dir: ../Kitten-Claws-typescript
 
       - name: Run build
         uses: borales/actions-yarn@v4
         with:
           cmd: build
-          dir: Kitten-Claws-typescript
+          dir: ../Kitten-Claws-typescript
 
       - name: Unit tests
         uses: borales/actions-yarn@v4
         with:
           cmd: test:unit
-          dir: Kitten-Claws-typescript
+          dir: ../Kitten-Claws-typescript
