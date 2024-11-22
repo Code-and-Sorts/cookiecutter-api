@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { CosmosClient } from "@azure/cosmos";
-import { {{cookiecutter.project_class_name}}Repository } from "@repository";
+import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
 import { injectable } from "inversify";
 
 let mockResult;
