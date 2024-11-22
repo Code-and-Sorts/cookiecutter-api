@@ -53,8 +53,8 @@ jobs:
             project_lower_camel_name="kittyCat" \
             project_class_name="KittyCat" \
             author="Sir Meowsalots" \
-            cloud_service="${{ matrix.cloud-service }}" \
-            language="${{ matrix.template-type }}" \
+            cloud_service="Azure Function App" \
+            language="Typescript" \
             open_source_license="MIT license"
         shell: bash
 
