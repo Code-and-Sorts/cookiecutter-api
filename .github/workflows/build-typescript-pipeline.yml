@@ -1,0 +1,66 @@
+name: Typescript Cookiecutter API Build
+
+on:
+  push:
+    paths:
+      - typescript/**
+    branches:
+      - main
+  pull_request:
+    paths:
+      - typescript/**
+    branches:
+      - main
+
+jobs:
+  build-typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        template-type:
+          - typescript
+        cloud-service:
+          - "Azure Function App"
+        node-version:
+          - "18.x"
+          - "20.x"
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Setup Cookiecutter Template
+        uses: ./.github/actions/setup-cookiecutter-template
+        with:
+          template-language: ${{ matrix.template-type }}
+          template-cloud-service: ${{ matrix.cloud-service }}
+
+      - name: Setup Node ${{ matrix.node-version }} Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - run: corepack enable
+        shell: bash
+
+      - name: Run install
+        uses: borales/actions-yarn@v4
+        with:
+          cmd: install
+          dir: Kitten-Claws
+
+      - name: Run build
+        uses: borales/actions-yarn@v4
+        with:
+          cmd: build
+          dir: Kitten-Claws
+
+      - name: Unit tests
+        uses: borales/actions-yarn@v4
+        with:
+          cmd: test:unit
+          dir: Kitten-Claws

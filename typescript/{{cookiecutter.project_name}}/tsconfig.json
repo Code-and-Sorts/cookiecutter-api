@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "baseUrl": "./",
+    "module": "commonjs",
+    "target": "es6",
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true,
+    "strict": false,
+    "experimentalDecorators": true,
+    "paths": {
+      "@config/*": [
+        "config/*"
+      ],
+      "@controllers": [
+        "controllers/index"
+      ],
+      "@services": [
+        "services/index"
+      ],
+      "@repositories": [
+        "repositories/index"
+      ],
+      "@models": [
+        "types/models/index"
+      ],
+      "@errors": [
+        "types/errors/index"
+      ],
+      "@utils": [
+        "utils/index"
+      ]
+    }
+  }
+}

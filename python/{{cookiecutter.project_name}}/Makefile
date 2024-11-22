@@ -19,7 +19,7 @@ clean-build: ## Clean build artifacts
 	@echo "🧹 Cleaning build artifacts"
 	@rm -rf dist
 
-.PHONY: test
+.PHONY: test-unit
 test: ## Test the code with pytest unit tests.
 	@echo "🧪 Testing code: Running pytest unit tests"
 	@poetry run pytest --cov

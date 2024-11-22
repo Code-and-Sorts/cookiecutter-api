@@ -1,0 +1,73 @@
+name: Python Cookiecutter API Build
+
+on:
+  push:
+    paths:
+      - python/**
+    branches:
+      - main
+  pull_request:
+    paths:
+      - python/**
+    branches:
+      - main
+
+jobs:
+  build-python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        template-type:
+          - python
+        cloud-service:
+          - "Azure Function App"
+        python-version:
+          - "3.10"
+          - "3.11"
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Setup Cookiecutter Template
+        uses: ./.github/actions/setup-cookiecutter-template
+        with:
+          template-language: ${{ matrix.template-type }}
+          template-cloud-service: ${{ matrix.cloud-service }}
+
+      - name: Set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        env:
+          POETRY_VERSION: "1.8.3"
+        run: curl -sSL https://install.python-poetry.org | python - -y
+        shell: bash
+
+      - name: Add Poetry to Path
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Configure Poetry virtual environment in project
+        run: poetry config virtualenvs.in-project true
+        shell: bash
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: |
+          cd "Kitten-Claws"
+          poetry install --no-interaction
+        shell: bash

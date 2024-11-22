@@ -2,7 +2,8 @@
 
 # <img src="./.docs/imgs/stars.gif" width="32"> Cookiecutter API <img src="./.docs/imgs/stars.gif" width="32">
 
-![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-pipeline.yml?branch=main&label=Build&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-python-pipeline.yml?branch=main&label=Python-Build&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-typescript-pipeline.yml?branch=main&label=Typescript-Build&style=for-the-badge)
 ![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge)
 
 This is a modern 🍪 Cookiecutter template to create REST APIs for multiple cloud platforms in multiple languages. This template supports the multiple cloud platforms and languages.
@@ -24,50 +25,65 @@ To create a Cookiecutter API project, run the following for each implemented tem
 
 ```console
 # Create using the GH CLI
-cookiecutter gh:Code-and-Sorts/cookiecutter-api
+cookiecutter gh:Code-and-Sorts/cookiecutter-api/{LANGUAGE_OPTION}
 
 # Create using the GH URL
-cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git
+cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git --directory {LANGUAGE_OPTION}
 ```
 
 Follow the prompts and answer them with your own desired options.
 
-## ✅ Implemented
+## 🌟 Supported Templates
 
-### <img src="./.docs/imgs/azure.svg" width="22"> Azure
-- <img src="./.docs/imgs/function-app.svg" width="18"> Azure Function Apps
-    - <img src="./.docs/imgs/python.svg" width="18"> Python
-
-## 📋 To-Do
-
-### <img src="./.docs/imgs/azure.svg" width="22"> Azure
-- <img src="./.docs/imgs/function-app.svg" width="18"> Azure Function Apps
-    - <img src="./.docs/imgs/dotnet.svg" width="18"> dotnet
-    - <img src="./.docs/imgs/typescript.svg" width="18"> NodeJS
-    - <img src="./.docs/imgs/golang.svg" width="18"> Go
-
-### <img src="./.docs/imgs/google-cloud.svg" width="22"> Google Cloud
-- <img src="./.docs/imgs/cloud-function.svg" width="18"> Cloud Functions
-    - <img src="./.docs/imgs/python.svg" width="18"> Python
-    - <img src="./.docs/imgs/dotnet.svg" width="18"> dotnet
-    - <img src="./.docs/imgs/typescript.svg" width="18"> NodeJS
-    - <img src="./.docs/imgs/golang.svg" width="18"> Go
-
-### <img src="./.docs/imgs/aws.svg" width="22"> AWS
-- <img src="./.docs/imgs/lambda.svg" width="18"> Lambda
-    - <img src="./.docs/imgs/python.svg" width="18"> Python
-    - <img src="./.docs/imgs/dotnet.svg" width="18"> dotnet
-    - <img src="./.docs/imgs/typescript.svg" width="18"> NodeJS
-    - <img src="./.docs/imgs/golang.svg" width="18"> Go
+<table style="width:100%;">
+  <tr>
+    <th style="width:18px;" rowspan="2"></th>
+    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
+    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
+    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"></td>
+    <td style="text-align:center;"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"></td>
+    <td style="text-align:center;"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/python.svg" width="18" title="Python"></td>
+    <td style="text-align:center;"><span title="Complete">✅</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
+    <td style="text-align:center;"><span title="Complete">✅</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+  <tr>
+    <td style="text-align:center;"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
+    <td style="text-align:center;"><span title="Complete">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Planned">📋</span></td>
+  </tr>
+</table>
 
 ---
-> [!NOTE]  
+> [!NOTE]
 > Each project follows the controller-service-repository pattern.
 
 ## 🎯 Examples
 
 Python
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-py-az-func-api)
+
+Typescript
+- [Function App Example](https://github.com/Code-and-Sorts/cookie-ts-az-func-api)
 
 ## 📚 Resources
 
@@ -76,7 +92,12 @@ Below is a list of resources and documentation for the types of SDKs and framewo
 ### Python
 - [Poetry](https://python-poetry.org/) for dependency management
 - [pytest](https://docs.pytest.org/en/stable/) and [codecov](https://about.codecov.io/) for testing
-- [pydantic](https://docs.pydantic.dev/latest/) for data validation
+- [pydantic](https://docs.pydantic.dev/latest/) for schema validation
+
+### Typescript NodeJS
+- [Yarn](https://yarnpkg.com/) for dependency management
+- [Jest](https://jestjs.io/) for testing
+- [Zod](https://zod.dev/) for schema validtion
 
 ### Azure
 - [Azure Function Apps ](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs
@@ -92,4 +113,4 @@ Below is a list of resources and documentation for the types of SDKs and framewo
 
 ## 🙏🏻 Acknowledgements
 
-Florian Maas' [cookiecutter-poetry](https://github.com/fpgmaas/cookiecutter-poetry) repository was a very helpful resource for building out this Cookiecutter template. 
+Florian Maas' [cookiecutter-poetry](https://github.com/fpgmaas/cookiecutter-poetry) repository was a very helpful resource for building out this Cookiecutter template.
