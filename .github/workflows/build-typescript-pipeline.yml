@@ -18,7 +18,7 @@ jobs:
           # - macos-latest
           # - windows-latest
         template-type:
-          - Typescript
+          - typescript
         cloud-service:
           - "Azure Function App"
         node-version:
@@ -29,40 +29,11 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Set up python
-        uses: actions/setup-python@v5
+      - name: Setup Cookiecutter Template
+        uses: ./.github/actions/setup-cookiecutter-template
         with:
-          python-version: 3.11
-
-      - name: Install Cookiecutter
-        run: pip install cookiecutter
-        shell: bash
-
-      - name: Install Cookiecutter Extensions
-        run: pip install jinja2-strcase
-        shell: bash
-
-      - name: Create Cookiecutter Template
-        run: |
-          cookiecutter . --no-input \
-            -v \
-            project_name="Kitten-Claws" \
-            project_description="Kitties got claws...beware" \
-            project_slug="kitty_cats" \
-            project_endpoint="kitties" \
-            project_lower_camel_name="kittyCat" \
-            project_class_name="KittyCat" \
-            author="Sir Meowsalots" \
-            cloud_service="Azure Function App" \
-            language="Typescript" \
-            open_source_license="MIT license"
-        shell: bash
-
-      # - name: Setup Cookiecutter Template
-      #   uses: ./.github/actions/setup-cookiecutter-template
-      #   with:
-      #     template-language: ${{ matrix.template-type }}
-      #     template-cloud-service: ${{ matrix.cloud-service }}
+          template-language: ${{ matrix.template-type }}
+          template-cloud-service: ${{ matrix.cloud-service }}
 
       # - name: Set up Typescript environment
       #   uses: ./.github/actions/setup-typescript
@@ -81,16 +52,16 @@ jobs:
         uses: borales/actions-yarn@v4
         with:
           cmd: install
-          dir: Kitten-Claws-typescript
+          dir: Kitten-Claws
 
       - name: Run build
         uses: borales/actions-yarn@v4
         with:
           cmd: build
-          dir: Kitten-Claws-typescript
+          dir: Kitten-Claws
 
       - name: Unit tests
         uses: borales/actions-yarn@v4
         with:
           cmd: test:unit
-          dir: Kitten-Claws-typescript
+          dir: Kitten-Claws

@@ -28,7 +28,7 @@ runs:
 
     - name: Create Cookiecutter Template
       run: |
-        cookiecutter . --no-input \
+        cookiecutter ./${{ inputs.template-language }} --no-input \
           project_name="Kitten-Claws" \
           project_description="Kitties got claws...beware" \
           project_slug="kitty_cats" \
@@ -37,6 +37,5 @@ runs:
           project_class_name="KittyCat" \
           author="Sir Meowsalots" \
           cloud_service="${{ inputs.template-cloud-service }}" \
-          language="${{ inputs.template-language }}" \
           open_source_license="MIT license"
       shell: bash
