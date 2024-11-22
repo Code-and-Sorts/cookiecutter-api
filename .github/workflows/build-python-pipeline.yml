@@ -18,7 +18,7 @@ jobs:
           - macos-latest
           - windows-latest
         template-type:
-          - Python
+          - python
         cloud-service:
           - "Azure Function App"
         python-version:
