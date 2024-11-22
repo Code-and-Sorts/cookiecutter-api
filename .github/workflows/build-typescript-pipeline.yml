@@ -52,8 +52,8 @@ jobs:
             project_lower_camel_name="kittyCat" \
             project_class_name="KittyCat" \
             author="Sir Meowsalots" \
-            cloud_service="${{ inputs.template-cloud-service }}" \
-            language="${{ inputs.template-language }}" \
+            cloud_service="${{ matrix.cloud-service }}" \
+            language="${{ matrix.template-type }}" \
             open_source_license="MIT license"
         shell: bash
 
