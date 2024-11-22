@@ -2,9 +2,25 @@ name: Typescript Cookiecutter API Build
 
 on:
   push:
+    paths-ignore:
+      - '**/README.md'
+      - '.docs/**'
+      - '.vscode/**'
+      - '.gitignore'
+    paths:
+      - typescript/**
+      - .github/workflows/build-typescript-pipeline.yml
     branches:
       - main
   pull_request:
+    paths-ignore:
+      - '**/README.md'
+      - '.docs/**'
+      - '.vscode/**'
+      - '.gitignore'
+    paths:
+      - typescript/**
+      - .github/workflows/build-typescript-pipeline.yml
     branches:
       - main
 
