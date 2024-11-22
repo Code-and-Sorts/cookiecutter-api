@@ -2,21 +2,11 @@ name: Python Cookiecutter API Build
 
 on:
   push:
-    paths-ignore:
-      - '**/README.md'
-      - '.docs/**'
-      - '.vscode/**'
-      - '.gitignore'
     paths:
       - python/**
     branches:
       - main
   pull_request:
-    paths-ignore:
-      - '**/README.md'
-      - '.docs/**'
-      - '.vscode/**'
-      - '.gitignore'
     paths:
       - python/**
     branches:
