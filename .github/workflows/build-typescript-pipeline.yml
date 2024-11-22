@@ -51,7 +51,7 @@ jobs:
       - name: Run install
         uses: borales/actions-yarn@v4
         with:
-          cmd: install
+          cmd: install --frozen-lockfile
           dir: Kitten-Claws
 
       - name: Run build
