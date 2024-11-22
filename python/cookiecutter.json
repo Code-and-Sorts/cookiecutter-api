@@ -1,8 +1,8 @@
 {
     "project_name": "Cookiecutter API",
     "project_description": "This is a template repository for API projects.",
+    "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_') }}",
     "project_endpoint": "{{ cookiecutter.project_name.lower().replace(' ', '-') }}",
-    "project_lower_camel_name": "{{cookiecutter.project_name | to_lower_camel }}",
     "project_class_name": "{{cookiecutter.project_name | to_camel }}",
     "author": "Code and Sorts (Colby Timm)",
     "cloud_service": [
