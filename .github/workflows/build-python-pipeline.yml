@@ -64,6 +64,6 @@ jobs:
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
-          cd "Kitten-Claws-python"
+          cd "Kitten-Claws"
           poetry install --no-interaction
         shell: bash
