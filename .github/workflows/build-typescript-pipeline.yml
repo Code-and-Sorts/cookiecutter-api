@@ -48,16 +48,16 @@ jobs:
       - run: corepack enable
         shell: bash
 
-      - name: Check if immutable installs are enabled
-        uses: borales/actions-yarn@v4
-        with:
-          cmd: config get enableImmutableInstalls
+      # - name: Check if immutable installs are enabled
+      #   uses: borales/actions-yarn@v4
+      #   with:
+      #     cmd: config get enableImmutableInstalls
 
-      - name: Run install
-        uses: borales/actions-yarn@v4
-        with:
-          cmd: install
-          dir: Kitten-Claws
+      # - name: Run install
+      #   uses: borales/actions-yarn@v4
+      #   with:
+      #     cmd: install
+      #     dir: Kitten-Claws
 
       - name: Run build
         uses: borales/actions-yarn@v4
