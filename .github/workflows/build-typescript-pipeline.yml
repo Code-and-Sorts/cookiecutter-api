@@ -45,8 +45,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      # - run: corepack enable
-      #   shell: bash
+      - run: corepack enable
+        shell: bash
 
       - name: Run install
         uses: borales/actions-yarn@v4
