@@ -9,7 +9,6 @@ on:
       - '.gitignore'
     paths:
       - python/**
-      - .github/workflows/build-python-pipeline.yml
     branches:
       - main
   pull_request:
@@ -20,7 +19,6 @@ on:
       - '.gitignore'
     paths:
       - python/**
-      - .github/workflows/build-python-pipeline.yml
     branches:
       - main
 
