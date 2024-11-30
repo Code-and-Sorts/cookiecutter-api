@@ -38,14 +38,14 @@ Follow the prompts and answer them with your own desired options.
 <table style="width:100%;">
   <tr>
     <th style="width:18px;" rowspan="2"></th>
-    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
-    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
-    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
+    <td style="text-align:center;width:140px;"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
+    <td style="text-align:center;width:140px;"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
+    <td style="text-align:center;width:140px;"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"></td>
-    <td style="text-align:center;"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"></td>
-    <td style="text-align:center;"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"></td>
+    <td style="text-align:center;"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"> Function App</td>
+    <td style="text-align:center;"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"> Lambda</td>
+    <td style="text-align:center;"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"> Cloud Function</td>
   </tr>
   <tr>
     <td style="text-align:center;"><img src="./.docs/imgs/python.svg" width="18" title="Python"></td>
@@ -61,7 +61,7 @@ Follow the prompts and answer them with your own desired options.
   </tr>
   <tr>
     <td style="text-align:center;"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td style="text-align:center;"><span title="Complete">✅</span></td>
     <td style="text-align:center;"><span title="Planned">📋</span></td>
     <td style="text-align:center;"><span title="Planned">📋</span></td>
   </tr>
@@ -98,6 +98,11 @@ Below is a list of resources and documentation for the types of SDKs and framewo
 - [Yarn](https://yarnpkg.com/) for dependency management
 - [Jest](https://jestjs.io/) for testing
 - [Zod](https://zod.dev/) for schema validtion
+
+## Dotnet
+- [Nuget](https://www.nuget.org/) for dependency management
+- [xUnit](https://xunit.net/) for testing
+- [FluentValidation](https://docs.fluentvalidation.net/en/latest/) for schema validtion
 
 ### Azure
 - [Azure Function Apps ](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs
