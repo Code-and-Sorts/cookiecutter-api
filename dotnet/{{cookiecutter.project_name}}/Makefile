@@ -1,3 +1,8 @@
+.PHONY: install
+install: ## Install dependencies
+	@echo "🧑‍💻 Installing dependencies"
+	@dotnet restore
+
 .PHONY: run
 run: ## Run the function app
 	@echo "🚀 Running Function App"
