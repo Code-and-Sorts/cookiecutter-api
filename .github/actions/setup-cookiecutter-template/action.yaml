@@ -33,8 +33,8 @@ runs:
           project_description="Kitties got claws...beware" \
           project_slug="kitty_cats" \
           project_endpoint="kitties" \
-          project_lower_camel_name="kittyCat" \
-          project_class_name="KittyCat" \
+          project_lower_camel_name="kittenClaws" \
+          project_class_name="KittenClaws" \
           author="Sir Meowsalots" \
           cloud_service="${{ inputs.template-cloud-service }}" \
           open_source_license="MIT license"
