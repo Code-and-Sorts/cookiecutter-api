@@ -29,7 +29,7 @@ runs:
     - name: Create Cookiecutter Template
       run: |
         cookiecutter ./${{ inputs.template-language }} --no-input \
-          project_name="Kitten-Claws" \
+          project_name="KittenClaws" \
           project_description="Kitties got claws...beware" \
           project_slug="kitty_cats" \
           project_endpoint="kitties" \
