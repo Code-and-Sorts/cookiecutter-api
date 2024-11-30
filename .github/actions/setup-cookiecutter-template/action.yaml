@@ -1,13 +1,13 @@
-name: "setup-cookiecutter-template"
-description: "Composite action to setup the Cookiecutter template."
+name: Setup Cookiecutter Template
+description: Composite action to setup the Cookiecutter template.
 
 inputs:
   template-language:
     required: true
-    description: "Template language"
+    description: Template language
   template-cloud-service:
     required: true
-    description: "Template cloud service"
+    description: Template cloud service
 
 runs:
   using: "composite"
