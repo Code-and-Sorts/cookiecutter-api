@@ -46,10 +46,10 @@ Follow the prompts and answer them with your own desired options.
 
 <table width="100%">
   <tr>
-    <th width="40px" rowspan="2"></th>
-    <td width="200px" align="center"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
-    <td width="200px" align="center"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
-    <td width="200px" align="center"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
+    <th width="10%" rowspan="2"></th>
+    <td width="30%" align="center"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
+    <td width="30%" align="center"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
+    <td width="30%" align="center"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"> Function App</td>
