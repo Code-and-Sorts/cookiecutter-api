@@ -44,41 +44,41 @@ Follow the prompts and answer them with your own desired options.
 
 ## 🌟 Supported Templates
 
-<table style="width:100%;">
+<table width="100%">
   <tr>
-    <th style="width:40px;" rowspan="2"></th>
-    <td style="width:200px; text-align:center;"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
-    <td style="width:200px; text-align:center;"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
-    <td style="width:200px; text-align:center;"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
+    <th width="40px" rowspan="2"></th>
+    <td width="200px" align="center"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
+    <td width="200px" align="center"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
+    <td width="200px" align="center"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"> Function App</td>
-    <td style="text-align:center;"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"> Lambda</td>
-    <td style="text-align:center;"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"> Cloud Function</td>
+    <td align="center"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"> Function App</td>
+    <td align="center"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"> Lambda</td>
+    <td align="center"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"> Cloud Function</td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/python.svg" width="18" title="Python"></td>
-    <td style="text-align:center;"><span title="Complete">✅</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/python.svg" width="18" title="Python"></td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
-    <td style="text-align:center;"><span title="Complete">✅</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
-    <td style="text-align:center;"><span title="Complete">✅</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
-    <td style="text-align:center;"><span title="Complete">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
+    <td align="center"><span title="Complete">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
 </table>
 
