@@ -27,7 +27,6 @@ jobs:
           - "Azure Function App"
         dotnet-version:
           - "8.x"
-          - "9.x"
       fail-fast: false
     steps:
       - name: Check out
