@@ -6,7 +6,7 @@ install: ## Install dependencies
 .PHONY: run
 run: ## Run the function app
 	@echo "🚀 Running Function App"
-	@cd {{cookiecutter.project_class_name}}.Api && func start --dotnet
+	@cd {{cookiecutter.project_class_name}}.Api && func start
 
 .PHONY: build
 build: ## Build the code
