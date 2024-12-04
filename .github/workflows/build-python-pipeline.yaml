@@ -75,7 +75,7 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
           cd "KittenClaws"
-          make install
+          poetry install --no-interaction
         shell: bash
 
       - name: Run unit tests
