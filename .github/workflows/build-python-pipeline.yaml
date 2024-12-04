@@ -73,7 +73,10 @@ jobs:
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: |
-          cd "KittenClaws"
-          poetry install --no-interaction
-        shell: bash
+        run: poetry install --no-interaction
+        working-directory: KittenClaws
+
+      - name: Run tests
+        run: make test-unit
+        working-directory: KittenClaws
+

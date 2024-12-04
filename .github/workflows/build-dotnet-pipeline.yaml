@@ -44,13 +44,13 @@ jobs:
           dotnet-version: ${{ matrix.dotnet-version }}
 
       - name: Install dependencies
-        run: dotnet restore
+        run: make install
         working-directory: KittenClaws
 
       - name: Build
-        run: dotnet build
+        run: make build
         working-directory: KittenClaws
 
       - name: Test with the dotnet CLI
-        run: dotnet test
+        run: make test-unit
         working-directory: KittenClaws

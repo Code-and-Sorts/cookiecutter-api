@@ -27,7 +27,7 @@ Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring
 
 ## Prerequisites
 
-- Dotnet >=8.0, <=9.0
+- Dotnet 8.x
 
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 
