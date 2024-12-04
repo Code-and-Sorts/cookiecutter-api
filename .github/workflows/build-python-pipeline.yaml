@@ -73,12 +73,13 @@ jobs:
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: make install
-        working-directory: KittenClaws
+        run: |
+          cd "KittenClaws"
+          make install
         shell: bash
 
-      - name: Run tests
-        run: make test-unit
-        working-directory: KittenClaws
+      - name: Run unit tests
+        run: |
+            cd "KittenClaws"
+            make test-unit
         shell: bash
-
