@@ -4,26 +4,20 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using {{cookiecutter.project_class_name}}.Api.Interfaces;
 using {{cookiecutter.project_class_name}}.Api.Utils;
+using Microsoft.Azure.Functions.Worker.Http;
 
-public class Get{{cookiecutter.project_class_name}}
+public class Get{{cookiecutter.project_class_name}}(I{{cookiecutter.project_class_name}}Controller {{cookiecutter.project_lower_camel_name}}Controller, ILogger<Get{{cookiecutter.project_class_name}}> logger)
 {
-    private readonly I{{cookiecutter.project_class_name}}Controller _{{cookiecutter.project_lower_camel_name}}Controller;
-    private readonly ILogger<Get{{cookiecutter.project_class_name}}> _logger;
+    private readonly I{{cookiecutter.project_class_name}}Controller _{{cookiecutter.project_lower_camel_name}}Controller = {{cookiecutter.project_lower_camel_name}}Controller;
+    private readonly ILogger<Get{{cookiecutter.project_class_name}}> _logger = logger;
 
-    public Get{{cookiecutter.project_class_name}}(I{{cookiecutter.project_class_name}}Controller {{cookiecutter.project_lower_camel_name}}Controller, ILogger<Get{{cookiecutter.project_class_name}}> logger)
-    {
-        _{{cookiecutter.project_lower_camel_name}}Controller = {{cookiecutter.project_lower_camel_name}}Controller;
-        _logger = logger;
-    }
-
-    [FunctionName("Get{{cookiecutter.project_class_name}}")]
+    [Function("Get{{cookiecutter.project_class_name}}")]
     public async Task<IActionResult> Get(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "{{cookiecutter.project_endpoint}}/{id}")] string id, CancellationToken ct = default)
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "{{cookiecutter.project_endpoint}}/{id}")] HttpRequestData req, string id, CancellationToken ct = default)
     {
         _logger.LogInformation($"{nameof(Get{{cookiecutter.project_class_name}})} processed a request.");
 

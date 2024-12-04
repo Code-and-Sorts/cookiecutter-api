@@ -4,24 +4,17 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using {{cookiecutter.project_class_name}}.Api.Interfaces;
 using {{cookiecutter.project_class_name}}.Api.Utils;
 
-public class Get{{cookiecutter.project_class_name}}List
+public class Get{{cookiecutter.project_class_name}}List(I{{cookiecutter.project_class_name}}Controller {{cookiecutter.project_lower_camel_name}}Controller, ILogger<Get{{cookiecutter.project_class_name}}List> logger)
 {
-    private readonly I{{cookiecutter.project_class_name}}Controller _{{cookiecutter.project_lower_camel_name}}Controller;
-    private readonly ILogger<Get{{cookiecutter.project_class_name}}List> _logger;
+    private readonly I{{cookiecutter.project_class_name}}Controller _{{cookiecutter.project_lower_camel_name}}Controller = {{cookiecutter.project_lower_camel_name}}Controller;
+    private readonly ILogger<Get{{cookiecutter.project_class_name}}List> _logger = logger;
 
-    public Get{{cookiecutter.project_class_name}}List(I{{cookiecutter.project_class_name}}Controller {{cookiecutter.project_lower_camel_name}}Controller, ILogger<Get{{cookiecutter.project_class_name}}List> logger)
-    {
-        _{{cookiecutter.project_lower_camel_name}}Controller = {{cookiecutter.project_lower_camel_name}}Controller;
-        _logger = logger;
-    }
-
-    [FunctionName("Get{{cookiecutter.project_class_name}}List")]
+    [Function("Get{{cookiecutter.project_class_name}}List")]
     public async Task<IActionResult> Get(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "{{cookiecutter.project_endpoint}}")] CancellationToken ct = default)
     {

@@ -1,4 +1,4 @@
-namespace KittyClaws.Api.Tests.Unit;
+namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
 
 using System;
 using System.IO;

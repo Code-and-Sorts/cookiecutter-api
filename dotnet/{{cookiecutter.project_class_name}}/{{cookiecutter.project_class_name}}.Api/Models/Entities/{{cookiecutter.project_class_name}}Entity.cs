@@ -1,6 +1,9 @@
-namespace {{cookiecutter.project_class_name}}.Api.Entities;
+namespace {{cookiecutter.{{cookiecutter.project_class_name}}}}.Api.Entities;
 
-public class {{cookiecutter.project_class_name}} : BaseEntity
+using Newtonsoft.Json;
+
+public class {{cookiecutter.{{cookiecutter.project_class_name}}}} : BaseEntity
 {
+    [JsonProperty("name")]
     public string Name { get; set; } = default!;
 }

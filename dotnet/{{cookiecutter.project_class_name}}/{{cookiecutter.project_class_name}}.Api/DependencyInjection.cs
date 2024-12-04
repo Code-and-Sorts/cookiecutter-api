@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services, IConfigurationRoot configuration)
+    public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<I{{cookiecutter.project_class_name}}Service, {{cookiecutter.project_class_name}}Service>();
         services.AddScoped<I{{cookiecutter.project_class_name}}Controller, {{cookiecutter.project_class_name}}Controller>();
@@ -21,19 +21,32 @@ public static class DependencyInjection
 
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
-        string cosmosConnectionString = Environment.GetEnvironmentVariable("CosmosDbConnectionString");
-        string databaseName = Environment.GetEnvironmentVariable("CosmosDbDatabaseName");
-        string containerName = Environment.GetEnvironmentVariable("CosmosDbContainerName");
+        string cosmosConnectionString = configuration.GetValue<string>("CosmosDb") ?? string.Empty;
+        string databaseName = configuration.GetValue<string>("CosmosDbDatabaseName") ?? string.Empty;
+        string containerName = configuration.GetValue<string>("CosmosDbContainerName") ?? string.Empty;
 
-        services.AddSingleton<CosmosClient>(provider =>
-            new CosmosClient(cosmosConnectionString));
+        if (string.IsNullOrEmpty(cosmosConnectionString) || string.IsNullOrEmpty(databaseName) || string.IsNullOrEmpty(containerName))
+        {
+            throw new InvalidOperationException("CosmosDb configuration is missing or incomplete.");
+        }
+
+        services.AddSingleton(provider =>
+            new CosmosClient(cosmosConnectionString)
+        );
 
         services.AddSingleton<I{{cookiecutter.project_class_name}}Repository>(provider =>
-            new {{cookiecutter.project_class_name}}Repository(
-                provider.GetRequiredService<CosmosClient>(),
+        {
+            var cosmosClient = provider.GetService<CosmosClient>();
+            if (cosmosClient == null)
+            {
+                throw new InvalidOperationException("CosmosDb Client is null.");
+            }
+            return new {{cookiecutter.project_class_name}}Repository(
+                cosmosClient,
                 databaseName,
                 containerName
-            ));
+            );
+        });
 
         return services;
     }

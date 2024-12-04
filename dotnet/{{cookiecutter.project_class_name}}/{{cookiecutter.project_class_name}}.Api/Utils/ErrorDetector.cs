@@ -1,13 +1,12 @@
 namespace {{cookiecutter.project_class_name}}.Api.Utils;
 
 using System;
-using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Cosmos;
 
 public class BaseError
 {
-    public string ErrorMessage { get; set; }
+    public required string ErrorMessage { get; set; }
 }
 
 public class HttpResponseInit : ObjectResult
