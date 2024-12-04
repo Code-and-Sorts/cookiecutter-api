@@ -19,15 +19,21 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
         _container = cosmosClient.GetContainer(databaseName, containerName);
     }
 
-    public async Task<{{cookiecutter.project_class_name}}Dto> GetAsync(string id, CancellationToken ct)
+    private async Task<{{cookiecutter.project_class_name}}> GetItemAsync(string id, CancellationToken ct)
     {
         var response = await _container.ReadItemAsync<{{cookiecutter.project_class_name}}>(id, new PartitionKey(id), null, ct);
         var {{cookiecutter.project_lower_camel_name}} = response.Resource;
 
         if ({{cookiecutter.project_lower_camel_name}}.IsDeleted)
         {
-            throw new Exception("Item not found");
+            throw new CosmosException("Item not found", System.Net.HttpStatusCode.NotFound, 0, string.Empty, 0);
         }
+        return {{cookiecutter.project_lower_camel_name}};
+    }
+
+    public async Task<{{cookiecutter.project_class_name}}Dto> GetAsync(string id, CancellationToken ct)
+    {
+        var {{cookiecutter.project_lower_camel_name}} = await GetItemAsync(id, ct);
 
         return new {{cookiecutter.project_class_name}}Dto
         {
@@ -69,14 +75,14 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
 
     public async Task<{{cookiecutter.project_class_name}}Dto> UpdateAsync({{cookiecutter.project_class_name}} item, CancellationToken ct)
     {
-        var currentItem = await _container.ReadItemAsync<{{cookiecutter.project_class_name}}>(item.Id, new PartitionKey(item.Id), null, ct);
+        var currentItem = await GetItemAsync(item.Id, ct);
         var updateItem = new {{cookiecutter.project_class_name}}
         {
-            Id = currentItem.Resource.Id,
-            Name = currentItem.Resource.Name ?? item.Name,
-            CreatedBy = currentItem.Resource.CreatedBy,
-            CreatedTimestamp = currentItem.Resource.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy ?? currentItem.Resource.UpdatedBy,
+            Id = currentItem.Id,
+            Name = item.Name ?? currentItem.Name,
+            CreatedBy = currentItem.CreatedBy,
+            CreatedTimestamp = currentItem.CreatedTimestamp,
+            UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy,
             UpdatedTimestamp = DateTime.UtcNow,
         };
         var response = await _container.ReplaceItemAsync<{{cookiecutter.project_class_name}}>(updateItem, updateItem.Id, new PartitionKey(updateItem.Id), null, ct);
@@ -90,6 +96,8 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
 
     public async Task DeleteAsync(string id, CancellationToken ct)
     {
-        await _container.DeleteItemAsync<{{cookiecutter.project_class_name}}>(id, new PartitionKey(id), null, ct);
+        var item = await GetItemAsync(id, ct);
+        item.IsDeleted = true;
+        var response = await _container.ReplaceItemAsync<{{cookiecutter.project_class_name}}>(item, item.Id, new PartitionKey(item.Id), null, ct);
     }
 }

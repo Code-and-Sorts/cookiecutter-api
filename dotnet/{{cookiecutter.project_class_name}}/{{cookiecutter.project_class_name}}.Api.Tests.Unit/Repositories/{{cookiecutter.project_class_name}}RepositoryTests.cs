@@ -116,22 +116,36 @@ public class {{cookiecutter.project_class_name}}RepositoryTest
     }
 
     [Fact]
-    public async Task DeleteAsync_ShouldCallDeleteItemAsync()
+    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
     {
         // Arrange
-        var mockResponse = Substitute.For<ItemResponse<{{cookiecutter.project_class_name}}>>();
-        _mockContainer.DeleteItemAsync<{{cookiecutter.project_class_name}}>(
-            Arg.Any<string>(),
-            Arg.Any<PartitionKey>(),
-            Arg.Any<ItemRequestOptions>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(mockResponse));
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var existing{{cookiecutter.project_class_name}} = new {{cookiecutter.project_class_name}}
+        {
+            Id = id,
+            Name = "mock{{cookiecutter.project_class_name}}",
+            IsDeleted = false
+        };
 
+        var mockResponse = Substitute.For<ItemResponse<{{cookiecutter.project_class_name}}>>();
+        mockResponse.Resource.Returns(existing{{cookiecutter.project_class_name}});
+
+        _mockContainer.ReadItemAsync<{{cookiecutter.project_class_name}}>(
+            id,
+            new PartitionKey(id),
+            null,
+            Arg.Any<CancellationToken>())
+            .Returns(mockResponse);
 
         // Act
-        await _repository.DeleteAsync("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", CancellationToken.None);
+        await _repository.DeleteAsync(id, CancellationToken.None);
 
         // Assert
-        await _mockContainer.Received(1).DeleteItemAsync<{{cookiecutter.project_class_name}}>("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", new PartitionKey("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>());
+        await _mockContainer.Received(1).ReplaceItemAsync(
+            Arg.Is<{{cookiecutter.project_class_name}}>(k => k.IsDeleted == true),
+            id,
+            Arg.Any<PartitionKey>(),
+            null,
+            Arg.Any<CancellationToken>());
     }
 }

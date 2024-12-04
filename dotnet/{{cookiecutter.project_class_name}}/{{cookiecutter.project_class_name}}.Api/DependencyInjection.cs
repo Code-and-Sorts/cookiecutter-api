@@ -21,7 +21,7 @@ public static class DependencyInjection
 
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
-        string cosmosConnectionString = configuration.GetValue<string>("CosmosDb") ?? string.Empty;
+        string cosmosConnectionString = configuration.GetConnectionString("CosmosDb") ?? string.Empty;
         string databaseName = configuration.GetValue<string>("CosmosDbDatabaseName") ?? string.Empty;
         string containerName = configuration.GetValue<string>("CosmosDbContainerName") ?? string.Empty;
 
