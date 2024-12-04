@@ -94,6 +94,9 @@ Python
 Typescript
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-ts-az-func-api)
 
+Dotnet
+- [Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
+
 ## 📚 Resources
 
 Below is a list of resources and documentation for the types of SDKs and frameworks used in the various Cookiecutter APIs.
