@@ -50,8 +50,14 @@ jobs:
         run: curl -sSL https://install.python-poetry.org | python - -y
         shell: bash
 
-      - name: Add Poetry to Path
+      - name: Add Poetry to Path (Linux and macOS)
+        if: runner.os != 'Windows'
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Add Poetry to Path (Windows)
+        if: runner.os == 'Windows'
+        run: echo "$HOME\\AppData\\Roaming\\Python\\Scripts" >> $GITHUB_PATH
         shell: bash
 
       - name: Configure Poetry virtual environment in project
