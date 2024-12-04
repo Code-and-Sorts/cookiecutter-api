@@ -2,6 +2,7 @@
 install: ## Install the poetry environment
 	@echo "🧑‍💻 Creating virtual environment using pyenv and poetry"
 	@poetry install --no-interaction
+	@poetry shell
 
 .PHONY: run
 run: ## Run function app.

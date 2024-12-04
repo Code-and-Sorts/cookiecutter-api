@@ -81,5 +81,5 @@ jobs:
       - name: Run unit tests
         run: |
             cd "KittenClaws"
-            make test-unit
+            poetry run pytest --cov
         shell: bash
