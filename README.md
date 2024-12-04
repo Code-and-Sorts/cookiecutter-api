@@ -1,10 +1,19 @@
 <img src="./.docs/imgs/cookiecutter_api_header.jpg">
 
-# <img src="./.docs/imgs/stars.gif" width="32"> Cookiecutter API <img src="./.docs/imgs/stars.gif" width="32">
+<div align="center">
+  <h1>
+    <img src="./.docs/imgs/stars.gif" width="32"> Cookiecutter API <img src="./.docs/imgs/stars.gif" width="32">
+  </h1>
+</div>
 
-![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-python-pipeline.yml?branch=main&label=Python-Build&style=for-the-badge)
-![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-typescript-pipeline.yml?branch=main&label=Typescript-Build&style=for-the-badge)
-![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-python-pipeline.yaml?branch=main&label=Python-Build&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-typescript-pipeline.yaml?branch=main&label=Typescript-Build&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-dotnet-pipeline.yaml?branch=main&label=Dotnet-Build&style=for-the-badge)
+
+![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge&color=blue)
+
+[![](https://img.shields.io/badge/made%20using%20cookiecutter-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter)
+
 
 This is a modern 🍪 Cookiecutter template to create REST APIs for multiple cloud platforms in multiple languages. This template supports the multiple cloud platforms and languages.
 
@@ -35,41 +44,41 @@ Follow the prompts and answer them with your own desired options.
 
 ## 🌟 Supported Templates
 
-<table style="width:100%;">
+<table width="100%">
   <tr>
-    <th style="width:18px;" rowspan="2"></th>
-    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
-    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
-    <td style="text-align:center;width:100px;"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
+    <th width="10%" rowspan="2"></th>
+    <td width="30%" align="center"><img src="./.docs/imgs/azure.svg" height="18"> Azure</td>
+    <td width="30%" align="center"><img src="./.docs/imgs/aws.svg" height="18"> AWS</td>
+    <td width="30%" align="center"><img src="./.docs/imgs/google-cloud.svg" height="18"> GCP</td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"></td>
-    <td style="text-align:center;"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"></td>
-    <td style="text-align:center;"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"></td>
+    <td align="center"><img src="./.docs/imgs/function-app.svg" height="18" title="Function App"> Function App</td>
+    <td align="center"><img src="./.docs/imgs/lambda.svg" height="18" title="Lambda"> Lambda</td>
+    <td align="center"><img src="./.docs/imgs/cloud-function.svg" height="18" title="Cloud Functions"> Cloud Function</td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/python.svg" width="18" title="Python"></td>
-    <td style="text-align:center;"><span title="Complete">✅</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/python.svg" height="18" title="Python"></td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
-    <td style="text-align:center;"><span title="Complete">✅</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
   <tr>
-    <td style="text-align:center;"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
-    <td style="text-align:center;"><span title="Complete">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
-    <td style="text-align:center;"><span title="Planned">📋</span></td>
+    <td align="center"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
+    <td align="center"><span title="Complete">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Planned">📋</span></td>
   </tr>
 </table>
 
@@ -85,6 +94,9 @@ Python
 Typescript
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-ts-az-func-api)
 
+Dotnet
+- [Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
+
 ## 📚 Resources
 
 Below is a list of resources and documentation for the types of SDKs and frameworks used in the various Cookiecutter APIs.
@@ -98,6 +110,11 @@ Below is a list of resources and documentation for the types of SDKs and framewo
 - [Yarn](https://yarnpkg.com/) for dependency management
 - [Jest](https://jestjs.io/) for testing
 - [Zod](https://zod.dev/) for schema validtion
+
+## Dotnet
+- [Nuget](https://www.nuget.org/) for dependency management
+- [xUnit](https://xunit.net/) for testing
+- [FluentValidation](https://docs.fluentvalidation.net/en/latest/) for schema validtion
 
 ### Azure
 - [Azure Function Apps ](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs

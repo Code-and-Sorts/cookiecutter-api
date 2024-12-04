@@ -14,7 +14,7 @@ on:
 
 jobs:
   build-typescript:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os:
@@ -51,16 +51,16 @@ jobs:
         uses: borales/actions-yarn@v4
         with:
           cmd: install
-          dir: Kitten-Claws
+          dir: KittenClaws
 
       - name: Run build
         uses: borales/actions-yarn@v4
         with:
           cmd: build
-          dir: Kitten-Claws
+          dir: KittenClaws
 
       - name: Unit tests
         uses: borales/actions-yarn@v4
         with:
           cmd: test:unit
-          dir: Kitten-Claws
+          dir: KittenClaws

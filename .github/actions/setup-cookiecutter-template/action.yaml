@@ -1,13 +1,13 @@
-name: "setup-cookiecutter-template"
-description: "Composite action to setup the Cookiecutter template."
+name: Setup Cookiecutter Template
+description: Composite action to setup the Cookiecutter template.
 
 inputs:
   template-language:
     required: true
-    description: "Template language"
+    description: Template language
   template-cloud-service:
     required: true
-    description: "Template cloud service"
+    description: Template cloud service
 
 runs:
   using: "composite"
@@ -29,12 +29,12 @@ runs:
     - name: Create Cookiecutter Template
       run: |
         cookiecutter ./${{ inputs.template-language }} --no-input \
-          project_name="Kitten-Claws" \
+          project_name="KittenClaws" \
           project_description="Kitties got claws...beware" \
           project_slug="kitty_cats" \
           project_endpoint="kitties" \
-          project_lower_camel_name="kittyCat" \
-          project_class_name="KittyCat" \
+          project_lower_camel_name="kittenClaws" \
+          project_class_name="KittenClaws" \
           author="Sir Meowsalots" \
           cloud_service="${{ inputs.template-cloud-service }}" \
           open_source_license="MIT license"

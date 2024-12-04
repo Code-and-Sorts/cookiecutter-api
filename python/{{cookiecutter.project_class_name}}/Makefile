@@ -1,11 +1,11 @@
 .PHONY: install
 install: ## Install the poetry environment
 	@echo "🧑‍💻 Creating virtual environment using pyenv and poetry"
-	@poetry install
+	@poetry install --no-interaction
 	@poetry shell
 
 .PHONY: run
-run: ## Test the code with pytest.
+run: ## Run function app.
 	@echo "🚀 Running Function App"
 	@poetry run func start
 
@@ -20,7 +20,7 @@ clean-build: ## Clean build artifacts
 	@rm -rf dist
 
 .PHONY: test-unit
-test: ## Test the code with pytest unit tests.
+test-unit: ## Test the code with pytest unit tests.
 	@echo "🧪 Testing code: Running pytest unit tests"
 	@poetry run pytest --cov
 

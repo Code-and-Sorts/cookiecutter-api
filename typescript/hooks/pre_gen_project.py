@@ -3,15 +3,6 @@ from __future__ import annotations
 import re
 import sys
 
-PROJECT_NAME_REGEX = r"^[-a-zA-Z ][-a-zA-Z0-9 ]+$"
-project_name = "{{cookiecutter.project_name}}"
-if not re.match(PROJECT_NAME_REGEX, project_name):
-    print(
-        f"ERROR: The project name {project_name} is not a valid module name. Please do not use a _ and use - instead"
-    )
-    # Exit to cancel project
-    sys.exit(1)
-
 PROJECT_LOWER_CAMEL_REGEX = r"^[a-z]+(?:[A-Z][a-z]+)*$"
 project_lower_camel = "{{cookiecutter.project_lower_camel_name}}"
 if not re.match(PROJECT_LOWER_CAMEL_REGEX, project_lower_camel):
