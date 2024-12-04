@@ -13,7 +13,7 @@ public interface I{{cookiecutter.project_class_name}}Controller
 
     Task<{{cookiecutter.project_class_name}}Dto> CreateAsync(Stream item, CancellationToken ct = default);
 
-    Task<{{cookiecutter.project_class_name}}Dto> UpdateAsync(Stream item, CancellationToken ct = default);
+    Task<{{cookiecutter.project_class_name}}Dto> UpdateAsync(string id, Stream item, CancellationToken ct = default);
 
     Task DeleteAsync(string id, CancellationToken ct = default);
 }

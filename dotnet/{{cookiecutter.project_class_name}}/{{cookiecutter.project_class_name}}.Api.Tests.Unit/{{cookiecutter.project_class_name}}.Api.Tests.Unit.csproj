@@ -16,6 +16,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../{{cookiecutter.{{cookiecutter.project_class_name}}}}.Api/{{cookiecutter.{{cookiecutter.project_class_name}}}}.Api.csproj" />
+    <ProjectReference Include="../{{cookiecutter.project_class_name}}.Api/{{cookiecutter.project_class_name}}.Api.csproj" />
   </ItemGroup>
 </Project>

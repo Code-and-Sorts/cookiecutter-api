@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation;
-using { {cookiecutter.project_class_name}}.Api.Dtos;
+using {{cookiecutter.project_class_name}}.Api.Dtos;
 using {{cookiecutter.project_class_name}}.Api.Interfaces;
 using {{cookiecutter.project_class_name}}.Api.Requests;
 using {{cookiecutter.project_class_name}}.Api.Validation;
@@ -39,11 +39,11 @@ public class {{cookiecutter.project_class_name}}Controller : I{{cookiecutter.pro
         return await _{{cookiecutter.project_lower_camel_name}}Service.CreateAsync(deserializedRequest, ct);
     }
 
-    public async Task<{{cookiecutter.project_class_name}}Dto> UpdateAsync(Stream {{cookiecutter.project_lower_camel_name}}, CancellationToken ct = default)
+    public async Task<{{cookiecutter.project_class_name}}Dto> UpdateAsync(string id, Stream {{cookiecutter.project_lower_camel_name}}, CancellationToken ct = default)
     {
-        var deserializedRequest = await DeserializeRequestBodyAsync<Update{{cookiecutter.project_class_name}Request>({{cookiecutter.project_lower_camel_name}});
+        var deserializedRequest = await DeserializeRequestBodyAsync<Update{{cookiecutter.project_class_name}}Request>({{cookiecutter.project_lower_camel_name}});
         deserializedRequest.Id = id;
-        var validator = new Update{{cookiecutter.project_class_name}RequestValidator();
+        var validator = new Update{{cookiecutter.project_class_name}}RequestValidator();
         await validator.ValidateAndThrowAsync(deserializedRequest, ct);
         return await _{{cookiecutter.project_lower_camel_name}}Service.UpdateAsync(deserializedRequest, ct);
     }

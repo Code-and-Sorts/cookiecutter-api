@@ -1,4 +1,4 @@
-namespace {{cookiecutter.{{cookiecutter.project_class_name}}}}.Api.Entities;
+namespace {{cookiecutter.project_class_name}}.Api.Entities;
 
 using System;
 using Newtonsoft.Json;
