@@ -57,9 +57,9 @@ jobs:
         with:
           cmd: install
 
-      - name: Determine current branch
-        id: vars
-        run: echo "branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_ENV
+      - name: Get current branch
+        id: get-branch
+        run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_ENV
 
       - name: Check for changes
         run: |
