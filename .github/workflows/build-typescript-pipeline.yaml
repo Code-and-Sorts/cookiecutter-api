@@ -12,6 +12,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build-typescript:
     runs-on: ${{ matrix.os }}
@@ -52,6 +55,19 @@ jobs:
         with:
           cmd: install
           dir: KittenClaws
+
+      - name: Check for changes
+        run: |
+          if [ -n "$(git status --porcelain yarn.lock)" ]; then
+            echo "Changes detected in yarn.lock. Committing changes."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add yarn.lock
+            git commit -m "Update yarn.lock [skip ci]"
+            git push
+          else
+            echo "No changes detected in yarn.lock."
+          fi
 
       - name: Run build
         uses: borales/actions-yarn@v4
