@@ -41,7 +41,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 ## Prerequisites
 
-- Python >=3.9, <3.12
+- Python >=3.9, <3.13
 
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 

@@ -35,7 +35,7 @@ class {{ cookiecutter.project_class_name }}Controller:
     def soft_delete(self, req: func.HttpRequest):
         item_id = req.route_params.get('item_id')
         self.service.soft_delete(item_id)
-{%- elif cookiecutter.cloud_service == 'Google Cloud Function' -%}
+{%- elif cookiecutter.cloud_service == 'Google Cloud Function' %}
     def get_by_id(self, item_id: str) -> {{ cookiecutter.project_class_name }}Response:
         {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
         return self.service.get_by_id(item_id)
