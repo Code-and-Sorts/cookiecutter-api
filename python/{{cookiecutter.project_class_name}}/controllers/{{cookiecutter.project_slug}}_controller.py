@@ -11,7 +11,7 @@ class {{ cookiecutter.project_class_name }}Controller:
     def __init__(self, service: {{ cookiecutter.project_class_name }}Service):
         self.service = service
 
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{% if cookiecutter.cloud_service == 'Azure Function App' %}
     def get_by_id(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = req.route_params.get('item_id')
         {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
@@ -32,7 +32,7 @@ class {{ cookiecutter.project_class_name }}Controller:
         item.id = item_id
         return self.service.update(item)
 
-    def soft_delete(self, req: func.HttpRequest):
+        def soft_delete(self, req: func.HttpRequest):
         item_id = req.route_params.get('item_id')
         self.service.soft_delete(item_id)
 {%- elif cookiecutter.cloud_service == 'Google Cloud Function' %}
