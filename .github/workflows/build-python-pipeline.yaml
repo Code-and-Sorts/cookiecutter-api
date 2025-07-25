@@ -25,6 +25,7 @@ jobs:
           - python
         cloud-service:
           - "Azure Function App"
+          - "Google Cloud Function"
         python-version:
           - "3.10"
           - "3.11"

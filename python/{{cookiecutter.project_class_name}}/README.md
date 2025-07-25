@@ -4,7 +4,11 @@
 
 ## Overview
 
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 This project is a Python-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
+{%- elif cookiecutter.cloud_service == 'Google Cloud Function' -%}
+This project is a Python-based REST API built using [Google Cloud Functions](https://cloud.google.com/functions). The API leverages Google Cloud's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
+{%- endif %}
 
 The REST API has the following endpoints:
 - GET (by ID)
@@ -17,6 +21,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 ## Features
 
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 - Azure Function Apps: Utilizes Azure's serverless platform to create scalable and efficient endpoints with HTTP triggers.
 
 - Python-Based: Written entirely in Python, leveraging its rich ecosystem and libraries for rapid development.
@@ -24,10 +29,19 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 - Poetry for Dependency Management: Manages all Python dependencies with Poetry, making the development environment consistent and easy to set up.
 
 - Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
+{%- elif cookiecutter.cloud_service == 'Google Cloud Function' -%}
+- Google Cloud Functions: Utilizes Google Cloud's serverless platform to create scalable and efficient endpoints with HTTP triggers.
+
+- Python-Based: Written entirely in Python, leveraging its rich ecosystem and libraries for rapid development.
+
+- Poetry for Dependency Management: Manages all Python dependencies with Poetry, making the development environment consistent and easy to set up.
+
+- Firestore Database: This project uses Google Cloud Firestore as the NoSQL database.
+{%- endif %}
 
 ## Prerequisites
 
-- Python >=3.7, <=3.11
+- Python >=3.9, <3.12
 
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 

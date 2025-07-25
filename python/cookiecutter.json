@@ -6,7 +6,8 @@
     "project_class_name": "{{cookiecutter.project_name | to_camel }}",
     "author": "Code and Sorts (Colby Timm)",
     "cloud_service": [
-        "Azure Function App"
+        "Azure Function App",
+        "Google Cloud Function"
     ],
     "open_source_license": [
         "MIT license",
