@@ -48,19 +48,19 @@ jobs:
         shell: bash
 
       - name: Run install
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: install
           dir: KittenClaws
 
       - name: Run build
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: build
           dir: KittenClaws
 
       - name: Unit tests
-        uses: borales/actions-yarn@v4
+        uses: borales/actions-yarn@v5
         with:
           cmd: test:unit
           dir: KittenClaws
