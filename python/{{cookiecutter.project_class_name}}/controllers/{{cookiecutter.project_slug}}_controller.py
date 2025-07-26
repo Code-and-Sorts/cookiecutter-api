@@ -32,7 +32,7 @@ class {{ cookiecutter.project_class_name }}Controller:
         item.id = item_id
         return self.service.update(item)
 
-        def soft_delete(self, req: func.HttpRequest):
+    def soft_delete(self, req: func.HttpRequest):
         item_id = req.route_params.get('item_id')
         self.service.soft_delete(item_id)
 {%- elif cookiecutter.cloud_service == 'Google Cloud Function' %}
