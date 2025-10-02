@@ -35,7 +35,7 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- endif %}
 
     def get_by_id(self, item_id: str) -> Optional[{{ cookiecutter.project_class_name }}Response]:
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
         query = "SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false"
         parameters = [
             { "name": "@id", "value": item_id }
@@ -50,7 +50,7 @@ class {{ cookiecutter.project_class_name }}Repository:
 
         raise NotFoundError()
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc = self.collection.document(item_id).get()
         if not doc.exists:
             raise NotFoundError()
@@ -63,7 +63,7 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- endif %}
 
     def get_list(self) -> List[{{ cookiecutter.project_class_name }}Response | None]:
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
         query = "SELECT * FROM c WHERE c.isDeleted = false"
         items = self.container_client.query_items(query=query, enable_cross_partition_query=True)
 
@@ -71,7 +71,7 @@ class {{ cookiecutter.project_class_name }}Repository:
             return [{{ cookiecutter.project_class_name }}Response.model_validate(item) for item in items]
         return []
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         docs = self.collection.where('isDeleted', '==', False).stream()
         items = []
         for doc in docs:
@@ -82,12 +82,12 @@ class {{ cookiecutter.project_class_name }}Repository:
 
     def create(self, item: {{ cookiecutter.project_class_name }}) -> {{ cookiecutter.project_class_name }}Response:
         item_dict = item.model_dump(exclude_none=True)
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
         created_item = self.container_client.create_item(item_dict)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(created_item)
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
         doc_ref.set(item_dict)
         
@@ -101,12 +101,12 @@ class {{ cookiecutter.project_class_name }}Repository:
         if not previous_item:
             raise NotFoundError()
         patched_item = {**previous_item_dict,**new_item_dict}
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
         updated_item = self.container_client.upsert_item(patched_item)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(updated_item)
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
         doc_ref.update(patched_item)
         
@@ -114,7 +114,7 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- endif %}
 
     def delete(self, item_id: str):
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
         filter = "from c WHERE c.isDeleted = false"
         operations: list[dict[str, str]] = [
             { 'op': 'replace', 'path': '/isDeleted', 'value': True }
@@ -130,7 +130,7 @@ class {{ cookiecutter.project_class_name }}Repository:
             if isinstance(error, CosmosAccessConditionFailedError):
                 raise NotFoundError()
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item_id)
         doc = doc_ref.get()
         
