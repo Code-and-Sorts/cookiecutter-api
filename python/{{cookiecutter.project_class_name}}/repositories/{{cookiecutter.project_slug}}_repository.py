@@ -25,11 +25,11 @@ class Database:
 {%- endif %}
 
 class {{ cookiecutter.project_class_name }}Repository:
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     def __init__(self, container_client: ContainerProxy):
         self.container_client = container_client
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
     def __init__(self, collection: CollectionReference):
         self.collection = collection
 {%- endif %}
