@@ -1,15 +1,20 @@
 import pytest
-from azure.cosmos import ContainerProxy
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response, generate_utc_timestamp
 from repositories import {{ cookiecutter.project_class_name }}Repository
 from errors import NotFoundError
+
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+from azure.cosmos import ContainerProxy
+{%- endif %}
 
 mock_item_responses = [
     {{ cookiecutter.project_class_name }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5',name='mockName1',type='mockType1'),
     {{ cookiecutter.project_class_name }}Response(id='de6cbc87-5969-458c-8444-3512a82250bc',name='mockName2',type='mockType2')
 ]
 mock_update_item_response = {{ cookiecutter.project_class_name }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5',name='mockName1-Update',type='mockType1-Update')
+
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 mock_query = [
     {
         "id": "ac1df01c-7ece-4a20-ab60-179829dad8f5",
@@ -139,3 +144,140 @@ def describe_item_service():
                 patch_operations=[{ 'op': 'replace', 'path': '/isDeleted', 'value': True }],
                 filter_predicate='from c WHERE c.isDeleted = false'
             )
+{%- endif %}
+{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+
+
+def describe_item_service():
+    @pytest.fixture
+    def mock_firestore_collection():
+        return MagicMock()
+
+    def describe_get_by_id():
+        def test_successfully_call(mock_firestore_collection):
+            mock_doc = MagicMock()
+            mock_doc.exists = True
+            mock_doc.to_dict.return_value = {
+                "id": "ac1df01c-7ece-4a20-ab60-179829dad8f5",
+                "name": "mockName1",
+                "type": "mockType1"
+            }
+            mock_doc_ref = MagicMock()
+            mock_doc_ref.get.return_value = mock_doc
+            mock_firestore_collection.document.return_value = mock_doc_ref
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            result = repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            
+            mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            assert result == mock_item_responses[0]
+        
+        def test_not_found_error(mock_firestore_collection):
+            mock_doc = MagicMock()
+            mock_doc.exists = False
+            mock_doc_ref = MagicMock()
+            mock_doc_ref.get.return_value = mock_doc
+            mock_firestore_collection.document.return_value = mock_doc_ref
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            try:
+                repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+                assert False, "Should have raised NotFoundError"
+            except NotFoundError:
+                pass
+
+    def describe_get_list():
+        def test_successfully_call(mock_firestore_collection):
+            mock_doc1 = MagicMock()
+            mock_doc1.to_dict.return_value = {
+                "id": "ac1df01c-7ece-4a20-ab60-179829dad8f5",
+                "name": "mockName1",
+                "type": "mockType1"
+            }
+            mock_doc2 = MagicMock()
+            mock_doc2.to_dict.return_value = {
+                "id": "de6cbc87-5969-458c-8444-3512a82250bc",
+                "name": "mockName2",
+                "type": "mockType2"
+            }
+            
+            mock_query = MagicMock()
+            mock_query.stream.return_value = [mock_doc1, mock_doc2]
+            mock_firestore_collection.where.return_value = mock_query
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            result = repository.get_list()
+            
+            mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
+            assert result == mock_item_responses
+        
+        def test_successfully_call_empty_result(mock_firestore_collection):
+            mock_query = MagicMock()
+            mock_query.stream.return_value = []
+            mock_firestore_collection.where.return_value = mock_query
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            result = repository.get_list()
+            
+            mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
+            assert result == []
+
+    def describe_create():
+        def test_successfully_call(mock_firestore_collection):
+            mock_doc_ref = MagicMock()
+            mock_firestore_collection.document.return_value = mock_doc_ref
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            mock_item = {{ cookiecutter.project_class_name }}(
+                name='mockName1',
+                type='mockType1',
+                id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
+            )
+            result = repository.create(item=mock_item)
+            
+            mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            mock_doc_ref.set.assert_called_once()
+            assert result.id == mock_item_responses[0].id
+
+    def describe_update():
+        def test_successfully_call(mock_firestore_collection):
+            mock_item_response = {{ cookiecutter.project_class_name }}Response(
+                id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                name='mockName1',
+                type='mockType1'
+            )
+            
+            mock_doc_ref = MagicMock()
+            mock_firestore_collection.document.return_value = mock_doc_ref
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            with patch.object(repository, 'get_by_id', return_value=mock_item_response):
+                result = repository.update(
+                    item={{ cookiecutter.project_class_name }}(
+                        id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                        name='mockName1-Update',
+                        type='mockType1-Update'
+                    )
+                )
+                assert result.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
+                assert result.name == 'mockName1-Update'
+                assert result.type == 'mockType1-Update'
+
+    def describe_delete():
+        def test_successfully_call(mock_firestore_collection):
+            mock_doc = MagicMock()
+            mock_doc.exists = True
+            mock_doc.to_dict.return_value = {
+                "id": "ac1df01c-7ece-4a20-ab60-179829dad8f5",
+                "isDeleted": False
+            }
+            mock_doc_ref = MagicMock()
+            mock_doc_ref.get.return_value = mock_doc
+            mock_firestore_collection.document.return_value = mock_doc_ref
+            
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
+            repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            
+            mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            mock_doc_ref.update.assert_called_once_with({'isDeleted': True})
+{%- endif %}
