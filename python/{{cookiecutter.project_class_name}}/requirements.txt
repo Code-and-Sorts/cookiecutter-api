@@ -1,0 +1,11 @@
+{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+# GCP Cloud Functions requirements
+functions-framework==3.*
+google-cloud-firestore==2.*
+pydantic==2.*
+{%- endif %}
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+# Azure Function Apps use Poetry for dependency management
+# This file is not used for Azure deployments
+# See pyproject.toml for dependencies
+{%- endif %}

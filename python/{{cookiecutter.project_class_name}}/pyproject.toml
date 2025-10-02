@@ -11,6 +11,10 @@ python = ">=3.9,<3.12"
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 azure-cosmos = "^4.7.0"
 {%- endif %}
+{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+google-cloud-firestore = "^2.16.0"
+functions-framework = "^3.5.0"
+{%- endif %}
 pytest-mock = "^3.14.0"
 pytest-describe = "^2.2.0"
 

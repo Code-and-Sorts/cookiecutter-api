@@ -1,3 +1,4 @@
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 {
   "IsEncrypted": false,
   "Values": {
@@ -10,3 +11,11 @@
     "Cosmos_Db_Container_Name": "{{ '{{Cosmos_Db_Container_Name}}' }}"
   }
 }
+{%- endif %}
+{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+{
+  "GCP_PROJECT_ID": "{{ '{{GCP_PROJECT_ID}}' }}",
+  "FIRESTORE_DATABASE": "(default)",
+  "FIRESTORE_COLLECTION": "{{ cookiecutter.project_slug }}"
+}
+{%- endif %}
