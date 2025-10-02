@@ -66,7 +66,7 @@ Follow the prompts and answer them with your own desired options.
     <td align="center"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
     <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Planned">📋</span></td>
-    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
@@ -89,13 +89,14 @@ Follow the prompts and answer them with your own desired options.
 ## 🎯 Examples
 
 Python
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-py-az-func-api)
+- [Azure Function App Example](https://github.com/Code-and-Sorts/cookie-py-az-func-api)
 
 Typescript
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-ts-az-func-api)
+- [Azure Function App Example](https://github.com/Code-and-Sorts/cookie-ts-az-func-api)
+- [GCP Cloud Function Example](https://github.com/Code-and-Sorts/cookie-ts-gcp-func-api)
 
 Dotnet
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
+- [Azure Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
 
 ## 📚 Resources
 
