@@ -167,14 +167,6 @@ Dependency management can be handled using either [Poetry](https://python-poetry
 poetry add <package-name>
 ```
 
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-After adding a dependency with Poetry, update requirements.txt for GCP deployment:
-
-```bash
-poetry export -f requirements.txt --output requirements.txt --without-hashes
-```
-{%- endif %}
-
 ### Removing a Dependency
 
 ```bash

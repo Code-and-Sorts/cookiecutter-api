@@ -12,10 +12,3 @@
   }
 }
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-{
-  "GCP_PROJECT_ID": "{{ '{{GCP_PROJECT_ID}}' }}",
-  "FIRESTORE_DATABASE": "(default)",
-  "FIRESTORE_COLLECTION": "{{ cookiecutter.project_slug }}"
-}
-{%- endif %}

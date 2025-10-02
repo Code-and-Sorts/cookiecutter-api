@@ -10,48 +10,21 @@ class ErrorResponse(BaseModel):
     message: str
     details: Optional[str] = None
 
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
-def generate_error_response(message: str, type: str = None, status_code: int = 500) -> func.HttpResponse:
+def generate_error_response(message: str, type: str = None, status_code: int = 500):
     error_response = ErrorResponse(
         type=type,
         message=message
     )
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     return func.HttpResponse(
         body=error_response.model_dump_json(exclude_none=True),
         status_code=status_code
     )
-
-def detect_error(error: Exception) -> func.HttpResponse:
-    if error and isinstance(error, BaseError):
-        return generate_error_response(
-            type=error.type,
-            message=str(error),
-            status_code=error.status_code
-        )
-    if error and isinstance(error, ValidationError):
-        return generate_error_response(
-            type="ValidationError",
-            message=str(error.errors()),
-            status_code=422
-        )
-
-    return generate_error_response(
-        type="UnknownError",
-        message="Unknown Error.",
-        status_code=500
-    )
 {%- endif %}
-{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-def generate_error_response(message: str, type: str = None, status_code: int = 500):
-    """Generate error response for GCP Cloud Functions.
-    Returns a tuple of (body, status_code, headers) which Flask understands.
-    """
-    error_response = ErrorResponse(
-        type=type,
-        message=message
-    )
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
     headers = {'Content-Type': 'application/json'}
     return (error_response.model_dump_json(exclude_none=True), status_code, headers)
+{%- endif %}
 
 def detect_error(error: Exception):
     if error and isinstance(error, BaseError):
@@ -72,4 +45,3 @@ def detect_error(error: Exception):
         message="Unknown Error.",
         status_code=500
     )
-{%- endif %}
