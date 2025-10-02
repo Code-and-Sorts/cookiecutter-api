@@ -47,7 +47,7 @@ export async function delete{{cookiecutter.project_class_name}}(req: Request, re
 
         await controller.delete({{cookiecutter.project_lower_camel_name}}Id);
 
-        res.status(200).json({ message: `{{cookiecutter.project_class_name}} with ID ${{{cookiecutter.project_lower_camel_name}}Id} deleted.` });
+        res.status(200).json({ message: `{{cookiecutter.project_class_name}} with ID ${ {{cookiecutter.project_lower_camel_name}}Id} deleted.` });
     } catch (error) {
         const errorResponse = detectError(error);
         res.status(errorResponse.status).json({ error: errorResponse.body });

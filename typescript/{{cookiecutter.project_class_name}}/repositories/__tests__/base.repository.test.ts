@@ -1,3 +1,4 @@
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import 'reflect-metadata';
 import { BaseRepository } from '@repositories';
 import { Container } from '@azure/cosmos';
@@ -285,3 +286,9 @@ describe('BaseRepository', () => {
         });
     });
 });
+{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+// TODO: Add Firestore-specific tests for BaseRepository
+describe('BaseRepository', () => {
+    it.skip('TODO: Add Firestore-specific tests', () => {});
+});
+{%- endif %}

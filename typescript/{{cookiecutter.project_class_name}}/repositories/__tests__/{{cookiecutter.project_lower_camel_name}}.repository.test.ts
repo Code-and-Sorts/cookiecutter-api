@@ -1,3 +1,4 @@
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import "reflect-metadata";
 import { CosmosClient } from "@azure/cosmos";
 import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
@@ -96,3 +97,9 @@ describe('{{cookiecutter.project_class_name}}Repository', () => {
         });
     });
 });
+{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+// TODO: Add Firestore-specific tests for {{cookiecutter.project_class_name}}Repository
+describe('{{cookiecutter.project_class_name}}Repository', () => {
+    it.skip('TODO: Add Firestore-specific tests', () => {});
+});
+{%- endif %}
