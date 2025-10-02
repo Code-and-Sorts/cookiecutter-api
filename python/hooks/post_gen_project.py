@@ -9,7 +9,6 @@ if cloud_service == "Azure Function App":
     # Remove GCP-specific files
     files_to_remove = [
         "main.py",
-        "requirements.txt",
     ]
 elif cloud_service == "GCP Cloud Function":
     # Remove Azure-specific files
