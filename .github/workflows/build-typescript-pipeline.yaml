@@ -25,6 +25,7 @@ jobs:
           - typescript
         cloud-service:
           - "Azure Function App"
+          - "GCP Cloud Function"
         node-version:
           - "18.x"
           - "20.x"
