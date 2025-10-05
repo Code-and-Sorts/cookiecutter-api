@@ -8,8 +8,7 @@ interface ErrorResponse {
 {%- endif %}
 import { BaseError } from '../types/errors/base.error';
 
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
-export const detectError = <T>(error: T) => {
+export const detectError = <T>(error: T){% if cookiecutter.cloud_service == 'Azure Function App' %} => {
   if (error instanceof BaseError && error.statusCode !== undefined) {
     return {
       status: error.statusCode,
@@ -20,9 +19,7 @@ export const detectError = <T>(error: T) => {
     status: 500,
     body: 'Unknown error occurred.',
   } as HttpResponseInit;
-};
-{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-export const detectError = <T>(error: T): ErrorResponse => {
+}{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' %}: ErrorResponse => {
   if (error instanceof BaseError && error.statusCode !== undefined) {
     return {
       status: error.statusCode,
@@ -33,5 +30,4 @@ export const detectError = <T>(error: T): ErrorResponse => {
     status: 500,
     body: 'Unknown error occurred.',
   };
-};
-{%- endif %}
+}{%- endif %};

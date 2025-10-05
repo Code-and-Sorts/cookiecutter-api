@@ -98,8 +98,87 @@ describe('{{cookiecutter.project_class_name}}Repository', () => {
     });
 });
 {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-// TODO: Add Firestore-specific tests for {{cookiecutter.project_class_name}}Repository
-describe('{{cookiecutter.project_class_name}}Repository', () => {
-    it.skip('TODO: Add Firestore-specific tests', () => {});
+import "reflect-metadata";
+import { Firestore } from "@google-cloud/firestore";
+import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
+import { injectable } from "inversify";
+
+let mockResult: any;
+
+@injectable()
+class MockFirestore {
+    public collection = jest.fn().mockImplementation(() => mockResult);
+}
+
+describe('{{cookiecutter.project_class_name}}Repository - Firestore', () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+    });
+
+    const mockFirestore = new MockFirestore() as unknown as Firestore;
+
+    it('should initialize with correct collection name', () => {
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        expect(mockFirestore.collection).toHaveBeenCalledWith('{{cookiecutter.project_endpoint}}s');
+    });
+
+    it('should call create method', async () => {
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const createSpy = jest.spyOn(repository, 'create');
+        const mockData = { id: '123', name: 'test' };
+        
+        // Mock the addRecord method
+        jest.spyOn(repository as any, 'addRecord').mockResolvedValue(mockData);
+        
+        await repository.create(mockData as any);
+        expect(createSpy).toHaveBeenCalledWith(mockData);
+    });
+
+    it('should call get method', async () => {
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const getSpy = jest.spyOn(repository, 'get');
+        const mockId = '123';
+        
+        // Mock the getRecord method
+        jest.spyOn(repository as any, 'getRecord').mockResolvedValue({ id: mockId });
+        
+        await repository.get(mockId);
+        expect(getSpy).toHaveBeenCalledWith(mockId);
+    });
+
+    it('should call list method', async () => {
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const listSpy = jest.spyOn(repository, 'list');
+        
+        // Mock the getRecords method
+        jest.spyOn(repository as any, 'getRecords').mockResolvedValue([]);
+        
+        await repository.list();
+        expect(listSpy).toHaveBeenCalled();
+    });
+
+    it('should call update method', async () => {
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const updateSpy = jest.spyOn(repository, 'update');
+        const mockData = { id: '123', name: 'updated' };
+        
+        // Mock the updateRecord method
+        jest.spyOn(repository as any, 'updateRecord').mockResolvedValue(mockData);
+        
+        await repository.update(mockData as any);
+        expect(updateSpy).toHaveBeenCalledWith(mockData);
+    });
+
+    it('should call delete method', async () => {
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const deleteSpy = jest.spyOn(repository, 'delete');
+        const mockId = '123';
+        
+        // Mock the deleteRecord method
+        jest.spyOn(repository as any, 'deleteRecord').mockResolvedValue(undefined);
+        
+        await repository.delete(mockId);
+        expect(deleteSpy).toHaveBeenCalledWith(mockId);
+    });
 });
 {%- endif %}

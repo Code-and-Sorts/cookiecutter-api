@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "description": "{{cookiecutter.project_description}}",
   "packageManager": "yarn@4.5.2",
+  {% if cookiecutter.cloud_service == 'Azure Function App' -%}
   "main": "dist/functions/*.js",
+  {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+  "main": "dist/index.js",
+  {%- endif %}
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
     {% if cookiecutter.cloud_service == 'Azure Function App' -%}
     "start": "func start --typescript",
     {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-    "start": "npx @google-cloud/functions-framework --target=create{{cookiecutter.project_class_name}} --source=dist",
+    "start": "functions-framework --target=create{{cookiecutter.project_class_name}}",
     {%- endif %}
     "test:unit": "yarn jest --verbose --coverage"
   },

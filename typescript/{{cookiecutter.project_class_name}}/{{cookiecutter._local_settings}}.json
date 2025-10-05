@@ -1,4 +1,3 @@
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 {
     "IsEncrypted": false,
     "Values": {
@@ -7,9 +6,3 @@
       "AzureWebJobsFeatureFlags": "EnableWorkerIndexing"
     }
 }
-{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-{
-    "GCP_PROJECT_ID": "your-project-id",
-    "FIRESTORE_DATABASE_ID": "(default)"
-}
-{%- endif %}

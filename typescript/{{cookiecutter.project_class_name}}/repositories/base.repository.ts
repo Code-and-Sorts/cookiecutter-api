@@ -151,6 +151,9 @@ export class BaseRepository<T extends BaseItemRecord> {
       await docRef.update(updatedItem);
       return updatedItem;
     } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
       if ((error as any)?.code === 5) { // NOT_FOUND
         throw new NotFoundError(`Record with id ${updates.id} not found.`);
       }
