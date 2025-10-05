@@ -12,6 +12,9 @@
 #!.yarn/cache
 .pnp.*
 
+# Yarn lock file - generated on install
+yarn.lock
+
 # build
 
 bin
