@@ -1,10 +1,13 @@
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import 'reflect-metadata';
 import { BaseRepository } from '@repositories';
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import { Container } from '@azure/cosmos';
+{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+import { Firestore } from '@google-cloud/firestore';
+{%- endif %}
 import { NotFoundError, ProxyError } from '@errors';
 
-
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 class MockNotFound extends Error {
     public code: number | undefined;
 
@@ -13,14 +16,17 @@ class MockNotFound extends Error {
         this.code = 404;
     }
 }
+{%- endif %}
 
 const mock{{cookiecutter.project_class_name}}CreateRecord = {
     id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
     name: 'mock{{cookiecutter.project_class_name}}1',
     {{cookiecutter.project_lower_camel_name}}GenerationData: {},
     createdBy: 'mockUser',
-    updatedBy: 'mockUser',
+    updatedBy: 'mockUser',{% if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    isDeleted: false,{% endif %}
 };
+
 const mock{{cookiecutter.project_class_name}}Records = [
     {
         id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
@@ -30,12 +36,12 @@ const mock{{cookiecutter.project_class_name}}Records = [
         updatedBy: 'mockUser',
         createdTimestamp: '2024-03-24T00:00:00.000Z',
         updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
+        isDeleted: false,{% if cookiecutter.cloud_service == 'Azure Function App' %}
         _rid: 'A75OAPmg6JcDAAAAAAAAAA==',
         _self: 'dbs/A75OAA==/colls/A75OAPmg6Jc=/docs/A75OAPmg6JcDAAAAAAAAAA==/',
         _etag: '\'12002ff0-0000-0800-0000-6600ec090000\'',
         _attachments: 'attachments/',
-        _ts: 1711336457,
+        _ts: 1711336457,{% endif %}
     },
     {
         id: 'cb8b2d40-edcc-4ac7-93ba-207408b23c8a',
@@ -45,14 +51,16 @@ const mock{{cookiecutter.project_class_name}}Records = [
         updatedBy: 'mockUser',
         createdTimestamp: '2024-03-24T00:00:00.000Z',
         updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
+        isDeleted: false,{% if cookiecutter.cloud_service == 'Azure Function App' %}
         _rid: 'A75OAPmg6JcDAAAAAAAAAA==',
         _self: 'dbs/A75OAA==/colls/A75OAPmg6Jc=/docs/A75OAPmg6JcDAAAAAAAAAA==/',
         _etag: '\'12002ff0-0000-0800-0000-6600ec090000\'',
         _attachments: 'attachments/',
-        _ts: 1711336457,
+        _ts: 1711336457,{% endif %}
     }
 ];
+
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 const mock{{cookiecutter.project_class_name}}UpdateFetchRecord = {
     id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
     name: 'mock{{cookiecutter.project_class_name}}1Update',
@@ -68,10 +76,14 @@ const mock{{cookiecutter.project_class_name}}UpdateFetchRecord = {
     _attachments: 'attachments/',
     _ts: 1711336457,
 };
+{%- endif %}
+
 const mock{{cookiecutter.project_class_name}}Update = {
     id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
     name: 'mock{{cookiecutter.project_class_name}}1Update',
 };
+
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 const mock{{cookiecutter.project_class_name}}sRepositoryResponse = {
     id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
     name: 'mock{{cookiecutter.project_class_name}}1',
@@ -81,7 +93,10 @@ const mock{{cookiecutter.project_class_name}}sRepositoryResponse = {
     createdBy: 'mockUser',
     updatedBy: 'mockUser',
 };
+{%- endif %}
+
 const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 const mockGetRecordQuery = 'SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false';
 const mockGetRecordsQuery = 'SELECT * FROM c WHERE c.isDeleted = false';
 const mockGetRecordParameters = [
@@ -287,49 +302,6 @@ describe('BaseRepository', () => {
     });
 });
 {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-import 'reflect-metadata';
-import { BaseRepository } from '@repositories';
-import { Firestore } from '@google-cloud/firestore';
-import { NotFoundError, ProxyError } from '@errors';
-
-const mock{{cookiecutter.project_class_name}}CreateRecord = {
-    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-    name: 'mock{{cookiecutter.project_class_name}}1',
-    {{cookiecutter.project_lower_camel_name}}GenerationData: {},
-    createdBy: 'mockUser',
-    updatedBy: 'mockUser',
-    isDeleted: false,
-};
-
-const mock{{cookiecutter.project_class_name}}Records = [
-    {
-        id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-        name: 'mock{{cookiecutter.project_class_name}}1',
-        {{cookiecutter.project_lower_camel_name}}GenerationData: {},
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-    },
-    {
-        id: 'cb8b2d40-edcc-4ac7-93ba-207408b23c8a',
-        name: 'mock{{cookiecutter.project_class_name}}2',
-        {{cookiecutter.project_lower_camel_name}}GenerationData: {},
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-    }
-];
-
-const mock{{cookiecutter.project_class_name}}Update = {
-    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-    name: 'mock{{cookiecutter.project_class_name}}1Update',
-};
-
-const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
 
 let mockFirestore: any;
 let mockCollection: any;

@@ -1,25 +1,33 @@
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import "reflect-metadata";
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from "@azure/cosmos";
+{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+import { Firestore } from "@google-cloud/firestore";
+{%- endif %}
 import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
 import { injectable } from "inversify";
 
-let mockResult;
+let mockResult{% if cookiecutter.cloud_service == 'GCP Cloud Function' %}: any{% endif %};
 
 @injectable()
-class MockCosmosClient {
+class Mock{% if cookiecutter.cloud_service == 'Azure Function App' %}CosmosClient{% elif cookiecutter.cloud_service == 'GCP Cloud Function' %}Firestore{% endif %} {
+    {% if cookiecutter.cloud_service == 'Azure Function App' -%}
     public database = jest.fn().mockImplementation(() => ({
         container: jest.fn(() => mockResult),
     }));
+    {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+    public collection = jest.fn().mockImplementation(() => mockResult);
+    {%- endif %}
 }
 
-describe('{{cookiecutter.project_class_name}}Repository', () => {
+describe('{{cookiecutter.project_class_name}}Repository{% if cookiecutter.cloud_service == 'GCP Cloud Function' %} - Firestore{% endif %}', () => {
     beforeEach(() => {
         jest.resetAllMocks();
     });
 
-    const mockCosmosClient = new MockCosmosClient() as unknown as CosmosClient;
-    const mock{{cookiecutter.project_class_name}}Repository = new {{cookiecutter.project_class_name}}Repository(mockCosmosClient);
+    const mockClient = new Mock{% if cookiecutter.cloud_service == 'Azure Function App' %}CosmosClient{% elif cookiecutter.cloud_service == 'GCP Cloud Function' %}Firestore{% endif %}() as unknown as {% if cookiecutter.cloud_service == 'Azure Function App' %}CosmosClient{% elif cookiecutter.cloud_service == 'GCP Cloud Function' %}Firestore{% endif %};
+    {% if cookiecutter.cloud_service == 'Azure Function App' -%}
+    const mock{{cookiecutter.project_class_name}}Repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
     const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
     const mock{{cookiecutter.project_class_name}} = {
         name: 'mock{{cookiecutter.project_class_name}}',
@@ -96,38 +104,18 @@ describe('{{cookiecutter.project_class_name}}Repository', () => {
             expect(repository).toHaveBeenCalledWith(mock{{cookiecutter.project_class_name}}Id);
         });
     });
-});
-{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-import "reflect-metadata";
-import { Firestore } from "@google-cloud/firestore";
-import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
-import { injectable } from "inversify";
-
-let mockResult: any;
-
-@injectable()
-class MockFirestore {
-    public collection = jest.fn().mockImplementation(() => mockResult);
-}
-
-describe('{{cookiecutter.project_class_name}}Repository - Firestore', () => {
-    beforeEach(() => {
-        jest.resetAllMocks();
-    });
-
-    const mockFirestore = new MockFirestore() as unknown as Firestore;
+    {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' -%}
 
     it('should initialize with correct collection name', () => {
-        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
-        expect(mockFirestore.collection).toHaveBeenCalledWith('{{cookiecutter.project_endpoint}}s');
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
+        expect(mockClient.collection).toHaveBeenCalledWith('{{cookiecutter.project_endpoint}}s');
     });
 
     it('should call create method', async () => {
-        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
         const createSpy = jest.spyOn(repository, 'create');
         const mockData = { id: '123', name: 'test' };
         
-        // Mock the addRecord method
         jest.spyOn(repository as any, 'addRecord').mockResolvedValue(mockData);
         
         await repository.create(mockData as any);
@@ -135,11 +123,10 @@ describe('{{cookiecutter.project_class_name}}Repository - Firestore', () => {
     });
 
     it('should call get method', async () => {
-        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
         const getSpy = jest.spyOn(repository, 'get');
         const mockId = '123';
         
-        // Mock the getRecord method
         jest.spyOn(repository as any, 'getRecord').mockResolvedValue({ id: mockId });
         
         await repository.get(mockId);
@@ -147,10 +134,9 @@ describe('{{cookiecutter.project_class_name}}Repository - Firestore', () => {
     });
 
     it('should call list method', async () => {
-        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
         const listSpy = jest.spyOn(repository, 'list');
         
-        // Mock the getRecords method
         jest.spyOn(repository as any, 'getRecords').mockResolvedValue([]);
         
         await repository.list();
@@ -158,11 +144,10 @@ describe('{{cookiecutter.project_class_name}}Repository - Firestore', () => {
     });
 
     it('should call update method', async () => {
-        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
         const updateSpy = jest.spyOn(repository, 'update');
         const mockData = { id: '123', name: 'updated' };
         
-        // Mock the updateRecord method
         jest.spyOn(repository as any, 'updateRecord').mockResolvedValue(mockData);
         
         await repository.update(mockData as any);
@@ -170,15 +155,14 @@ describe('{{cookiecutter.project_class_name}}Repository - Firestore', () => {
     });
 
     it('should call delete method', async () => {
-        const repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+        const repository = new {{cookiecutter.project_class_name}}Repository(mockClient);
         const deleteSpy = jest.spyOn(repository, 'delete');
         const mockId = '123';
         
-        // Mock the deleteRecord method
         jest.spyOn(repository as any, 'deleteRecord').mockResolvedValue(undefined);
         
         await repository.delete(mockId);
         expect(deleteSpy).toHaveBeenCalledWith(mockId);
     });
+    {%- endif %}
 });
-{%- endif %}
