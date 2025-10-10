@@ -6,8 +6,15 @@ install: ## Install the poetry environment
 
 .PHONY: run
 run: ## Run function app.
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 	@echo "🚀 Running Function App"
 	@poetry run func start
+{%- endif %}
+{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+	@echo "🚀 Running Cloud Function (get_list endpoint)"
+	@echo "Use 'poetry run functions-framework --target=<function_name> --source=main.py' to run specific functions"
+	@poetry run functions-framework --target=get_list --source=main.py --port=8080
+{%- endif %}
 
 .PHONY: build
 build: clean-build ## Build wheel file using poetry
