@@ -25,10 +25,19 @@ jobs:
           - python
         cloud-service:
           - "Azure Function App"
-          - "GCP Cloud Function"
         python-version:
           - "3.10"
           - "3.11"
+        include:
+          # Test GCP Cloud Function on ubuntu-latest only to reduce CI time
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "GCP Cloud Function"
+            python-version: "3.10"
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "GCP Cloud Function"
+            python-version: "3.11"
       fail-fast: false
     steps:
       - name: Check out
