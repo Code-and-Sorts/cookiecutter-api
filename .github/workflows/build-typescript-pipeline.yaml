@@ -48,19 +48,16 @@ jobs:
         shell: bash
 
       - name: Run install
-        uses: borales/actions-yarn@v5
-        with:
-          cmd: install
-          dir: KittenClaws
+        run: yarn install --no-immutable
+        working-directory: KittenClaws
+        shell: bash
 
       - name: Run build
-        uses: borales/actions-yarn@v5
-        with:
-          cmd: build
-          dir: KittenClaws
+        run: yarn build
+        working-directory: KittenClaws
+        shell: bash
 
       - name: Unit tests
-        uses: borales/actions-yarn@v5
-        with:
-          cmd: test:unit
-          dir: KittenClaws
+        run: yarn test:unit
+        working-directory: KittenClaws
+        shell: bash
