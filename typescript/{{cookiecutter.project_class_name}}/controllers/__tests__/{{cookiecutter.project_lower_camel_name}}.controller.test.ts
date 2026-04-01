@@ -1,5 +1,12 @@
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 process.env.COSMOS_DB_URL = 'https://cosmos-mock.documents.azure.com:443/';
 process.env.COSMOS_DB_KEY = 'mock-cosmos-key';
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+process.env.GCP_PROJECT_ID = 'mock-gcp-project';
+process.env.FIRESTORE_DATABASE = '(default)';
+process.env.FIRESTORE_COLLECTION = '{{cookiecutter.project_endpoint}}';
+{%- endif %}
 
 import { {{cookiecutter.project_class_name}}Controller } from '@controllers';
 import { {{cookiecutter.project_class_name}}Service } from '@services';

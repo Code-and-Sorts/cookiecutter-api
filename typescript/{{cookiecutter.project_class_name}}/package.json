@@ -3,15 +3,31 @@
   "version": "1.0.0",
   "description": "{{cookiecutter.project_description}}",
   "packageManager": "yarn@4.13.0",
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
   "main": "dist/functions/*.js",
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+  "main": "dist/main.js",
+{%- endif %}
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     "start": "func start --typescript",
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    "start": "npx functions-framework --target=api --source=dist/",
+{%- endif %}
     "test:unit": "yarn jest --verbose --coverage"
   },
   "dependencies": {
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     "@azure/cosmos": "^4.2.0",
     "@azure/functions": "^4.6.0",
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    "@google-cloud/firestore": "^7.11.0",
+    "@google-cloud/functions-framework": "^3.4.5",
+{%- endif %}
     "dotenv": "^17.0.0",
     "inversify": "^6.1.4",
     "reflect-metadata": "^0.2.2",
@@ -21,7 +37,9 @@
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^24.0.0",
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     "azure-functions-core-tools": "^4.x",
+{%- endif %}
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "tsc-alias": "^1.8.10",
