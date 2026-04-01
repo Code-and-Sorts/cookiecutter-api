@@ -5,14 +5,54 @@ import (
 	"testing"
 
 	"{{cookiecutter.project_endpoint}}/models"
-	"{{cookiecutter.project_endpoint}}/repositories"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func setupServiceTest() (*repositories.Mock{{cookiecutter.project_class_name}}Repository, {{cookiecutter.project_class_name}}Service) {
-	mockRepo := new(repositories.Mock{{cookiecutter.project_class_name}}Repository)
+type mock{{cookiecutter.project_class_name}}Repository struct {
+	mock.Mock
+}
+
+func (m *mock{{cookiecutter.project_class_name}}Repository) Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{cookiecutter.project_class_name}}Dto), args.Error(1)
+}
+
+func (m *mock{{cookiecutter.project_class_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.{{cookiecutter.project_class_name}}Dto), args.Error(1)
+}
+
+func (m *mock{{cookiecutter.project_class_name}}Repository) Create(ctx context.Context, item models.{{cookiecutter.project_class_name}}) (*models.{{cookiecutter.project_class_name}}Dto, error) {
+	args := m.Called(ctx, item)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{cookiecutter.project_class_name}}Dto), args.Error(1)
+}
+
+func (m *mock{{cookiecutter.project_class_name}}Repository) Update(ctx context.Context, item models.{{cookiecutter.project_class_name}}) (*models.{{cookiecutter.project_class_name}}Dto, error) {
+	args := m.Called(ctx, item)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{cookiecutter.project_class_name}}Dto), args.Error(1)
+}
+
+func (m *mock{{cookiecutter.project_class_name}}Repository) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func setupServiceTest() (*mock{{cookiecutter.project_class_name}}Repository, {{cookiecutter.project_class_name}}Service) {
+	mockRepo := new(mock{{cookiecutter.project_class_name}}Repository)
 	service := New{{cookiecutter.project_class_name}}Service(mockRepo)
 	return mockRepo, service
 }
