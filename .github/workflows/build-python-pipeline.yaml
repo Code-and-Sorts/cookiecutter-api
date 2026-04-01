@@ -27,12 +27,12 @@ jobs:
           - "Azure Function App"
           - "GCP Cloud Function"
         python-version:
-          - "3.10"
-          - "3.11"
+          - "3.12"
+          - "3.13"
       fail-fast: false
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Cookiecutter Template
         uses: ./.github/actions/setup-cookiecutter-template
@@ -41,7 +41,7 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
 
       - name: Set up python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -67,7 +67,7 @@ jobs:
 
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.cloud-service }}-${{ hashFiles('**/pyproject.toml') }}

@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Cookiecutter Template
         uses: ./.github/actions/setup-cookiecutter-template
@@ -40,7 +40,7 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
 
       - name: Setup Node ${{ matrix.node-version }} Environment
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
 

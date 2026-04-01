@@ -15,11 +15,11 @@
 [![](https://img.shields.io/badge/made%20using%20cookiecutter-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter)
 
 
-This is a modern 🍪 Cookiecutter template to create REST APIs for multiple cloud platforms in multiple languages. This template supports the multiple cloud platforms and languages.
+A [Cookiecutter](https://github.com/cookiecutter/cookiecutter) template for generating REST APIs across multiple cloud platforms and languages.
 
-## 🧪 Usage
+## Usage
 
-Install Cookiecutter using pip package manager:
+Install Cookiecutter using pip:
 
 ```console
 # pipx is strongly recommended.
@@ -30,7 +30,7 @@ pipx install cookiecutter
 python -m pip install --user cookiecutter
 ```
 
-To create a Cookiecutter API project, run the following for each implemented template.
+Then generate a project from one of the available templates:
 
 ```console
 # Create using the GH CLI
@@ -40,9 +40,9 @@ cookiecutter gh:Code-and-Sorts/cookiecutter-api/{LANGUAGE_OPTION}
 cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git --directory {LANGUAGE_OPTION}
 ```
 
-Follow the prompts and answer them with your own desired options.
+Follow the prompts to configure your project.
 
-## 🌟 Supported Templates
+## Supported Templates
 
 <table width="100%">
   <tr>
@@ -86,7 +86,7 @@ Follow the prompts and answer them with your own desired options.
 > [!NOTE]
 > Each project follows the controller-service-repository pattern.
 
-## 🎯 Examples
+## Examples
 
 Python
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-py-az-func-api)
@@ -97,9 +97,9 @@ Typescript
 Dotnet
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
 
-## 📚 Resources
+## Resources
 
-Below is a list of resources and documentation for the types of SDKs and frameworks used in the various Cookiecutter APIs.
+Below are the SDKs and frameworks used in the various templates.
 
 ### Python
 - [Poetry](https://python-poetry.org/) for dependency management
@@ -109,15 +109,15 @@ Below is a list of resources and documentation for the types of SDKs and framewo
 ### Typescript NodeJS
 - [Yarn](https://yarnpkg.com/) for dependency management
 - [Jest](https://jestjs.io/) for testing
-- [Zod](https://zod.dev/) for schema validtion
+- [Zod](https://zod.dev/) for schema validation
 
 ## Dotnet
 - [Nuget](https://www.nuget.org/) for dependency management
 - [xUnit](https://xunit.net/) for testing
-- [FluentValidation](https://docs.fluentvalidation.net/en/latest/) for schema validtion
+- [FluentValidation](https://docs.fluentvalidation.net/en/latest/) for schema validation
 
 ### Azure
-- [Azure Function Apps ](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs
+- [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs
 - [Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/) for data storage
 
 ### AWS
@@ -128,6 +128,6 @@ Below is a list of resources and documentation for the types of SDKs and framewo
 - [Cloud Functions](https://cloud.google.com/functions/docs) for hosting the APIs
 - [Firestore](https://cloud.google.com/firestore#documentation) for data storage
 
-## 🙏🏻 Acknowledgements
+## Acknowledgements
 
-Florian Maas' [cookiecutter-poetry](https://github.com/fpgmaas/cookiecutter-poetry) repository was a very helpful resource for building out this Cookiecutter template.
+Florian Maas' [cookiecutter-poetry](https://github.com/fpgmaas/cookiecutter-poetry) repository was a helpful resource for building out this template.

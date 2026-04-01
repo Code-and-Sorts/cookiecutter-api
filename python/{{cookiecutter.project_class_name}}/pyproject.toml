@@ -7,7 +7,7 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.10,<3.15"
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 azure-cosmos = "^4.7.0"
 {%- endif %}
@@ -16,14 +16,14 @@ google-cloud-firestore = "^2.16.0"
 functions-framework = "^3.5.0"
 {%- endif %}
 pytest-mock = "^3.14.0"
-pytest-describe = "^2.2.0"
+pytest-describe = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
-azure-functions = "1.20.0"
+azure-functions = "1.24.0"
 {%- endif %}
-pytest = "^8.3.2"
-pytest-cov = "^5.0.0"
+pytest = "^9.0.0"
+pytest-cov = "^7.0.0"
 pydantic = "^2.8.2"
 
 [build-system]

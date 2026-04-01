@@ -8,14 +8,14 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="FluentValidation" Version="11.11.0" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.46.0" />
-    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.0.0" />
+    <PackageReference Include="FluentValidation" Version="12.0.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.51.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.3.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore"
-      Version="2.0.2" />
-    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+      Version="2.1.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.7" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
