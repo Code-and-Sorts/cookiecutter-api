@@ -1,10 +1,15 @@
 import "reflect-metadata";
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from "@azure/cosmos";
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+import { Firestore } from "@google-cloud/firestore";
+{%- endif %}
 import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
 import { injectable } from "inversify";
 
 let mockResult;
-
+{% if cookiecutter.cloud_service == 'Azure Function App' %}
 @injectable()
 class MockCosmosClient {
     public database = jest.fn().mockImplementation(() => ({
@@ -19,6 +24,21 @@ describe('{{cookiecutter.project_class_name}}Repository', () => {
 
     const mockCosmosClient = new MockCosmosClient() as unknown as CosmosClient;
     const mock{{cookiecutter.project_class_name}}Repository = new {{cookiecutter.project_class_name}}Repository(mockCosmosClient);
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+@injectable()
+class MockFirestore {
+    public collection = jest.fn().mockImplementation(() => mockResult);
+}
+
+describe('{{cookiecutter.project_class_name}}Repository', () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+    });
+
+    const mockFirestore = new MockFirestore() as unknown as Firestore;
+    const mock{{cookiecutter.project_class_name}}Repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+{%- endif %}
     const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
     const mock{{cookiecutter.project_class_name}} = {
         name: 'mock{{cookiecutter.project_class_name}}',

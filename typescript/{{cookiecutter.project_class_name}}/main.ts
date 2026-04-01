@@ -1,0 +1,72 @@
+import * as ff from '@google-cloud/functions-framework';
+import { {{cookiecutter.project_class_name}}Controller } from '@controllers';
+import { container } from '@config/inversity.config';
+import { {{cookiecutter.project_class_name}} } from '@models';
+import { detectError } from '@utils';
+
+const ENDPOINT = '{{cookiecutter.project_endpoint}}';
+
+/**
+ * Parses the item ID from the request path.
+ * Expected paths: /{endpoint}/{id} or /{endpoint}
+ */
+const parseId = (path: string): string | undefined => {
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length >= 2 && segments[0] === ENDPOINT) {
+    return segments[1];
+  }
+  return undefined;
+};
+
+const jsonResponse = (res: ff.Response, status: number, body: unknown): void => {
+  res.status(status).json(body);
+};
+
+ff.http('api', async (req: ff.Request, res: ff.Response) => {
+  const controller = container.resolve({{cookiecutter.project_class_name}}Controller);
+
+  try {
+    switch (req.method) {
+      case 'GET': {
+        const id = parseId(req.path);
+        if (id) {
+          const result = await controller.get(id);
+          return jsonResponse(res, 200, result);
+        }
+        const results = await controller.list();
+        return jsonResponse(res, 200, results);
+      }
+
+      case 'POST': {
+        const {{cookiecutter.project_lower_camel_name}}: {{cookiecutter.project_class_name}} = req.body as {{cookiecutter.project_class_name}};
+        const created = await controller.post({{cookiecutter.project_lower_camel_name}});
+        return jsonResponse(res, 201, created);
+      }
+
+      case 'PUT':
+      case 'PATCH': {
+        const id = parseId(req.path);
+        const {{cookiecutter.project_lower_camel_name}}: {{cookiecutter.project_class_name}} = req.body as {{cookiecutter.project_class_name}};
+        const updated = await controller.update({ id, ...{{cookiecutter.project_lower_camel_name}} });
+        return jsonResponse(res, 200, updated);
+      }
+
+      case 'DELETE': {
+        const id = parseId(req.path);
+        if (!id) {
+          return jsonResponse(res, 400, { error: 'Missing item ID.' });
+        }
+        await controller.delete(id);
+        return jsonResponse(res, 200, {
+          message: `{{cookiecutter.project_class_name}} with ID ${id} deleted.`,
+        });
+      }
+
+      default:
+        return jsonResponse(res, 405, { error: 'Method not allowed.' });
+    }
+  } catch (error) {
+    const errorResponse = detectError(error);
+    return res.status(errorResponse.status).send(errorResponse.body);
+  }
+});
