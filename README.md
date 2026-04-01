@@ -9,6 +9,7 @@
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-python-pipeline.yaml?branch=main&label=Python-Build&style=for-the-badge)
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-typescript-pipeline.yaml?branch=main&label=Typescript-Build&style=for-the-badge)
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-dotnet-pipeline.yaml?branch=main&label=Dotnet-Build&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-go-pipeline.yaml?branch=main&label=Go-Build&style=for-the-badge)
 
 ![](https://img.shields.io/github/license/Code-and-Sorts/cookiecutter-api?label=License&style=for-the-badge&color=blue)
 
@@ -76,7 +77,7 @@ Follow the prompts to configure your project.
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
-    <td align="center"><span title="Complete">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Planned">📋</span></td>
     <td align="center"><span title="Planned">📋</span></td>
   </tr>
@@ -97,6 +98,9 @@ Typescript
 Dotnet
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
 
+Go
+- [Function App Example](https://github.com/Code-and-Sorts/cookie-go-az-func-api)
+
 ## Resources
 
 Below are the SDKs and frameworks used in the various templates.
@@ -115,6 +119,11 @@ Below are the SDKs and frameworks used in the various templates.
 - [Nuget](https://www.nuget.org/) for dependency management
 - [xUnit](https://xunit.net/) for testing
 - [FluentValidation](https://docs.fluentvalidation.net/en/latest/) for schema validation
+
+### Go
+- [Go Modules](https://go.dev/ref/mod) for dependency management
+- [testing](https://pkg.go.dev/testing) and [testify](https://github.com/stretchr/testify) for testing
+- [Azure SDK for Go (azcosmos)](https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/data/azcosmos) for Cosmos DB
 
 ### Azure
 - [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs

@@ -1,0 +1,56 @@
+name: Go Cookiecutter API Build
+
+on:
+  push:
+    paths:
+      - go/**
+    branches:
+      - main
+  pull_request:
+    paths:
+      - go/**
+    branches:
+      - main
+
+jobs:
+  build-go:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        template-type:
+          - go
+        cloud-service:
+          - "Azure Function App"
+        go-version:
+          - "1.22"
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Setup Cookiecutter Template
+        uses: ./.github/actions/setup-cookiecutter-template
+        with:
+          template-language: ${{ matrix.template-type }}
+          template-cloud-service: ${{ matrix.cloud-service }}
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install dependencies
+        run: make install
+        working-directory: KittenClaws
+
+      - name: Build
+        run: make build
+        working-directory: KittenClaws
+
+      - name: Test with the Go CLI
+        run: make test-unit
+        working-directory: KittenClaws
