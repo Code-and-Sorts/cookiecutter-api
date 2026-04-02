@@ -2,12 +2,19 @@ package controllers
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"io"
 
 	"{{cookiecutter.project_endpoint}}/models"
 	"{{cookiecutter.project_endpoint}}/services"
 )
+
+//go:embed schemas/create_{{cookiecutter.project_endpoint}}_request.json
+var createRequestSchema string
+
+//go:embed schemas/update_{{cookiecutter.project_endpoint}}_request.json
+var updateRequestSchema string
 
 type {{cookiecutter.project_class_name}}Controller interface {
 	Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error)
@@ -18,11 +25,12 @@ type {{cookiecutter.project_class_name}}Controller interface {
 }
 
 type {{cookiecutter.project_lower_camel_name}}Controller struct {
-	service services.{{cookiecutter.project_class_name}}Service
+	service         services.{{cookiecutter.project_class_name}}Service
+	schemaValidator services.SchemaValidator
 }
 
-func New{{cookiecutter.project_class_name}}Controller(service services.{{cookiecutter.project_class_name}}Service) {{cookiecutter.project_class_name}}Controller {
-	return &{{cookiecutter.project_lower_camel_name}}Controller{service: service}
+func New{{cookiecutter.project_class_name}}Controller(service services.{{cookiecutter.project_class_name}}Service, schemaValidator services.SchemaValidator) {{cookiecutter.project_class_name}}Controller {
+	return &{{cookiecutter.project_lower_camel_name}}Controller{service: service, schemaValidator: schemaValidator}
 }
 
 func (c *{{cookiecutter.project_lower_camel_name}}Controller) Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error) {
@@ -39,7 +47,7 @@ func (c *{{cookiecutter.project_lower_camel_name}}Controller) Create(ctx context
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
 
-	if err := req.Validate(); err != nil {
+	if err := c.schemaValidator.Validate(req, createRequestSchema); err != nil {
 		return nil, err
 	}
 
@@ -54,7 +62,7 @@ func (c *{{cookiecutter.project_lower_camel_name}}Controller) Update(ctx context
 
 	req.Id = id
 
-	if err := req.Validate(); err != nil {
+	if err := c.schemaValidator.Validate(req, updateRequestSchema); err != nil {
 		return nil, err
 	}
 

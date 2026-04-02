@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"{{cookiecutter.project_endpoint}}/models"
+	"{{cookiecutter.project_endpoint}}/services"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -53,10 +54,14 @@ func (m *Mock{{cookiecutter.project_class_name}}Service) Delete(ctx context.Cont
 	return args.Error(0)
 }
 
+func newTestController(mockService *Mock{{cookiecutter.project_class_name}}Service) {{cookiecutter.project_class_name}}Controller {
+	return New{{cookiecutter.project_class_name}}Controller(mockService, services.NewSchemaValidator())
+}
+
 func TestGetAsync_Returns{{cookiecutter.project_class_name}}Dto(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 	id := "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 	expected := &models.{{cookiecutter.project_class_name}}Dto{Id: id, Name: "mock{{cookiecutter.project_class_name}}"}
 	mockService.On("Get", mock.Anything, id).Return(expected, nil)
@@ -73,7 +78,7 @@ func TestGetAsync_Returns{{cookiecutter.project_class_name}}Dto(t *testing.T) {
 func TestGetListAsync_ReturnsListOf{{cookiecutter.project_class_name}}Dto(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 	expected := []models.{{cookiecutter.project_class_name}}Dto{
 		{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mock{{cookiecutter.project_class_name}}1"},
 		{Id: "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name: "mock{{cookiecutter.project_class_name}}2"},
@@ -92,7 +97,7 @@ func TestGetListAsync_ReturnsListOf{{cookiecutter.project_class_name}}Dto(t *tes
 func TestCreateAsync_ReturnsCreated{{cookiecutter.project_class_name}}Dto(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 	createReq := models.Create{{cookiecutter.project_class_name}}Request{Name: "mockCreate{{cookiecutter.project_class_name}}", CreatedBy: "TestUser", UpdatedBy: "TestUser"}
 	expected := &models.{{cookiecutter.project_class_name}}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockCreate{{cookiecutter.project_class_name}}"}
 	mockService.On("Create", mock.Anything, createReq).Return(expected, nil)
@@ -111,7 +116,7 @@ func TestCreateAsync_ReturnsCreated{{cookiecutter.project_class_name}}Dto(t *tes
 func TestUpdateAsync_ReturnsUpdated{{cookiecutter.project_class_name}}Dto(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 	{{cookiecutter.project_lower_camel_name}}Id := "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 	updateReq := models.Update{{cookiecutter.project_class_name}}Request{Name: "mockUpdated{{cookiecutter.project_class_name}}", UpdatedBy: "TestUser"}
 	expectedReq := models.Update{{cookiecutter.project_class_name}}Request{Id: {{cookiecutter.project_lower_camel_name}}Id, Name: "mockUpdated{{cookiecutter.project_class_name}}", UpdatedBy: "TestUser"}
@@ -132,7 +137,7 @@ func TestUpdateAsync_ReturnsUpdated{{cookiecutter.project_class_name}}Dto(t *tes
 func TestDeleteAsync_CallsDeleteOnService(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 	id := "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 	mockService.On("Delete", mock.Anything, id).Return(nil)
 
@@ -147,7 +152,7 @@ func TestDeleteAsync_CallsDeleteOnService(t *testing.T) {
 func TestCreateAsync_ReturnsValidationError_WhenNameIsEmpty(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 	createReq := models.Create{{cookiecutter.project_class_name}}Request{Name: ""}
 	body, _ := json.Marshal(createReq)
 
@@ -163,7 +168,7 @@ func TestCreateAsync_ReturnsValidationError_WhenNameIsEmpty(t *testing.T) {
 func TestCreateAsync_ReturnsValidationError_WhenBodyIsInvalid(t *testing.T) {
 	// Arrange
 	mockService := new(Mock{{cookiecutter.project_class_name}}Service)
-	controller := New{{cookiecutter.project_class_name}}Controller(mockService)
+	controller := newTestController(mockService)
 
 	// Act
 	result, err := controller.Create(context.Background(), bytes.NewReader([]byte("invalid json")))

@@ -58,7 +58,8 @@ func initController() controllers.{{cookiecutter.project_class_name}}Controller 
 
 	repo := repositories.New{{cookiecutter.project_class_name}}Repository(container)
 	svc := services.New{{cookiecutter.project_class_name}}Service(repo)
-	ctrl := controllers.New{{cookiecutter.project_class_name}}Controller(svc)
+	validator := services.NewSchemaValidator()
+	ctrl := controllers.New{{cookiecutter.project_class_name}}Controller(svc, validator)
 
 	return ctrl
 }

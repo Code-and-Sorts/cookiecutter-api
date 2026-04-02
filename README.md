@@ -123,6 +123,7 @@ Below are the SDKs and frameworks used in the various templates.
 ### Go
 - [Go Modules](https://go.dev/ref/mod) for dependency management
 - [testing](https://pkg.go.dev/testing) and [testify](https://github.com/stretchr/testify) for testing
+- [jsonschema](https://github.com/santhosh-tekuri/jsonschema) for schema validation
 - [Azure SDK for Go (azcosmos)](https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/data/azcosmos) for Cosmos DB
 
 ### Azure
