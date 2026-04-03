@@ -9,6 +9,7 @@ from blueprints.{{cookiecutter.project_slug}}_api import (
     update,
     delete
 )
+from utils.detect_error import generate_error_response
 
 
 def lambda_handler(event, context):
@@ -26,8 +27,8 @@ def lambda_handler(event, context):
     elif http_method == "DELETE":
         return delete(event)
     else:
-        return {
-            "statusCode": 404,
-            "headers": {"Content-Type": "application/json"},
-            "body": '{"message": "Not Found"}'
-        }
+        return generate_error_response(
+            message="Not Found",
+            type="NotFoundError",
+            status_code=404
+        )

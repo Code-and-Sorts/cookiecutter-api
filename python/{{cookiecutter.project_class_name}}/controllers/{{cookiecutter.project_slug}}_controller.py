@@ -57,11 +57,14 @@ class {{ cookiecutter.project_class_name }}Controller:
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
-    def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
+    def _parse_body(self, event: dict) -> dict:
         try:
-            item_json: dict = json.loads(event.get("body", "{}"))
+            return json.loads(event.get("body", "{}"))
         except json.JSONDecodeError:
             raise ValidationError("Invalid JSON in request body.")
+
+    def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
+        item_json: dict = self._parse_body(event)
         item = {{ cookiecutter.project_class_name }}(**item_json)
         return self.service.create(item)
 {%- endif %}
@@ -89,10 +92,7 @@ class {{ cookiecutter.project_class_name }}Controller:
 
     def update(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = event.get("pathParameters", {}).get("item_id")
-        try:
-            item_data: dict = json.loads(event.get("body", "{}"))
-        except json.JSONDecodeError:
-            raise ValidationError("Invalid JSON in request body.")
+        item_data: dict = self._parse_body(event)
         item = {{ cookiecutter.project_class_name }}(**item_data)
         item.id = item_id
         return self.service.update(item)

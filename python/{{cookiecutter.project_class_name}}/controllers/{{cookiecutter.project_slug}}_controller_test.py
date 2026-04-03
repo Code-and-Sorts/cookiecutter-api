@@ -91,7 +91,7 @@ def describe_item_controller():
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}IdValidation
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
@@ -100,7 +100,7 @@ from unittest.mock import patch
 def describe_item_controller():
     @pytest.fixture
     def mock_service():
-        service = AsyncMock({{ cookiecutter.project_class_name }}Service)
+        service = MagicMock({{ cookiecutter.project_class_name }}Service)
         return service
 
     @pytest.fixture

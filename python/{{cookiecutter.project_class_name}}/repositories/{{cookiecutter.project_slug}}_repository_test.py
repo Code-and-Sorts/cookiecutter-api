@@ -386,20 +386,13 @@ def describe_item_service():
 
     def describe_delete():
         def test_successfully_call(mock_dynamodb_table):
-            mock_dynamodb_table.get_item.return_value = {
-                "Item": {
-                    "id": "ac1df01c-7ece-4a20-ab60-179829dad8f5",
-                    "isDeleted": False
-                }
-            }
-
             repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
             repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
 
-            mock_dynamodb_table.get_item.assert_called_once_with(Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"})
             mock_dynamodb_table.update_item.assert_called_once_with(
                 Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"},
                 UpdateExpression="SET isDeleted = :val",
-                ExpressionAttributeValues={":val": True}
+                ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
+                ExpressionAttributeValues={":val": True, ":false": False}
             )
 {%- endif %}

@@ -7,6 +7,7 @@ from google.cloud.firestore import Client as FirestoreClient, CollectionReferenc
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
 {%- endif %}
 from typing import List, Optional
 from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response
@@ -181,15 +182,15 @@ class {{ cookiecutter.project_class_name }}Repository:
         doc_ref.update({'isDeleted': True})
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        response = self.table.get_item(Key={"id": item_id})
-        item = response.get("Item")
-
-        if not item or item.get("isDeleted", False):
-            raise NotFoundError()
-
-        self.table.update_item(
-            Key={"id": item_id},
-            UpdateExpression="SET isDeleted = :val",
-            ExpressionAttributeValues={":val": True}
-        )
+        try:
+            self.table.update_item(
+                Key={"id": item_id},
+                UpdateExpression="SET isDeleted = :val",
+                ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
+                ExpressionAttributeValues={":val": True, ":false": False}
+            )
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                raise NotFoundError()
+            raise
 {%- endif %}
