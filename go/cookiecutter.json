@@ -1,0 +1,26 @@
+{
+    "project_name": "Cookiecutter API",
+    "project_description": "This is a template repository for API projects.",
+    "project_endpoint": "{{ cookiecutter.project_name.lower().replace(' ', '-') }}",
+    "project_lower_camel_name": "{{cookiecutter.project_name | to_lower_camel }}",
+    "project_class_name": "{{cookiecutter.project_name | to_camel }}",
+    "author": "Code and Sorts (Colby Timm)",
+    "cloud_service": [
+        "Azure Function App"
+    ],
+    "open_source_license": [
+        "MIT license",
+        "BSD license",
+        "ISC license",
+        "Apache Software License 2.0",
+        "GNU General Public License v3",
+        "Not open source"
+    ],
+    "_local_settings": "local.settings",
+    "_extensions": [
+        "jinja2_strcase.StrcaseExtension"
+    ],
+    "_copy_without_render": [
+        ".github/workflows/build-pipeline.yml"
+    ]
+}

@@ -1,0 +1,30 @@
+.PHONY: install
+install: ## Install dependencies
+	@echo "Installing dependencies"
+	@go mod tidy
+
+.PHONY: run
+run: ## Run the function app
+	@echo "Running Function App"
+	@go build -o handler
+	@func start
+
+.PHONY: build
+build: ## Build the code
+	@echo "Building file"
+	@go build -o handler
+
+.PHONY: clean-build
+clean-build: ## Clean the build artifacts
+	@echo "Cleaning build artifacts"
+	@rm -f handler
+	@go build -o handler
+
+.PHONY: test-unit
+test-unit: ## Test the code with unit tests
+	@echo "Testing code: Running unit tests"
+	@go test ./... -v -count=1
+
+.PHONY: help
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
