@@ -29,5 +29,5 @@ def lambda_handler(event, context):
         return {
             "statusCode": 404,
             "headers": {"Content-Type": "application/json"},
-            "body": "Not Found"
+            "body": '{"message": "Not Found"}'
         }

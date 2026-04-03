@@ -1,5 +1,9 @@
 import os
 import logging
+from controllers import {{ cookiecutter.project_class_name }}Controller
+from services import {{ cookiecutter.project_class_name }}Service
+from repositories import {{ cookiecutter.project_class_name }}Repository
+from utils import detect_error, response_generator
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import azure.functions as func
 from azure.cosmos import CosmosClient
@@ -40,10 +44,6 @@ table_name = os.getenv("DYNAMODB_TABLE_NAME", "{{ cookiecutter.project_slug }}")
 table = dynamodb.Table(table_name)
 repository = {{ cookiecutter.project_class_name }}Repository(table)
 {%- endif %}
-from controllers import {{ cookiecutter.project_class_name }}Controller
-from services import {{ cookiecutter.project_class_name }}Service
-from repositories import {{ cookiecutter.project_class_name }}Repository
-from utils import detect_error, response_generator
 
 service = {{ cookiecutter.project_class_name }}Service(repository)
 controller = {{ cookiecutter.project_class_name }}Controller(service)
@@ -191,7 +191,7 @@ def delete(event):
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json"},
-            "body": "{{ cookiecutter.project_class_name }} deleted."
+            "body": '{"message": "{{ cookiecutter.project_class_name }} deleted."}'
         }
 {%- endif %}
 

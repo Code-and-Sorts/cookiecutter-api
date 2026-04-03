@@ -96,10 +96,17 @@ class {{ cookiecutter.project_class_name }}Repository:
         return items
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        response = self.table.scan(
-            FilterExpression=Attr("isDeleted").eq(False)
-        )
-        items = response.get("Items", [])
+        items = []
+        filter_exp = Attr("isDeleted").eq(False) | Attr("isDeleted").not_exists()
+        response = self.table.scan(FilterExpression=filter_exp)
+        items.extend(response.get("Items", []))
+
+        while "LastEvaluatedKey" in response:
+            response = self.table.scan(
+                FilterExpression=filter_exp,
+                ExclusiveStartKey=response["LastEvaluatedKey"]
+            )
+            items.extend(response.get("Items", []))
 
         return [{{ cookiecutter.project_class_name }}Response.model_validate(item) for item in items]
 {%- endif %}

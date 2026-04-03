@@ -7,6 +7,7 @@ from flask import Request
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 import json
+from errors import ValidationError
 {%- endif %}
 from services import {{ cookiecutter.project_class_name }}Service
 from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}IdValidation
@@ -57,7 +58,10 @@ class {{ cookiecutter.project_class_name }}Controller:
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
     def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
-        item_json: dict = json.loads(event.get("body", "{}"))
+        try:
+            item_json: dict = json.loads(event.get("body", "{}"))
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid JSON in request body.")
         item = {{ cookiecutter.project_class_name }}(**item_json)
         return self.service.create(item)
 {%- endif %}
@@ -85,7 +89,10 @@ class {{ cookiecutter.project_class_name }}Controller:
 
     def update(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = event.get("pathParameters", {}).get("item_id")
-        item_data: dict = json.loads(event.get("body", "{}"))
+        try:
+            item_data: dict = json.loads(event.get("body", "{}"))
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid JSON in request body.")
         item = {{ cookiecutter.project_class_name }}(**item_data)
         item.id = item_id
         return self.service.update(item)
