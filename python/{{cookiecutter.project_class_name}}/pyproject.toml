@@ -15,6 +15,9 @@ azure-cosmos = "^4.7.0"
 google-cloud-firestore = "^2.16.0"
 functions-framework = "^3.5.0"
 {%- endif %}
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+boto3 = "^1.35.0"
+{%- endif %}
 pytest-mock = "^3.14.0"
 pytest-describe = "^3.0.0"
 

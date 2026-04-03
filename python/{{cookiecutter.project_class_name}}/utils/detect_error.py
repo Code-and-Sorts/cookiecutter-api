@@ -25,6 +25,13 @@ def generate_error_response(message: str, type: str = None, status_code: int = 5
     headers = {'Content-Type': 'application/json'}
     return (error_response.model_dump_json(exclude_none=True), status_code, headers)
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json"},
+        "body": error_response.model_dump_json(exclude_none=True)
+    }
+{%- endif %}
 
 def detect_error(error: Exception):
     if error and isinstance(error, BaseError):

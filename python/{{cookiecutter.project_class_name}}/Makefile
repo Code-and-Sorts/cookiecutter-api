@@ -15,6 +15,10 @@ run: ## Run function app.
 	@echo "Use 'poetry run functions-framework --target=<function_name> --source=main.py' to run specific functions"
 	@poetry run functions-framework --target=get_list --source=main.py --port=8080
 {%- endif %}
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+	@echo "🚀 Running Lambda API locally via SAM"
+	@sam local start-api
+{%- endif %}
 
 .PHONY: build
 build: clean-build ## Build wheel file using poetry

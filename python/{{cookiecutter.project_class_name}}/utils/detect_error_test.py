@@ -25,6 +25,11 @@ def describe_detect_error():
             assert response[1] == 500
             assert '{"type":"UnknownError","message":"Test"}' in response[0]
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+            assert isinstance(response, dict)
+            assert response["statusCode"] == 500
+            assert '{"type":"UnknownError","message":"Test"}' in response["body"]
+{%- endif %}
 
     def test_validation_error_response():
         try:
@@ -40,6 +45,11 @@ def describe_detect_error():
             assert isinstance(response, tuple)
             assert response[1] == 422
             assert '"type":"ValidationError"' in response[0]
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+            assert isinstance(response, dict)
+            assert response["statusCode"] == 422
+            assert '"type":"ValidationError"' in response["body"]
 {%- endif %}
 
     def test_pydantic_validation_error_response():
@@ -57,6 +67,11 @@ def describe_detect_error():
             assert response[1] == 422
             assert '"type":"ValidationError"' in response[0]
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+            assert isinstance(response, dict)
+            assert response["statusCode"] == 422
+            assert '"type":"ValidationError"' in response["body"]
+{%- endif %}
 
     def test_generic_exception_response():
         try:
@@ -72,4 +87,9 @@ def describe_detect_error():
             assert isinstance(response, tuple)
             assert response[1] == 500
             assert '"type":"UnknownError"' in response[0]
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+            assert isinstance(response, dict)
+            assert response["statusCode"] == 500
+            assert '"type":"UnknownError"' in response["body"]
 {%- endif %}

@@ -5,6 +5,9 @@ from azure.cosmos.exceptions import CosmosAccessConditionFailedError
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
 from google.cloud.firestore import Client as FirestoreClient, CollectionReference
 {%- endif %}
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+from boto3.dynamodb.conditions import Attr
+{%- endif %}
 from typing import List, Optional
 from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response
 from errors import NotFoundError
@@ -33,6 +36,10 @@ class {{ cookiecutter.project_class_name }}Repository:
     def __init__(self, collection: CollectionReference):
         self.collection = collection
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    def __init__(self, table):
+        self.table = table
+{%- endif %}
 
     def get_by_id(self, item_id: str) -> Optional[{{ cookiecutter.project_class_name }}Response]:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
@@ -54,12 +61,21 @@ class {{ cookiecutter.project_class_name }}Repository:
         doc = self.collection.document(item_id).get()
         if not doc.exists:
             raise NotFoundError()
-        
+
         data = doc.to_dict()
         if data.get('isDeleted', False):
             raise NotFoundError()
-        
+
         return {{ cookiecutter.project_class_name }}Response.model_validate(data)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        response = self.table.get_item(Key={"id": item_id})
+        item = response.get("Item")
+
+        if not item or item.get("isDeleted", False):
+            raise NotFoundError()
+
+        return {{ cookiecutter.project_class_name }}Response.model_validate(item)
 {%- endif %}
 
     def get_list(self) -> List[{{ cookiecutter.project_class_name }}Response | None]:
@@ -79,6 +95,14 @@ class {{ cookiecutter.project_class_name }}Repository:
             items.append({{ cookiecutter.project_class_name }}Response.model_validate(data))
         return items
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        response = self.table.scan(
+            FilterExpression=Attr("isDeleted").eq(False)
+        )
+        items = response.get("Items", [])
+
+        return [{{ cookiecutter.project_class_name }}Response.model_validate(item) for item in items]
+{%- endif %}
 
     def create(self, item: {{ cookiecutter.project_class_name }}) -> {{ cookiecutter.project_class_name }}Response:
         item_dict = item.model_dump(exclude_none=True)
@@ -90,7 +114,12 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
         doc_ref.set(item_dict)
-        
+
+        return {{ cookiecutter.project_class_name }}Response.model_validate(item_dict)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        self.table.put_item(Item=item_dict)
+
         return {{ cookiecutter.project_class_name }}Response.model_validate(item_dict)
 {%- endif %}
 
@@ -109,7 +138,12 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
         doc_ref.update(patched_item)
-        
+
+        return {{ cookiecutter.project_class_name }}Response.model_validate(patched_item)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        self.table.put_item(Item=patched_item)
+
         return {{ cookiecutter.project_class_name }}Response.model_validate(patched_item)
 {%- endif %}
 
@@ -133,9 +167,22 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item_id)
         doc = doc_ref.get()
-        
+
         if not doc.exists or doc.to_dict().get('isDeleted', False):
             raise NotFoundError()
-        
+
         doc_ref.update({'isDeleted': True})
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        response = self.table.get_item(Key={"id": item_id})
+        item = response.get("Item")
+
+        if not item or item.get("isDeleted", False):
+            raise NotFoundError()
+
+        self.table.update_item(
+            Key={"id": item_id},
+            UpdateExpression="SET isDeleted = :val",
+            ExpressionAttributeValues={":val": True}
+        )
 {%- endif %}
