@@ -55,7 +55,11 @@ func (m *Mock{{cookiecutter.project_class_name}}Service) Delete(ctx context.Cont
 }
 
 func newTestController(mockService *Mock{{cookiecutter.project_class_name}}Service) {{cookiecutter.project_class_name}}Controller {
-	return New{{cookiecutter.project_class_name}}Controller(mockService, services.NewSchemaValidator())
+	validator, _ := services.NewSchemaValidator(map[string]string{
+		"create_request": CreateRequestSchema,
+		"update_request": UpdateRequestSchema,
+	})
+	return New{{cookiecutter.project_class_name}}Controller(mockService, validator)
 }
 
 func TestGetAsync_Returns{{cookiecutter.project_class_name}}Dto(t *testing.T) {

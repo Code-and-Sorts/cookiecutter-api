@@ -11,29 +11,41 @@ import (
 )
 
 type SchemaValidator interface {
-	Validate(data any, schemaJSON string) error
+	Validate(data any, schemaName string) error
 }
 
-type schemaValidator struct{}
-
-func NewSchemaValidator() SchemaValidator {
-	return &schemaValidator{}
+type schemaValidator struct {
+	schemas map[string]*jsonschema.Schema
 }
 
-func (v *schemaValidator) Validate(data any, schemaJSON string) error {
-	schema, err := jsonschema.UnmarshalJSON(strings.NewReader(schemaJSON))
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal schema: %w", err)
+func NewSchemaValidator(schemaDefs map[string]string) (SchemaValidator, error) {
+	schemas := make(map[string]*jsonschema.Schema, len(schemaDefs))
+	for name, schemaJSON := range schemaDefs {
+		resource, err := jsonschema.UnmarshalJSON(strings.NewReader(schemaJSON))
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal schema %s: %w", name, err)
+		}
+
+		c := jsonschema.NewCompiler()
+		if err := c.AddResource(name, resource); err != nil {
+			return nil, fmt.Errorf("failed to add schema resource %s: %w", name, err)
+		}
+
+		sch, err := c.Compile(name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile schema %s: %w", name, err)
+		}
+
+		schemas[name] = sch
 	}
 
-	c := jsonschema.NewCompiler()
-	if err := c.AddResource("schema.json", schema); err != nil {
-		return fmt.Errorf("failed to add schema resource: %w", err)
-	}
+	return &schemaValidator{schemas: schemas}, nil
+}
 
-	sch, err := c.Compile("schema.json")
-	if err != nil {
-		return fmt.Errorf("failed to compile schema: %w", err)
+func (v *schemaValidator) Validate(data any, schemaName string) error {
+	sch, ok := v.schemas[schemaName]
+	if !ok {
+		return fmt.Errorf("schema %s not found", schemaName)
 	}
 
 	jsonBytes, err := json.Marshal(data)

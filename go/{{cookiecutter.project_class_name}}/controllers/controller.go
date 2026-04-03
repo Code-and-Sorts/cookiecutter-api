@@ -11,10 +11,10 @@ import (
 )
 
 //go:embed schemas/create_{{cookiecutter.project_endpoint}}_request.json
-var createRequestSchema string
+var CreateRequestSchema string
 
 //go:embed schemas/update_{{cookiecutter.project_endpoint}}_request.json
-var updateRequestSchema string
+var UpdateRequestSchema string
 
 type {{cookiecutter.project_class_name}}Controller interface {
 	Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error)
@@ -47,7 +47,7 @@ func (c *{{cookiecutter.project_lower_camel_name}}Controller) Create(ctx context
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
 
-	if err := c.schemaValidator.Validate(req, createRequestSchema); err != nil {
+	if err := c.schemaValidator.Validate(req, "create_request"); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +62,7 @@ func (c *{{cookiecutter.project_lower_camel_name}}Controller) Update(ctx context
 
 	req.Id = id
 
-	if err := c.schemaValidator.Validate(req, updateRequestSchema); err != nil {
+	if err := c.schemaValidator.Validate(req, "update_request"); err != nil {
 		return nil, err
 	}
 

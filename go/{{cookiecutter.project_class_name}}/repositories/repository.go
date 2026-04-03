@@ -3,9 +3,12 @@ package repositories
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"{{cookiecutter.project_endpoint}}/models"
@@ -31,7 +34,11 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) getItem(ctx contex
 	pk := azcosmos.NewPartitionKeyString(id)
 	resp, err := r.container.ReadItem(ctx, pk, id, nil)
 	if err != nil {
-		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+			return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		}
+		return nil, err
 	}
 
 	var item models.{{cookiecutter.project_class_name}}
@@ -60,8 +67,7 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) Get(ctx context.Co
 
 func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
 	query := "SELECT * FROM c WHERE c.isDeleted = false"
-	pk := azcosmos.NewPartitionKeyString("")
-	pager := r.container.NewQueryItemsPager(query, pk, nil)
+	pager := r.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
 
 	var results []models.{{cookiecutter.project_class_name}}Dto
 	for pager.More() {

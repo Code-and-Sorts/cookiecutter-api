@@ -58,7 +58,13 @@ func initController() controllers.{{cookiecutter.project_class_name}}Controller 
 
 	repo := repositories.New{{cookiecutter.project_class_name}}Repository(container)
 	svc := services.New{{cookiecutter.project_class_name}}Service(repo)
-	validator := services.NewSchemaValidator()
+	validator, err := services.NewSchemaValidator(map[string]string{
+		"create_request": controllers.CreateRequestSchema,
+		"update_request": controllers.UpdateRequestSchema,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize schema validator: %v", err)
+	}
 	ctrl := controllers.New{{cookiecutter.project_class_name}}Controller(svc, validator)
 
 	return ctrl

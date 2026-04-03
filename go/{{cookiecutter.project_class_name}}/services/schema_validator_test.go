@@ -20,13 +20,22 @@ const testSchema = `{
 	"required": ["name"]
 }`
 
+func newTestValidator(t *testing.T) SchemaValidator {
+	t.Helper()
+	validator, err := NewSchemaValidator(map[string]string{
+		"test_schema": testSchema,
+	})
+	assert.NoError(t, err)
+	return validator
+}
+
 func TestValidate_WithValidData_ReturnsNoError(t *testing.T) {
 	// Arrange
-	validator := NewSchemaValidator()
+	validator := newTestValidator(t)
 	data := map[string]string{"name": "TestItem"}
 
 	// Act
-	err := validator.Validate(data, testSchema)
+	err := validator.Validate(data, "test_schema")
 
 	// Assert
 	assert.NoError(t, err)
@@ -34,11 +43,11 @@ func TestValidate_WithValidData_ReturnsNoError(t *testing.T) {
 
 func TestValidate_WithMissingRequiredField_ReturnsValidationError(t *testing.T) {
 	// Arrange
-	validator := NewSchemaValidator()
+	validator := newTestValidator(t)
 	data := map[string]string{}
 
 	// Act
-	err := validator.Validate(data, testSchema)
+	err := validator.Validate(data, "test_schema")
 
 	// Assert
 	assert.Error(t, err)
@@ -47,11 +56,11 @@ func TestValidate_WithMissingRequiredField_ReturnsValidationError(t *testing.T) 
 
 func TestValidate_WithEmptyName_ReturnsValidationError(t *testing.T) {
 	// Arrange
-	validator := NewSchemaValidator()
+	validator := newTestValidator(t)
 	data := map[string]string{"name": ""}
 
 	// Act
-	err := validator.Validate(data, testSchema)
+	err := validator.Validate(data, "test_schema")
 
 	// Assert
 	assert.Error(t, err)
