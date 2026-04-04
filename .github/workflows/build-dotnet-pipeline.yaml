@@ -4,11 +4,15 @@ on:
   push:
     paths:
       - dotnet/**
+      - .github/workflows/build-dotnet-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
   pull_request:
     paths:
       - dotnet/**
+      - .github/workflows/build-dotnet-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
 

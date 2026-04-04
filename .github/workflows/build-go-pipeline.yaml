@@ -4,11 +4,15 @@ on:
   push:
     paths:
       - go/**
+      - .github/workflows/build-go-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
   pull_request:
     paths:
       - go/**
+      - .github/workflows/build-go-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
 
