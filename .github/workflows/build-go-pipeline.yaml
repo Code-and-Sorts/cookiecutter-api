@@ -63,3 +63,11 @@ jobs:
       - name: Test with the Go CLI
         run: make test-unit
         working-directory: KittenClaws
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run dependency vulnerability scan
+        continue-on-error: true
+        run: govulncheck ./...
+        working-directory: KittenClaws

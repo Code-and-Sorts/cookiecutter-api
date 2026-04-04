@@ -35,6 +35,12 @@ test-unit: ## Test the code with unit tests
 	@echo "Testing code: Running unit tests"
 	@go test ./... -v -count=1
 
+.PHONY: audit
+audit: ## Scan dependencies for known vulnerabilities
+	@echo "Scanning dependencies for vulnerabilities"
+	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@govulncheck ./...
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

@@ -19,7 +19,8 @@
 {%- endif %}
     "test:unit": "yarn jest --verbose --coverage",
     "lint": "eslint .",
-    "format": "eslint --fix . && prettier --write ."
+    "format": "eslint --fix . && prettier --write .",
+    "audit": "yarn npm audit --severity moderate"
   },
   "dependencies": {
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
