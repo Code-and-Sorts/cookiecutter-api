@@ -1,16 +1,12 @@
 root = true
 
-[*]
+[*.cs]
 indent_style = space
 indent_size = 4
-end_of_line = lf
 charset = utf-8
-trim_trailing_whitespace = true
-insert_final_newline = true
 
-[*.cs]
 csharp_style_namespace_declarations = file_scoped:suggestion
-dotnet_sort_system_directives_first = true
+dotnet_sort_system_directives_first = true:suggestion
 
 dotnet_naming_rule.public_members_should_be_pascal_case.severity = suggestion
 dotnet_naming_rule.public_members_should_be_pascal_case.symbols = public_symbols
