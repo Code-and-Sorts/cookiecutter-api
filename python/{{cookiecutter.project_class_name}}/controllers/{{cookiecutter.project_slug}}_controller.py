@@ -34,7 +34,7 @@ class {{ cookiecutter.project_class_name }}Controller:
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
     def get_by_id(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
-        item_id: str = event.get("pathParameters", {}).get("item_id")
+        item_id: str = (event.get("pathParameters") or {}).get("item_id")
         {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
         return self.service.get_by_id(item_id)
 {%- endif %}
@@ -59,8 +59,12 @@ class {{ cookiecutter.project_class_name }}Controller:
 
     def _parse_body(self, event: dict) -> dict:
         try:
-            return json.loads(event.get("body", "{}"))
-        except json.JSONDecodeError:
+            body = event.get("body") or "{}"
+            if event.get("isBase64Encoded"):
+                import base64
+                body = base64.b64decode(body).decode("utf-8")
+            return json.loads(body)
+        except (json.JSONDecodeError, Exception) as e:
             raise ValidationError("Invalid JSON in request body.")
 
     def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
@@ -91,7 +95,7 @@ class {{ cookiecutter.project_class_name }}Controller:
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
     def update(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
-        item_id: str = event.get("pathParameters", {}).get("item_id")
+        item_id: str = (event.get("pathParameters") or {}).get("item_id")
         item_data: dict = self._parse_body(event)
         item = {{ cookiecutter.project_class_name }}(**item_data)
         item.id = item_id
@@ -114,6 +118,6 @@ class {{ cookiecutter.project_class_name }}Controller:
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
     def soft_delete(self, event: dict) -> None:
-        item_id: str = event.get("pathParameters", {}).get("item_id")
+        item_id: str = (event.get("pathParameters") or {}).get("item_id")
         self.service.soft_delete(item_id)
 {%- endif %}

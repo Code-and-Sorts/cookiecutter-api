@@ -209,6 +209,11 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
     This command starts the local API Gateway using SAM CLI, where you can interact with your API endpoints.
 
+    > **Note:** API endpoints that interact with DynamoDB require a running DynamoDB instance.
+    > For local development, you can use [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
+    > or connect to a deployed DynamoDB table by configuring your AWS credentials and setting the
+    > `DYNAMODB_TABLE_NAME` environment variable in `template.yaml`.
+
 5. Deploy to AWS
 
     Build and deploy to AWS using SAM:
