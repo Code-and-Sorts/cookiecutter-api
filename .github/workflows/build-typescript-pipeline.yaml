@@ -4,11 +4,15 @@ on:
   push:
     paths:
       - typescript/**
+      - .github/workflows/build-typescript-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
   pull_request:
     paths:
       - typescript/**
+      - .github/workflows/build-typescript-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
 
