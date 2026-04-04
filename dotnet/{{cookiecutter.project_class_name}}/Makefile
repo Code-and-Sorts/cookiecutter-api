@@ -22,7 +22,7 @@ clean-build: ## Clean the build artifacts
 .PHONY: lint
 lint: ## Lint the code with dotnet format
 	@echo "🔍 Linting code: Running dotnet format"
-	@dotnet format --verify-no-changes --verbosity diagnostic
+	@dotnet format --verify-no-changes
 
 .PHONY: format
 format: ## Format the code with dotnet format

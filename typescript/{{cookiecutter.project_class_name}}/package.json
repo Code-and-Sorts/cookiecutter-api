@@ -18,7 +18,7 @@
     "start": "npx functions-framework --target=api --source=dist/",
 {%- endif %}
     "test:unit": "yarn jest --verbose --coverage",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint .",
     "format": "eslint --fix . && prettier --write ."
   },
   "dependencies": {

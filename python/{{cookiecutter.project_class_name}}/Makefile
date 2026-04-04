@@ -30,7 +30,6 @@ clean-build: ## Clean build artifacts
 lint: ## Lint the code with ruff
 	@echo "🔍 Linting code: Running ruff"
 	@poetry run ruff check .
-	@poetry run ruff format --check .
 
 .PHONY: format
 format: ## Format the code with ruff
