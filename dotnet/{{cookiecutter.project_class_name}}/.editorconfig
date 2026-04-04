@@ -1,10 +1,6 @@
 root = true
 
 [*.cs]
-indent_style = space
-indent_size = 4
-charset = utf-8
-
 csharp_style_namespace_declarations = file_scoped:suggestion
 dotnet_sort_system_directives_first = true:suggestion
 
