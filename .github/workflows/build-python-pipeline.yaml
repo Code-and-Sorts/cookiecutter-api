@@ -19,8 +19,8 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - macos-latest
-          # - windows-latest
+          - macos-latest
+          - windows-latest
         template-type:
           - python
         cloud-service:
