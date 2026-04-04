@@ -26,6 +26,18 @@ clean-build: ## Clean build artifacts
 	@echo "🧹 Cleaning build artifacts"
 	@rm -rf dist
 
+.PHONY: lint
+lint: ## Lint the code with ruff
+	@echo "🔍 Linting code: Running ruff"
+	@poetry run ruff check .
+	@poetry run ruff format --check .
+
+.PHONY: format
+format: ## Format the code with ruff
+	@echo "🎨 Formatting code: Running ruff"
+	@poetry run ruff check --fix .
+	@poetry run ruff format .
+
 .PHONY: test-unit
 test-unit: ## Test the code with pytest unit tests.
 	@echo "🧪 Testing code: Running pytest unit tests"

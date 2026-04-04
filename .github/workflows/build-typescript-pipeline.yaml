@@ -62,6 +62,11 @@ jobs:
         working-directory: KittenClaws
         shell: bash
 
+      - name: Run lint
+        run: yarn lint
+        working-directory: KittenClaws
+        shell: bash
+
       - name: Unit tests
         run: yarn test:unit
         working-directory: KittenClaws

@@ -55,6 +55,11 @@ jobs:
         run: make build
         working-directory: KittenClaws
 
+      - name: Run lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: KittenClaws
+
       - name: Test with the Go CLI
         run: make test-unit
         working-directory: KittenClaws
