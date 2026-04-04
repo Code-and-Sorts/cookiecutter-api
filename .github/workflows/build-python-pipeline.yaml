@@ -4,11 +4,15 @@ on:
   push:
     paths:
       - python/**
+      - .github/workflows/build-python-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
   pull_request:
     paths:
       - python/**
+      - .github/workflows/build-python-pipeline.yaml
+      - .github/actions/setup-cookiecutter-template/**
     branches:
       - main
 
