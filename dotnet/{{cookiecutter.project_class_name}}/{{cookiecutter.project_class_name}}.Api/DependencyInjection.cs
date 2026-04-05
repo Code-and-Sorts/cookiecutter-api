@@ -7,14 +7,15 @@ using {{cookiecutter.project_class_name}}.Api.Repositories;
 using {{cookiecutter.project_class_name}}.Api.Services;
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.Configuration;
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 using Google.Cloud.Firestore;
+using Microsoft.Extensions.Configuration;
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 using Amazon.DynamoDBv2;
 {%- endif %}
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
@@ -109,7 +110,7 @@ public static class DependencyInjection
 
         if (string.IsNullOrEmpty(tableName))
         {
-            throw new InvalidOperationException("DynamoDB table name configuration is missing.");
+            throw new InvalidOperationException("DynamoDB table name configuration is missing. Set the DYNAMODB_TABLE_NAME environment variable.");
         }
 
         services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
