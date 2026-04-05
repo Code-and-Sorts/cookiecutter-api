@@ -5,6 +5,9 @@ import { CosmosClient } from "@azure/cosmos";
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 import { Firestore } from "@google-cloud/firestore";
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+{%- endif %}
 import { {{cookiecutter.project_class_name}}Repository } from "@repositories";
 import { injectable } from "inversify";
 
@@ -38,6 +41,20 @@ describe('{{cookiecutter.project_class_name}}Repository', () => {
 
     const mockFirestore = new MockFirestore() as unknown as Firestore;
     const mock{{cookiecutter.project_class_name}}Repository = new {{cookiecutter.project_class_name}}Repository(mockFirestore);
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+@injectable()
+class MockDynamoDBDocumentClient {
+    public send = jest.fn().mockImplementation(() => mockResult);
+}
+
+describe('{{cookiecutter.project_class_name}}Repository', () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+    });
+
+    const mockDocClient = new MockDynamoDBDocumentClient() as unknown as DynamoDBDocumentClient;
+    const mock{{cookiecutter.project_class_name}}Repository = new {{cookiecutter.project_class_name}}Repository(mockDocClient);
 {%- endif %}
     const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
     const mock{{cookiecutter.project_class_name}} = {

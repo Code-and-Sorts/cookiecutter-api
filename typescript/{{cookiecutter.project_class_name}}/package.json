@@ -9,6 +9,9 @@
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
   "main": "dist/main.js",
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+  "main": "dist/lambda.js",
+{%- endif %}
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
@@ -16,6 +19,9 @@
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
     "start": "npx functions-framework --target=api --source=dist/",
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    "start": "node dist/lambda.js",
 {%- endif %}
     "test:unit": "yarn jest --verbose --coverage",
     "lint": "eslint .",
@@ -31,6 +37,10 @@
     "@google-cloud/firestore": "^7.11.0",
     "@google-cloud/functions-framework": "^3.4.5",
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+{%- endif %}
     "dotenv": "^17.0.0",
     "inversify": "^6.1.4",
     "reflect-metadata": "^0.2.2",
@@ -42,6 +52,9 @@
     "@types/node": "^24.0.0",
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
     "azure-functions-core-tools": "^4.x",
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    "@types/aws-lambda": "^8.10.145",
 {%- endif %}
     "@eslint/js": "^9.0.0",
     "eslint": "^9.0.0",
