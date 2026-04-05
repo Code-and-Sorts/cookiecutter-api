@@ -149,14 +149,13 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
 6. Deploy to GCP
 
+    Build and deploy to Cloud Run (recommended for Go HTTP servers):
+
     ```console
-    gcloud functions deploy {{cookiecutter.project_endpoint}}-api \
-      --gen2 \
-      --runtime go122 \
-      --trigger-http \
-      --allow-unauthenticated \
-      --entry-point main \
+    gcloud run deploy {{cookiecutter.project_endpoint}}-api \
       --source . \
+      --region us-central1 \
+      --allow-unauthenticated \
       --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION={{cookiecutter.project_endpoint}}
     ```
 {%- endif %}

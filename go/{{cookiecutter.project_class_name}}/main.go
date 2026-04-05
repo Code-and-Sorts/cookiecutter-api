@@ -39,14 +39,17 @@ func main() {
 	if val, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
 		listenAddr = ":" + val
 	}
+
+	controller := initController()
 {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' %}
 	listenAddr := ":8080"
 	if val, ok := os.LookupEnv("PORT"); ok {
 		listenAddr = ":" + val
 	}
-{%- endif %}
 
-	controller := initController()
+	controller, cleanup := initController()
+	defer cleanup()
+{%- endif %}
 
 	mux := http.NewServeMux()
 
@@ -97,13 +100,19 @@ func initController() controllers.{{cookiecutter.project_class_name}}Controller 
 }
 {%- endif %}
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-func initController() controllers.{{cookiecutter.project_class_name}}Controller {
+func initController() (controllers.{{cookiecutter.project_class_name}}Controller, func()) {
 	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		log.Fatal("GCP_PROJECT_ID environment variable is required")
+	}
 	databaseName := os.Getenv("FIRESTORE_DATABASE")
 	if databaseName == "" {
 		databaseName = "(default)"
 	}
 	collectionName := os.Getenv("FIRESTORE_COLLECTION")
+	if collectionName == "" {
+		log.Fatal("FIRESTORE_COLLECTION environment variable is required")
+	}
 
 	ctx := context.Background()
 	client, err := firestore.NewClientWithDatabase(ctx, projectID, databaseName)
@@ -124,7 +133,7 @@ func initController() controllers.{{cookiecutter.project_class_name}}Controller 
 	}
 	ctrl := controllers.New{{cookiecutter.project_class_name}}Controller(svc, validator)
 
-	return ctrl
+	return ctrl, func() { client.Close() }
 }
 {%- endif %}
 
