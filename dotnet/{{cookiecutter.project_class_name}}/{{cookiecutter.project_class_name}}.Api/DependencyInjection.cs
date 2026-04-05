@@ -68,17 +68,27 @@ public static class DependencyInjection
             new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build()
         );
 
-        services.AddSingleton<I{{cookiecutter.project_class_name}}Repository>(provider =>
+        services.AddSingleton<IFirestoreContext<Entities.{{cookiecutter.project_class_name}}>>(provider =>
         {
             var firestoreDb = provider.GetService<FirestoreDb>();
             if (firestoreDb == null)
             {
                 throw new InvalidOperationException("Firestore Client is null.");
             }
-            return new {{cookiecutter.project_class_name}}Repository(
+            return new FirestoreContext<Entities.{{cookiecutter.project_class_name}}>(
                 firestoreDb,
                 collectionName
             );
+        });
+
+        services.AddSingleton<I{{cookiecutter.project_class_name}}Repository>(provider =>
+        {
+            var context = provider.GetService<IFirestoreContext<Entities.{{cookiecutter.project_class_name}}>>();
+            if (context == null)
+            {
+                throw new InvalidOperationException("Firestore Context is null.");
+            }
+            return new {{cookiecutter.project_class_name}}Repository(context);
         });
 {%- endif %}
 

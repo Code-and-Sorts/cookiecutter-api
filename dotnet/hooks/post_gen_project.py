@@ -10,6 +10,8 @@ if cloud_service == "Azure Function App":
     files_to_remove = [
         os.path.join("{{cookiecutter.project_class_name}}.Api", "Function.cs"),
         os.path.join("{{cookiecutter.project_class_name}}.Api", "Startup.cs"),
+        os.path.join("{{cookiecutter.project_class_name}}.Api", "Interfaces", "IFirestoreContext.cs"),
+        os.path.join("{{cookiecutter.project_class_name}}.Api", "Repositories", "FirestoreContext.cs"),
         os.path.join("{{cookiecutter.project_class_name}}.Api.Tests.Unit", "Functions", "FunctionTests.cs"),
     ]
     dirs_to_remove = []

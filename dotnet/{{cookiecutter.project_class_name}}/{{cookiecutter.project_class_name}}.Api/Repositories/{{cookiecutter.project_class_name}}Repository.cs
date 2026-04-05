@@ -12,7 +12,6 @@ using {{cookiecutter.project_class_name}}.Api.Interfaces;
 using Microsoft.Azure.Cosmos;
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-using Google.Cloud.Firestore;
 {%- endif %}
 
 public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.project_class_name}}Repository
@@ -108,26 +107,18 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
     }
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-    private readonly CollectionReference _collection;
+    private readonly IFirestoreContext<{{cookiecutter.project_class_name}}> _context;
 
-    public {{cookiecutter.project_class_name}}Repository(FirestoreDb firestoreDb, string collectionName)
+    public {{cookiecutter.project_class_name}}Repository(IFirestoreContext<{{cookiecutter.project_class_name}}> context)
     {
-        _collection = firestoreDb.Collection(collectionName);
+        _context = context;
     }
 
     private async Task<{{cookiecutter.project_class_name}}> GetItemAsync(string id, CancellationToken ct)
     {
-        var docRef = _collection.Document(id);
-        var snapshot = await docRef.GetSnapshotAsync(ct);
+        var {{cookiecutter.project_lower_camel_name}} = await _context.GetAsync(id, ct);
 
-        if (!snapshot.Exists)
-        {
-            throw new KeyNotFoundException($"Item with id {id} not found.");
-        }
-
-        var {{cookiecutter.project_lower_camel_name}} = snapshot.ConvertTo<{{cookiecutter.project_class_name}}>();
-
-        if ({{cookiecutter.project_lower_camel_name}}.IsDeleted)
+        if ({{cookiecutter.project_lower_camel_name}} == null || {{cookiecutter.project_lower_camel_name}}.IsDeleted)
         {
             throw new KeyNotFoundException($"Item with id {id} not found.");
         }
@@ -148,17 +139,12 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
 
     public async Task<IEnumerable<{{cookiecutter.project_class_name}}Dto>> GetListAsync(CancellationToken ct)
     {
-        var query = _collection.WhereEqualTo("isDeleted", false);
-        var snapshot = await query.GetSnapshotAsync(ct);
+        var results = await _context.GetListAsync("isDeleted", false, ct);
 
-        var {{cookiecutter.project_lower_camel_name}}Dtos = snapshot.Documents.Select(doc =>
+        var {{cookiecutter.project_lower_camel_name}}Dtos = results.Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
         {
-            var {{cookiecutter.project_lower_camel_name}} = doc.ConvertTo<{{cookiecutter.project_class_name}}>();
-            return new {{cookiecutter.project_class_name}}Dto
-            {
-                Id = {{cookiecutter.project_lower_camel_name}}.Id,
-                Name = {{cookiecutter.project_lower_camel_name}}.Name,
-            };
+            Id = {{cookiecutter.project_lower_camel_name}}.Id,
+            Name = {{cookiecutter.project_lower_camel_name}}.Name,
         });
 
         return {{cookiecutter.project_lower_camel_name}}Dtos;
@@ -166,8 +152,7 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
 
     public async Task<{{cookiecutter.project_class_name}}Dto> CreateAsync({{cookiecutter.project_class_name}} {{cookiecutter.project_lower_camel_name}}, CancellationToken ct)
     {
-        var docRef = _collection.Document({{cookiecutter.project_lower_camel_name}}.Id);
-        await docRef.SetAsync({{cookiecutter.project_lower_camel_name}}, cancellationToken: ct);
+        await _context.SetAsync({{cookiecutter.project_lower_camel_name}}.Id, {{cookiecutter.project_lower_camel_name}}, ct);
 
         return new {{cookiecutter.project_class_name}}Dto
         {
@@ -189,8 +174,7 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
             UpdatedTimestamp = DateTime.UtcNow,
         };
 
-        var docRef = _collection.Document(updateItem.Id);
-        await docRef.SetAsync(updateItem, cancellationToken: ct);
+        await _context.SetAsync(updateItem.Id, updateItem, ct);
 
         return new {{cookiecutter.project_class_name}}Dto
         {
@@ -204,8 +188,7 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
         var item = await GetItemAsync(id, ct);
         item.IsDeleted = true;
 
-        var docRef = _collection.Document(item.Id);
-        await docRef.SetAsync(item, cancellationToken: ct);
+        await _context.SetAsync(item.Id, item, ct);
     }
 {%- endif %}
 }
