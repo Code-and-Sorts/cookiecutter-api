@@ -19,6 +19,16 @@ clean-build: ## Clean the build artifacts
 	@dotnet clean
 	@dotnet build
 
+.PHONY: lint
+lint: ## Lint the code with dotnet format
+	@echo "🔍 Linting code: Running dotnet format"
+	@dotnet format style --verify-no-changes --severity error
+
+.PHONY: format
+format: ## Format the code with dotnet format
+	@echo "🎨 Formatting code: Running dotnet format"
+	@dotnet format
+
 .PHONY: test-unit
 test-unit: ## Test the code with unit tests
 	@echo "🧪 Testing code: Running unit tests"

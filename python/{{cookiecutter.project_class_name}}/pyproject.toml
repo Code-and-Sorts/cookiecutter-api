@@ -25,6 +25,24 @@ azure-functions = "1.24.0"
 pytest = "^9.0.0"
 pytest-cov = "^7.0.0"
 pydantic = "^2.8.2"
+ruff = "^0.11.0"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E402", "E501", "W293"]
+
+[tool.ruff.lint.per-file-ignores]
+"blueprints/*" = ["F821", "F401"]
+"main.py" = ["F401"]
+"repositories/*" = ["F401"]
+"*_test.py" = ["F401", "F841"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [build-system]
 requires = ["poetry-core"]

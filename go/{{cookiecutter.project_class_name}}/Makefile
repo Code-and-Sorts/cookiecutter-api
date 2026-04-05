@@ -20,6 +20,16 @@ clean-build: ## Clean the build artifacts
 	@rm -f handler
 	@go build -o handler
 
+.PHONY: lint
+lint: ## Lint the code with golangci-lint
+	@echo "Linting code: Running golangci-lint"
+	@golangci-lint run ./...
+
+.PHONY: format
+format: ## Format the code with gofmt
+	@echo "Formatting code: Running gofmt"
+	@gofmt -w .
+
 .PHONY: test-unit
 test-unit: ## Test the code with unit tests
 	@echo "Testing code: Running unit tests"
