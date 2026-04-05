@@ -64,7 +64,7 @@ class {{ cookiecutter.project_class_name }}Controller:
                 import base64
                 body = base64.b64decode(body).decode("utf-8")
             return json.loads(body)
-        except (json.JSONDecodeError, Exception) as e:
+        except (json.JSONDecodeError, Exception):
             raise ValidationError("Invalid JSON in request body.")
 
     def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
