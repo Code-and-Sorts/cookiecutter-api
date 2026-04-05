@@ -15,6 +15,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+{%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -190,6 +196,137 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) Delete(ctx context
 	}
 
 	_, err = r.container.ReplaceItem(ctx, pk, item.Id, data, nil)
+	return err
+}
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+type {{cookiecutter.project_lower_camel_name}}Repository struct {
+	collection *firestore.CollectionRef
+}
+
+func New{{cookiecutter.project_class_name}}Repository(collection *firestore.CollectionRef) {{cookiecutter.project_class_name}}Repository {
+	return &{{cookiecutter.project_lower_camel_name}}Repository{collection: collection}
+}
+
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) getItem(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}, error) {
+	doc, err := r.collection.Doc(id).Get(ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		}
+		return nil, err
+	}
+
+	var item models.{{cookiecutter.project_class_name}}
+	if err := doc.DataTo(&item); err != nil {
+		return nil, err
+	}
+
+	if item.IsDeleted {
+		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+	}
+
+	return &item, nil
+}
+
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error) {
+	item, err := r.getItem(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.{{cookiecutter.project_class_name}}Dto{
+		Id:   item.Id,
+		Name: item.Name,
+	}, nil
+}
+
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	iter := r.collection.Where("isDeleted", "==", false).Documents(ctx)
+	defer iter.Stop()
+
+	var results []models.{{cookiecutter.project_class_name}}Dto
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		var entity models.{{cookiecutter.project_class_name}}
+		if err := doc.DataTo(&entity); err != nil {
+			return nil, err
+		}
+		results = append(results, models.{{cookiecutter.project_class_name}}Dto{
+			Id:   entity.Id,
+			Name: entity.Name,
+		})
+	}
+
+	return results, nil
+}
+
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) Create(ctx context.Context, item models.{{cookiecutter.project_class_name}}) (*models.{{cookiecutter.project_class_name}}Dto, error) {
+	_, err := r.collection.Doc(item.Id).Set(ctx, item)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.{{cookiecutter.project_class_name}}Dto{
+		Id:   item.Id,
+		Name: item.Name,
+	}, nil
+}
+
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) Update(ctx context.Context, item models.{{cookiecutter.project_class_name}}) (*models.{{cookiecutter.project_class_name}}Dto, error) {
+	currentItem, err := r.getItem(ctx, item.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	updateItem := models.{{cookiecutter.project_class_name}}{
+		BaseEntity: models.BaseEntity{
+			Id:               currentItem.Id,
+			IsDeleted:        currentItem.IsDeleted,
+			CreatedBy:        currentItem.CreatedBy,
+			CreatedTimestamp:  currentItem.CreatedTimestamp,
+			UpdatedTimestamp:  time.Now().UTC(),
+		},
+	}
+
+	if item.Name != "" {
+		updateItem.Name = item.Name
+	} else {
+		updateItem.Name = currentItem.Name
+	}
+
+	if item.UpdatedBy != "" {
+		updateItem.UpdatedBy = item.UpdatedBy
+	} else {
+		updateItem.UpdatedBy = currentItem.UpdatedBy
+	}
+
+	_, err = r.collection.Doc(updateItem.Id).Set(ctx, updateItem)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.{{cookiecutter.project_class_name}}Dto{
+		Id:   updateItem.Id,
+		Name: updateItem.Name,
+	}, nil
+}
+
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) Delete(ctx context.Context, id string) error {
+	item, err := r.getItem(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	item.IsDeleted = true
+	_, err = r.collection.Doc(item.Id).Set(ctx, *item)
 	return err
 }
 {%- endif %}

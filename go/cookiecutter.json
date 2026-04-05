@@ -7,6 +7,7 @@
     "author": "Code and Sorts (Colby Timm)",
     "cloud_service": [
         "Azure Function App",
+        "GCP Cloud Function",
         "AWS Lambda"
     ],
     "open_source_license": [

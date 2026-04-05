@@ -1,13 +1,13 @@
 package main
 
 import (
-{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' or cookiecutter.cloud_service == 'AWS Lambda' %}
 	"context"
 {%- endif %}
 	"encoding/json"
 	"fmt"
 	"log"
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+{%- if cookiecutter.cloud_service == 'Azure Function App' or cookiecutter.cloud_service == 'GCP Cloud Function' %}
 	"net/http"
 {%- endif %}
 	"os"
@@ -16,6 +16,9 @@ import (
 {%- endif %}
 {% if cookiecutter.cloud_service == 'Azure Function App' %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+	"cloud.google.com/go/firestore"
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 	"github.com/aws/aws-lambda-go/events"
@@ -29,12 +32,19 @@ import (
 	"{{cookiecutter.project_endpoint}}/services"
 	"{{cookiecutter.project_endpoint}}/utils"
 )
-{% if cookiecutter.cloud_service == 'Azure Function App' %}
+{% if cookiecutter.cloud_service == 'Azure Function App' or cookiecutter.cloud_service == 'GCP Cloud Function' %}
 func main() {
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	listenAddr := ":80"
 	if val, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
 		listenAddr = ":" + val
 	}
+{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' %}
+	listenAddr := ":8080"
+	if val, ok := os.LookupEnv("PORT"); ok {
+		listenAddr = ":" + val
+	}
+{%- endif %}
 
 	controller := initController()
 
@@ -50,6 +60,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(listenAddr, mux))
 }
 
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
 func initController() controllers.{{cookiecutter.project_class_name}}Controller {
 	endpoint := os.Getenv("CosmosDbEndpoint")
 	key := os.Getenv("CosmosDbKey")
@@ -84,6 +95,38 @@ func initController() controllers.{{cookiecutter.project_class_name}}Controller 
 
 	return ctrl
 }
+{%- endif %}
+{% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+func initController() controllers.{{cookiecutter.project_class_name}}Controller {
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	databaseName := os.Getenv("FIRESTORE_DATABASE")
+	if databaseName == "" {
+		databaseName = "(default)"
+	}
+	collectionName := os.Getenv("FIRESTORE_COLLECTION")
+
+	ctx := context.Background()
+	client, err := firestore.NewClientWithDatabase(ctx, projectID, databaseName)
+	if err != nil {
+		log.Fatalf("Failed to create Firestore client: %v", err)
+	}
+
+	collection := client.Collection(collectionName)
+
+	repo := repositories.New{{cookiecutter.project_class_name}}Repository(collection)
+	svc := services.New{{cookiecutter.project_class_name}}Service(repo)
+	validator, err := services.NewSchemaValidator(map[string]string{
+		"create_request": controllers.CreateRequestSchema,
+		"update_request": controllers.UpdateRequestSchema,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize schema validator: %v", err)
+	}
+	ctrl := controllers.New{{cookiecutter.project_class_name}}Controller(svc, validator)
+
+	return ctrl
+}
+{%- endif %}
 
 func handleGet(controller controllers.{{cookiecutter.project_class_name}}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

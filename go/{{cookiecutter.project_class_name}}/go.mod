@@ -6,8 +6,11 @@ require (
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
-{%- endif %}
-{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+{%- elif cookiecutter.cloud_service == 'GCP Cloud Function' %}
+	cloud.google.com/go/firestore v1.17.0
+	google.golang.org/api v0.214.0
+	google.golang.org/grpc v1.69.4
+{%- elif cookiecutter.cloud_service == 'AWS Lambda' %}
 	github.com/aws/aws-lambda-go v1.54.0
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.14
