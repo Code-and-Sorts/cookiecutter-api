@@ -1,4 +1,4 @@
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+{%- if cookiecutter.cloud_service in ['Azure Function App', 'GCP Cloud Function'] %}
 namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
 
 using System;
