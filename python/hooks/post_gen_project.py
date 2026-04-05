@@ -6,15 +6,28 @@ cloud_service = "{{cookiecutter.cloud_service}}"
 
 # Files to remove based on cloud service
 if cloud_service == "Azure Function App":
-    # Remove GCP-specific files
+    # Remove GCP and AWS-specific files
     files_to_remove = [
         "main.py",
+        "lambda_app.py",
+        "template.yaml",
     ]
 elif cloud_service == "GCP Cloud Function":
-    # Remove Azure-specific files
+    # Remove Azure and AWS-specific files
     files_to_remove = [
         "function_app.py",
         "local.settings.json",
+        "host.json",
+        "lambda_app.py",
+        "template.yaml",
+    ]
+elif cloud_service == "AWS Lambda":
+    # Remove Azure and GCP-specific files
+    files_to_remove = [
+        "function_app.py",
+        "local.settings.json",
+        "main.py",
+        "host.json",
     ]
 else:
     files_to_remove = []

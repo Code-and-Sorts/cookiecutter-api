@@ -30,6 +30,7 @@ jobs:
         cloud-service:
           - "Azure Function App"
           - "GCP Cloud Function"
+          - "AWS Lambda"
         python-version:
           - "3.12"
           - "3.13"

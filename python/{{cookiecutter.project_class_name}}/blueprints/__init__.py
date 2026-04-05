@@ -7,3 +7,7 @@ __all__ = ["bp"]
 # GCP Cloud Functions don't use blueprints, see main.py for function exports
 __all__ = []
 {%- endif %}
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+# AWS Lambda doesn't use blueprints, see lambda_app.py for function routing
+__all__ = []
+{%- endif %}

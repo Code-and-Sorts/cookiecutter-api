@@ -1,5 +1,9 @@
 import os
 import logging
+from controllers import {{ cookiecutter.project_class_name }}Controller
+from services import {{ cookiecutter.project_class_name }}Service
+from repositories import {{ cookiecutter.project_class_name }}Repository
+from utils import detect_error, response_generator
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import azure.functions as func
 from azure.cosmos import CosmosClient
@@ -31,10 +35,17 @@ collection_name = os.getenv("FIRESTORE_COLLECTION", "{{ cookiecutter.project_slu
 collection = db.collection(collection_name)
 repository = {{ cookiecutter.project_class_name }}Repository(collection)
 {%- endif %}
-from controllers import {{ cookiecutter.project_class_name }}Controller
-from services import {{ cookiecutter.project_class_name }}Service
-from repositories import {{ cookiecutter.project_class_name }}Repository
-from utils import detect_error, response_generator
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+import boto3
+
+# Initialize DynamoDB table resource with explicit region to avoid
+# NoRegionError in local dev or misconfigured environments.
+aws_region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+dynamodb = boto3.resource("dynamodb", region_name=aws_region)
+table_name = os.getenv("DYNAMODB_TABLE_NAME", "{{ cookiecutter.project_slug }}")
+table = dynamodb.Table(table_name)
+repository = {{ cookiecutter.project_class_name }}Repository(table)
+{%- endif %}
 
 service = {{ cookiecutter.project_class_name }}Service(repository)
 controller = {{ cookiecutter.project_class_name }}Controller(service)
@@ -47,6 +58,10 @@ async def get_by_id(req: func.HttpRequest) -> func.HttpResponse:
 def get_by_id(request: Request):
     """HTTP Cloud Function to get item by ID."""
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+def get_by_id(event):
+    """Lambda handler to get item by ID."""
+{%- endif %}
     logging.info("Get {{ cookiecutter.project_endpoint }} by ID processed a request.")
 
     try:
@@ -55,6 +70,9 @@ def get_by_id(request: Request):
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         item = controller.get_by_id(request)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        item = controller.get_by_id(event)
 {%- endif %}
         return response_generator(item)
 
@@ -69,6 +87,10 @@ async def get_list(req: func.HttpRequest) -> func.HttpResponse:
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 def get_list(request: Request):
     """HTTP Cloud Function to get all items."""
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+def get_list(event):
+    """Lambda handler to get all items."""
 {%- endif %}
     logging.info("Get {{ cookiecutter.project_endpoint }} list processed a request.")
 
@@ -88,6 +110,10 @@ async def create(req: func.HttpRequest) -> func.HttpResponse:
 def create(request: Request):
     """HTTP Cloud Function to create a new item."""
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+def create(event):
+    """Lambda handler to create a new item."""
+{%- endif %}
     logging.info("Create item processed a request.")
 
     try:
@@ -96,6 +122,9 @@ def create(request: Request):
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         created_item = controller.create(request)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        created_item = controller.create(event)
 {%- endif %}
         return response_generator(created_item, 201)
 
@@ -111,6 +140,10 @@ async def update(req: func.HttpRequest) -> func.HttpResponse:
 def update(request: Request):
     """HTTP Cloud Function to update an existing item."""
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+def update(event):
+    """Lambda handler to update an existing item."""
+{%- endif %}
     logging.info("Patch item processed a request.")
 
     try:
@@ -119,6 +152,9 @@ def update(request: Request):
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         updated_item = controller.update(request)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        updated_item = controller.update(event)
 {%- endif %}
         return response_generator(updated_item, 201)
 
@@ -134,6 +170,10 @@ async def delete(req: func.HttpRequest) -> func.HttpResponse:
 def delete(request: Request):
     """HTTP Cloud Function to soft delete an item."""
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+def delete(event):
+    """Lambda handler to soft delete an item."""
+{%- endif %}
     logging.info("Delete item processed a request.")
 
     try:
@@ -147,6 +187,14 @@ def delete(request: Request):
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         controller.soft_delete(request)
         return ("{{ cookiecutter.project_class_name }} deleted.", 200)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        controller.soft_delete(event)
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": '{"message": "{{ cookiecutter.project_class_name }} deleted."}'
+        }
 {%- endif %}
 
     except Exception as error:

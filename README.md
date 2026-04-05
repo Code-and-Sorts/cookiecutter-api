@@ -60,7 +60,7 @@ Follow the prompts to configure your project.
   <tr>
     <td align="center"><img src="./.docs/imgs/python.svg" height="18" title="Python"></td>
     <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
   </tr>
   <tr>

@@ -15,6 +15,10 @@ def describe_response_generator():
         assert response[0] == '[{"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}]'
         assert response[1] == 200
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        assert response["body"] == '[{"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}]'
+        assert response["statusCode"] == 200
+{%- endif %}
 
     def test_empty_list():
         item_response_list = []
@@ -27,6 +31,10 @@ def describe_response_generator():
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         assert response[0] == '[]'
         assert response[1] == 200
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        assert response["body"] == '[]'
+        assert response["statusCode"] == 200
 {%- endif %}
 
     def test_list_item_response_multiple_items():
@@ -42,6 +50,10 @@ def describe_response_generator():
         assert response[0] == '[{"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}, {"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}]'
         assert response[1] == 200
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        assert response["body"] == '[{"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}, {"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}]'
+        assert response["statusCode"] == 200
+{%- endif %}
 
     def test_item_response():
         item_response = {{ cookiecutter.project_class_name }}Response(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
@@ -54,4 +66,8 @@ def describe_response_generator():
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         assert response[0] == '{"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}'
         assert response[1] == 200
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        assert response["body"] == '{"name": "mockName", "type": "mockType", "id": "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"}'
+        assert response["statusCode"] == 200
 {%- endif %}

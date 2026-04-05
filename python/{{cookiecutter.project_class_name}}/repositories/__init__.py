@@ -8,3 +8,8 @@ from .{{cookiecutter.project_slug}}_repository import {{ cookiecutter.project_cl
 
 __all__ = ["{{ cookiecutter.project_class_name }}Repository"]
 {%- endif %}
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+from .{{cookiecutter.project_slug}}_repository import {{ cookiecutter.project_class_name }}Repository
+
+__all__ = ["{{ cookiecutter.project_class_name }}Repository"]
+{%- endif %}

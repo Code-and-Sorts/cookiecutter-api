@@ -8,7 +8,7 @@ def response_generator(items: {{ cookiecutter.project_class_name }}Response | li
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
     headers = {'Content-Type': 'application/json'}
 {%- endif %}
-    
+
     if isinstance(items, list):
         if not items:
             body = json.dumps([])
@@ -16,10 +16,17 @@ def response_generator(items: {{ cookiecutter.project_class_name }}Response | li
             body = json.dumps([item.model_dump() for item in items])
     else:
         body = json.dumps(items.model_dump())
-    
+
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
     return HttpResponse(body=body, status_code=status_code)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
     return (body, status_code, headers)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json"},
+        "body": body
+    }
 {%- endif %}
