@@ -78,7 +78,7 @@ Follow the prompts to configure your project.
   <tr>
     <td align="center"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
     <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Planned">📋</span></td>
   </tr>
 </table>

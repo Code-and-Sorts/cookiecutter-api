@@ -1,20 +1,35 @@
 package main
 
 import (
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+	"context"
+{%- endif %}
 	"encoding/json"
 	"fmt"
 	"log"
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	"net/http"
+{%- endif %}
 	"os"
-
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+	"strings"
+{%- endif %}
+{% if cookiecutter.cloud_service == 'Azure Function App' %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+{%- endif %}
 
 	"{{cookiecutter.project_endpoint}}/controllers"
 	"{{cookiecutter.project_endpoint}}/repositories"
 	"{{cookiecutter.project_endpoint}}/services"
 	"{{cookiecutter.project_endpoint}}/utils"
 )
-
+{% if cookiecutter.cloud_service == 'Azure Function App' %}
 func main() {
 	listenAddr := ":80"
 	if val, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
@@ -159,3 +174,142 @@ func handleDelete(controller controllers.{{cookiecutter.project_class_name}}Cont
 		})
 	}
 }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+var controller controllers.{{cookiecutter.project_class_name}}Controller
+
+func init() {
+	tableName := os.Getenv("DYNAMODB_TABLE_NAME")
+
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Fatalf("Failed to load AWS config: %v", err)
+	}
+
+	client := dynamodb.NewFromConfig(cfg)
+
+	repo := repositories.New{{cookiecutter.project_class_name}}Repository(client, tableName)
+	svc := services.New{{cookiecutter.project_class_name}}Service(repo)
+	validator, err := services.NewSchemaValidator(map[string]string{
+		"create_request": controllers.CreateRequestSchema,
+		"update_request": controllers.UpdateRequestSchema,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize schema validator: %v", err)
+	}
+	controller = controllers.New{{cookiecutter.project_class_name}}Controller(svc, validator)
+}
+
+func main() {
+	lambda.Start(handler)
+}
+
+func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Received %s request for %s", request.HTTPMethod, request.Resource)
+
+	switch request.HTTPMethod {
+	case "GET":
+		if id, ok := request.PathParameters["item_id"]; ok {
+			return handleGet(ctx, id)
+		}
+		return handleGetList(ctx)
+	case "POST":
+		return handleCreate(ctx, request.Body)
+	case "PATCH":
+		id := request.PathParameters["item_id"]
+		return handleUpdate(ctx, id, request.Body)
+	case "DELETE":
+		id := request.PathParameters["item_id"]
+		return handleDelete(ctx, id)
+	default:
+		return utils.GenerateErrorResponse("Not Found", 404), nil
+	}
+}
+
+func handleGet(ctx context.Context, id string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Get{{cookiecutter.project_class_name}} processed a request.")
+
+	result, err := controller.Get(ctx, id)
+	if err != nil {
+		log.Printf("Exception in Get{{cookiecutter.project_class_name}}: %v", err)
+		return utils.DetectError(err), nil
+	}
+
+	body, _ := json.Marshal(result)
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+
+func handleGetList(ctx context.Context) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Get{{cookiecutter.project_class_name}}List processed a request.")
+
+	result, err := controller.GetList(ctx)
+	if err != nil {
+		log.Printf("Exception in Get{{cookiecutter.project_class_name}}List: %v", err)
+		return utils.DetectError(err), nil
+	}
+
+	body, _ := json.Marshal(result)
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+
+func handleCreate(ctx context.Context, requestBody string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Create{{cookiecutter.project_class_name}} processed a request.")
+
+	result, err := controller.Create(ctx, strings.NewReader(requestBody))
+	if err != nil {
+		log.Printf("Exception in Create{{cookiecutter.project_class_name}}: %v", err)
+		return utils.DetectError(err), nil
+	}
+
+	body, _ := json.Marshal(result)
+	return events.APIGatewayProxyResponse{
+		StatusCode: 201,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+
+func handleUpdate(ctx context.Context, id string, requestBody string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Update{{cookiecutter.project_class_name}} processed a request.")
+
+	result, err := controller.Update(ctx, id, strings.NewReader(requestBody))
+	if err != nil {
+		log.Printf("Exception in Update{{cookiecutter.project_class_name}}: %v", err)
+		return utils.DetectError(err), nil
+	}
+
+	body, _ := json.Marshal(result)
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+
+func handleDelete(ctx context.Context, id string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Delete{{cookiecutter.project_class_name}} processed a request.")
+
+	err := controller.Delete(ctx, id)
+	if err != nil {
+		log.Printf("Exception in Delete{{cookiecutter.project_class_name}}: %v", err)
+		return utils.DetectError(err), nil
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"message": fmt.Sprintf("{{cookiecutter.project_class_name}} with id %s was deleted successfully.", id),
+	})
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+{%- endif %}
