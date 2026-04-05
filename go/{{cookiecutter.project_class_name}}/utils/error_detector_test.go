@@ -3,7 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+{%- if cookiecutter.cloud_service == 'Azure Function App' or cookiecutter.cloud_service == 'GCP Cloud Function' %}
 	"net/http"
 	"net/http/httptest"
 {%- endif %}
@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-{% if cookiecutter.cloud_service == 'Azure Function App' %}
+{% if cookiecutter.cloud_service == 'Azure Function App' or cookiecutter.cloud_service == 'GCP Cloud Function' %}
 func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
 	// Arrange
 	w := httptest.NewRecorder()
