@@ -1,22 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+{%- endif %}
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+{%- endif %}
     <PackageReference Include="FluentValidation" Version="12.1.1" />
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.51.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.3.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore"
       Version="2.1.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.7" />
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    <PackageReference Include="Google.Cloud.Firestore" Version="3.10.0" />
+    <PackageReference Include="Google.Cloud.Functions.Hosting" Version="2.2.1" />
+{%- endif %}
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
   <ItemGroup>
     <None Update="host.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -29,4 +40,5 @@
   <ItemGroup>
     <Using Include="System.Threading.ExecutionContext" Alias="ExecutionContext" />
   </ItemGroup>
+{%- endif %}
 </Project>

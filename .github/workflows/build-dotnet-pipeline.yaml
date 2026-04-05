@@ -29,6 +29,7 @@ jobs:
           - dotnet
         cloud-service:
           - "Azure Function App"
+          - "GCP Cloud Function"
         dotnet-version:
           - "8.x"
       fail-fast: false

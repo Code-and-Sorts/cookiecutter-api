@@ -7,12 +7,18 @@ using System.Threading;
 using System.Threading.Tasks;
 using {{cookiecutter.project_class_name}}.Api.Entities;
 using {{cookiecutter.project_class_name}}.Api.Repositories;
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Cosmos;
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+using Google.Cloud.Firestore;
+{%- endif %}
 using NSubstitute;
 using Xunit;
 
 public class {{cookiecutter.project_class_name}}RepositoryTest
 {
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     private readonly Container _mockContainer;
     private readonly {{cookiecutter.project_class_name}}Repository _repository;
 
@@ -148,4 +154,119 @@ public class {{cookiecutter.project_class_name}}RepositoryTest
             null,
             Arg.Any<CancellationToken>());
     }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    private readonly FirestoreDb _mockFirestoreDb;
+    private readonly CollectionReference _mockCollection;
+    private readonly {{cookiecutter.project_class_name}}Repository _repository;
+
+    public {{cookiecutter.project_class_name}}RepositoryTest()
+    {
+        _mockFirestoreDb = Substitute.For<FirestoreDb>();
+        _mockCollection = Substitute.For<CollectionReference>();
+        _mockFirestoreDb.Collection(Arg.Any<string>()).Returns(_mockCollection);
+        _repository = new {{cookiecutter.project_class_name}}Repository(_mockFirestoreDb, "mockCollectionName");
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldReturn{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var mockDocRef = Substitute.For<DocumentReference>();
+        var mockSnapshot = Substitute.For<DocumentSnapshot>();
+        mockSnapshot.Exists.Returns(true);
+        mockSnapshot.ConvertTo<{{cookiecutter.project_class_name}}>().Returns(new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}" });
+        _mockCollection.Document(id).Returns(mockDocRef);
+        mockDocRef.GetSnapshotAsync(Arg.Any<CancellationToken>()).Returns(mockSnapshot);
+
+        // Act
+        var result = await _repository.GetAsync(id, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(id, result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}", result.Name);
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldThrowWhenNotFound()
+    {
+        // Arrange
+        var id = "non-existent-id";
+        var mockDocRef = Substitute.For<DocumentReference>();
+        var mockSnapshot = Substitute.For<DocumentSnapshot>();
+        mockSnapshot.Exists.Returns(false);
+        _mockCollection.Document(id).Returns(mockDocRef);
+        mockDocRef.GetSnapshotAsync(Arg.Any<CancellationToken>()).Returns(mockSnapshot);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync(id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldReturnCreated{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{cookiecutter.project_class_name}}" };
+        var mockDocRef = Substitute.For<DocumentReference>();
+        _mockCollection.Document({{cookiecutter.project_lower_camel_name}}.Id).Returns(mockDocRef);
+
+        // Act
+        var result = await _repository.CreateAsync({{cookiecutter.project_lower_camel_name}}, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}", result.Name);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldReturnUpdated{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}New", UpdatedBy = "User1" };
+        var current{{cookiecutter.project_class_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+
+        var mockDocRef = Substitute.For<DocumentReference>();
+        var mockSnapshot = Substitute.For<DocumentSnapshot>();
+        mockSnapshot.Exists.Returns(true);
+        mockSnapshot.ConvertTo<{{cookiecutter.project_class_name}}>().Returns(current{{cookiecutter.project_class_name}});
+        _mockCollection.Document(id).Returns(mockDocRef);
+        mockDocRef.GetSnapshotAsync(Arg.Any<CancellationToken>()).Returns(mockSnapshot);
+
+        // Act
+        var result = await _repository.UpdateAsync({{cookiecutter.project_lower_camel_name}}, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(id, result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}New", result.Name);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var existing{{cookiecutter.project_class_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}", IsDeleted = false };
+
+        var mockDocRef = Substitute.For<DocumentReference>();
+        var mockSnapshot = Substitute.For<DocumentSnapshot>();
+        mockSnapshot.Exists.Returns(true);
+        mockSnapshot.ConvertTo<{{cookiecutter.project_class_name}}>().Returns(existing{{cookiecutter.project_class_name}});
+        _mockCollection.Document(id).Returns(mockDocRef);
+        mockDocRef.GetSnapshotAsync(Arg.Any<CancellationToken>()).Returns(mockSnapshot);
+
+        // Act
+        await _repository.DeleteAsync(id, CancellationToken.None);
+
+        // Assert
+        await mockDocRef.Received(1).SetAsync(
+            Arg.Is<{{cookiecutter.project_class_name}}>(k => k.IsDeleted == true),
+            Arg.Any<SetOptions>(),
+            Arg.Any<CancellationToken>());
+    }
+{%- endif %}
 }
