@@ -23,12 +23,12 @@ pytest-describe = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
-azure-functions = "1.24.0"
+azure-functions = "2.0.0"
 {%- endif %}
 pytest = "^9.0.0"
 pytest-cov = "^7.0.0"
 pydantic = "^2.12.0"
-ruff = "^0.11.0"
+ruff = "^0.15.0"
 
 [tool.ruff]
 line-length = 88

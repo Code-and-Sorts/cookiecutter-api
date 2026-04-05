@@ -45,7 +45,7 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
 
       - name: Setup Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -58,7 +58,7 @@ jobs:
         working-directory: KittenClaws
 
       - name: Run lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           working-directory: KittenClaws
 
