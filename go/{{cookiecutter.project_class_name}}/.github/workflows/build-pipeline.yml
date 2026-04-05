@@ -37,3 +37,7 @@ jobs:
 
       - name: Test unit tests
         run: make test-unit
+
+      - name: Run dependency vulnerability scan
+        continue-on-error: true
+        run: make audit

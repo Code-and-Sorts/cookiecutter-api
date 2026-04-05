@@ -181,6 +181,16 @@ Ensure your code is working as expected by running unit tests using pytest:
 make test-unit
 ```
 
+## Vulnerability Scanning
+
+Scan project dependencies for known security vulnerabilities using [pip-audit](https://pypi.org/project/pip-audit/):
+
+```bash
+make audit
+```
+
+This is also run automatically in CI on every PR and push to main.
+
 ## Repository structure
 
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}

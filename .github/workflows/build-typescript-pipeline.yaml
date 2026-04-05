@@ -71,3 +71,9 @@ jobs:
         run: yarn test:unit
         working-directory: KittenClaws
         shell: bash
+
+      - name: Run dependency vulnerability scan
+        continue-on-error: true
+        run: yarn npm audit --severity moderate
+        working-directory: KittenClaws
+        shell: bash

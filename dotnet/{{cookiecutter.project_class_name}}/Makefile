@@ -34,6 +34,11 @@ test-unit: ## Test the code with unit tests
 	@echo "🧪 Testing code: Running unit tests"
 	@dotnet test
 
+.PHONY: audit
+audit: ## Scan dependencies for known vulnerabilities
+	@echo "🔍 Scanning dependencies for vulnerabilities"
+	@dotnet list package --vulnerable --include-transitive
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

@@ -93,6 +93,16 @@ Ensure your code is working as expected by running unit tests using dotnet test:
 make test-unit
 ```
 
+## Vulnerability Scanning
+
+Scan project dependencies for known security vulnerabilities:
+
+```bash
+make audit
+```
+
+This uses `dotnet list package --vulnerable --include-transitive` to check for packages with known CVEs. It is also run automatically in CI on every PR and push to main.
+
 ## Repository structure
 
 ```text

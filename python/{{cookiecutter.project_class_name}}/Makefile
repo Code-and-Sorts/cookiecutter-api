@@ -42,6 +42,12 @@ test-unit: ## Test the code with pytest unit tests.
 	@echo "🧪 Testing code: Running pytest unit tests"
 	@poetry run pytest --cov
 
+.PHONY: audit
+audit: ## Scan dependencies for known vulnerabilities
+	@echo "🔍 Scanning dependencies for vulnerabilities"
+	@poetry run pip install pip-audit
+	@poetry run pip-audit
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

@@ -62,3 +62,8 @@ jobs:
       - name: Test with the dotnet CLI
         run: make test-unit
         working-directory: KittenClaws
+
+      - name: Run dependency vulnerability scan
+        continue-on-error: true
+        run: make audit
+        working-directory: KittenClaws

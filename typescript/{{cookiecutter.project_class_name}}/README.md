@@ -88,11 +88,21 @@ yarn remove <package-name>
 
 ## Running Tests
 
-Ensure your code is working as expected by running unit tests using pytest:
+Ensure your code is working as expected by running unit tests using jest:
 
 ```bash
 yarn test:unit
 ```
+
+## Vulnerability Scanning
+
+Scan project dependencies for known security vulnerabilities using [yarn npm audit](https://yarnpkg.com/cli/npm/audit):
+
+```bash
+yarn audit
+```
+
+This is also run automatically in CI on every PR and push to main.
 
 ## Repository structure
 
