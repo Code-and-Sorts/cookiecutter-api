@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/json"
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+{%- if cookiecutter.cloud_service == 'Azure Function App' or cookiecutter.cloud_service == 'GCP Cloud Function' %}
 	"net/http"
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
@@ -11,7 +11,7 @@ import (
 
 	"{{cookiecutter.project_endpoint}}/models"
 )
-{% if cookiecutter.cloud_service == 'Azure Function App' %}
+{% if cookiecutter.cloud_service == 'Azure Function App' or cookiecutter.cloud_service == 'GCP Cloud Function' %}
 func DetectError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")
 
