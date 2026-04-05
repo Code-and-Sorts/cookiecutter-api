@@ -4,7 +4,12 @@
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <OutputType>Exe</OutputType>
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    <OutputType>Library</OutputType>
+{%- endif %}
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

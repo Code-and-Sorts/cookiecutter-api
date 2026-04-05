@@ -23,6 +23,12 @@ public class Function : IHttpFunction
         _logger = logger;
     }
 
+    private static bool IsValidEndpointPath(string path)
+    {
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 1 && segments[0] == Endpoint;
+    }
+
     private static string? ParseId(string path)
     {
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -33,12 +39,12 @@ public class Function : IHttpFunction
         return null;
     }
 
-    private static async Task WriteJsonResponse(HttpResponse response, int statusCode, object body)
+    private static async Task WriteJsonResponse(HttpResponse response, int statusCode, object body, CancellationToken ct = default)
     {
         response.StatusCode = statusCode;
         response.ContentType = "application/json";
         var json = JsonConvert.SerializeObject(body);
-        await response.WriteAsync(json);
+        await response.WriteAsync(json, ct);
     }
 
     public async Task HandleAsync(HttpContext context)
@@ -49,62 +55,75 @@ public class Function : IHttpFunction
 
         try
         {
+            var path = request.Path.Value ?? string.Empty;
+
+            if (!IsValidEndpointPath(path))
+            {
+                await WriteJsonResponse(response, 404, new { error = "Not found." }, ct);
+                return;
+            }
+
             switch (request.Method)
             {
                 case "GET":
                 {
-                    var id = ParseId(request.Path);
+                    var id = ParseId(path);
                     if (id != null)
                     {
                         _logger.LogInformation("Get{{cookiecutter.project_class_name}} processed a request.");
                         var result = await _{{cookiecutter.project_lower_camel_name}}Controller.GetAsync(id, ct);
-                        await WriteJsonResponse(response, 200, result);
+                        await WriteJsonResponse(response, 200, result, ct);
                         return;
                     }
                     _logger.LogInformation("Get{{cookiecutter.project_class_name}}List processed a request.");
                     var results = await _{{cookiecutter.project_lower_camel_name}}Controller.GetListAsync(ct);
-                    await WriteJsonResponse(response, 200, results);
+                    await WriteJsonResponse(response, 200, results, ct);
                     return;
                 }
 
                 case "POST":
                 {
+                    if (ParseId(path) != null)
+                    {
+                        await WriteJsonResponse(response, 400, new { error = "POST does not accept an item ID." }, ct);
+                        return;
+                    }
                     _logger.LogInformation("Create{{cookiecutter.project_class_name}} processed a request.");
                     var created = await _{{cookiecutter.project_lower_camel_name}}Controller.CreateAsync(request.Body, ct);
-                    await WriteJsonResponse(response, 201, created);
+                    await WriteJsonResponse(response, 201, created, ct);
                     return;
                 }
 
                 case "PATCH":
                 {
-                    var id = ParseId(request.Path);
+                    var id = ParseId(path);
                     if (id == null)
                     {
-                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." });
+                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
                         return;
                     }
                     _logger.LogInformation("Update{{cookiecutter.project_class_name}} processed a request.");
                     var updated = await _{{cookiecutter.project_lower_camel_name}}Controller.UpdateAsync(id, request.Body, ct);
-                    await WriteJsonResponse(response, 200, updated);
+                    await WriteJsonResponse(response, 200, updated, ct);
                     return;
                 }
 
                 case "DELETE":
                 {
-                    var id = ParseId(request.Path);
+                    var id = ParseId(path);
                     if (id == null)
                     {
-                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." });
+                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
                         return;
                     }
                     _logger.LogInformation("Delete{{cookiecutter.project_class_name}} processed a request.");
                     await _{{cookiecutter.project_lower_camel_name}}Controller.DeleteAsync(id, ct);
-                    await WriteJsonResponse(response, 200, new { message = $"{{cookiecutter.project_class_name}} with id {id} was deleted successfully." });
+                    await WriteJsonResponse(response, 200, new { message = $"{{cookiecutter.project_class_name}} with id {id} was deleted successfully." }, ct);
                     return;
                 }
 
                 default:
-                    await WriteJsonResponse(response, 405, new { error = "Method not allowed." });
+                    await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                     return;
             }
         }
@@ -112,7 +131,7 @@ public class Function : IHttpFunction
         {
             _logger.LogError(ex, "Exception in Function -> HandleAsync method.");
             var errorResult = ErrorDetector.DetectError(ex);
-            await WriteJsonResponse(response, errorResult.StatusCode ?? 500, errorResult.Value!);
+            await WriteJsonResponse(response, errorResult.StatusCode ?? 500, errorResult.Value!, ct);
         }
     }
 }
