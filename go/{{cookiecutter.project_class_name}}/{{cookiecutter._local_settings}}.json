@@ -1,3 +1,4 @@
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 {
     "IsEncrypted": false,
     "Values": {
@@ -9,3 +10,11 @@
         "CosmosDbContainerName": "{{ '{{CosmosDbContainerName}}' }}"
     }
 }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+{
+    "Values": {
+        "DYNAMODB_TABLE_NAME": "{{ '{{DynamoDbTableName}}' }}"
+    }
+}
+{%- endif %}

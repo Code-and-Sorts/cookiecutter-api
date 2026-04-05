@@ -5,20 +5,37 @@ install: ## Install dependencies
 
 .PHONY: run
 run: ## Run the function app
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	@echo "Running Function App"
 	@go build -o handler
 	@func start
+{%- elif cookiecutter.cloud_service == 'AWS Lambda' %}
+	@echo "Building and running Lambda API locally via SAM"
+	@sam build
+	@sam local start-api
+{%- endif %}
 
 .PHONY: build
 build: ## Build the code
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	@echo "Building file"
 	@go build -o handler
+{%- elif cookiecutter.cloud_service == 'AWS Lambda' %}
+	@echo "Building Lambda binary"
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap
+{%- endif %}
 
 .PHONY: clean-build
 clean-build: ## Clean the build artifacts
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	@echo "Cleaning build artifacts"
 	@rm -f handler
 	@go build -o handler
+{%- elif cookiecutter.cloud_service == 'AWS Lambda' %}
+	@echo "Cleaning build artifacts"
+	@rm -f bootstrap
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap
+{%- endif %}
 
 .PHONY: lint
 lint: ## Lint the code with golangci-lint
