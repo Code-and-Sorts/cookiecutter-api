@@ -38,8 +38,10 @@ repository = {{ cookiecutter.project_class_name }}Repository(collection)
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 import boto3
 
-# Initialize DynamoDB table resource
-dynamodb = boto3.resource("dynamodb")
+# Initialize DynamoDB table resource with explicit region to avoid
+# NoRegionError in local dev or misconfigured environments.
+aws_region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+dynamodb = boto3.resource("dynamodb", region_name=aws_region)
 table_name = os.getenv("DYNAMODB_TABLE_NAME", "{{ cookiecutter.project_slug }}")
 table = dynamodb.Table(table_name)
 repository = {{ cookiecutter.project_class_name }}Repository(table)

@@ -17,6 +17,7 @@ elif cloud_service == "GCP Cloud Function":
     files_to_remove = [
         "function_app.py",
         "local.settings.json",
+        "host.json",
         "lambda_app.py",
         "template.yaml",
     ]

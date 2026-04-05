@@ -16,7 +16,8 @@ run: ## Run function app.
 	@poetry run functions-framework --target=get_list --source=main.py --port=8080
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
-	@echo "🚀 Running Lambda API locally via SAM"
+	@echo "🚀 Building and running Lambda API locally via SAM"
+	@sam build
 	@sam local start-api
 {%- endif %}
 

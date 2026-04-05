@@ -36,13 +36,12 @@ def describe_item_controller():
             mock_request = MagicMock(spec=HttpRequest)
             mock_request.route_params = {'item_id': 'mockInvalidId'}
 
-            with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:
-                try:
+            with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', side_effect=ValueError("Invalid ID")) as Mock{{ cookiecutter.project_class_name }}IdValidation:
+                with pytest.raises(ValueError):
                     controller.get_by_id(mock_request)
-                except Exception as error:
-                    assert isinstance(error, ValueError)
-                    Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
-                    mock_service.get_by_id.assert_not_called()
+
+                Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
+                mock_service.get_by_id.assert_not_called()
 {%- endif %}
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
 import pytest
@@ -81,13 +80,12 @@ def describe_item_controller():
             mock_request = MagicMock()
             mock_request.path = '/kitties/mockInvalidId'
 
-            with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:
-                try:
+            with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', side_effect=ValueError("Invalid ID")) as Mock{{ cookiecutter.project_class_name }}IdValidation:
+                with pytest.raises(ValueError):
                     controller.get_by_id(mock_request)
-                except Exception as error:
-                    assert isinstance(error, ValueError)
-                    Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
-                    mock_service.get_by_id.assert_not_called()
+
+                Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
+                mock_service.get_by_id.assert_not_called()
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 import pytest
@@ -128,11 +126,10 @@ def describe_item_controller():
                 "pathParameters": {"item_id": "mockInvalidId"}
             }
 
-            with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:
-                try:
+            with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', side_effect=ValueError("Invalid ID")) as Mock{{ cookiecutter.project_class_name }}IdValidation:
+                with pytest.raises(ValueError):
                     controller.get_by_id(mock_event)
-                except Exception as error:
-                    assert isinstance(error, ValueError)
-                    Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
-                    mock_service.get_by_id.assert_not_called()
+
+                Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
+                mock_service.get_by_id.assert_not_called()
 {%- endif %}
