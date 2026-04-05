@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: {{cookiecutter.project_description}}
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: dotnet8
+    MemorySize: 256
+
+Resources:
+  Create{{cookiecutter.project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{cookiecutter.project_class_name}}.Api::{{cookiecutter.project_class_name}}.Api.Functions.Create{{cookiecutter.project_class_name}}::Post
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{cookiecutter.project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{cookiecutter.project_class_name}}Table
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /api/{{cookiecutter.project_endpoint}}
+            Method: POST
+
+  Get{{cookiecutter.project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{cookiecutter.project_class_name}}.Api::{{cookiecutter.project_class_name}}.Api.Functions.Get{{cookiecutter.project_class_name}}::Get
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{cookiecutter.project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{cookiecutter.project_class_name}}Table
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /api/{{cookiecutter.project_endpoint}}/{id}
+            Method: GET
+
+  Get{{cookiecutter.project_class_name}}ListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{cookiecutter.project_class_name}}.Api::{{cookiecutter.project_class_name}}.Api.Functions.Get{{cookiecutter.project_class_name}}List::Get
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{cookiecutter.project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{cookiecutter.project_class_name}}Table
+      Events:
+        GetList:
+          Type: Api
+          Properties:
+            Path: /api/{{cookiecutter.project_endpoint}}
+            Method: GET
+
+  Update{{cookiecutter.project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{cookiecutter.project_class_name}}.Api::{{cookiecutter.project_class_name}}.Api.Functions.Update{{cookiecutter.project_class_name}}::Patch
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{cookiecutter.project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{cookiecutter.project_class_name}}Table
+      Events:
+        Update:
+          Type: Api
+          Properties:
+            Path: /api/{{cookiecutter.project_endpoint}}/{id}
+            Method: PATCH
+
+  Delete{{cookiecutter.project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{cookiecutter.project_class_name}}.Api::{{cookiecutter.project_class_name}}.Api.Functions.Delete{{cookiecutter.project_class_name}}::Delete
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{cookiecutter.project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{cookiecutter.project_class_name}}Table
+      Events:
+        Delete:
+          Type: Api
+          Properties:
+            Path: /api/{{cookiecutter.project_endpoint}}/{id}
+            Method: DELETE
+
+  {{cookiecutter.project_class_name}}Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: {{cookiecutter.project_endpoint}}
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/{{cookiecutter.project_endpoint}}"
+  {{cookiecutter.project_class_name}}TableName:
+    Description: DynamoDB table name
+    Value: !Ref {{cookiecutter.project_class_name}}Table

@@ -11,6 +11,9 @@ using Microsoft.Azure.Cosmos;
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 using Google.Cloud.Firestore;
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+using Amazon.DynamoDBv2;
+{%- endif %}
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,9 +27,9 @@ public static class DependencyInjection
         return services;
     }
 
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
         string cosmosConnectionString = configuration.GetConnectionString("CosmosDb") ?? string.Empty;
         string databaseName = configuration.GetValue<string>("CosmosDbDatabaseName") ?? string.Empty;
         string containerName = configuration.GetValue<string>("CosmosDbContainerName") ?? string.Empty;
@@ -53,8 +56,13 @@ public static class DependencyInjection
                 containerName
             );
         });
+
+        return services;
+    }
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
+    {
         string projectId = configuration.GetValue<string>("GCP_PROJECT_ID") ?? string.Empty;
         string databaseId = configuration.GetValue<string>("FIRESTORE_DATABASE") ?? "(default)";
         string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION") ?? string.Empty;
@@ -90,8 +98,32 @@ public static class DependencyInjection
             }
             return new {{cookiecutter.project_class_name}}Repository(context);
         });
-{%- endif %}
 
         return services;
     }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    public static IServiceCollection AddPersistence(this IServiceCollection services)
+    {
+        string tableName = Environment.GetEnvironmentVariable("DYNAMODB_TABLE_NAME") ?? string.Empty;
+
+        if (string.IsNullOrEmpty(tableName))
+        {
+            throw new InvalidOperationException("DynamoDB table name configuration is missing.");
+        }
+
+        services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
+
+        services.AddSingleton<I{{cookiecutter.project_class_name}}Repository>(provider =>
+        {
+            var dynamoClient = provider.GetRequiredService<IAmazonDynamoDB>();
+            return new {{cookiecutter.project_class_name}}Repository(
+                dynamoClient,
+                tableName
+            );
+        });
+
+        return services;
+    }
+{%- endif %}
 }

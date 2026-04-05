@@ -1,21 +1,16 @@
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
 
 using System;
 using System.IO;
 using System.Text;
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-{%- endif %}
-{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-using Microsoft.AspNetCore.Http;
-{%- endif %}
 using Newtonsoft.Json;
 using NSubstitute;
 
 public static class Mocks
 {
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     public static HttpRequestData CreateHttpRequestData<T>(T {{cookiecutter.project_lower_camel_name}}Request, string restMethod = "GET")
     {
         var context = Substitute.For<FunctionContext>();
@@ -29,8 +24,20 @@ public static class Mocks
 
         return request;
     }
+}
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.IO;
+using System.Text;
+using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
+using NSubstitute;
+
+public static class Mocks
+{
     public static HttpContext CreateHttpContext(string method = "GET", string path = "/{{cookiecutter.project_endpoint}}", string? body = null)
     {
         var context = new DefaultHttpContext();
@@ -54,5 +61,34 @@ public static class Mocks
         var body = JsonConvert.SerializeObject(requestBody);
         return CreateHttpContext(method, path, body);
     }
-{%- endif %}
 }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
+
+using System.Collections.Generic;
+using Amazon.Lambda.APIGatewayEvents;
+using Newtonsoft.Json;
+
+public static class Mocks
+{
+    public static APIGatewayProxyRequest CreateApiGatewayRequest<T>(T requestBody, string httpMethod = "GET", Dictionary<string, string>? pathParameters = null)
+    {
+        return new APIGatewayProxyRequest
+        {
+            HttpMethod = httpMethod,
+            Body = JsonConvert.SerializeObject(requestBody),
+            PathParameters = pathParameters ?? new Dictionary<string, string>()
+        };
+    }
+
+    public static APIGatewayProxyRequest CreateApiGatewayRequest(string httpMethod = "GET", Dictionary<string, string>? pathParameters = null)
+    {
+        return new APIGatewayProxyRequest
+        {
+            HttpMethod = httpMethod,
+            PathParameters = pathParameters ?? new Dictionary<string, string>()
+        };
+    }
+}
+{%- endif %}

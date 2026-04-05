@@ -30,6 +30,7 @@ jobs:
         cloud-service:
           - "Azure Function App"
           - "GCP Cloud Function"
+          - "AWS Lambda"
         dotnet-version:
           - "8.x"
       fail-fast: false

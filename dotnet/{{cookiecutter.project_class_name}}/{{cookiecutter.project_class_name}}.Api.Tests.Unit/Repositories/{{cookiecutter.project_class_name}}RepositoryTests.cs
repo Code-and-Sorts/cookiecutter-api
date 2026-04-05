@@ -1,3 +1,4 @@
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -268,3 +269,186 @@ public class {{cookiecutter.project_class_name}}RepositoryTest
     }
 {%- endif %}
 }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using {{cookiecutter.project_class_name}}.Api.Entities;
+using {{cookiecutter.project_class_name}}.Api.Repositories;
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using NSubstitute;
+using Xunit;
+
+public class {{cookiecutter.project_class_name}}RepositoryTest
+{
+    private readonly IAmazonDynamoDB _mockDynamoClient;
+    private readonly {{cookiecutter.project_class_name}}Repository _repository;
+
+    public {{cookiecutter.project_class_name}}RepositoryTest()
+    {
+        _mockDynamoClient = Substitute.For<IAmazonDynamoDB>();
+        _repository = new {{cookiecutter.project_class_name}}Repository(_mockDynamoClient, "mockTableName");
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldReturn{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var response = new GetItemResponse
+        {
+            Item = new Dictionary<string, AttributeValue>
+            {
+                { "id", new AttributeValue { S = id } },
+                { "name", new AttributeValue { S = "mock{{cookiecutter.project_class_name}}" } },
+                { "isDeleted", new AttributeValue { BOOL = false } },
+                { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "createdBy", new AttributeValue { S = "testUser" } },
+                { "updatedBy", new AttributeValue { S = "testUser" } },
+            }
+        };
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(response);
+
+        // Act
+        var result = await _repository.GetAsync(id, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(id, result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}", result.Name);
+    }
+
+    [Fact]
+    public async Task GetListAsync_ShouldReturnListOf{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var response = new ScanResponse
+        {
+            Items = new List<Dictionary<string, AttributeValue>>
+            {
+                new()
+                {
+                    { "id", new AttributeValue { S = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" } },
+                    { "name", new AttributeValue { S = "mock{{cookiecutter.project_class_name}}1" } },
+                    { "isDeleted", new AttributeValue { BOOL = false } },
+                    { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                    { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                    { "createdBy", new AttributeValue { S = "testUser" } },
+                    { "updatedBy", new AttributeValue { S = "testUser" } },
+                },
+                new()
+                {
+                    { "id", new AttributeValue { S = "5615ff05-3032-4459-88ad-b6a4c3e51ca0" } },
+                    { "name", new AttributeValue { S = "mock{{cookiecutter.project_class_name}}2" } },
+                    { "isDeleted", new AttributeValue { BOOL = false } },
+                    { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                    { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                    { "createdBy", new AttributeValue { S = "testUser" } },
+                    { "updatedBy", new AttributeValue { S = "testUser" } },
+                }
+            },
+            LastEvaluatedKey = new Dictionary<string, AttributeValue>()
+        };
+        _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
+            .Returns(response);
+
+        // Act
+        var result = await _repository.GetListAsync(CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Count());
+        Assert.Contains(result, r => r.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && r.Name == "mock{{cookiecutter.project_class_name}}1");
+        Assert.Contains(result, r => r.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && r.Name == "mock{{cookiecutter.project_class_name}}2");
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldReturnCreated{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{cookiecutter.project_class_name}}" };
+        _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PutItemResponse());
+
+        // Act
+        var result = await _repository.CreateAsync({{cookiecutter.project_lower_camel_name}}, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}", result.Name);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldReturnUpdated{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{cookiecutter.project_class_name}}New", UpdatedBy = "User1" };
+        var getResponse = new GetItemResponse
+        {
+            Item = new Dictionary<string, AttributeValue>
+            {
+                { "id", new AttributeValue { S = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" } },
+                { "name", new AttributeValue { S = "mock{{cookiecutter.project_class_name}}Old" } },
+                { "isDeleted", new AttributeValue { BOOL = false } },
+                { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "createdBy", new AttributeValue { S = "User2" } },
+                { "updatedBy", new AttributeValue { S = "User2" } },
+            }
+        };
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(getResponse);
+        _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PutItemResponse());
+
+        // Act
+        var result = await _repository.UpdateAsync({{cookiecutter.project_lower_camel_name}}, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}New", result.Name);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var getResponse = new GetItemResponse
+        {
+            Item = new Dictionary<string, AttributeValue>
+            {
+                { "id", new AttributeValue { S = id } },
+                { "name", new AttributeValue { S = "mock{{cookiecutter.project_class_name}}" } },
+                { "isDeleted", new AttributeValue { BOOL = false } },
+                { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "createdBy", new AttributeValue { S = "testUser" } },
+                { "updatedBy", new AttributeValue { S = "testUser" } },
+            }
+        };
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(getResponse);
+        _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PutItemResponse());
+
+        // Act
+        await _repository.DeleteAsync(id, CancellationToken.None);
+
+        // Assert
+        await _mockDynamoClient.Received(1).PutItemAsync(
+            Arg.Is<PutItemRequest>(r => r.Item["isDeleted"].BOOL == true),
+            Arg.Any<CancellationToken>());
+    }
+}
+{%- endif %}
