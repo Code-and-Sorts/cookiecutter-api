@@ -497,3 +497,223 @@ describe('BaseRepository', () => {
     });
 });
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+const mockTableName = 'test-table';
+const mock{{cookiecutter.project_class_name}}CreateRecord = {
+    id: mock{{cookiecutter.project_class_name}}Id,
+    name: 'mock{{cookiecutter.project_class_name}}1',
+    createdBy: 'mockUser',
+    updatedBy: 'mockUser',
+};
+const mock{{cookiecutter.project_class_name}}Records = [
+    {
+        id: mock{{cookiecutter.project_class_name}}Id,
+        name: 'mock{{cookiecutter.project_class_name}}1',
+        createdBy: 'mockUser',
+        updatedBy: 'mockUser',
+        createdTimestamp: '2024-03-24T00:00:00.000Z',
+        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+        isDeleted: false,
+    },
+    {
+        id: 'cb8b2d40-edcc-4ac7-93ba-207408b23c8a',
+        name: 'mock{{cookiecutter.project_class_name}}2',
+        createdBy: 'mockUser',
+        updatedBy: 'mockUser',
+        createdTimestamp: '2024-03-24T00:00:00.000Z',
+        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+        isDeleted: false,
+    }
+];
+const mock{{cookiecutter.project_class_name}}Update = {
+    id: mock{{cookiecutter.project_class_name}}Id,
+    name: 'mock{{cookiecutter.project_class_name}}1Update',
+};
+const mockDeletedRecord = {
+    id: mock{{cookiecutter.project_class_name}}Id,
+    name: 'mock{{cookiecutter.project_class_name}}1',
+    isDeleted: true,
+};
+const mockDeleteUpdatedTimestamp = '2024-03-24T00:00:00.000Z';
+
+let mockSend: jest.Mock;
+let mockDocClient: unknown;
+let mockBaseRepository: BaseRepository<any>;
+
+describe('BaseRepository', () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+        mockSend = jest.fn();
+        mockDocClient = {
+            send: mockSend,
+        };
+        mockBaseRepository = new BaseRepository(mockDocClient as any, mockTableName);
+    });
+
+    describe('addRecord', () => {
+        it('should successfully put item in table', async () => {
+            mockSend.mockResolvedValue({});
+            const result = await mockBaseRepository.addRecord(mock{{cookiecutter.project_class_name}}Records[0]);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{cookiecutter.project_class_name}}Records[0]);
+        });
+
+        it('should throw proxy error on failure', async () => {
+            mockSend.mockRejectedValueOnce(new Error('mockError'));
+            try {
+                await mockBaseRepository.addRecord(mock{{cookiecutter.project_class_name}}CreateRecord);
+            } catch (error) {
+                expect(error).toBeInstanceOf(ProxyError);
+                expect(error.statusCode).toEqual(502);
+                expect(error.message).toEqual('Error creating item in database.');
+            }
+        });
+    });
+
+    describe('getRecord', () => {
+        it('should successfully get item by id', async () => {
+            mockSend.mockResolvedValue({ Item: mock{{cookiecutter.project_class_name}}Records[0] });
+            const result = await mockBaseRepository.getRecord(mock{{cookiecutter.project_class_name}}Id);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{cookiecutter.project_class_name}}Records[0]);
+        });
+
+        it('should throw not found error when item does not exist', async () => {
+            mockSend.mockResolvedValue({ Item: undefined });
+            try {
+                await mockBaseRepository.getRecord(mock{{cookiecutter.project_class_name}}Id);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+                expect(error.statusCode).toEqual(404);
+            }
+        });
+
+        it('should throw not found error when item is soft deleted', async () => {
+            mockSend.mockResolvedValue({ Item: mockDeletedRecord });
+            try {
+                await mockBaseRepository.getRecord(mock{{cookiecutter.project_class_name}}Id);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+                expect(error.statusCode).toEqual(404);
+            }
+        });
+
+        it('should throw proxy error on failure', async () => {
+            mockSend.mockRejectedValueOnce(new Error('Unknown error'));
+            try {
+                await mockBaseRepository.getRecord(mock{{cookiecutter.project_class_name}}Id);
+            } catch (error) {
+                expect(error).toBeInstanceOf(ProxyError);
+                expect(error.statusCode).toEqual(502);
+                expect(error.message).toEqual('Error retrieving item from database.');
+            }
+        });
+    });
+
+    describe('getRecords', () => {
+        it('should successfully scan non-deleted items', async () => {
+            mockSend.mockResolvedValue({ Items: mock{{cookiecutter.project_class_name}}Records });
+            const result = await mockBaseRepository.getRecords();
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{cookiecutter.project_class_name}}Records);
+        });
+
+        it('should return empty array when no items found', async () => {
+            mockSend.mockResolvedValue({ Items: undefined });
+            const result = await mockBaseRepository.getRecords();
+            expect(result).toEqual([]);
+        });
+
+        it('should throw proxy error on failure', async () => {
+            mockSend.mockRejectedValueOnce(new Error('Unknown error'));
+            try {
+                await mockBaseRepository.getRecords();
+            } catch (error) {
+                expect(error).toBeInstanceOf(ProxyError);
+                expect(error.statusCode).toEqual(502);
+                expect(error.message).toEqual('Error retrieving items from database.');
+            }
+        });
+    });
+
+    describe('updateRecord', () => {
+        it('should successfully get and put updated record', async () => {
+            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{cookiecutter.project_class_name}}Records[0]);
+            mockSend.mockResolvedValue({});
+            const result = await mockBaseRepository.updateRecord(mock{{cookiecutter.project_class_name}}Update);
+            expect(getRecord).toHaveBeenCalledTimes(1);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result.name).toEqual('mock{{cookiecutter.project_class_name}}1Update');
+        });
+
+        it('should throw not found error when record does not exist', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not found'));
+            try {
+                await mockBaseRepository.updateRecord(mock{{cookiecutter.project_class_name}}Update);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+            }
+        });
+
+        it('should throw proxy error on failure', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{cookiecutter.project_class_name}}Records[0]);
+            mockSend.mockRejectedValueOnce(new Error('mockError'));
+            try {
+                await mockBaseRepository.updateRecord(mock{{cookiecutter.project_class_name}}Update);
+            } catch (error) {
+                expect(error).toBeInstanceOf(ProxyError);
+                expect(error.statusCode).toEqual(502);
+                expect(error.message).toEqual(`Error upserting item with id ${mock{{cookiecutter.project_class_name}}Id}.`);
+            }
+        });
+    });
+
+    describe('deleteRecord', () => {
+        it('should successfully soft delete item', async () => {
+            jest.spyOn(Date.prototype, 'toISOString').mockReturnValue(mockDeleteUpdatedTimestamp);
+            mockSend
+                .mockResolvedValueOnce({ Item: mock{{cookiecutter.project_class_name}}Records[0] })
+                .mockResolvedValueOnce({});
+            await mockBaseRepository.deleteRecord(mock{{cookiecutter.project_class_name}}Id);
+            expect(mockSend).toHaveBeenCalledTimes(2);
+        });
+
+        it('should throw not found error when item does not exist', async () => {
+            mockSend.mockResolvedValue({ Item: undefined });
+            try {
+                await mockBaseRepository.deleteRecord(mock{{cookiecutter.project_class_name}}Id);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+                expect(error.statusCode).toEqual(404);
+                expect(error.message).toEqual(`Record with id ${mock{{cookiecutter.project_class_name}}Id} not found.`);
+            }
+        });
+
+        it('should throw not found error when item is already deleted', async () => {
+            mockSend.mockResolvedValue({ Item: mockDeletedRecord });
+            try {
+                await mockBaseRepository.deleteRecord(mock{{cookiecutter.project_class_name}}Id);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+                expect(error.statusCode).toEqual(404);
+                expect(error.message).toEqual(`Record with id ${mock{{cookiecutter.project_class_name}}Id} not found.`);
+            }
+        });
+
+        it('should throw proxy error on failure', async () => {
+            mockSend.mockRejectedValueOnce(new ProxyError('mockProxyError'));
+            try {
+                await mockBaseRepository.deleteRecord(mock{{cookiecutter.project_class_name}}Id);
+            } catch (error) {
+                expect(error).toBeInstanceOf(ProxyError);
+                expect(error.statusCode).toEqual(502);
+                expect(error.message).toEqual(`Error deleting record with id ${mock{{cookiecutter.project_class_name}}Id}.`);
+            }
+        });
+    });
+});
+{%- endif %}

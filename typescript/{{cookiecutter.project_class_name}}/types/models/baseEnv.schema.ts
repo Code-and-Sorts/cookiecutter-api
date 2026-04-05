@@ -12,3 +12,9 @@ export const baseEnvSchema = z.object({
     FIRESTORE_COLLECTION: z.string().default('{{cookiecutter.project_endpoint}}'),
 });
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+export const baseEnvSchema = z.object({
+    AWS_REGION: z.string().default('us-east-1'),
+    DYNAMODB_TABLE_NAME: z.string().min(1),
+});
+{%- endif %}

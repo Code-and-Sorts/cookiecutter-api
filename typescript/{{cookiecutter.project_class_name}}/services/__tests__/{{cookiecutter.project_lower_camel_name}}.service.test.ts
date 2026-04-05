@@ -7,6 +7,10 @@ process.env.GCP_PROJECT_ID = 'mock-gcp-project';
 process.env.FIRESTORE_DATABASE = '(default)';
 process.env.FIRESTORE_COLLECTION = '{{cookiecutter.project_endpoint}}';
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+process.env.AWS_REGION = 'us-east-1';
+process.env.DYNAMODB_TABLE_NAME = 'mock-table';
+{%- endif %}
 
 import { injectable } from 'inversify';
 import { {{cookiecutter.project_class_name}}Service } from '@services';
