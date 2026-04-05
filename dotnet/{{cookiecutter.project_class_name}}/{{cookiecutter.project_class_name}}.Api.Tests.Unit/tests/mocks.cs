@@ -64,6 +64,7 @@ public static class Mocks
 }
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+#nullable enable
 namespace {{cookiecutter.project_class_name}}.Api.Tests.Unit;
 
 using System.Collections.Generic;

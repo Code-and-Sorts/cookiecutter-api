@@ -37,7 +37,7 @@ public class Get{{cookiecutter.project_class_name}}ListTest
             new {{cookiecutter.project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{cookiecutter.project_class_name}}1" },
             new {{cookiecutter.project_class_name}}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{cookiecutter.project_class_name}}2" },
         };
-        var request = Mocks.CreateApiGatewayRequest("GET");
+        var request = Mocks.CreateApiGatewayRequest(httpMethod: "GET");
 
         _mock{{cookiecutter.project_class_name}}Controller.GetListAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((IEnumerable<{{cookiecutter.project_class_name}}Dto>)getList{{cookiecutter.project_class_name}}Dto));
@@ -55,7 +55,7 @@ public class Get{{cookiecutter.project_class_name}}ListTest
     public async Task Get_ReturnsErrorResult_WhenExceptionIsThrown()
     {
         // Arrange
-        var request = Mocks.CreateApiGatewayRequest("GET");
+        var request = Mocks.CreateApiGatewayRequest(httpMethod: "GET");
 
         _mock{{cookiecutter.project_class_name}}Controller.GetListAsync(Arg.Any<CancellationToken>())
             .Throws(new Exception("Mock exception"));
