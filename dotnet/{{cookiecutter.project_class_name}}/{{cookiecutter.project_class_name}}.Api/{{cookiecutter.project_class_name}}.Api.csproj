@@ -3,8 +3,6 @@
     <TargetFramework>net8.0</TargetFramework>
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
-{%- endif %}
-{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <OutputType>Exe</OutputType>
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
@@ -18,6 +16,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
 {%- endif %}
     <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.51.0" />
@@ -30,7 +29,15 @@
     <PackageReference Include="Google.Cloud.Firestore" Version="3.10.0" />
     <PackageReference Include="Google.Cloud.Functions.Hosting" Version="2.2.1" />
 {%- endif %}
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    <PackageReference Include="Amazon.Lambda.Core" Version="2.5.0" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.4.4" />
+    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.7.1" />
+    <PackageReference Include="Amazon.Lambda.Annotations" Version="1.6.1" />
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.405.4" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+{%- endif %}
   </ItemGroup>
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
   <ItemGroup>

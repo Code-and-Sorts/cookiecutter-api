@@ -4,7 +4,7 @@ install: ## Install dependencies
 	@dotnet restore
 
 .PHONY: run
-run: ## Run the function app
+run: ## Run the API locally
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	@echo "🚀 Running Function App"
 	@cd {{cookiecutter.project_class_name}}.Api && func start
@@ -12,6 +12,10 @@ run: ## Run the function app
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 	@echo "🚀 Running Cloud Function"
 	@cd {{cookiecutter.project_class_name}}.Api && dotnet run
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+	@echo "🚀 Running Lambda API locally via SAM"
+	@cd {{cookiecutter.project_class_name}}.Api && sam build && sam local start-api
 {%- endif %}
 
 .PHONY: build

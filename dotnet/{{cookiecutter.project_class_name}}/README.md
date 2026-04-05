@@ -3,8 +3,14 @@
 [![](https://img.shields.io/badge/made%20using%20cookiecutter%20api-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/Code-and-Sorts/cookiecutter-api)
 
 ## Overview
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
 This project is a Dotnet-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+
+This project is a Dotnet-based REST API built using [AWS Lambda](https://aws.amazon.com/lambda/) with [API Gateway](https://aws.amazon.com/api-gateway/). The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The Lambda functions serve as the endpoints for the API, providing a seamless way to handle client requests.
+{%- endif %}
 
 The REST API has the following endpoints:
 - GET (by ID)
@@ -16,6 +22,7 @@ The REST API has the following endpoints:
 Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring a streamlined and consistent environment for managing Dotnet packages and their dependencies.
 
 ## Features
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
 - Azure Function Apps: Utilizes Azure's serverless platform to create scalable and efficient endpoints with HTTP triggers.
 
@@ -24,10 +31,22 @@ Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring
 - Nuget for Dependency Management: Manages all Dotnet dependencies with Nuget, making the development environment consistent and easy to set up.
 
 - Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+
+- AWS Lambda: Utilizes AWS's serverless platform to create scalable and efficient endpoints with API Gateway integration.
+
+- Dotnet-Based: Written entirely in Dotnet, leveraging its rich ecosystem and libraries for rapid development.
+
+- Nuget for Dependency Management: Manages all Dotnet dependencies with Nuget, making the development environment consistent and easy to set up.
+
+- DynamoDB: This project uses Amazon DynamoDB as its NoSQL database.
+{%- endif %}
 
 ## Prerequisites
 
 - Dotnet 8.x
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 
@@ -38,8 +57,22 @@ Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring
 - Azure Account: An active Azure subscription for deploying the Function App.
 
 - Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html): To build and run the Lambda functions locally.
+
+- [AWS CLI](https://aws.amazon.com/cli/): To deploy and manage AWS resources.
+
+- [Dotnet](https://dotnet.microsoft.com/en-us/download): Dotnet SDK and CLI
+
+- AWS Account: An active AWS account for deploying Lambda functions.
+
+- DynamoDB table (created automatically via the SAM template or available via [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)).
+{%- endif %}
 
 ## Setup and Installation
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
 1. Install Azure Functions Core Tools
 
@@ -66,6 +99,33 @@ Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring
     ```
 
     This command starts the local development server using the Azure Function Core Tools, where you can interact with your API endpoints.
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+
+1. Install AWS SAM CLI
+
+    Follow the [documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) to install AWS SAM CLI based on your operating system.
+
+2. Install Dotnet SDK
+
+    If you haven't already installed Dotnet SDK, you can do so by following the [official installation guide](https://dotnet.microsoft.com/en-us/download).
+
+3. Install Dependencies
+
+    Install all dependencies:
+
+    ```console
+    make install
+    ```
+
+4. Run the API Locally
+
+    ```console
+    make run
+    ```
+
+    This command builds the project and starts a local API Gateway using SAM CLI, where you can interact with your API endpoints.
+{%- endif %}
 
 5. Thunderclient
 
@@ -107,24 +167,26 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 
 ```text
 ├── cookiecutter-template-dotnet
-    ├── {{ cookiecutter.project_class_name }}.Api
-    │   ├── Controllers
-    │   ├── Functions
-    │   ├── Interfaces
-    │   ├── Properties
-    │   ├── Repositories
-    │   ├── Services
-    │   ├── models
-    │   │   ├── Dtos
-    │   │   ├── Entities
-    │   │   └── schemas
-    │   └── utils
-    └── {{ cookiecutter.project_class_name }}.Api.Tests.Unit
-        ├── Controllers
-        ├── Functions
-        ├── Repositories
-        ├── Services
-        └── utils
+    ├── {{ cookiecutter.project_class_name }}.Api
+    │   ├── Controllers
+    │   ├── Functions
+    │   ├── Interfaces
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+    │   ├── Properties
+{%- endif %}
+    │   ├── Repositories
+    │   ├── Services
+    │   ├── models
+    │   │   ├── Dtos
+    │   │   ├── Entities
+    │   │   └── schemas
+    │   └── utils
+    └── {{ cookiecutter.project_class_name }}.Api.Tests.Unit
+        ├── Controllers
+        ├── Functions
+        ├── Repositories
+        ├── Services
+        └── utils
 ```
 
 ## License

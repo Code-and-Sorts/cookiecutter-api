@@ -66,13 +66,13 @@ Follow the prompts to configure your project.
   <tr>
     <td align="center"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
     <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
     <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
   </tr>
   <tr>
