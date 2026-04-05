@@ -6,6 +6,10 @@ import { CosmosClient } from '@azure/cosmos';
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 import { Firestore } from '@google-cloud/firestore';
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+{%- endif %}
 import { {{cookiecutter.project_class_name}}Repository } from '@repositories';
 import { {{cookiecutter.project_class_name}}Controller } from '@controllers';
 import { {{cookiecutter.project_class_name}}Service, SchemaValidator } from '@services';
@@ -22,6 +26,10 @@ const client = new Firestore({
   databaseId: env.FIRESTORE_DATABASE,
 });
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+const dynamoClient = new DynamoDBClient({ region: env.AWS_REGION });
+const client = DynamoDBDocumentClient.from(dynamoClient);
+{%- endif %}
 
 export const container = new Container({ skipBaseClassChecks: true });
 container.bind<SchemaValidator>(SchemaValidator).to(SchemaValidator);
@@ -33,6 +41,9 @@ container.bind<CosmosClient>(CosmosClient).toConstantValue(client);
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 container.bind<Firestore>(Firestore).toConstantValue(client);
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+container.bind<DynamoDBDocumentClient>(DynamoDBDocumentClient).toConstantValue(client);
 {%- endif %}
 
 export default container;

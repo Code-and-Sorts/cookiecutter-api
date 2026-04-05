@@ -5,6 +5,9 @@ import { CosmosClient } from '@azure/cosmos';
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 import { Firestore } from '@google-cloud/firestore';
 {%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+{%- endif %}
 import { {{cookiecutter.project_class_name}}ItemRecord } from '@models';
 import { BaseRepository } from './base.repository';
 import 'reflect-metadata';
@@ -24,6 +27,11 @@ export class {{cookiecutter.project_class_name}}Repository extends BaseRepositor
   ) {
     const collection = client.collection('{{cookiecutter.project_endpoint}}');
     super(collection);
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+    @inject(DynamoDBDocumentClient) client: DynamoDBDocumentClient
+  ) {
+    super(client, '{{cookiecutter.project_endpoint}}');
 {%- endif %}
   }
 
