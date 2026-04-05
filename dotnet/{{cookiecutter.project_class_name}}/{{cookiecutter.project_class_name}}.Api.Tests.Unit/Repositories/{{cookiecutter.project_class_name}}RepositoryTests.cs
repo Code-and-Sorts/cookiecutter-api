@@ -7,12 +7,18 @@ using System.Threading;
 using System.Threading.Tasks;
 using {{cookiecutter.project_class_name}}.Api.Entities;
 using {{cookiecutter.project_class_name}}.Api.Repositories;
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Cosmos;
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+using {{cookiecutter.project_class_name}}.Api.Interfaces;
+{%- endif %}
 using NSubstitute;
 using Xunit;
 
 public class {{cookiecutter.project_class_name}}RepositoryTest
 {
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
     private readonly Container _mockContainer;
     private readonly {{cookiecutter.project_class_name}}Repository _repository;
 
@@ -148,4 +154,117 @@ public class {{cookiecutter.project_class_name}}RepositoryTest
             null,
             Arg.Any<CancellationToken>());
     }
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    private readonly IFirestoreContext<{{cookiecutter.project_class_name}}> _mockContext;
+    private readonly {{cookiecutter.project_class_name}}Repository _repository;
+
+    public {{cookiecutter.project_class_name}}RepositoryTest()
+    {
+        _mockContext = Substitute.For<IFirestoreContext<{{cookiecutter.project_class_name}}>>();
+        _repository = new {{cookiecutter.project_class_name}}Repository(_mockContext);
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldReturn{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}" };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns({{cookiecutter.project_lower_camel_name}});
+
+        // Act
+        var result = await _repository.GetAsync(id, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(id, result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}", result.Name);
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldThrowWhenNotFound()
+    {
+        // Arrange
+        var id = "non-existent-id";
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(({{cookiecutter.project_class_name}}?)null);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync(id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetListAsync_ShouldReturnListOf{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var {{cookiecutter.project_lower_camel_name}}List = new List<{{cookiecutter.project_class_name}}>
+        {
+            new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{cookiecutter.project_class_name}}1" },
+            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{cookiecutter.project_class_name}}2" }
+        };
+        _mockContext.GetListAsync("isDeleted", false, Arg.Any<CancellationToken>()).Returns({{cookiecutter.project_lower_camel_name}}List);
+
+        // Act
+        var result = await _repository.GetListAsync(CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Count());
+        Assert.Contains(result, r => r.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && r.Name == "mock{{cookiecutter.project_class_name}}1");
+        Assert.Contains(result, r => r.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && r.Name == "mock{{cookiecutter.project_class_name}}2");
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldReturnCreated{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{cookiecutter.project_class_name}}" };
+
+        // Act
+        var result = await _repository.CreateAsync({{cookiecutter.project_lower_camel_name}}, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}", result.Name);
+        await _mockContext.Received(1).SetAsync({{cookiecutter.project_lower_camel_name}}.Id, {{cookiecutter.project_lower_camel_name}}, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldReturnUpdated{{cookiecutter.project_class_name}}Dto()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var {{cookiecutter.project_lower_camel_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}New", UpdatedBy = "User1" };
+        var current{{cookiecutter.project_class_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(current{{cookiecutter.project_class_name}});
+
+        // Act
+        var result = await _repository.UpdateAsync({{cookiecutter.project_lower_camel_name}}, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(id, result.Id);
+        Assert.Equal("mock{{cookiecutter.project_class_name}}New", result.Name);
+        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{cookiecutter.project_class_name}}>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var existing{{cookiecutter.project_class_name}} = new {{cookiecutter.project_class_name}} { Id = id, Name = "mock{{cookiecutter.project_class_name}}", IsDeleted = false };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(existing{{cookiecutter.project_class_name}});
+
+        // Act
+        await _repository.DeleteAsync(id, CancellationToken.None);
+
+        // Assert
+        await _mockContext.Received(1).SetAsync(
+            id,
+            Arg.Is<{{cookiecutter.project_class_name}}>(k => k.IsDeleted == true),
+            Arg.Any<CancellationToken>());
+    }
+{%- endif %}
 }

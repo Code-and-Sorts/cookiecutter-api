@@ -5,8 +5,14 @@ install: ## Install dependencies
 
 .PHONY: run
 run: ## Run the function app
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
 	@echo "🚀 Running Function App"
 	@cd {{cookiecutter.project_class_name}}.Api && func start
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+	@echo "🚀 Running Cloud Function"
+	@cd {{cookiecutter.project_class_name}}.Api && dotnet run
+{%- endif %}
 
 .PHONY: build
 build: ## Build the code
