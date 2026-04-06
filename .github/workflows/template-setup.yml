@@ -34,6 +34,7 @@ jobs:
             const cloudService = getField('Cloud Service');
             const projectName = getField('Project Name');
             const projectDescription = getField('Project Description') || 'This is a template repository for API projects.';
+            const endpointInput = getField('Endpoint Name');
             const author = getField('Author') || 'Template User';
             const license = getField('Open Source License');
 
@@ -51,8 +52,10 @@ jobs:
               return;
             }
 
-            // Derive project fields
-            const projectEndpoint = projectName.toLowerCase().replace(/\s+/g, '-');
+            // Use provided endpoint or derive from project name
+            const projectEndpoint = (endpointInput && endpointInput !== '_No response_')
+              ? endpointInput
+              : projectName.toLowerCase().replace(/\s+/g, '-');
 
             // CamelCase: capitalize first letter of each word, remove spaces
             const projectClassName = projectName

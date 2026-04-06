@@ -43,6 +43,15 @@ body:
       required: true
 
   - type: input
+    id: project_endpoint
+    attributes:
+      label: Endpoint Name
+      description: "Optional. The base API endpoint path (e.g. \"my-cool-api\"). If left blank, it will be derived from the project name (lowercase, hyphens)."
+      placeholder: my-api
+    validations:
+      required: false
+
+  - type: input
     id: project_description
     attributes:
       label: Project Description
