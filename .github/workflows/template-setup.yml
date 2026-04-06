@@ -57,15 +57,42 @@ jobs:
               return value;
             }
 
+            function validateProjectName(label, value) {
+              const projectNamePattern = /^[A-Za-z][A-Za-z0-9 ]*$/;
+              if (!value) {
+                core.setFailed(`Missing required field: "${label}"`);
+                return null;
+              }
+              if (!projectNamePattern.test(value)) {
+                core.setFailed(
+                  `Invalid ${label}: use letters, numbers, and spaces only, and start with a letter.`
+                );
+                return null;
+              }
+              return value;
+            }
+
+            function validateEndpoint(value) {
+              if (!value) return '';
+              const endpointPattern = /^[a-z][a-z0-9-]*$/;
+              if (!endpointPattern.test(value)) {
+                core.setFailed(
+                  'Invalid Endpoint Name: use lowercase letters, numbers, and hyphens only, and start with a letter.'
+                );
+                return null;
+              }
+              return value;
+            }
+
             const language = getField('Language');
             const cloudService = validateSafeField('Cloud Service', getField('Cloud Service'));
-            const projectName = validateSafeField('Project Name', getField('Project Name'));
+            const projectName = validateProjectName('Project Name', getField('Project Name'));
             const projectDescription = getField('Project Description') || 'This is a template repository for API projects.';
-            const endpointInput = getField('Endpoint Name');
+            const endpointInput = validateEndpoint(getField('Endpoint Name'));
             const author = getField('Author') || 'Template User';
             const license = validateSafeField('Open Source License', getField('Open Source License'));
 
-            if (!cloudService || !projectName || !license) {
+            if (endpointInput === null || !cloudService || !projectName || !license) {
               return;
             }
 
@@ -180,7 +207,7 @@ jobs:
           script: |
             const { execFileSync } = require('child_process');
             const issueNumber = context.payload.issue.number;
-            const branch = 'setup/initial-project';
+            const branch = `setup/initial-project-${issueNumber}`;
 
             // Configure git
             execFileSync('git', ['config', 'user.name', 'github-actions[bot]']);
@@ -190,7 +217,7 @@ jobs:
             execFileSync('git', ['checkout', '-b', branch]);
             execFileSync('git', ['add', '-A']);
             execFileSync('git', ['commit', '-m', `chore: generate ${process.env.LANGUAGE} ${process.env.CLOUD_SERVICE} project from template`]);
-            execFileSync('git', ['push', '-u', 'origin', branch, '--force']);
+            execFileSync('git', ['push', '-u', 'origin', branch]);
 
             // Create the pull request
             const pr = await github.rest.pulls.create({
