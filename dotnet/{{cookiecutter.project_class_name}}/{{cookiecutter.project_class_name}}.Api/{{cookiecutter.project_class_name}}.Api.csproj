@@ -31,8 +31,8 @@
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
     <PackageReference Include="Amazon.Lambda.Core" Version="2.8.1" />
-    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.4.4" />
-    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.7.1" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.4.5" />
+    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.7.3" />
     <PackageReference Include="Amazon.Lambda.Annotations" Version="1.10.0" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.513.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
