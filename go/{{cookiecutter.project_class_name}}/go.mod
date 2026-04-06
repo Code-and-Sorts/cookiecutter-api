@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
 {%- elif cookiecutter.cloud_service == 'GCP Cloud Function' %}
 	cloud.google.com/go/firestore v1.21.0
-	google.golang.org/api v0.274.0
+	google.golang.org/api v0.267.0
 	google.golang.org/grpc v1.80.0
 {%- elif cookiecutter.cloud_service == 'AWS Lambda' %}
 	github.com/aws/aws-lambda-go v1.54.0
@@ -20,5 +20,5 @@ require (
 {%- endif %}
 	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
