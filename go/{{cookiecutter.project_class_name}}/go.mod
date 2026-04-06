@@ -1,6 +1,6 @@
 module {{cookiecutter.project_endpoint}}
 
-go 1.22
+go 1.23
 
 require (
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
