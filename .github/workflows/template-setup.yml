@@ -12,7 +12,10 @@ permissions:
 jobs:
   generate-project:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.labels.*.name, 'template-setup') && github.event.issue.title == 'Template Setup'
+    if: >-
+      contains(github.event.issue.labels.*.name, 'template-setup')
+      && github.event.issue.title == 'Template Setup'
+      && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
     steps:
       - name: Check out
         uses: actions/checkout@v6
@@ -27,16 +30,44 @@ jobs:
             function getField(label) {
               const regex = new RegExp(`### ${label}\\s*\\n\\s*(.+?)\\s*(?:\\n###|$)`, 's');
               const match = body.match(regex);
-              return match ? match[1].trim() : '';
+              const value = match ? match[1].trim() : '';
+              // Normalize GitHub's placeholder for blank optional fields
+              if (!value || value === '_No response_') return '';
+              return value;
+            }
+
+            function validateSafeField(label, value) {
+              const safePattern = /^(?!-)[A-Za-z0-9 ._-]+$/;
+              if (!value) {
+                core.setFailed(`Missing required field: "${label}"`);
+                return null;
+              }
+              if (
+                value.includes('..') ||
+                value.includes('/') ||
+                value.includes('\\') ||
+                /[\r\n\t]/.test(value) ||
+                !safePattern.test(value)
+              ) {
+                core.setFailed(
+                  `Invalid ${label}: only letters, numbers, spaces, dots, underscores, and hyphens are allowed.`
+                );
+                return null;
+              }
+              return value;
             }
 
             const language = getField('Language');
-            const cloudService = getField('Cloud Service');
-            const projectName = getField('Project Name');
+            const cloudService = validateSafeField('Cloud Service', getField('Cloud Service'));
+            const projectName = validateSafeField('Project Name', getField('Project Name'));
             const projectDescription = getField('Project Description') || 'This is a template repository for API projects.';
             const endpointInput = getField('Endpoint Name');
             const author = getField('Author') || 'Template User';
-            const license = getField('Open Source License');
+            const license = validateSafeField('Open Source License', getField('Open Source License'));
+
+            if (!cloudService || !projectName || !license) {
+              return;
+            }
 
             // Map language display name to template directory
             const languageMap = {
@@ -53,7 +84,7 @@ jobs:
             }
 
             // Use provided endpoint or derive from project name
-            const projectEndpoint = (endpointInput && endpointInput !== '_No response_')
+            const projectEndpoint = endpointInput
               ? endpointInput
               : projectName.toLowerCase().replace(/\s+/g, '-');
 
@@ -117,6 +148,16 @@ jobs:
         env:
           PROJECT_CLASS_NAME: ${{ steps.parse.outputs.project_class_name }}
         run: |
+          if [[ -z "$PROJECT_CLASS_NAME" ]]; then
+            echo "PROJECT_CLASS_NAME is empty, aborting." >&2
+            exit 1
+          fi
+
+          if [[ ! -d "$PROJECT_CLASS_NAME" ]]; then
+            echo "Expected generated project directory '$PROJECT_CLASS_NAME' was not found." >&2
+            exit 1
+          fi
+
           # Remove everything except .git and the generated project directory
           find . -maxdepth 1 \
             ! -name '.' \
@@ -124,10 +165,10 @@ jobs:
             ! -name "$PROJECT_CLASS_NAME" \
             -exec rm -rf {} +
 
-          # Move generated project files to repo root (including hidden files)
-          shopt -s dotglob
-          mv "$PROJECT_CLASS_NAME"/* .
-          rmdir "$PROJECT_CLASS_NAME"
+          # Copy generated project files to repo root (including hidden files),
+          # then remove the generated project directory.
+          cp -a -- "$PROJECT_CLASS_NAME"/. .
+          rm -rf -- "$PROJECT_CLASS_NAME"
 
       - name: Create pull request
         uses: actions/github-script@v7
@@ -137,19 +178,19 @@ jobs:
           PROJECT_NAME: ${{ steps.parse.outputs.project_name }}
         with:
           script: |
-            const { execSync } = require('child_process');
+            const { execFileSync } = require('child_process');
             const issueNumber = context.payload.issue.number;
             const branch = 'setup/initial-project';
 
             // Configure git
-            execSync('git config user.name "github-actions[bot]"');
-            execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
+            execFileSync('git', ['config', 'user.name', 'github-actions[bot]']);
+            execFileSync('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
 
             // Create branch, stage, commit, push
-            execSync(`git checkout -b ${branch}`);
-            execSync('git add -A');
-            execSync(`git commit -m "chore: generate ${process.env.LANGUAGE} ${process.env.CLOUD_SERVICE} project from template"`);
-            execSync(`git push -u origin ${branch} --force`);
+            execFileSync('git', ['checkout', '-b', branch]);
+            execFileSync('git', ['add', '-A']);
+            execFileSync('git', ['commit', '-m', `chore: generate ${process.env.LANGUAGE} ${process.env.CLOUD_SERVICE} project from template`]);
+            execFileSync('git', ['push', '-u', 'origin', branch, '--force']);
 
             // Create the pull request
             const pr = await github.rest.pulls.create({
@@ -178,10 +219,18 @@ jobs:
               ].join('\n'),
             });
 
-            // Comment on the issue
+            // Comment on the issue and close it
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `Your project has been generated! 🎉\n\nA pull request has been created: #${pr.data.number}\n\nMerge it to complete the setup.`,
+              body: `Your project has been generated!\n\nA pull request has been created: #${pr.data.number}\n\nMerge it to complete the setup.`,
+            });
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              state: 'closed',
+              state_reason: 'completed',
             });
