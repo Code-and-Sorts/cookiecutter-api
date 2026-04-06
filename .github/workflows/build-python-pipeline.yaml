@@ -32,8 +32,8 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         python-version:
-          - "3.12"
           - "3.13"
+          - "3.14"
       fail-fast: false
     steps:
       - name: Check out
