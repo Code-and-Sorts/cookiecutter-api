@@ -27,7 +27,7 @@
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
     <PackageReference Include="Google.Cloud.Firestore" Version="3.13.0" />
-    <PackageReference Include="Google.Cloud.Functions.Hosting" Version="3.0.0" />
+    <PackageReference Include="Google.Cloud.Functions.Hosting" Version="3.0.1" />
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
     <PackageReference Include="Amazon.Lambda.Core" Version="2.8.1" />
