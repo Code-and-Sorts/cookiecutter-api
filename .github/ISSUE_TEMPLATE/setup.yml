@@ -1,0 +1,76 @@
+name: Template Setup
+description: Configure your new API project from the cookiecutter template.
+title: "Template Setup"
+labels: ["template-setup"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Welcome! Fill out this form to generate your API project. Once submitted, a workflow will run the cookiecutter template and create a PR with your configured project.
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      description: The programming language for your API.
+      options:
+        - TypeScript
+        - "C#"
+        - Go
+        - Python
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cloud_service
+    attributes:
+      label: Cloud Service
+      description: The cloud platform to deploy your API to.
+      options:
+        - Azure Function App
+        - GCP Cloud Function
+        - AWS Lambda
+    validations:
+      required: true
+
+  - type: input
+    id: project_name
+    attributes:
+      label: Project Name
+      description: The name of your project (e.g. "My Cool API"). Used to derive class names, endpoints, and slugs.
+      placeholder: My API
+    validations:
+      required: true
+
+  - type: input
+    id: project_description
+    attributes:
+      label: Project Description
+      description: A short description of your project.
+      placeholder: This is a template repository for API projects.
+    validations:
+      required: false
+
+  - type: input
+    id: author
+    attributes:
+      label: Author
+      description: The author of the project.
+      placeholder: Your Name
+    validations:
+      required: false
+
+  - type: dropdown
+    id: license
+    attributes:
+      label: Open Source License
+      description: The license for your project.
+      options:
+        - MIT license
+        - BSD license
+        - ISC license
+        - Apache Software License 2.0
+        - GNU General Public License v3
+        - Not open source
+    validations:
+      required: true

@@ -1,0 +1,184 @@
+name: Template Setup
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  generate-project:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'template-setup') && github.event.issue.title == 'Template Setup'
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Parse issue form
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body;
+
+            function getField(label) {
+              const regex = new RegExp(`### ${label}\\s*\\n\\s*(.+?)\\s*(?:\\n###|$)`, 's');
+              const match = body.match(regex);
+              return match ? match[1].trim() : '';
+            }
+
+            const language = getField('Language');
+            const cloudService = getField('Cloud Service');
+            const projectName = getField('Project Name');
+            const projectDescription = getField('Project Description') || 'This is a template repository for API projects.';
+            const author = getField('Author') || 'Template User';
+            const license = getField('Open Source License');
+
+            // Map language display name to template directory
+            const languageMap = {
+              'TypeScript': 'typescript',
+              'C#': 'dotnet',
+              'Go': 'go',
+              'Python': 'python',
+            };
+            const templateDir = languageMap[language];
+
+            if (!templateDir) {
+              core.setFailed(`Invalid language selection: "${language}"`);
+              return;
+            }
+
+            // Derive project fields
+            const projectEndpoint = projectName.toLowerCase().replace(/\s+/g, '-');
+
+            // CamelCase: capitalize first letter of each word, remove spaces
+            const projectClassName = projectName
+              .split(/\s+/)
+              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+              .join('');
+
+            // lowerCamelCase: same as CamelCase but first letter lowercase
+            const projectLowerCamelName = projectClassName.charAt(0).toLowerCase() + projectClassName.slice(1);
+
+            // Python slug: lowercase, spaces to underscores
+            const projectSlug = projectName.toLowerCase().replace(/\s+/g, '_');
+
+            core.setOutput('language', language);
+            core.setOutput('template_dir', templateDir);
+            core.setOutput('cloud_service', cloudService);
+            core.setOutput('project_name', projectName);
+            core.setOutput('project_description', projectDescription);
+            core.setOutput('project_endpoint', projectEndpoint);
+            core.setOutput('project_class_name', projectClassName);
+            core.setOutput('project_lower_camel_name', projectLowerCamelName);
+            core.setOutput('project_slug', projectSlug);
+            core.setOutput('author', author);
+            core.setOutput('license', license);
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install cookiecutter
+        run: pip install cookiecutter jinja2-strcase
+
+      - name: Run cookiecutter
+        env:
+          TEMPLATE_DIR: ${{ steps.parse.outputs.template_dir }}
+          PROJECT_NAME: ${{ steps.parse.outputs.project_name }}
+          PROJECT_DESCRIPTION: ${{ steps.parse.outputs.project_description }}
+          PROJECT_ENDPOINT: ${{ steps.parse.outputs.project_endpoint }}
+          PROJECT_CLASS_NAME: ${{ steps.parse.outputs.project_class_name }}
+          PROJECT_LOWER_CAMEL_NAME: ${{ steps.parse.outputs.project_lower_camel_name }}
+          PROJECT_SLUG: ${{ steps.parse.outputs.project_slug }}
+          AUTHOR: ${{ steps.parse.outputs.author }}
+          CLOUD_SERVICE: ${{ steps.parse.outputs.cloud_service }}
+          LICENSE: ${{ steps.parse.outputs.license }}
+        run: |
+          cookiecutter ./"$TEMPLATE_DIR" --no-input \
+            project_name="$PROJECT_NAME" \
+            project_description="$PROJECT_DESCRIPTION" \
+            project_slug="$PROJECT_SLUG" \
+            project_endpoint="$PROJECT_ENDPOINT" \
+            project_lower_camel_name="$PROJECT_LOWER_CAMEL_NAME" \
+            project_class_name="$PROJECT_CLASS_NAME" \
+            author="$AUTHOR" \
+            cloud_service="$CLOUD_SERVICE" \
+            open_source_license="$LICENSE"
+
+      - name: Replace repo contents with generated project
+        env:
+          PROJECT_CLASS_NAME: ${{ steps.parse.outputs.project_class_name }}
+        run: |
+          # Remove everything except .git and the generated project directory
+          find . -maxdepth 1 \
+            ! -name '.' \
+            ! -name '.git' \
+            ! -name "$PROJECT_CLASS_NAME" \
+            -exec rm -rf {} +
+
+          # Move generated project files to repo root (including hidden files)
+          shopt -s dotglob
+          mv "$PROJECT_CLASS_NAME"/* .
+          rmdir "$PROJECT_CLASS_NAME"
+
+      - name: Create pull request
+        uses: actions/github-script@v7
+        env:
+          LANGUAGE: ${{ steps.parse.outputs.language }}
+          CLOUD_SERVICE: ${{ steps.parse.outputs.cloud_service }}
+          PROJECT_NAME: ${{ steps.parse.outputs.project_name }}
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const issueNumber = context.payload.issue.number;
+            const branch = 'setup/initial-project';
+
+            // Configure git
+            execSync('git config user.name "github-actions[bot]"');
+            execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
+
+            // Create branch, stage, commit, push
+            execSync(`git checkout -b ${branch}`);
+            execSync('git add -A');
+            execSync(`git commit -m "chore: generate ${process.env.LANGUAGE} ${process.env.CLOUD_SERVICE} project from template"`);
+            execSync(`git push -u origin ${branch} --force`);
+
+            // Create the pull request
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Setup: ${process.env.PROJECT_NAME} (${process.env.LANGUAGE} / ${process.env.CLOUD_SERVICE})`,
+              head: branch,
+              base: 'main',
+              body: [
+                `## Project Setup`,
+                '',
+                `Generated from the cookiecutter template based on #${issueNumber}.`,
+                '',
+                `| Setting | Value |`,
+                `|---------|-------|`,
+                `| **Language** | ${process.env.LANGUAGE} |`,
+                `| **Cloud Service** | ${process.env.CLOUD_SERVICE} |`,
+                `| **Project Name** | ${process.env.PROJECT_NAME} |`,
+                '',
+                `### What this PR does`,
+                `- Generates the project from the cookiecutter template`,
+                `- Includes only the **${process.env.LANGUAGE}** build and test workflow`,
+                `- Removes all template scaffolding (cookiecutter dirs, setup workflows, issue templates)`,
+                '',
+                `Closes #${issueNumber}`,
+              ].join('\n'),
+            });
+
+            // Comment on the issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `Your project has been generated! 🎉\n\nA pull request has been created: #${pr.data.number}\n\nMerge it to complete the setup.`,
+            });
