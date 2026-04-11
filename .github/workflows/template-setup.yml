@@ -22,7 +22,7 @@ jobs:
 
       - name: Parse issue form
         id: parse
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const body = context.payload.issue.body;
@@ -198,7 +198,7 @@ jobs:
           rm -rf -- "$PROJECT_CLASS_NAME"
 
       - name: Create pull request
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           LANGUAGE: ${{ steps.parse.outputs.language }}
           CLOUD_SERVICE: ${{ steps.parse.outputs.cloud_service }}
