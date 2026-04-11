@@ -1,0 +1,82 @@
+name: Template Initialization
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  issues: write
+
+jobs:
+  create-setup-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if setup issue already exists
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'template-setup',
+              state: 'all',
+            });
+            if (issues.data.length > 0) {
+              core.setOutput('exists', 'true');
+            } else {
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Create setup issue
+        if: steps.check.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Ensure the template-setup label exists
+            try {
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: 'template-setup',
+                color: '0075ca',
+                description: 'Template setup configuration',
+              });
+            } catch (e) {
+              // Label may already exist, that's fine
+            }
+
+            const issueUrl = `https://github.com/${owner}/${repo}/issues/new?template=setup.yml&title=Template+Setup`;
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: 'Welcome! Configure your new API project',
+              labels: ['template-setup'],
+              body: [
+                '## Welcome to your new API project! 🎉',
+                '',
+                'This repository was created from the [cookiecutter-api](https://github.com/code-and-sorts/cookiecutter-api) template.',
+                '',
+                'To set up your project, please fill out the **Template Setup** form:',
+                '',
+                `👉 **[Open the Template Setup Form](${issueUrl})**`,
+                '',
+                'The form will ask you to select:',
+                '- **Language** — TypeScript, C#, Go, or Python',
+                '- **Cloud Service** — Azure Function App, GCP Cloud Function, or AWS Lambda',
+                '- **Project Name** — Used to derive class names, endpoints, and file names',
+                '- **License** — The open source license for your project',
+                '',
+                'Once you submit the form, a workflow will automatically:',
+                '1. Generate your project from the cookiecutter template',
+                '2. Create a pull request with the fully configured project',
+                '3. Remove all template scaffolding, leaving only your project files',
+                '',
+                'You can close this issue after submitting the setup form.',
+              ].join('\n'),
+            });
