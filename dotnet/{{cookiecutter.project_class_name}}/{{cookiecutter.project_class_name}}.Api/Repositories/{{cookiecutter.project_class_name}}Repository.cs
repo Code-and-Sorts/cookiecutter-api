@@ -18,6 +18,8 @@ using Microsoft.Azure.Cosmos;
 public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.project_class_name}}Repository
 {
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
+    // Default cap on list reads to avoid unbounded queries.
+    private const int DefaultListLimit = 100;
     private readonly Container _container;
 
     public {{cookiecutter.project_class_name}}Repository(CosmosClient cosmosClient, string databaseName, string containerName)
@@ -50,16 +52,16 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
 
     public async Task<IEnumerable<{{cookiecutter.project_class_name}}Dto>> GetListAsync(CancellationToken ct)
     {
-        var query = _container.GetItemQueryIterator<{{cookiecutter.project_class_name}}>("SELECT * FROM c WHERE c.isDeleted = false");
+        var query = _container.GetItemQueryIterator<{{cookiecutter.project_class_name}}>($"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {DefaultListLimit}");
         var results = new List<{{cookiecutter.project_class_name}}>();
 
-        while (query.HasMoreResults)
+        while (query.HasMoreResults && results.Count < DefaultListLimit)
         {
             var response = await query.ReadNextAsync(ct);
             results.AddRange(response.Resource);
         }
 
-        var {{cookiecutter.project_lower_camel_name}}Dtos = results.Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
+        var {{cookiecutter.project_lower_camel_name}}Dtos = results.Take(DefaultListLimit).Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
         {
             Id = {{cookiecutter.project_lower_camel_name}}.Id,
             Name = {{cookiecutter.project_lower_camel_name}}.Name,
@@ -108,6 +110,8 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
     }
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+    // Default cap on list reads to avoid unbounded queries.
+    private const int DefaultListLimit = 100;
     private readonly IFirestoreContext<{{cookiecutter.project_class_name}}> _context;
 
     public {{cookiecutter.project_class_name}}Repository(IFirestoreContext<{{cookiecutter.project_class_name}}> context)
@@ -142,7 +146,7 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
     {
         var results = await _context.GetListAsync("isDeleted", false, ct);
 
-        var {{cookiecutter.project_lower_camel_name}}Dtos = results.Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
+        var {{cookiecutter.project_lower_camel_name}}Dtos = results.Take(DefaultListLimit).Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
         {
             Id = {{cookiecutter.project_lower_camel_name}}.Id,
             Name = {{cookiecutter.project_lower_camel_name}}.Name,
@@ -210,6 +214,8 @@ using Amazon.DynamoDBv2.Model;
 
 public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.project_class_name}}Repository
 {
+    // Default cap on list reads to avoid unbounded scans.
+    private const int DefaultListLimit = 100;
     private readonly IAmazonDynamoDB _dynamoClient;
     private readonly string _tableName;
 
@@ -299,15 +305,16 @@ public class {{cookiecutter.project_class_name}}Repository : I{{cookiecutter.pro
                 {
                     { ":isDeleted", new AttributeValue { BOOL = false } }
                 },
-                ExclusiveStartKey = lastEvaluatedKey
+                ExclusiveStartKey = lastEvaluatedKey,
+                Limit = DefaultListLimit
             };
 
             var response = await _dynamoClient.ScanAsync(request, ct);
             results.AddRange(response.Items.Select(FromAttributeMap));
             lastEvaluatedKey = response.LastEvaluatedKey.Count > 0 ? response.LastEvaluatedKey : null;
-        } while (lastEvaluatedKey != null);
+        } while (lastEvaluatedKey != null && results.Count < DefaultListLimit);
 
-        return results.Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
+        return results.Take(DefaultListLimit).Select({{cookiecutter.project_lower_camel_name}} => new {{cookiecutter.project_class_name}}Dto
         {
             Id = {{cookiecutter.project_lower_camel_name}}.Id,
             Name = {{cookiecutter.project_lower_camel_name}}.Name,

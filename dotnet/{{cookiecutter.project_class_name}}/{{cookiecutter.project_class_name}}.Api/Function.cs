@@ -57,6 +57,13 @@ public class Function : IHttpFunction
         {
             var path = request.Path.Value ?? string.Empty;
 
+            var trimmedPath = path.TrimEnd('/');
+            if (request.Method == "GET" && (trimmedPath == "/health" || trimmedPath.EndsWith("/health")))
+            {
+                await WriteJsonResponse(response, 200, new { status = "ok" }, ct);
+                return;
+            }
+
             if (!IsValidEndpointPath(path))
             {
                 await WriteJsonResponse(response, 404, new { error = "Not found." }, ct);
