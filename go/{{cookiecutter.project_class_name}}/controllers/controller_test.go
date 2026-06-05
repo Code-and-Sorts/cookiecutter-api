@@ -25,8 +25,8 @@ func (m *Mock{{cookiecutter.project_class_name}}Service) Get(ctx context.Context
 	return args.Get(0).(*models.{{cookiecutter.project_class_name}}Dto), args.Error(1)
 }
 
-func (m *Mock{{cookiecutter.project_class_name}}Service) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
-	args := m.Called(ctx)
+func (m *Mock{{cookiecutter.project_class_name}}Service) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	args := m.Called(ctx, limit)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -87,15 +87,22 @@ func TestGetListAsync_ReturnsListOf{{cookiecutter.project_class_name}}Dto(t *tes
 		{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mock{{cookiecutter.project_class_name}}1"},
 		{Id: "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name: "mock{{cookiecutter.project_class_name}}2"},
 	}
-	mockService.On("GetList", mock.Anything).Return(expected, nil)
+	mockService.On("GetList", mock.Anything, DefaultListLimit).Return(expected, nil)
 
 	// Act
-	result, err := controller.GetList(context.Background())
+	result, err := controller.GetList(context.Background(), 0)
 
 	// Assert
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "GetList", mock.Anything)
+	mockService.AssertCalled(t, "GetList", mock.Anything, DefaultListLimit)
+}
+
+func TestCoerceLimit_ClampsToSupportedRange(t *testing.T) {
+	assert.Equal(t, DefaultListLimit, CoerceLimit(0))
+	assert.Equal(t, DefaultListLimit, CoerceLimit(-5))
+	assert.Equal(t, 25, CoerceLimit(25))
+	assert.Equal(t, MaxListLimit, CoerceLimit(999999))
 }
 
 func TestCreateAsync_ReturnsCreated{{cookiecutter.project_class_name}}Dto(t *testing.T) {

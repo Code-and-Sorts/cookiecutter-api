@@ -16,9 +16,27 @@ var CreateRequestSchema string
 //go:embed schemas/update_{{cookiecutter.project_endpoint}}_request.json
 var UpdateRequestSchema string
 
+// Bounds for list pagination, protecting the datastore from unbounded reads.
+const (
+	DefaultListLimit = 100
+	MaxListLimit     = 1000
+)
+
+// CoerceLimit clamps a requested page size into the supported range,
+// falling back to the default when the value is missing or invalid.
+func CoerceLimit(limit int) int {
+	if limit < 1 {
+		return DefaultListLimit
+	}
+	if limit > MaxListLimit {
+		return MaxListLimit
+	}
+	return limit
+}
+
 type {{cookiecutter.project_class_name}}Controller interface {
 	Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error)
-	GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error)
+	GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error)
 	Create(ctx context.Context, body io.Reader) (*models.{{cookiecutter.project_class_name}}Dto, error)
 	Update(ctx context.Context, id string, body io.Reader) (*models.{{cookiecutter.project_class_name}}Dto, error)
 	Delete(ctx context.Context, id string) error
@@ -37,8 +55,8 @@ func (c *{{cookiecutter.project_lower_camel_name}}Controller) Get(ctx context.Co
 	return c.service.Get(ctx, id)
 }
 
-func (c *{{cookiecutter.project_lower_camel_name}}Controller) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
-	return c.service.GetList(ctx)
+func (c *{{cookiecutter.project_lower_camel_name}}Controller) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	return c.service.GetList(ctx, CoerceLimit(limit))
 }
 
 func (c *{{cookiecutter.project_lower_camel_name}}Controller) Create(ctx context.Context, body io.Reader) (*models.{{cookiecutter.project_class_name}}Dto, error) {

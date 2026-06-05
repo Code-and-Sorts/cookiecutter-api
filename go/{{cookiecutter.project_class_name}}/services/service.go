@@ -12,7 +12,7 @@ import (
 
 type {{cookiecutter.project_class_name}}Service interface {
 	Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error)
-	GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error)
+	GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error)
 	Create(ctx context.Context, req models.Create{{cookiecutter.project_class_name}}Request) (*models.{{cookiecutter.project_class_name}}Dto, error)
 	Update(ctx context.Context, req models.Update{{cookiecutter.project_class_name}}Request) (*models.{{cookiecutter.project_class_name}}Dto, error)
 	Delete(ctx context.Context, id string) error
@@ -30,8 +30,8 @@ func (s *{{cookiecutter.project_lower_camel_name}}Service) Get(ctx context.Conte
 	return s.repository.Get(ctx, id)
 }
 
-func (s *{{cookiecutter.project_lower_camel_name}}Service) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
-	return s.repository.GetList(ctx)
+func (s *{{cookiecutter.project_lower_camel_name}}Service) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	return s.repository.GetList(ctx, limit)
 }
 
 func (s *{{cookiecutter.project_lower_camel_name}}Service) Create(ctx context.Context, req models.Create{{cookiecutter.project_class_name}}Request) (*models.{{cookiecutter.project_class_name}}Dto, error) {
