@@ -1,17 +1,22 @@
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
-from azure.cosmos import ContainerProxy
+from azure.cosmos.aio import ContainerProxy
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError
 {%- endif %}
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
-from google.cloud.firestore import Client as FirestoreClient, CollectionReference
+from google.cloud.firestore import AsyncCollectionReference
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+import aioboto3
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 {%- endif %}
 from typing import List, Optional
 from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response
 from errors import NotFoundError
+
+# Default cap on the number of items returned by list endpoints to avoid
+# unbounded reads. Callers may request a smaller page via the `limit` argument.
+DEFAULT_LIST_LIMIT = 100
 
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 class Database:
@@ -34,32 +39,32 @@ class {{ cookiecutter.project_class_name }}Repository:
         self.container_client = container_client
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-    def __init__(self, collection: CollectionReference):
+    def __init__(self, collection: AsyncCollectionReference):
         self.collection = collection
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-    def __init__(self, table):
-        self.table = table
+    def __init__(self, session: aioboto3.Session, table_name: str, region: str):
+        self.session = session
+        self.table_name = table_name
+        self.region = region
 {%- endif %}
 
-    def get_by_id(self, item_id: str) -> Optional[{{ cookiecutter.project_class_name }}Response]:
+    async def get_by_id(self, item_id: str) -> Optional[{{ cookiecutter.project_class_name }}Response]:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
         query = "SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false"
         parameters = [
             { "name": "@id", "value": item_id }
         ]
-        items = self.container_client.query_items(
+        async for item in self.container_client.query_items(
             query=query,
-            parameters=parameters,
-            enable_cross_partition_query=True
-        )
-        for item in items:
+            parameters=parameters
+        ):
             return {{ cookiecutter.project_class_name }}Response.model_validate(item)
 
         raise NotFoundError()
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        doc = self.collection.document(item_id).get()
+        doc = await self.collection.document(item_id).get()
         if not doc.exists:
             raise NotFoundError()
 
@@ -70,7 +75,9 @@ class {{ cookiecutter.project_class_name }}Repository:
         return {{ cookiecutter.project_class_name }}Response.model_validate(data)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        response = self.table.get_item(Key={"id": item_id})
+        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            table = await dynamodb.Table(self.table_name)
+            response = await table.get_item(Key={"id": item_id})
         item = response.get("Item")
 
         if not item or item.get("isDeleted", False):
@@ -79,19 +86,19 @@ class {{ cookiecutter.project_class_name }}Repository:
         return {{ cookiecutter.project_class_name }}Response.model_validate(item)
 {%- endif %}
 
-    def get_list(self) -> List[{{ cookiecutter.project_class_name }}Response | None]:
+    async def get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[{{ cookiecutter.project_class_name }}Response | None]:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        query = "SELECT * FROM c WHERE c.isDeleted = false"
-        items = self.container_client.query_items(query=query, enable_cross_partition_query=True)
-
-        if items:
-            return [{{ cookiecutter.project_class_name }}Response.model_validate(item) for item in items]
-        return []
+        query = f"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {int(limit)}"
+        items = [
+            {{ cookiecutter.project_class_name }}Response.model_validate(item)
+            async for item in self.container_client.query_items(query=query)
+        ]
+        return items
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        docs = self.collection.where('isDeleted', '==', False).stream()
+        query = self.collection.where('isDeleted', '==', False).limit(int(limit))
         items = []
-        for doc in docs:
+        async for doc in query.stream():
             data = doc.to_dict()
             items.append({{ cookiecutter.project_class_name }}Response.model_validate(data))
         return items
@@ -99,70 +106,78 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
         items = []
         filter_exp = Attr("isDeleted").eq(False) | Attr("isDeleted").not_exists()
-        response = self.table.scan(FilterExpression=filter_exp)
-        items.extend(response.get("Items", []))
-
-        while "LastEvaluatedKey" in response:
-            response = self.table.scan(
-                FilterExpression=filter_exp,
-                ExclusiveStartKey=response["LastEvaluatedKey"]
-            )
+        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            table = await dynamodb.Table(self.table_name)
+            response = await table.scan(FilterExpression=filter_exp, Limit=int(limit))
             items.extend(response.get("Items", []))
 
+            while "LastEvaluatedKey" in response and len(items) < limit:
+                response = await table.scan(
+                    FilterExpression=filter_exp,
+                    Limit=int(limit),
+                    ExclusiveStartKey=response["LastEvaluatedKey"]
+                )
+                items.extend(response.get("Items", []))
+
+        items = items[:limit]
         return [{{ cookiecutter.project_class_name }}Response.model_validate(item) for item in items]
 {%- endif %}
 
-    def create(self, item: {{ cookiecutter.project_class_name }}) -> {{ cookiecutter.project_class_name }}Response:
+    async def create(self, item: {{ cookiecutter.project_class_name }}) -> {{ cookiecutter.project_class_name }}Response:
         item_dict = item.model_dump(exclude_none=True)
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        created_item = self.container_client.create_item(item_dict)
+        created_item = await self.container_client.create_item(item_dict)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(created_item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
-        doc_ref.set(item_dict)
+        await doc_ref.set(item_dict)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(item_dict)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        self.table.put_item(Item=item_dict)
+        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            table = await dynamodb.Table(self.table_name)
+            await table.put_item(Item=item_dict)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(item_dict)
 {%- endif %}
 
-    def update(self, item: {{ cookiecutter.project_class_name }}) -> Optional[{{ cookiecutter.project_class_name }}Response]:
+    async def update(self, item: {{ cookiecutter.project_class_name }}) -> Optional[{{ cookiecutter.project_class_name }}Response]:
         new_item_dict = item.model_dump(exclude_none=True)
-        previous_item = self.get_by_id(item.id)
-        previous_item_dict = previous_item.model_dump(exclude_none=True)
+        previous_item = await self.get_by_id(item.id)
         if not previous_item:
             raise NotFoundError()
+        previous_item_dict = previous_item.model_dump(exclude_none=True)
         patched_item = {**previous_item_dict,**new_item_dict}
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        updated_item = self.container_client.upsert_item(patched_item)
+        updated_item = await self.container_client.upsert_item(patched_item)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(updated_item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
-        doc_ref.update(patched_item)
+        await doc_ref.update(patched_item)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(patched_item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        self.table.put_item(Item=patched_item)
+        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            table = await dynamodb.Table(self.table_name)
+            await table.put_item(Item=patched_item)
 
         return {{ cookiecutter.project_class_name }}Response.model_validate(patched_item)
 {%- endif %}
 
-    def delete(self, item_id: str):
+    async def delete(self, item_id: str):
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
         filter = "from c WHERE c.isDeleted = false"
         operations: list[dict[str, str]] = [
             { 'op': 'replace', 'path': '/isDeleted', 'value': True }
         ]
         try:
-            self.container_client.patch_item(
+            await self.container_client.patch_item(
                 item=item_id,
                 partition_key=item_id,
                 patch_operations=operations,
@@ -174,21 +189,23 @@ class {{ cookiecutter.project_class_name }}Repository:
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item_id)
-        doc = doc_ref.get()
+        doc = await doc_ref.get()
 
         if not doc.exists or doc.to_dict().get('isDeleted', False):
             raise NotFoundError()
 
-        doc_ref.update({'isDeleted': True})
+        await doc_ref.update({'isDeleted': True})
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
         try:
-            self.table.update_item(
-                Key={"id": item_id},
-                UpdateExpression="SET isDeleted = :val",
-                ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
-                ExpressionAttributeValues={":val": True, ":false": False}
-            )
+            async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+                table = await dynamodb.Table(self.table_name)
+                await table.update_item(
+                    Key={"id": item_id},
+                    UpdateExpression="SET isDeleted = :val",
+                    ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
+                    ExpressionAttributeValues={":val": True, ":false": False}
+                )
         except ClientError as error:
             if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 raise NotFoundError()

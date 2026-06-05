@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import azure.functions as func
 {%- endif %}
@@ -10,50 +10,81 @@ import json
 from errors import ValidationError
 {%- endif %}
 from services import {{ cookiecutter.project_class_name }}Service
+from repositories.{{ cookiecutter.project_slug }}_repository import DEFAULT_LIST_LIMIT
 from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}IdValidation
+
+# Upper bound on a single list page, protecting the datastore from
+# pathologically large reads even if a client asks for more.
+MAX_LIST_LIMIT = 1000
+
+
+def _coerce_limit(raw: Optional[str]) -> int:
+    try:
+        limit = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_LIST_LIMIT
+    if limit < 1:
+        return DEFAULT_LIST_LIMIT
+    return min(limit, MAX_LIST_LIMIT)
+
 
 class {{ cookiecutter.project_class_name }}Controller:
     def __init__(self, service: {{ cookiecutter.project_class_name }}Service):
         self.service = service
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
-    def get_by_id(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
+    async def get_by_id(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = req.route_params.get('item_id')
         {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
-        return self.service.get_by_id(item_id)
+        return await self.service.get_by_id(item_id)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 
-    def get_by_id(self, request: Request) -> {{ cookiecutter.project_class_name }}Response:
+    async def get_by_id(self, request: Request) -> {{ cookiecutter.project_class_name }}Response:
         # For GCP Cloud Functions, extract item_id from path
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
         {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
-        return self.service.get_by_id(item_id)
+        return await self.service.get_by_id(item_id)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
-    def get_by_id(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
+    async def get_by_id(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
         {{ cookiecutter.project_class_name }}IdValidation(id=item_id)
-        return self.service.get_by_id(item_id)
+        return await self.service.get_by_id(item_id)
 {%- endif %}
-
-    def get_list(self) -> List[{{ cookiecutter.project_class_name }}Response]:
-        return self.service.get_list()
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
-    def create(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
-        item_json: dict = req.get_json()
-        item = {{ cookiecutter.project_class_name }}(**item_json)
-        return self.service.create(item)
+    async def get_list(self, req: func.HttpRequest) -> List[{{ cookiecutter.project_class_name }}Response]:
+        limit = _coerce_limit(req.params.get('limit'))
+        return await self.service.get_list(limit)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 
-    def create(self, request: Request) -> {{ cookiecutter.project_class_name }}Response:
+    async def get_list(self, request: Request) -> List[{{ cookiecutter.project_class_name }}Response]:
+        limit = _coerce_limit(request.args.get('limit'))
+        return await self.service.get_list(limit)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+
+    async def get_list(self, event: dict) -> List[{{ cookiecutter.project_class_name }}Response]:
+        limit = _coerce_limit((event.get("queryStringParameters") or {}).get("limit"))
+        return await self.service.get_list(limit)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+
+    async def create(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
+        item_json: dict = req.get_json()
+        item = {{ cookiecutter.project_class_name }}(**item_json)
+        return await self.service.create(item)
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+
+    async def create(self, request: Request) -> {{ cookiecutter.project_class_name }}Response:
         item_json: dict = request.get_json()
         item = {{ cookiecutter.project_class_name }}(**item_json)
-        return self.service.create(item)
+        return await self.service.create(item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
@@ -67,57 +98,57 @@ class {{ cookiecutter.project_class_name }}Controller:
         except (json.JSONDecodeError, Exception):
             raise ValidationError("Invalid JSON in request body.")
 
-    def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
+    async def create(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
         item_json: dict = self._parse_body(event)
         item = {{ cookiecutter.project_class_name }}(**item_json)
-        return self.service.create(item)
+        return await self.service.create(item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
-    def update(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
+    async def update(self, req: func.HttpRequest) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = req.route_params.get('item_id')
         item_data: dict = req.get_json()
         item = {{ cookiecutter.project_class_name }}(**item_data)
         item.id = item_id
-        return self.service.update(item)
+        return await self.service.update(item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 
-    def update(self, request: Request) -> {{ cookiecutter.project_class_name }}Response:
+    async def update(self, request: Request) -> {{ cookiecutter.project_class_name }}Response:
         # For GCP Cloud Functions, extract item_id from path
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
         item_data: dict = request.get_json()
         item = {{ cookiecutter.project_class_name }}(**item_data)
         item.id = item_id
-        return self.service.update(item)
+        return await self.service.update(item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
-    def update(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
+    async def update(self, event: dict) -> {{ cookiecutter.project_class_name }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
         item_data: dict = self._parse_body(event)
         item = {{ cookiecutter.project_class_name }}(**item_data)
         item.id = item_id
-        return self.service.update(item)
+        return await self.service.update(item)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
 
-    def soft_delete(self, req: func.HttpRequest) -> None:
+    async def soft_delete(self, req: func.HttpRequest) -> None:
         item_id: str = req.route_params.get('item_id')
-        self.service.soft_delete(item_id)
+        await self.service.soft_delete(item_id)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
 
-    def soft_delete(self, request: Request) -> None:
+    async def soft_delete(self, request: Request) -> None:
         # For GCP Cloud Functions, extract item_id from path
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
-        self.service.soft_delete(item_id)
+        await self.service.soft_delete(item_id)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 
-    def soft_delete(self, event: dict) -> None:
+    async def soft_delete(self, event: dict) -> None:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
-        self.service.soft_delete(item_id)
+        await self.service.soft_delete(item_id)
 {%- endif %}

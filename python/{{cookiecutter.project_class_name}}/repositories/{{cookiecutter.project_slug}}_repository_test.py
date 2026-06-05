@@ -1,12 +1,29 @@
+import asyncio
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from models import {{ cookiecutter.project_class_name }}, {{ cookiecutter.project_class_name }}Response, generate_utc_timestamp
 from repositories import {{ cookiecutter.project_class_name }}Repository
 from errors import NotFoundError
 
-{% if cookiecutter.cloud_service == 'Azure Function App' -%}
-from azure.cosmos import ContainerProxy
-{%- endif %}
+
+class _AsyncIterator:
+    """Minimal async-iterable wrapper so mocks can stand in for the
+    async iterators returned by the cloud SDKs (Cosmos query_items,
+    Firestore stream)."""
+
+    def __init__(self, items):
+        self._items = list(items)
+
+    def __aiter__(self):
+        self._iter = iter(self._items)
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration:
+            raise StopAsyncIteration
+
 
 mock_item_responses = [
     {{ cookiecutter.project_class_name }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5',name='mockName1',type='mockType1'),
@@ -46,87 +63,72 @@ mock_upsert = {
 def describe_item_service():
     @pytest.fixture
     def mock_cosmos_client():
-        with patch('azure.cosmos.ContainerProxy') as mock_container_client:
-            return mock_container_client
+        client = MagicMock()
+        client.create_item = AsyncMock()
+        client.upsert_item = AsyncMock()
+        client.patch_item = AsyncMock()
+        return client
 
     def describe_get_by_id():
-        def test_successfully_call(mock_cosmos_client: ContainerProxy):
-            mock_cosmos_client.query_items.return_value = mock_query
+        def test_successfully_call(mock_cosmos_client):
+            mock_cosmos_client.query_items.return_value = _AsyncIterator(mock_query)
             repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
-            result = repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
-            mock_cosmos_client.query_items.assert_called_once()
+            result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
             mock_cosmos_client.query_items.assert_called_once_with(
                 query="SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false",
-                parameters=[{"name": "@id", "value": "ac1df01c-7ece-4a20-ab60-179829dad8f5"}],
-                enable_cross_partition_query=True
+                parameters=[{"name": "@id", "value": "ac1df01c-7ece-4a20-ab60-179829dad8f5"}]
             )
             assert result == mock_item_responses[0]
 
-        def test_not_found_error(mock_cosmos_client: ContainerProxy):
-            mock_cosmos_client.query_items.return_value = None
-            try:
-                repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
-            except Exception as error:
-                repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
-                assert isinstance(error, NotFoundError)
+        def test_not_found_error(mock_cosmos_client):
+            mock_cosmos_client.query_items.return_value = _AsyncIterator([])
+            repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
+            with pytest.raises(NotFoundError):
+                asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
-        def test_successfully_call(mock_cosmos_client: ContainerProxy):
-            mock_cosmos_client.query_items.return_value = mock_query
+        def test_successfully_call(mock_cosmos_client):
+            mock_cosmos_client.query_items.return_value = _AsyncIterator(mock_query)
             repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
-            result = repository.get_list()
-            mock_cosmos_client.query_items.assert_called_once()
+            result = asyncio.run(repository.get_list())
             mock_cosmos_client.query_items.assert_called_once_with(
-                query="SELECT * FROM c WHERE c.isDeleted = false",
-                enable_cross_partition_query=True
+                query="SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100"
             )
             assert result == mock_item_responses
 
-        def test_successfully_call_empty_result(mock_cosmos_client: ContainerProxy):
-            mock_cosmos_client.query_items.return_value = []
+        def test_successfully_call_empty_result(mock_cosmos_client):
+            mock_cosmos_client.query_items.return_value = _AsyncIterator([])
             repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
-            result = repository.get_list()
-            mock_cosmos_client.query_items.assert_called_once()
-            mock_cosmos_client.query_items.assert_called_once_with(
-                query="SELECT * FROM c WHERE c.isDeleted = false",
-                enable_cross_partition_query=True
-            )
+            result = asyncio.run(repository.get_list())
             assert result == []
 
     def describe_create():
-        def test_successfully_call(mock_cosmos_client: ContainerProxy):
+        def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.create_item.return_value = mock_query[0]
             repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
             mock_item = {{ cookiecutter.project_class_name }}(**mock_query[0])
             mock_item.id = 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
-            result = repository.create(item=mock_item)
-            mock_cosmos_client.create_item.assert_called_once()
+            result = asyncio.run(repository.create(item=mock_item))
             mock_cosmos_client.create_item.assert_called_once_with(mock_query[0])
             assert result == mock_item_responses[0]
 
     def describe_update():
-        @patch('models.generate_utc_timestamp', return_value='2024-08-10T20:41:30Z')
-        def test_successfully_call(mock_cosmos_client: ContainerProxy):
+        def test_successfully_call(mock_cosmos_client):
             mock_item_response = {{ cookiecutter.project_class_name }}Response(
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                 name='mockName1',
                 type='mockType1'
             )
-            new_item_dict = {
-                "name": "mockName1-Update",
-                "type": "mockType1-Update"
-            }
             mock_cosmos_client.upsert_item.return_value = mock_upsert
             repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
-            with patch('repositories.{{ cookiecutter.project_class_name }}Repository.get_by_id') as mock_get_by_id:
-                mock_get_by_id.return_value = mock_item_response
-                result = repository.update(
+            with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
+                result = asyncio.run(repository.update(
                     item={{ cookiecutter.project_class_name }}(
                         id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                         name='mockName1-Update',
                         type='mockType1-Update'
                     )
-                )
+                ))
                 repository.get_by_id.assert_called_once()
                 mock_cosmos_client.upsert_item.assert_called_once()
                 assert result.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
@@ -134,10 +136,10 @@ def describe_item_service():
                 assert result.type == 'mockType1-Update'
 
     def describe_delete():
-        def test_successfully_call(mock_cosmos_client: ContainerProxy):
+        def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.patch_item.return_value = mock_query[0]
             repository = {{ cookiecutter.project_class_name }}Repository(mock_cosmos_client)
-            repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
             mock_cosmos_client.patch_item.assert_called_once_with(
                 item='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                 partition_key='ac1df01c-7ece-4a20-ab60-179829dad8f5',
@@ -163,11 +165,11 @@ def describe_item_service():
                 "type": "mockType1"
             }
             mock_doc_ref = MagicMock()
-            mock_doc_ref.get.return_value = mock_doc
+            mock_doc_ref.get = AsyncMock(return_value=mock_doc)
             mock_firestore_collection.document.return_value = mock_doc_ref
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
-            result = repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             assert result == mock_item_responses[0]
@@ -176,15 +178,12 @@ def describe_item_service():
             mock_doc = MagicMock()
             mock_doc.exists = False
             mock_doc_ref = MagicMock()
-            mock_doc_ref.get.return_value = mock_doc
+            mock_doc_ref.get = AsyncMock(return_value=mock_doc)
             mock_firestore_collection.document.return_value = mock_doc_ref
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
-            try:
-                repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
-                assert False, "Should have raised NotFoundError"
-            except NotFoundError:
-                pass
+            with pytest.raises(NotFoundError):
+                asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
         def test_successfully_call(mock_firestore_collection):
@@ -202,22 +201,25 @@ def describe_item_service():
             }
 
             mock_query = MagicMock()
-            mock_query.stream.return_value = [mock_doc1, mock_doc2]
+            mock_query.limit.return_value = mock_query
+            mock_query.stream.return_value = _AsyncIterator([mock_doc1, mock_doc2])
             mock_firestore_collection.where.return_value = mock_query
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
-            result = repository.get_list()
+            result = asyncio.run(repository.get_list())
 
             mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
+            mock_query.limit.assert_called_once_with(100)
             assert result == mock_item_responses
 
         def test_successfully_call_empty_result(mock_firestore_collection):
             mock_query = MagicMock()
-            mock_query.stream.return_value = []
+            mock_query.limit.return_value = mock_query
+            mock_query.stream.return_value = _AsyncIterator([])
             mock_firestore_collection.where.return_value = mock_query
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
-            result = repository.get_list()
+            result = asyncio.run(repository.get_list())
 
             mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
             assert result == []
@@ -225,6 +227,7 @@ def describe_item_service():
     def describe_create():
         def test_successfully_call(mock_firestore_collection):
             mock_doc_ref = MagicMock()
+            mock_doc_ref.set = AsyncMock()
             mock_firestore_collection.document.return_value = mock_doc_ref
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
@@ -233,7 +236,7 @@ def describe_item_service():
                 type='mockType1',
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
             )
-            result = repository.create(item=mock_item)
+            result = asyncio.run(repository.create(item=mock_item))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             mock_doc_ref.set.assert_called_once()
@@ -248,17 +251,18 @@ def describe_item_service():
             )
 
             mock_doc_ref = MagicMock()
+            mock_doc_ref.update = AsyncMock()
             mock_firestore_collection.document.return_value = mock_doc_ref
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
-            with patch.object(repository, 'get_by_id', return_value=mock_item_response):
-                result = repository.update(
+            with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
+                result = asyncio.run(repository.update(
                     item={{ cookiecutter.project_class_name }}(
                         id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                         name='mockName1-Update',
                         type='mockType1-Update'
                     )
-                )
+                ))
                 assert result.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
                 assert result.name == 'mockName1-Update'
                 assert result.type == 'mockType1-Update'
@@ -272,11 +276,12 @@ def describe_item_service():
                 "isDeleted": False
             }
             mock_doc_ref = MagicMock()
-            mock_doc_ref.get.return_value = mock_doc
+            mock_doc_ref.get = AsyncMock(return_value=mock_doc)
+            mock_doc_ref.update = AsyncMock()
             mock_firestore_collection.document.return_value = mock_doc_ref
 
             repository = {{ cookiecutter.project_class_name }}Repository(mock_firestore_collection)
-            repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             mock_doc_ref.update.assert_called_once_with({'isDeleted': True})
@@ -284,10 +289,31 @@ def describe_item_service():
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 
 
+def _make_session(table_mock):
+    """Build a mock aioboto3 Session whose ``resource(...)`` async context
+    manager yields a DynamoDB resource exposing the given table mock."""
+    session = MagicMock()
+    dynamodb = MagicMock()
+    dynamodb.Table = AsyncMock(return_value=table_mock)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=dynamodb)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    session.resource = MagicMock(return_value=cm)
+    return session
+
+
 def describe_item_service():
     @pytest.fixture
     def mock_dynamodb_table():
-        return MagicMock()
+        table = MagicMock()
+        table.get_item = AsyncMock()
+        table.scan = AsyncMock()
+        table.put_item = AsyncMock()
+        table.update_item = AsyncMock()
+        return table
+
+    def _repository(table):
+        return {{ cookiecutter.project_class_name }}Repository(_make_session(table), "kitties", "us-east-1")
 
     def describe_get_by_id():
         def test_successfully_call(mock_dynamodb_table):
@@ -300,8 +326,8 @@ def describe_item_service():
                 }
             }
 
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
-            result = repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            repository = _repository(mock_dynamodb_table)
+            result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_dynamodb_table.get_item.assert_called_once_with(Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"})
             assert result == mock_item_responses[0]
@@ -309,12 +335,9 @@ def describe_item_service():
         def test_not_found_error(mock_dynamodb_table):
             mock_dynamodb_table.get_item.return_value = {}
 
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
-            try:
-                repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
-                assert False, "Should have raised NotFoundError"
-            except NotFoundError:
-                pass
+            repository = _repository(mock_dynamodb_table)
+            with pytest.raises(NotFoundError):
+                asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
         def test_successfully_call(mock_dynamodb_table):
@@ -335,8 +358,8 @@ def describe_item_service():
                 ]
             }
 
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
-            result = repository.get_list()
+            repository = _repository(mock_dynamodb_table)
+            result = asyncio.run(repository.get_list())
 
             mock_dynamodb_table.scan.assert_called_once()
             assert result == mock_item_responses
@@ -344,21 +367,21 @@ def describe_item_service():
         def test_successfully_call_empty_result(mock_dynamodb_table):
             mock_dynamodb_table.scan.return_value = {"Items": []}
 
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
-            result = repository.get_list()
+            repository = _repository(mock_dynamodb_table)
+            result = asyncio.run(repository.get_list())
 
             mock_dynamodb_table.scan.assert_called_once()
             assert result == []
 
     def describe_create():
         def test_successfully_call(mock_dynamodb_table):
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
+            repository = _repository(mock_dynamodb_table)
             mock_item = {{ cookiecutter.project_class_name }}(
                 name='mockName1',
                 type='mockType1',
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
             )
-            result = repository.create(item=mock_item)
+            result = asyncio.run(repository.create(item=mock_item))
 
             mock_dynamodb_table.put_item.assert_called_once()
             assert result.id == mock_item_responses[0].id
@@ -371,23 +394,23 @@ def describe_item_service():
                 type='mockType1'
             )
 
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
-            with patch.object(repository, 'get_by_id', return_value=mock_item_response):
-                result = repository.update(
+            repository = _repository(mock_dynamodb_table)
+            with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
+                result = asyncio.run(repository.update(
                     item={{ cookiecutter.project_class_name }}(
                         id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                         name='mockName1-Update',
                         type='mockType1-Update'
                     )
-                )
+                ))
                 assert result.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
                 assert result.name == 'mockName1-Update'
                 assert result.type == 'mockType1-Update'
 
     def describe_delete():
         def test_successfully_call(mock_dynamodb_table):
-            repository = {{ cookiecutter.project_class_name }}Repository(mock_dynamodb_table)
-            repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
+            repository = _repository(mock_dynamodb_table)
+            asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_dynamodb_table.update_item.assert_called_once_with(
                 Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"},

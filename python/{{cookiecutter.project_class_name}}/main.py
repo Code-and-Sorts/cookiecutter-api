@@ -8,9 +8,10 @@ from blueprints.{{cookiecutter.project_slug}}_api import (
     get_list,
     create,
     update,
-    delete
+    delete,
+    health
 )
 
 # Export functions for GCP Cloud Functions
 # These can be deployed individually as separate cloud functions
-__all__ = ['get_by_id', 'get_list', 'create', 'update', 'delete']
+__all__ = ['get_by_id', 'get_list', 'create', 'update', 'delete', 'health']
