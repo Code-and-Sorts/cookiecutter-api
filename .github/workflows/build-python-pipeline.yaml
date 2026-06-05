@@ -101,5 +101,16 @@ jobs:
         run: |
             cd "KittenClaws"
             poetry run pip install pip-audit
-            poetry run pip-audit
+            set +e
+            poetry run pip-audit 2>&1 | tee audit.log
+            status=$?
+            set -e
+            {
+              echo "### Python dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo ""
+              echo '```'
+              cat audit.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit $status
         shell: bash

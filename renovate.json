@@ -1,6 +1,43 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":semanticCommits"
+  ],
+  "schedule": [
+    "before 9am on monday"
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": [
+    "dependencies"
+  ],
+  "packageRules": [
+    {
+      "description": "Group non-major dependency updates per language template",
+      "matchFileNames": ["python/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "python dependencies (non-major)"
+    },
+    {
+      "matchFileNames": ["typescript/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "typescript dependencies (non-major)"
+    },
+    {
+      "matchFileNames": ["dotnet/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dotnet dependencies (non-major)"
+    },
+    {
+      "matchFileNames": ["go/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go dependencies (non-major)"
+    },
+    {
+      "description": "Group GitHub Actions updates together",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
   ]
 }

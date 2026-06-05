@@ -1,3 +1,5 @@
+COVERAGE_THRESHOLD ?= 80
+
 .PHONY: install
 install: ## Install dependencies
 	@echo "Installing dependencies"
@@ -61,7 +63,11 @@ format: ## Format the code with gofmt
 .PHONY: test-unit
 test-unit: ## Test the code with unit tests
 	@echo "Testing code: Running unit tests"
-	@go test ./... -v -count=1
+	@go test ./... -v -count=1 -coverpkg=./controllers/...,./services/...,./utils/... -coverprofile=coverage.out
+	@total=$$(go tool cover -func=coverage.out | grep total | awk '{print $$3}' | tr -d '%'); \
+	echo "Total coverage (logic packages): $$total%"; \
+	awk "BEGIN { exit !($$total >= $(COVERAGE_THRESHOLD)) }" || \
+		{ echo "FAIL: coverage $$total% is below threshold $(COVERAGE_THRESHOLD)%"; exit 1; }
 
 .PHONY: audit
 audit: ## Scan dependencies for known vulnerabilities

@@ -71,5 +71,18 @@ jobs:
 
       - name: Run dependency vulnerability scan
         continue-on-error: true
-        run: govulncheck ./...
+        run: |
+            set +e
+            govulncheck ./... 2>&1 | tee audit.log
+            status=$?
+            set -e
+            {
+              echo "### Go dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo ""
+              echo '```'
+              cat audit.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit $status
         working-directory: KittenClaws
+        shell: bash

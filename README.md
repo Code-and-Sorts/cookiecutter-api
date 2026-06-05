@@ -79,7 +79,7 @@ Follow the prompts to configure your project.
     <td align="center"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
     <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Planned">📋</span></td>
+    <td align="center"><span title="Complete">✅</span></td>
   </tr>
 </table>
 
@@ -107,7 +107,7 @@ Below are the SDKs and frameworks used in the various templates.
 
 ### Python
 - [Poetry](https://python-poetry.org/) for dependency management
-- [pytest](https://docs.pytest.org/en/stable/) and [codecov](https://about.codecov.io/) for testing
+- [pytest](https://docs.pytest.org/en/stable/) for testing
 - [pydantic](https://docs.pydantic.dev/latest/) for schema validation
 
 ### Typescript NodeJS
