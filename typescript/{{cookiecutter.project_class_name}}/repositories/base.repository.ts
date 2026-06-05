@@ -3,6 +3,9 @@ import { Container, PatchOperation } from '@azure/cosmos';
 import { ProxyError, NotFoundError } from '@errors';
 import { BaseItemRecord } from '@models';
 
+// Default cap on list reads to avoid unbounded queries.
+const DEFAULT_LIST_LIMIT = 100;
+
 export class BaseRepository<T extends BaseItemRecord> {
   readonly _container: Container;
 
@@ -35,9 +38,9 @@ export class BaseRepository<T extends BaseItemRecord> {
     throw new NotFoundError(`Record not found for ID ${id}.`);
   };
 
-  getRecords = async (): Promise<T[]> => {
+  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
     try {
-      const query = `SELECT * FROM c WHERE c.isDeleted = false`;
+      const query = `SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT ${limit}`;
       const { resources: items } = await this._container.items
         .query<T>({ query })
         .fetchAll();
@@ -92,6 +95,9 @@ import { CollectionReference } from '@google-cloud/firestore';
 import { ProxyError, NotFoundError } from '@errors';
 import { BaseItemRecord } from '@models';
 
+// Default cap on list reads to avoid unbounded queries.
+const DEFAULT_LIST_LIMIT = 100;
+
 export class BaseRepository<T extends BaseItemRecord> {
   readonly _collection: CollectionReference;
 
@@ -131,10 +137,11 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecords = async (): Promise<T[]> => {
+  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
     try {
       const snapshot = await this._collection
         .where('isDeleted', '==', false)
+        .limit(limit)
         .get();
 
       return snapshot.docs.map((doc) => doc.data() as T);
@@ -187,6 +194,9 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand, UpdateComm
 import { ProxyError, NotFoundError } from '@errors';
 import { BaseItemRecord } from '@models';
 
+// Default cap on list reads to avoid unbounded scans.
+const DEFAULT_LIST_LIMIT = 100;
+
 export class BaseRepository<T extends BaseItemRecord> {
   readonly _docClient: DynamoDBDocumentClient;
   readonly _tableName: string;
@@ -233,15 +243,16 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecords = async (): Promise<T[]> => {
+  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
     try {
       const { Items } = await this._docClient.send(new ScanCommand({
         TableName: this._tableName,
         FilterExpression: 'isDeleted = :val',
         ExpressionAttributeValues: { ':val': false },
+        Limit: limit,
       }));
 
-      return (Items || []) as T[];
+      return ((Items || []) as T[]).slice(0, limit);
     } catch (error) {
       throw new ProxyError('Error retrieving items from database.');
     }

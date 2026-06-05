@@ -23,6 +23,10 @@ const jsonResponse = (res: ff.Response, status: number, body: unknown): void => 
 };
 
 ff.http('api', async (req: ff.Request, res: ff.Response) => {
+  if (req.path.replace(/\/+$/, '').endsWith('/health')) {
+    return jsonResponse(res, 200, { status: 'ok' });
+  }
+
   const controller = container.resolve({{cookiecutter.project_class_name}}Controller);
 
   try {
@@ -33,7 +37,7 @@ ff.http('api', async (req: ff.Request, res: ff.Response) => {
           const result = await controller.get(id);
           return jsonResponse(res, 200, result);
         }
-        const results = await controller.list();
+        const results = await controller.list(req.query.limit as string | undefined);
         return jsonResponse(res, 200, results);
       }
 
