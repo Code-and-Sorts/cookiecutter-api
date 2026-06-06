@@ -32,8 +32,8 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         node-version:
-          - "18.x"
           - "20.x"
+          - "22.x"
       fail-fast: false
     steps:
       - name: Check out
