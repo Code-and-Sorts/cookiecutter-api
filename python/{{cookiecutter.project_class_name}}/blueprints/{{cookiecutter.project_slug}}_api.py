@@ -22,13 +22,25 @@ from google.cloud import firestore
 from flask import Request
 
 settings = get_settings()
-# Async Firestore client for non-blocking I/O.
-db = firestore.AsyncClient(
-    project=settings.gcp_project_id,
-    database=settings.firestore_database
-)
-collection = db.collection(settings.firestore_collection)
-repository = {{ cookiecutter.project_class_name }}Repository(collection)
+
+
+async def _run(operation):
+    # Build the async Firestore client inside the request's event loop so its
+    # gRPC transport binds to the loop that drives it. Each invocation runs on
+    # a fresh asyncio.run() loop, so a module-level client would be bound to an
+    # already-closed loop on subsequent requests.
+    db = firestore.AsyncClient(
+        project=settings.gcp_project_id,
+        database=settings.firestore_database
+    )
+    try:
+        collection = db.collection(settings.firestore_collection)
+        repository = {{ cookiecutter.project_class_name }}Repository(collection)
+        service = {{ cookiecutter.project_class_name }}Service(repository)
+        controller = {{ cookiecutter.project_class_name }}Controller(service)
+        return await operation(controller)
+    finally:
+        db.close()
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 import asyncio
@@ -45,8 +57,10 @@ repository = {{ cookiecutter.project_class_name }}Repository(
 )
 {%- endif %}
 
+{% if cookiecutter.cloud_service != 'GCP Cloud Function' -%}
 service = {{ cookiecutter.project_class_name }}Service(repository)
 controller = {{ cookiecutter.project_class_name }}Controller(service)
+{%- endif %}
 
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 @bp.route(route="health", methods=[func.HttpMethod.GET])
@@ -92,7 +106,7 @@ def get_by_id(event):
         item = await controller.get_by_id(req)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        item = asyncio.run(controller.get_by_id(request))
+        item = asyncio.run(_run(lambda c: c.get_by_id(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
         item = asyncio.run(controller.get_by_id(event))
@@ -122,7 +136,7 @@ def get_list(event):
         items = await controller.get_list(req)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        items = asyncio.run(controller.get_list(request))
+        items = asyncio.run(_run(lambda c: c.get_list(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
         items = asyncio.run(controller.get_list(event))
@@ -152,7 +166,7 @@ def create(event):
         created_item = await controller.create(req)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        created_item = asyncio.run(controller.create(request))
+        created_item = asyncio.run(_run(lambda c: c.create(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
         created_item = asyncio.run(controller.create(event))
@@ -182,7 +196,7 @@ def update(event):
         updated_item = await controller.update(req)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        updated_item = asyncio.run(controller.update(request))
+        updated_item = asyncio.run(_run(lambda c: c.update(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
         updated_item = asyncio.run(controller.update(event))
@@ -216,7 +230,7 @@ def delete(event):
         )
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        asyncio.run(controller.soft_delete(request))
+        asyncio.run(_run(lambda c: c.soft_delete(request)))
         return ("{{ cookiecutter.project_class_name }} deleted.", 200)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
