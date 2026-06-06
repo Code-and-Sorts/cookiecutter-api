@@ -176,7 +176,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
     ```console
     # Deploy the get_list function
     gcloud functions deploy get_list \
-      --runtime python311 \
+      --runtime python313 \
       --trigger-http \
       --allow-unauthenticated \
       --entry-point get_list \

@@ -48,7 +48,7 @@ Before you submit a pull request, check that it meets these guidelines:
 
 2. If the pull request adds functionality, the README should be updated. Add the feature to the list in README.md.
 
-3. The Python template supports Python 3.10+ (`>=3.10,<3.15`) and is tested in CI against Python 3.13 and 3.14. Check https://github.com/Code-and-Sorts/cookiecutter-api/pulls and make sure that the tests pass for all supported runtime versions.
+3. The Python template supports Python 3.13+ (`>=3.13,<3.15`) and is tested in CI against Python 3.13 and 3.14. Check https://github.com/Code-and-Sorts/cookiecutter-api/pulls and make sure that the tests pass for all supported runtime versions.
 
 ## Add a New Test
 

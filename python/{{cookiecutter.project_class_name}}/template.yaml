@@ -5,7 +5,7 @@ Description: {{ cookiecutter.project_description }}
 Globals:
   Function:
     Timeout: 30
-    Runtime: python3.12
+    Runtime: python3.13
 
 Resources:
   {{ cookiecutter.project_class_name }}Function:
