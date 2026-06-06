@@ -88,7 +88,7 @@ const mock{{cookiecutter.project_class_name}}sRepositoryResponse = {
 };
 const mock{{cookiecutter.project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
 const mockGetRecordQuery = 'SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false';
-const mockGetRecordsQuery = 'SELECT * FROM c WHERE c.isDeleted = false';
+const mockGetRecordsQuery = 'SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100';
 const mockGetRecordParameters = [
     {
         name: '@id',
@@ -419,7 +419,7 @@ describe('BaseRepository', () => {
             const mockSnapshot = {
                 docs: mock{{cookiecutter.project_class_name}}Records.map((r) => ({ data: () => r })),
             };
-            mockWhere.mockReturnValue({ get: jest.fn().mockResolvedValue(mockSnapshot) });
+            mockWhere.mockReturnValue({ limit: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue(mockSnapshot) }) });
             const result = await mockBaseRepository.getRecords();
             expect(mockWhere).toHaveBeenCalledWith('isDeleted', '==', false);
             expect(result).toEqual(mock{{cookiecutter.project_class_name}}Records);
@@ -427,7 +427,9 @@ describe('BaseRepository', () => {
 
         it('should throw proxy error on failure', async () => {
             mockWhere.mockReturnValue({
-                get: jest.fn().mockRejectedValue(new Error('Unknown error')),
+                limit: jest.fn().mockReturnValue({
+                    get: jest.fn().mockRejectedValue(new Error('Unknown error')),
+                }),
             });
             try {
                 await mockBaseRepository.getRecords();

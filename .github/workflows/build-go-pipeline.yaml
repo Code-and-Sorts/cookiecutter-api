@@ -32,7 +32,7 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         go-version:
-          - "1.22"
+          - "1.25"
       fail-fast: false
     steps:
       - name: Check out
@@ -45,7 +45,7 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
 
       - name: Setup Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -58,7 +58,7 @@ jobs:
         working-directory: KittenClaws
 
       - name: Run lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           working-directory: KittenClaws
 
@@ -71,5 +71,18 @@ jobs:
 
       - name: Run dependency vulnerability scan
         continue-on-error: true
-        run: govulncheck ./...
+        run: |
+            set +e
+            govulncheck ./... 2>&1 | tee audit.log
+            status=$?
+            set -e
+            {
+              echo "### Go dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo ""
+              echo '```'
+              cat audit.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit $status
         working-directory: KittenClaws
+        shell: bash

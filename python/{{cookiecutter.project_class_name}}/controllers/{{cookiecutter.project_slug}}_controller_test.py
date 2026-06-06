@@ -1,10 +1,12 @@
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from azure.functions import HttpRequest
 from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}IdValidation
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
+from repositories.{{ cookiecutter.project_slug }}_repository import DEFAULT_LIST_LIMIT
 from unittest.mock import patch
 
 def describe_item_controller():
@@ -26,7 +28,7 @@ def describe_item_controller():
             mock_service.get_by_id.return_value = expected_response
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:
-                response = controller.get_by_id(mock_request)
+                response = asyncio.run(controller.get_by_id(mock_request))
 
                 Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
                 mock_service.get_by_id.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
@@ -38,17 +40,36 @@ def describe_item_controller():
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', side_effect=ValueError("Invalid ID")) as Mock{{ cookiecutter.project_class_name }}IdValidation:
                 with pytest.raises(ValueError):
-                    controller.get_by_id(mock_request)
+                    asyncio.run(controller.get_by_id(mock_request))
 
                 Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
                 mock_service.get_by_id.assert_not_called()
+
+    def describe_get_list():
+        def test_default_limit(controller, mock_service):
+            mock_request = MagicMock(spec=HttpRequest)
+            mock_request.params = {}
+            mock_service.get_list.return_value = []
+
+            asyncio.run(controller.get_list(mock_request))
+            mock_service.get_list.assert_called_once_with(DEFAULT_LIST_LIMIT)
+
+        def test_honours_limit_query_param(controller, mock_service):
+            mock_request = MagicMock(spec=HttpRequest)
+            mock_request.params = {'limit': '5'}
+            mock_service.get_list.return_value = []
+
+            asyncio.run(controller.get_list(mock_request))
+            mock_service.get_list.assert_called_once_with(5)
 {%- endif %}
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}IdValidation
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
+from repositories.{{ cookiecutter.project_slug }}_repository import DEFAULT_LIST_LIMIT
 from unittest.mock import patch
 
 def describe_item_controller():
@@ -70,7 +91,7 @@ def describe_item_controller():
             mock_service.get_by_id.return_value = expected_response
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:
-                response = controller.get_by_id(mock_request)
+                response = asyncio.run(controller.get_by_id(mock_request))
 
                 Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
                 mock_service.get_by_id.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
@@ -82,23 +103,42 @@ def describe_item_controller():
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', side_effect=ValueError("Invalid ID")) as Mock{{ cookiecutter.project_class_name }}IdValidation:
                 with pytest.raises(ValueError):
-                    controller.get_by_id(mock_request)
+                    asyncio.run(controller.get_by_id(mock_request))
 
                 Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
                 mock_service.get_by_id.assert_not_called()
+
+    def describe_get_list():
+        def test_default_limit(controller, mock_service):
+            mock_request = MagicMock()
+            mock_request.args = {}
+            mock_service.get_list.return_value = []
+
+            asyncio.run(controller.get_list(mock_request))
+            mock_service.get_list.assert_called_once_with(DEFAULT_LIST_LIMIT)
+
+        def test_honours_limit_query_param(controller, mock_service):
+            mock_request = MagicMock()
+            mock_request.args = {'limit': '5'}
+            mock_service.get_list.return_value = []
+
+            asyncio.run(controller.get_list(mock_request))
+            mock_service.get_list.assert_called_once_with(5)
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
+import asyncio
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 from models import {{ cookiecutter.project_class_name }}Response, {{ cookiecutter.project_class_name }}IdValidation
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
+from repositories.{{ cookiecutter.project_slug }}_repository import DEFAULT_LIST_LIMIT
 from unittest.mock import patch
 
 def describe_item_controller():
     @pytest.fixture
     def mock_service():
-        service = MagicMock({{ cookiecutter.project_class_name }}Service)
+        service = AsyncMock({{ cookiecutter.project_class_name }}Service)
         return service
 
     @pytest.fixture
@@ -115,7 +155,7 @@ def describe_item_controller():
             mock_service.get_by_id.return_value = expected_response
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', return_value=None) as Mock{{ cookiecutter.project_class_name }}IdValidation:
-                response = controller.get_by_id(mock_event)
+                response = asyncio.run(controller.get_by_id(mock_event))
 
                 Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='ac1df01c-7ece-4a20-ab60-179829dad8f5')
                 mock_service.get_by_id.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
@@ -128,8 +168,23 @@ def describe_item_controller():
 
             with patch.object({{ cookiecutter.project_class_name }}IdValidation, '__init__', side_effect=ValueError("Invalid ID")) as Mock{{ cookiecutter.project_class_name }}IdValidation:
                 with pytest.raises(ValueError):
-                    controller.get_by_id(mock_event)
+                    asyncio.run(controller.get_by_id(mock_event))
 
                 Mock{{ cookiecutter.project_class_name }}IdValidation.assert_called_once_with(id='mockInvalidId')
                 mock_service.get_by_id.assert_not_called()
+
+    def describe_get_list():
+        def test_default_limit(controller, mock_service):
+            mock_event = {}
+            mock_service.get_list.return_value = []
+
+            asyncio.run(controller.get_list(mock_event))
+            mock_service.get_list.assert_called_once_with(DEFAULT_LIST_LIMIT)
+
+        def test_honours_limit_query_param(controller, mock_service):
+            mock_event = {"queryStringParameters": {"limit": "5"}}
+            mock_service.get_list.return_value = []
+
+            asyncio.run(controller.get_list(mock_event))
+            mock_service.get_list.assert_called_once_with(5)
 {%- endif %}

@@ -7,7 +7,8 @@ from blueprints.{{cookiecutter.project_slug}}_api import (
     get_list,
     create,
     update,
-    delete
+    delete,
+    health
 )
 from utils.detect_error import generate_error_response
 
@@ -16,7 +17,9 @@ def lambda_handler(event, context):
     http_method = event.get("httpMethod", "")
     resource = event.get("resource", "")
 
-    if http_method == "GET" and "{item_id}" in resource:
+    if http_method == "GET" and resource.rstrip("/").endswith("/health"):
+        return health(event)
+    elif http_method == "GET" and "{item_id}" in resource:
         return get_by_id(event)
     elif http_method == "GET":
         return get_list(event)

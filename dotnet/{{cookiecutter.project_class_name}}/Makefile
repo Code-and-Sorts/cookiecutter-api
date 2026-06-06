@@ -42,7 +42,7 @@ format: ## Format the code with dotnet format
 .PHONY: test-unit
 test-unit: ## Test the code with unit tests
 	@echo "🧪 Testing code: Running unit tests"
-	@dotnet test
+	@dotnet test --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
 .PHONY: audit
 audit: ## Scan dependencies for known vulnerabilities

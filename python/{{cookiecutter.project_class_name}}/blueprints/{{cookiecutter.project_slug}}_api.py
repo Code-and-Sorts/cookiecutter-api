@@ -1,54 +1,99 @@
-import os
 import logging
 from controllers import {{ cookiecutter.project_class_name }}Controller
 from services import {{ cookiecutter.project_class_name }}Service
 from repositories import {{ cookiecutter.project_class_name }}Repository
+from config import get_settings
 from utils import detect_error, response_generator
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 import azure.functions as func
-from azure.cosmos import CosmosClient
-from repositories import Database
+from azure.cosmos.aio import CosmosClient
 
 bp = func.Blueprint()
 
-database = Database(
-    endpoint=os.getenv("Cosmos_Db_Uri"),
-    key=os.getenv("Cosmos_Db_Key"),
-    name=os.getenv("Cosmos_Db_Database_Name"),
-    container_name=os.getenv("Cosmos_Db_Container_Name")
-)
-client = CosmosClient(database._endpoint, database._key)
-database_client = client.get_database_client(database.name)
-container_client = database_client.get_container_client(database.container_name)
-repository = {{ cookiecutter.project_class_name }}Repository(container_client)
+settings = get_settings()
+
+
+async def _run(operation):
+    # Scope the async Cosmos client to the request via `async with` so its
+    # aiohttp session is always closed, avoiding leaked/unclosed sessions.
+    async with CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key) as client:
+        database_client = client.get_database_client(settings.cosmos_db_database_name)
+        container_client = database_client.get_container_client(settings.cosmos_db_container_name)
+        repository = {{ cookiecutter.project_class_name }}Repository(container_client)
+        service = {{ cookiecutter.project_class_name }}Service(repository)
+        controller = {{ cookiecutter.project_class_name }}Controller(service)
+        return await operation(controller)
 {%- endif %}
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
+import asyncio
 from google.cloud import firestore
 from flask import Request
 
-# Initialize Firestore client
-db = firestore.Client(
-    project=os.getenv("GCP_PROJECT_ID"),
-    database=os.getenv("FIRESTORE_DATABASE", "(default)")
-)
-collection_name = os.getenv("FIRESTORE_COLLECTION", "{{ cookiecutter.project_slug }}")
-collection = db.collection(collection_name)
-repository = {{ cookiecutter.project_class_name }}Repository(collection)
+settings = get_settings()
+
+
+async def _run(operation):
+    # Build the async Firestore client inside the request's event loop so its
+    # gRPC transport binds to the loop that drives it. Each invocation runs on
+    # a fresh asyncio.run() loop, so a module-level client would be bound to an
+    # already-closed loop on subsequent requests.
+    db = firestore.AsyncClient(
+        project=settings.gcp_project_id,
+        database=settings.firestore_database
+    )
+    try:
+        collection = db.collection(settings.firestore_collection)
+        repository = {{ cookiecutter.project_class_name }}Repository(collection)
+        service = {{ cookiecutter.project_class_name }}Service(repository)
+        controller = {{ cookiecutter.project_class_name }}Controller(service)
+        return await operation(controller)
+    finally:
+        db.close()
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
-import boto3
+import asyncio
+import aioboto3
 
-# Initialize DynamoDB table resource with explicit region to avoid
-# NoRegionError in local dev or misconfigured environments.
-aws_region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
-dynamodb = boto3.resource("dynamodb", region_name=aws_region)
-table_name = os.getenv("DYNAMODB_TABLE_NAME", "{{ cookiecutter.project_slug }}")
-table = dynamodb.Table(table_name)
-repository = {{ cookiecutter.project_class_name }}Repository(table)
+settings = get_settings()
+# A single aioboto3 session is reused; each call opens a short-lived
+# async resource context so DynamoDB I/O is non-blocking.
+session = aioboto3.Session()
+repository = {{ cookiecutter.project_class_name }}Repository(
+    session,
+    settings.dynamodb_table_name,
+    settings.aws_region
+)
 {%- endif %}
 
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 service = {{ cookiecutter.project_class_name }}Service(repository)
 controller = {{ cookiecutter.project_class_name }}Controller(service)
+{%- endif %}
+
+{% if cookiecutter.cloud_service == 'Azure Function App' -%}
+@bp.route(route="health", methods=[func.HttpMethod.GET])
+async def health(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(
+        body='{"status": "ok"}',
+        status_code=200,
+        mimetype="application/json"
+    )
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+def health(request: Request):
+    """HTTP Cloud Function liveness probe."""
+    return ('{"status": "ok"}', 200, {'Content-Type': 'application/json'})
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+def health(event):
+    """Lambda handler liveness probe."""
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": '{"status": "ok"}'
+    }
+{%- endif %}
+
 
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 @bp.route(route="{{ cookiecutter.project_endpoint }}/{item_id}", methods=[func.HttpMethod.GET])
@@ -66,13 +111,13 @@ def get_by_id(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        item = controller.get_by_id(req)
+        item = await _run(lambda c: c.get_by_id(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        item = controller.get_by_id(request)
+        item = asyncio.run(_run(lambda c: c.get_by_id(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        item = controller.get_by_id(event)
+        item = asyncio.run(controller.get_by_id(event))
 {%- endif %}
         return response_generator(item)
 
@@ -95,7 +140,15 @@ def get_list(event):
     logging.info("Get {{ cookiecutter.project_endpoint }} list processed a request.")
 
     try:
-        items = controller.get_list()
+{%- if cookiecutter.cloud_service == 'Azure Function App' %}
+        items = await _run(lambda c: c.get_list(req))
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
+        items = asyncio.run(_run(lambda c: c.get_list(request)))
+{%- endif %}
+{%- if cookiecutter.cloud_service == 'AWS Lambda' %}
+        items = asyncio.run(controller.get_list(event))
+{%- endif %}
         return response_generator(items)
 
     except Exception as error:
@@ -118,13 +171,13 @@ def create(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        created_item = controller.create(req)
+        created_item = await _run(lambda c: c.create(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        created_item = controller.create(request)
+        created_item = asyncio.run(_run(lambda c: c.create(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        created_item = controller.create(event)
+        created_item = asyncio.run(controller.create(event))
 {%- endif %}
         return response_generator(created_item, 201)
 
@@ -148,15 +201,15 @@ def update(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        updated_item = controller.update(req)
+        updated_item = await _run(lambda c: c.update(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        updated_item = controller.update(request)
+        updated_item = asyncio.run(_run(lambda c: c.update(request)))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        updated_item = controller.update(event)
+        updated_item = asyncio.run(controller.update(event))
 {%- endif %}
-        return response_generator(updated_item, 201)
+        return response_generator(updated_item, 200)
 
     except Exception as error:
         return detect_error(error)
@@ -178,18 +231,18 @@ def delete(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        controller.soft_delete(req)
+        await _run(lambda c: c.soft_delete(req))
         return func.HttpResponse(
             body="{{ cookiecutter.project_class_name }} deleted.",
             status_code=200
         )
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
-        controller.soft_delete(request)
+        asyncio.run(_run(lambda c: c.soft_delete(request)))
         return ("{{ cookiecutter.project_class_name }} deleted.", 200)
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
-        controller.soft_delete(event)
+        asyncio.run(controller.soft_delete(event))
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json"},

@@ -11,6 +11,7 @@ import (
 	"net/http"
 {%- endif %}
 	"os"
+	"strconv"
 {%- if cookiecutter.cloud_service == 'AWS Lambda' %}
 	"strings"
 {%- endif %}
@@ -53,6 +54,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /api/health", handleHealth())
 	mux.HandleFunc("GET /api/{{cookiecutter.project_endpoint}}/{id}", handleGet(controller))
 	mux.HandleFunc("GET /api/{{cookiecutter.project_endpoint}}", handleGetList(controller))
 	mux.HandleFunc("POST /api/{{cookiecutter.project_endpoint}}", handleCreate(controller))
@@ -69,6 +71,10 @@ func initController() controllers.{{cookiecutter.project_class_name}}Controller 
 	key := os.Getenv("CosmosDbKey")
 	databaseName := os.Getenv("CosmosDbDatabaseName")
 	containerName := os.Getenv("CosmosDbContainerName")
+
+	if endpoint == "" || key == "" || databaseName == "" || containerName == "" {
+		log.Fatal("CosmosDbEndpoint, CosmosDbKey, CosmosDbDatabaseName and CosmosDbContainerName environment variables are required")
+	}
 
 	cred, err := azcosmos.NewKeyCredential(key)
 	if err != nil {
@@ -155,11 +161,20 @@ func handleGet(controller controllers.{{cookiecutter.project_class_name}}Control
 	}
 }
 
+func handleHealth() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
 func handleGetList(controller controllers.{{cookiecutter.project_class_name}}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Get{{cookiecutter.project_class_name}}List processed a request.")
 
-		result, err := controller.GetList(r.Context())
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		result, err := controller.GetList(r.Context(), limit)
 		if err != nil {
 			log.Printf("Exception in Get{{cookiecutter.project_class_name}}List: %v", err)
 			utils.DetectError(w, err)
@@ -232,6 +247,9 @@ var controller controllers.{{cookiecutter.project_class_name}}Controller
 
 func init() {
 	tableName := os.Getenv("DYNAMODB_TABLE_NAME")
+	if tableName == "" {
+		log.Fatal("DYNAMODB_TABLE_NAME environment variable is required")
+	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
 	if err != nil {
@@ -259,12 +277,17 @@ func main() {
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	log.Printf("Received %s request for %s", request.HTTPMethod, request.Resource)
 
+	if request.HTTPMethod == "GET" && (strings.HasSuffix(strings.TrimRight(request.Path, "/"), "/health") || strings.HasSuffix(strings.TrimRight(request.Resource, "/"), "/health")) {
+		return handleHealth()
+	}
+
 	switch request.HTTPMethod {
 	case "GET":
 		if id, ok := request.PathParameters["item_id"]; ok {
 			return handleGet(ctx, id)
 		}
-		return handleGetList(ctx)
+		limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
+		return handleGetList(ctx, limit)
 	case "POST":
 		return handleCreate(ctx, request.Body)
 	case "PATCH":
@@ -295,10 +318,19 @@ func handleGet(ctx context.Context, id string) (events.APIGatewayProxyResponse, 
 	}, nil
 }
 
-func handleGetList(ctx context.Context) (events.APIGatewayProxyResponse, error) {
+func handleHealth() (events.APIGatewayProxyResponse, error) {
+	body, _ := json.Marshal(map[string]string{"status": "ok"})
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+
+func handleGetList(ctx context.Context, limit int) (events.APIGatewayProxyResponse, error) {
 	log.Printf("Get{{cookiecutter.project_class_name}}List processed a request.")
 
-	result, err := controller.GetList(ctx)
+	result, err := controller.GetList(ctx, limit)
 	if err != nil {
 		log.Printf("Exception in Get{{cookiecutter.project_class_name}}List: %v", err)
 		return utils.DetectError(err), nil

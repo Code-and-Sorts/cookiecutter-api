@@ -34,7 +34,7 @@ import (
 
 type {{cookiecutter.project_class_name}}Repository interface {
 	Get(ctx context.Context, id string) (*models.{{cookiecutter.project_class_name}}Dto, error)
-	GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error)
+	GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error)
 	Create(ctx context.Context, item models.{{cookiecutter.project_class_name}}) (*models.{{cookiecutter.project_class_name}}Dto, error)
 	Update(ctx context.Context, item models.{{cookiecutter.project_class_name}}) (*models.{{cookiecutter.project_class_name}}Dto, error)
 	Delete(ctx context.Context, id string) error
@@ -83,8 +83,8 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) Get(ctx context.Co
 	}, nil
 }
 
-func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
-	query := "SELECT * FROM c WHERE c.isDeleted = false"
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	query := fmt.Sprintf("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT %d", limit)
 	pager := r.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
 
 	var results []models.{{cookiecutter.project_class_name}}Dto
@@ -103,6 +103,10 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx contex
 				Id:   entity.Id,
 				Name: entity.Name,
 			})
+		}
+
+		if len(results) >= limit {
+			break
 		}
 	}
 
@@ -241,8 +245,8 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) Get(ctx context.Co
 	}, nil
 }
 
-func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
-	iter := r.collection.Where("isDeleted", "==", false).Documents(ctx)
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	iter := r.collection.Where("isDeleted", "==", false).Limit(limit).Documents(ctx)
 	defer iter.Stop()
 
 	var results []models.{{cookiecutter.project_class_name}}Dto
@@ -382,7 +386,7 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) Get(ctx context.Co
 	}, nil
 }
 
-func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
 	filt := expression.Equal(expression.Name("isDeleted"), expression.Value(false))
 	expr, err := expression.NewBuilder().WithFilter(filt).Build()
 	if err != nil {
@@ -399,6 +403,7 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx contex
 			ExpressionAttributeNames:  expr.Names(),
 			ExpressionAttributeValues: expr.Values(),
 			ExclusiveStartKey:         lastKey,
+			Limit:                     aws.Int32(int32(limit)),
 		}
 
 		resp, err := r.client.Scan(ctx, input)
@@ -417,10 +422,14 @@ func (r *{{cookiecutter.project_lower_camel_name}}Repository) GetList(ctx contex
 			})
 		}
 
-		if resp.LastEvaluatedKey == nil {
+		if resp.LastEvaluatedKey == nil || len(results) >= limit {
 			break
 		}
 		lastKey = resp.LastEvaluatedKey
+	}
+
+	if len(results) > limit {
+		results = results[:limit]
 	}
 
 	return results, nil

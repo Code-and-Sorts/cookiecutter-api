@@ -99,6 +99,18 @@ Resources:
             Path: /api/{{cookiecutter.project_endpoint}}/{id}
             Method: DELETE
 
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{cookiecutter.project_class_name}}.Api::{{cookiecutter.project_class_name}}.Api.Functions.Health::Get
+      CodeUri: ./
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /api/health
+            Method: GET
+
   {{cookiecutter.project_class_name}}Table:
     Type: AWS::DynamoDB::Table
     Properties:

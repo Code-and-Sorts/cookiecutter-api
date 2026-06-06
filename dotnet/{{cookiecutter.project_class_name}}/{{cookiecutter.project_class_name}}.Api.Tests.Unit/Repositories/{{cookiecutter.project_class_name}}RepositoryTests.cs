@@ -66,7 +66,7 @@ public class {{cookiecutter.project_class_name}}RepositoryTest
         feedIterator.HasMoreResults.Returns(true, false);
         feedIterator.ReadNextAsync(Arg.Any<CancellationToken>()).Returns(feedResponse);
 
-        _mockContainer.GetItemQueryIterator<{{cookiecutter.project_class_name}}>("SELECT * FROM c WHERE c.isDeleted = false")
+        _mockContainer.GetItemQueryIterator<{{cookiecutter.project_class_name}}>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100")
             .Returns(feedIterator);
 
         // Act

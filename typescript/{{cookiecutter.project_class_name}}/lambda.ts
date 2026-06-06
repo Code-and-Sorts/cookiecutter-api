@@ -14,6 +14,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const controller = container.resolve({{cookiecutter.project_class_name}}Controller);
   const id = event.pathParameters?.id;
 
+  const path = (event.path || event.resource || '').replace(/\/+$/, '');
+  if (event.httpMethod === 'GET' && path.endsWith('/health')) {
+    return jsonResponse(200, { status: 'ok' });
+  }
+
   try {
     switch (event.httpMethod) {
       case 'GET': {
@@ -21,7 +26,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           const result = await controller.get(id);
           return jsonResponse(200, result);
         }
-        const results = await controller.list();
+        const results = await controller.list(event.queryStringParameters?.limit ?? undefined);
         return jsonResponse(200, results);
       }
 

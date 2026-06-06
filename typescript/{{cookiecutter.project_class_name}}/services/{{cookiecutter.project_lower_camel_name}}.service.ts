@@ -26,8 +26,8 @@ export class {{cookiecutter.project_class_name}}Service {
     return {{cookiecutter.project_class_name}}ResponseSchema.parse({{cookiecutter.project_lower_camel_name}});
   };
 
-  get{{cookiecutter.project_class_name}}s = async (): Promise<{{cookiecutter.project_class_name}}Response[]> => {
-    const {{cookiecutter.project_lower_camel_name}} = await this._repo.list();
+  get{{cookiecutter.project_class_name}}s = async (limit?: number): Promise<{{cookiecutter.project_class_name}}Response[]> => {
+    const {{cookiecutter.project_lower_camel_name}} = await this._repo.list(limit);
     return {{cookiecutter.project_lower_camel_name}}.map(({{cookiecutter.project_lower_camel_name}}) => {{cookiecutter.project_class_name}}ResponseSchema.parse({{cookiecutter.project_lower_camel_name}}));
   };
 

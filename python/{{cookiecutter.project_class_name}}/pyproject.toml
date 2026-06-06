@@ -7,7 +7,9 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.15"
+python = ">=3.13,<3.15"
+pydantic = "^2.12.0"
+pydantic-settings = "^2.6.0"
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
 azure-cosmos = "^4.15.0"
 {%- endif %}
@@ -16,23 +18,28 @@ google-cloud-firestore = "^2.26.0"
 functions-framework = "^3.10.0"
 {%- endif %}
 {% if cookiecutter.cloud_service == 'AWS Lambda' -%}
-boto3 = "^1.42.0"
+aioboto3 = "^15.5.0"
 {%- endif %}
 pytest-mock = "^3.14.0"
 pytest-describe = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 {% if cookiecutter.cloud_service == 'Azure Function App' -%}
-azure-functions = "1.24.0"
+azure-functions = "2.1.0"
 {%- endif %}
 pytest = "^9.0.0"
 pytest-cov = "^7.0.0"
-pydantic = "^2.12.0"
 ruff = "^0.15.0"
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["*_test.py"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]

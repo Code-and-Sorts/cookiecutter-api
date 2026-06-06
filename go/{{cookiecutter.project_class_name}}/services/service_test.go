@@ -22,8 +22,8 @@ func (m *mock{{cookiecutter.project_class_name}}Repository) Get(ctx context.Cont
 	return args.Get(0).(*models.{{cookiecutter.project_class_name}}Dto), args.Error(1)
 }
 
-func (m *mock{{cookiecutter.project_class_name}}Repository) GetList(ctx context.Context) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
-	args := m.Called(ctx)
+func (m *mock{{cookiecutter.project_class_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{cookiecutter.project_class_name}}Dto, error) {
+	args := m.Called(ctx, limit)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -80,10 +80,10 @@ func TestGetList_ShouldReturnListOf{{cookiecutter.project_class_name}}Dto(t *tes
 		{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mock{{cookiecutter.project_class_name}}1"},
 		{Id: "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name: "mock{{cookiecutter.project_class_name}}2"},
 	}
-	mockRepo.On("GetList", mock.Anything).Return(expected, nil)
+	mockRepo.On("GetList", mock.Anything, 50).Return(expected, nil)
 
 	// Act
-	result, err := service.GetList(context.Background())
+	result, err := service.GetList(context.Background(), 50)
 
 	// Assert
 	assert.NoError(t, err)

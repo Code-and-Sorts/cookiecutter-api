@@ -132,6 +132,19 @@ describe('{{cookiecutter.project_class_name}}Controller', () => {
             await mock{{cookiecutter.project_class_name}}Controller.list();
             expect(mockGet{{cookiecutter.project_class_name}}s).toHaveBeenCalledTimes(1);
         });
+
+        it('should default the limit when not provided', async () => {
+            await mock{{cookiecutter.project_class_name}}Controller.list();
+            expect(mockGet{{cookiecutter.project_class_name}}s).toHaveBeenCalledWith(100);
+        });
+
+        it('should coerce and clamp the limit query param', async () => {
+            await mock{{cookiecutter.project_class_name}}Controller.list('5');
+            expect(mockGet{{cookiecutter.project_class_name}}s).toHaveBeenCalledWith(5);
+
+            await mock{{cookiecutter.project_class_name}}Controller.list('999999');
+            expect(mockGet{{cookiecutter.project_class_name}}s).toHaveBeenCalledWith(1000);
+        });
     });
 
     describe('update', () => {

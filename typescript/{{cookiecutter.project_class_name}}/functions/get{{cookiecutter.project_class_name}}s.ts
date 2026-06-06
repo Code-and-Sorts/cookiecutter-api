@@ -9,7 +9,8 @@ export async function get{{cookiecutter.project_class_name}}s(request: HttpReque
     try {
         const controller = container.resolve({{cookiecutter.project_class_name}}Controller);
 
-        const result = await controller.list();
+        const limit = request.query.get('limit') ?? undefined;
+        const result = await controller.list(limit);
 
         return {
             status: 200,

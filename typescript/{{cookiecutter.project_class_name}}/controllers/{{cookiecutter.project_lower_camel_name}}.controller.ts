@@ -11,6 +11,18 @@ import {
 import { ValidationError } from '@errors';
 import { SchemaValidator } from '@services';
 
+// Bounds for list pagination, protecting the datastore from unbounded reads.
+const DEFAULT_LIST_LIMIT = 100;
+const MAX_LIST_LIMIT = 1000;
+
+const coerceLimit = (raw?: string | number): number => {
+  const parsed = typeof raw === 'number' ? raw : parseInt(raw ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return DEFAULT_LIST_LIMIT;
+  }
+  return Math.min(parsed, MAX_LIST_LIMIT);
+};
+
 @injectable()
 export class {{cookiecutter.project_class_name}}Controller {
   private _service: {{cookiecutter.project_class_name}}Service;
@@ -34,7 +46,8 @@ export class {{cookiecutter.project_class_name}}Controller {
     return this._service.get{{cookiecutter.project_class_name}}(id);
   };
 
-  list = async (): Promise<{{cookiecutter.project_class_name}}[]> => this._service.get{{cookiecutter.project_class_name}}s();
+  list = async (limit?: string | number): Promise<{{cookiecutter.project_class_name}}[]> =>
+    this._service.get{{cookiecutter.project_class_name}}s(coerceLimit(limit));
 
   update = async ({{cookiecutter.project_lower_camel_name}}Request: Partial<{{cookiecutter.project_class_name}}Update>): Promise<{{cookiecutter.project_class_name}}> => {
     if (!{{cookiecutter.project_lower_camel_name}}Request.id) {

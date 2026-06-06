@@ -32,8 +32,8 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         node-version:
-          - "18.x"
           - "20.x"
+          - "22.x"
       fail-fast: false
     steps:
       - name: Check out
@@ -75,6 +75,18 @@ jobs:
 
       - name: Run dependency vulnerability scan
         continue-on-error: true
-        run: yarn npm audit --severity moderate
+        run: |
+            set +e
+            yarn npm audit --severity moderate 2>&1 | tee audit.log
+            status=$?
+            set -e
+            {
+              echo "### TypeScript dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo ""
+              echo '```'
+              cat audit.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit $status
         working-directory: KittenClaws
         shell: bash
