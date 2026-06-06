@@ -11,10 +11,18 @@ from azure.cosmos.aio import CosmosClient
 bp = func.Blueprint()
 
 settings = get_settings()
-client = CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key)
-database_client = client.get_database_client(settings.cosmos_db_database_name)
-container_client = database_client.get_container_client(settings.cosmos_db_container_name)
-repository = {{ cookiecutter.project_class_name }}Repository(container_client)
+
+
+async def _run(operation):
+    # Scope the async Cosmos client to the request via `async with` so its
+    # aiohttp session is always closed, avoiding leaked/unclosed sessions.
+    async with CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key) as client:
+        database_client = client.get_database_client(settings.cosmos_db_database_name)
+        container_client = database_client.get_container_client(settings.cosmos_db_container_name)
+        repository = {{ cookiecutter.project_class_name }}Repository(container_client)
+        service = {{ cookiecutter.project_class_name }}Service(repository)
+        controller = {{ cookiecutter.project_class_name }}Controller(service)
+        return await operation(controller)
 {%- endif %}
 {% if cookiecutter.cloud_service == 'GCP Cloud Function' -%}
 import asyncio
@@ -57,7 +65,7 @@ repository = {{ cookiecutter.project_class_name }}Repository(
 )
 {%- endif %}
 
-{% if cookiecutter.cloud_service != 'GCP Cloud Function' -%}
+{% if cookiecutter.cloud_service == 'AWS Lambda' -%}
 service = {{ cookiecutter.project_class_name }}Service(repository)
 controller = {{ cookiecutter.project_class_name }}Controller(service)
 {%- endif %}
@@ -103,7 +111,7 @@ def get_by_id(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        item = await controller.get_by_id(req)
+        item = await _run(lambda c: c.get_by_id(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         item = asyncio.run(_run(lambda c: c.get_by_id(request)))
@@ -133,7 +141,7 @@ def get_list(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        items = await controller.get_list(req)
+        items = await _run(lambda c: c.get_list(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         items = asyncio.run(_run(lambda c: c.get_list(request)))
@@ -163,7 +171,7 @@ def create(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        created_item = await controller.create(req)
+        created_item = await _run(lambda c: c.create(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         created_item = asyncio.run(_run(lambda c: c.create(request)))
@@ -193,7 +201,7 @@ def update(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        updated_item = await controller.update(req)
+        updated_item = await _run(lambda c: c.update(req))
 {%- endif %}
 {%- if cookiecutter.cloud_service == 'GCP Cloud Function' %}
         updated_item = asyncio.run(_run(lambda c: c.update(request)))
@@ -223,7 +231,7 @@ def delete(event):
 
     try:
 {%- if cookiecutter.cloud_service == 'Azure Function App' %}
-        await controller.soft_delete(req)
+        await _run(lambda c: c.soft_delete(req))
         return func.HttpResponse(
             body="{{ cookiecutter.project_class_name }} deleted.",
             status_code=200
