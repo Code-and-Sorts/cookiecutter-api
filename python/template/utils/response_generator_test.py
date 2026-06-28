@@ -1,9 +1,9 @@
-from models import {{ project_class_name }}Response
+from models import ItemResponse
 from .response_generator import response_generator
 
 def describe_response_generator():
     def test_list_item_response_single_item():
-        item_response = {{ project_class_name }}Response(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
+        item_response = ItemResponse(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
         item_response_list = [item_response]
         response = response_generator(item_response_list, 200)
 
@@ -38,7 +38,7 @@ def describe_response_generator():
 {%- endif %}
 
     def test_list_item_response_multiple_items():
-        item_response = {{ project_class_name }}Response(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
+        item_response = ItemResponse(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
         item_response_list = [item_response, item_response]
         response = response_generator(item_response_list, 200)
 
@@ -56,7 +56,7 @@ def describe_response_generator():
 {%- endif %}
 
     def test_item_response():
-        item_response = {{ project_class_name }}Response(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
+        item_response = ItemResponse(id="935e5045-4a1c-46c9-8e26-9d9d5c2597f3",name="mockName",type="mockType")
         response = response_generator(item_response, 200)
 
 {%- if cloud_service == 'Azure Function App' %}

@@ -1,3 +1,3 @@
-from .{{project_slug}}_service import {{ project_class_name }}Service
+from .service import Service
 
-__all__ = ["{{ project_class_name }}Service"]
+__all__ = ["Service"]

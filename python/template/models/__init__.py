@@ -1,3 +1,3 @@
-from .{{project_slug}} import {{ project_class_name }}, Base{{ project_class_name }}, {{ project_class_name }}Response, {{ project_class_name }}IdValidation, generate_utc_timestamp
+from .item import Item, BaseItem, ItemResponse, ItemIdValidation, generate_utc_timestamp
 
-__all__ = ["{{ project_class_name }}","Base{{ project_class_name }}","{{ project_class_name }}Response","{{ project_class_name }}IdValidation", "generate_utc_timestamp"]
+__all__ = ["Item", "BaseItem", "ItemResponse", "ItemIdValidation", "generate_utc_timestamp"]

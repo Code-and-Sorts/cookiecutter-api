@@ -18,41 +18,66 @@ Resources:
         - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE_NAME: !Ref {{ project_class_name }}Table
+{%- for container in resources | map(attribute='container') | unique %}
+          DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}: !Ref {{ container | to_camel }}Table
+{%- endfor %}
       Policies:
+{%- for container in resources | map(attribute='container') | unique %}
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{ project_class_name }}Table
+            TableName: !Ref {{ container | to_camel }}Table
+{%- endfor %}
       Events:
-        GetById:
+{%- for resource in resources %}
+{%- set cn = resource.name | to_camel %}
+{%- if "list" in resource.operations %}
+        List{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ project_endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}
             Method: get
-        GetList:
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+        Get{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ project_endpoint }}
+            Path: /{{ resource.endpoint }}/{item_id}
             Method: get
-        Create:
+{%- endif %}
+{%- if "create" in resource.operations %}
+        Create{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ project_endpoint }}
+            Path: /{{ resource.endpoint }}
             Method: post
-        Update:
+{%- endif %}
+{%- if "update" in resource.operations %}
+        Update{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ project_endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{item_id}
             Method: patch
-        Delete:
+{%- endif %}
+{%- if "replace" in resource.operations %}
+        Replace{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ project_endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{item_id}
+            Method: put
+{%- endif %}
+{%- if "delete" in resource.operations %}
+        Delete{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}/{item_id}
             Method: delete
+{%- endif %}
+{%- endfor %}
 
-  {{ project_class_name }}Table:
+{% for container in resources | map(attribute='container') | unique %}
+  {{ container | to_camel }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{ project_slug }}
+      TableName: {{ container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -60,11 +85,11 @@ Resources:
         - AttributeName: id
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
-
+{% endfor %}
 Outputs:
   {{ project_class_name }}Api:
-    Description: API Gateway endpoint URL
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/{{ project_endpoint }}/"
+    Description: API Gateway endpoint base URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
   {{ project_class_name }}Function:
     Description: Lambda Function ARN
     Value: !GetAtt {{ project_class_name }}Function.Arn

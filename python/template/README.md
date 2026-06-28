@@ -14,12 +14,28 @@ This project is a Python-based REST API built using [Google Cloud Functions](htt
 This project is a Python-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with API Gateway. The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered Lambda functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+The REST API exposes the following resources and operations:
+{% for resource in resources %}
+- **`/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
+{%- if "list" in resource.operations %}
+  - `GET /{{ resource.endpoint }}` — list
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+  - `GET /{{ resource.endpoint }}/{item_id}` — get by ID
+{%- endif %}
+{%- if "create" in resource.operations %}
+  - `POST /{{ resource.endpoint }}` — create
+{%- endif %}
+{%- if "update" in resource.operations %}
+  - `PATCH /{{ resource.endpoint }}/{item_id}` — partial update
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  - `PUT /{{ resource.endpoint }}/{item_id}` — full replace
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  - `DELETE /{{ resource.endpoint }}/{item_id}` — soft delete
+{%- endif %}
+{%- endfor %}
 
 {% if cloud_service == 'Azure Function App' -%}
 Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
@@ -154,34 +170,40 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
     Set the following environment variables for local development:
     - `GCP_PROJECT_ID`: Your GCP project ID
     - `FIRESTORE_DATABASE`: Firestore database name (defaults to "(default)")
-    - `FIRESTORE_COLLECTION`: Firestore collection name (defaults to "{{ project_slug }}")
+{%- for container in resources | map(attribute='container') | unique %}
+    - `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}`: Firestore collection for the `{{ container }}` container (defaults to "{{ container }}")
+{%- endfor %}
 
 5. Run the API Locally
 
-    To run a specific function locally using Functions Framework:
+    Each operation deploys as its own function. Run a specific one locally using Functions Framework:
 
     ```console
-    # Run the get_list function
-    poetry run functions-framework --target=get_list --source=main.py --port=8080
-    
-    # Or run other functions
-    poetry run functions-framework --target=get_by_id --source=main.py --port=8080
-    poetry run functions-framework --target=create --source=main.py --port=8080
+{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} %}
+{%- for resource in resources %}
+{%- for op in resource.operations %}
+    poetry run functions-framework --target={{ op_fn[op] }}_{{ resource.name | to_snake }} --source=main.py --port=8080
+{%- endfor %}
+{%- endfor %}
     ```
 
 6. Deploy to GCP
 
-    Deploy individual functions to GCP Cloud Functions:
+    Deploy each function to GCP Cloud Functions:
 
     ```console
-    # Deploy the get_list function
-    gcloud functions deploy get_list \
+{%- for resource in resources %}
+{%- for op in resource.operations %}
+{%- set fn = op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
+    gcloud functions deploy {{ fn }} \
       --runtime python313 \
       --trigger-http \
       --allow-unauthenticated \
-      --entry-point get_list \
+      --entry-point {{ fn }} \
       --source . \
-      --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION={{ project_slug }}
+      --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}={{ resource.container }}
+{%- endfor %}
+{%- endfor %}
     ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}

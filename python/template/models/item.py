@@ -7,18 +7,18 @@ from uuid import UUID
 def generate_utc_timestamp():
     return str(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
-class Base{{ project_class_name }}(BaseModel):
+class BaseItem(BaseModel):
     name: str
     type: Optional[str] = None
 
-class {{ project_class_name }}IdValidation(BaseModel):
+class ItemIdValidation(BaseModel):
     id: UUID
 
-class {{ project_class_name }}(Base{{ project_class_name }}):
+class Item(BaseItem):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     isDeleted: bool = Field(default=False)
     createdDate: str = Field(default_factory=lambda: generate_utc_timestamp())
     updatedDate: str = generate_utc_timestamp()
 
-class {{ project_class_name }}Response(Base{{ project_class_name }}):
+class ItemResponse(BaseItem):
     id: str

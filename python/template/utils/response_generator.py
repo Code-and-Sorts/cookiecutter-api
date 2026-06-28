@@ -2,9 +2,9 @@ import json
 {% if cloud_service == 'Azure Function App' -%}
 from azure.functions import HttpResponse
 {%- endif %}
-from models import {{ project_class_name }}Response
+from models import ItemResponse
 
-def response_generator(items: {{ project_class_name }}Response | list, status_code: int = 200):
+def response_generator(items: ItemResponse | list, status_code: int = 200):
 {%- if cloud_service == 'GCP Cloud Function' %}
     headers = {'Content-Type': 'application/json'}
 {%- endif %}
