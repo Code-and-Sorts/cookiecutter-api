@@ -62,22 +62,6 @@ public class {{project_class_name}}ControllerTest
         await _mock{{project_class_name}}Service.Received(1).GetListAsync(Arg.Any<CancellationToken>());
     }
 
-    // [Fact]
-    // public async Task CreateAsync_ReturnsCreated{{project_class_name}}Dto()
-    // {
-    //     // Arrange
-    //     var createRequest = new Create{{project_class_name}}Request { Name = "mockCreate{{project_class_name}}", CreatedBy = null, UpdatedBy = null };
-    //     var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockCreate{{project_class_name}}" };
-    //     _mock{{project_class_name}}Service.CreateAsync(createRequest, Arg.Any<CancellationToken>()).Returns(expected{{project_class_name}});
-
-    //     // Act
-    //     var stream = CreateMemoryStream(createRequest);
-    //     await _{{project_lower_camel_name}}Controller.CreateAsync(stream);
-
-    //     // Assert
-    //     await _mock{{project_class_name}}Service.Received(1).CreateAsync(createRequest, Arg.Any<CancellationToken>());
-    // }
-
     [Fact]
     public async Task CreateAsync_ReturnsCreated{{project_class_name}}Dto()
     {

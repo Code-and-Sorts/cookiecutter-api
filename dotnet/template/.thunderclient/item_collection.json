@@ -1,6 +1,6 @@
 {
     "clientName": "Thunder Client",
-    "collectionName": "{{ project_class_name }}s Requests",
+    "collectionName": "{{ project_class_name }} Requests",
     "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
     "dateExported": "2024-08-10T22:25:59.850Z",
     "version": "1.2",

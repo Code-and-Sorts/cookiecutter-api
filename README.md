@@ -13,7 +13,7 @@
 
 [![](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](./LICENSE)
 
-[![](https://img.shields.io/badge/made%20using%20copier-grey?style=for-the-badge&logo=copier)](https://github.com/copier-org/copier)
+[![](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-purple.json&style=for-the-badge)](https://github.com/copier-org/copier)
 
 
 A [Copier](https://github.com/copier-org/copier) template for generating REST APIs across multiple cloud platforms and languages.
@@ -47,11 +47,6 @@ Follow the prompts to configure your project. The generated project includes a
 cd my-api
 copier update
 ```
-
-> [!NOTE]
-> Unlike Cookiecutter's `--directory` flag, Copier selects the template from the path you
-> pass it rather than a sub-directory of a remote URL, so clone the repository first and
-> point Copier at the language directory.
 
 ## Supported Templates
 
