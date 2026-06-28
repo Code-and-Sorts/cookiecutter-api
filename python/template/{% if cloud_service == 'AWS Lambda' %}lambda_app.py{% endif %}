@@ -1,0 +1,37 @@
+"""
+Main entry point for AWS Lambda.
+Routes API Gateway events to the appropriate handler.
+"""
+from blueprints.{{project_slug}}_api import (
+    get_by_id,
+    get_list,
+    create,
+    update,
+    delete,
+    health
+)
+from utils.detect_error import generate_error_response
+
+
+def lambda_handler(event, context):
+    http_method = event.get("httpMethod", "")
+    resource = event.get("resource", "")
+
+    if http_method == "GET" and resource.rstrip("/").endswith("/health"):
+        return health(event)
+    elif http_method == "GET" and "{item_id}" in resource:
+        return get_by_id(event)
+    elif http_method == "GET":
+        return get_list(event)
+    elif http_method == "POST":
+        return create(event)
+    elif http_method == "PATCH":
+        return update(event)
+    elif http_method == "DELETE":
+        return delete(event)
+    else:
+        return generate_error_response(
+            message="Not Found",
+            type="NotFoundError",
+            status_code=404
+        )

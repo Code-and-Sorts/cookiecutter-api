@@ -1,0 +1,70 @@
+namespace {{project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using Xunit;
+using {{project_class_name}}.Api.Functions;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Dtos;
+using NSubstitute.ExceptionExtensions;
+using {{project_class_name}}.Api.Utils;
+
+public class Delete{{project_class_name}}Test
+{
+    private readonly I{{project_class_name}}Controller _mock{{project_class_name}}Controller;
+    private readonly ILogger<Delete{{project_class_name}}> _mockLogger;
+    private readonly Delete{{project_class_name}} _delete{{project_class_name}}Function;
+
+    public Delete{{project_class_name}}Test()
+    {
+        _mock{{project_class_name}}Controller = Substitute.For<I{{project_class_name}}Controller>();
+        _mockLogger = Substitute.For<ILogger<Delete{{project_class_name}}>>();
+        _delete{{project_class_name}}Function = new Delete{{project_class_name}}(_mock{{project_class_name}}Controller, _mockLogger);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsDeleteResult_When{{project_class_name}}IsDeleted()
+    {
+        // Arrange
+        var {{project_lower_camel_name}}Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var delete{{project_class_name}}Dto = new {{project_class_name}}Dto { Id = {{project_lower_camel_name}}Id, Name = "mock{{project_class_name}}" };
+        var httpRequestData = Mocks.CreateHttpRequestData(delete{{project_class_name}}Dto, "DELETE");
+
+        _mock{{project_class_name}}Controller.DeleteAsync({{project_lower_camel_name}}Id, Arg.Any<CancellationToken>()).Returns(Task.FromResult(delete{{project_class_name}}Dto));
+
+        // Act
+        var result = await _delete{{project_class_name}}Function.Delete(httpRequestData, {{project_lower_camel_name}}Id);
+
+        var deleteResult = Assert.IsType<OkObjectResult>(result);
+        var errorResult = Assert.IsType<DeleteOkObjectResult>(deleteResult.Value);
+
+        // Assert
+        Assert.Equal(200, deleteResult.StatusCode);
+        Assert.Equal("{{project_class_name}} with id 0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c was deleted successfully.", errorResult.Message);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        // Arrange
+        var {{project_lower_camel_name}}Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var delete{{project_class_name}}Dto = new {{project_class_name}}Dto { Id = {{project_lower_camel_name}}Id, Name = "mock{{project_class_name}}" };
+        var httpRequestData = Mocks.CreateHttpRequestData(delete{{project_class_name}}Dto, "DELETE");
+
+        _mock{{project_class_name}}Controller.DeleteAsync({{project_lower_camel_name}}Id, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        // Act
+        var result = await _delete{{project_class_name}}Function.Delete(httpRequestData, {{project_lower_camel_name}}Id);
+
+        var objectResult = Assert.IsType<HttpResponseInit>(result);
+        var errorResult = Assert.IsType<BaseError>(objectResult.Value);
+
+        // Assert
+        Assert.Equal(500, objectResult.StatusCode);
+        Assert.Equal("Mock exception", errorResult.ErrorMessage);
+    }
+}

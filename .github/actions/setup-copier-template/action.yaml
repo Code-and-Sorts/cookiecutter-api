@@ -1,0 +1,42 @@
+name: Setup Copier Template
+description: Composite action to generate the Copier template.
+
+inputs:
+  template-language:
+    required: true
+    description: Template language
+  template-cloud-service:
+    required: true
+    description: Template cloud service
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Set up python
+      uses: actions/setup-python@v6
+      with:
+        python-version: 3.14
+
+    - name: Install Copier
+      run: pip install copier
+      shell: bash
+
+    - name: Install Copier Extensions
+      run: pip install jinja2-strcase jinja2-time
+      shell: bash
+
+    - name: Create Copier Template
+      run: |
+        copier copy --defaults --trust \
+          --data project_name="KittenClaws" \
+          --data project_description="Kitties got claws...beware" \
+          --data project_slug="kitty_cats" \
+          --data project_endpoint="kitties" \
+          --data project_lower_camel_name="kittenClaws" \
+          --data project_class_name="KittenClaws" \
+          --data author="Sir Meowsalots" \
+          --data cloud_service="${{ inputs.template-cloud-service }}" \
+          --data open_source_license="MIT license" \
+          ./${{ inputs.template-language }} ./KittenClaws
+      shell: bash

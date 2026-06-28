@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+{%- if cloud_service == 'Azure Function App' %}
+        "ms-azuretools.vscode-azurefunctions"
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+        "amazonwebservices.aws-toolkit-vscode"
+{%- endif %}
+    ]
+}

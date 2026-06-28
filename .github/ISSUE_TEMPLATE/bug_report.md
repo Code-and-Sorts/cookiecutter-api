@@ -26,7 +26,7 @@ If applicable, add screenshots to help explain your problem.
 **Environment (please complete the following information):**
  - OS: [e.g. Windows 11 23H2, macOS 14.6.1]
  - Python version: [e.g. 3.11.9]
- - Cookiecutter version: [e.g. v2.6.0]
+ - Copier version: [e.g. v9.0.0]
  - Template project name: [e.g. Azure Function App - Python]
 
 **Additional context**

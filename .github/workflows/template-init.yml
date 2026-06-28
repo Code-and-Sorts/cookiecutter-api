@@ -73,7 +73,7 @@ jobs:
                 '- **License** — The open source license for your project',
                 '',
                 'Once you submit the form, a workflow will automatically:',
-                '1. Generate your project from the cookiecutter template',
+                '1. Generate your project from the Copier template',
                 '2. Create a pull request with the fully configured project',
                 '3. Remove all template scaffolding, leaving only your project files',
                 '',

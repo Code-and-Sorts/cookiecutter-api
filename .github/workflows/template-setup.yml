@@ -144,10 +144,10 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install cookiecutter
-        run: pip install cookiecutter jinja2-strcase
+      - name: Install copier
+        run: pip install copier jinja2-strcase jinja2-time
 
-      - name: Run cookiecutter
+      - name: Run copier
         env:
           TEMPLATE_DIR: ${{ steps.parse.outputs.template_dir }}
           PROJECT_NAME: ${{ steps.parse.outputs.project_name }}
@@ -160,16 +160,17 @@ jobs:
           CLOUD_SERVICE: ${{ steps.parse.outputs.cloud_service }}
           LICENSE: ${{ steps.parse.outputs.license }}
         run: |
-          cookiecutter ./"$TEMPLATE_DIR" --no-input \
-            project_name="$PROJECT_NAME" \
-            project_description="$PROJECT_DESCRIPTION" \
-            project_slug="$PROJECT_SLUG" \
-            project_endpoint="$PROJECT_ENDPOINT" \
-            project_lower_camel_name="$PROJECT_LOWER_CAMEL_NAME" \
-            project_class_name="$PROJECT_CLASS_NAME" \
-            author="$AUTHOR" \
-            cloud_service="$CLOUD_SERVICE" \
-            open_source_license="$LICENSE"
+          copier copy --defaults --trust \
+            --data project_name="$PROJECT_NAME" \
+            --data project_description="$PROJECT_DESCRIPTION" \
+            --data project_slug="$PROJECT_SLUG" \
+            --data project_endpoint="$PROJECT_ENDPOINT" \
+            --data project_lower_camel_name="$PROJECT_LOWER_CAMEL_NAME" \
+            --data project_class_name="$PROJECT_CLASS_NAME" \
+            --data author="$AUTHOR" \
+            --data cloud_service="$CLOUD_SERVICE" \
+            --data open_source_license="$LICENSE" \
+            ./"$TEMPLATE_DIR" ./"$PROJECT_CLASS_NAME"
 
       - name: Replace repo contents with generated project
         env:
@@ -229,7 +230,7 @@ jobs:
               body: [
                 `## Project Setup`,
                 '',
-                `Generated from the cookiecutter template based on #${issueNumber}.`,
+                `Generated from the Copier template based on #${issueNumber}.`,
                 '',
                 `| Setting | Value |`,
                 `|---------|-------|`,
@@ -238,9 +239,9 @@ jobs:
                 `| **Project Name** | ${process.env.PROJECT_NAME} |`,
                 '',
                 `### What this PR does`,
-                `- Generates the project from the cookiecutter template`,
+                `- Generates the project from the Copier template`,
                 `- Includes only the **${process.env.LANGUAGE}** build and test workflow`,
-                `- Removes all template scaffolding (cookiecutter dirs, setup workflows, issue templates)`,
+                `- Removes all template scaffolding (Copier templates, setup workflows, issue templates)`,
                 '',
                 `Closes #${issueNumber}`,
               ].join('\n'),

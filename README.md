@@ -13,35 +13,45 @@
 
 [![](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](./LICENSE)
 
-[![](https://img.shields.io/badge/made%20using%20cookiecutter-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter)
+[![](https://img.shields.io/badge/made%20using%20copier-grey?style=for-the-badge&logo=copier)](https://github.com/copier-org/copier)
 
 
-A [Cookiecutter](https://github.com/cookiecutter/cookiecutter) template for generating REST APIs across multiple cloud platforms and languages.
+A [Copier](https://github.com/copier-org/copier) template for generating REST APIs across multiple cloud platforms and languages.
 
 ## Usage
 
-Install Cookiecutter using pip:
+Install Copier (and the Jinja extensions the templates use) with pip or pipx:
 
 ```console
 # pipx is strongly recommended.
-pipx install cookiecutter
+pipx install copier
+pipx inject copier jinja2-strcase jinja2-time
 
-# If pipx is not an option,
-# you can install Cookiecutter in your Python user directory.
-python -m pip install --user cookiecutter
+# If pipx is not an option, install into your Python user directory.
+python -m pip install --user copier jinja2-strcase jinja2-time
 ```
 
-Then generate a project from one of the available templates:
+Each language lives in its own template directory (`python`, `typescript`, `dotnet`,
+`go`). Copier reads the configuration from the directory you point it at, so clone the
+repository and generate from the language you want:
 
 ```console
-# Create using the GH CLI
-cookiecutter gh:Code-and-Sorts/cookiecutter-api/{LANGUAGE_OPTION}
-
-# Create using the GH URL
-cookiecutter https://github.com/Code-and-Sorts/cookiecutter-api.git --directory {LANGUAGE_OPTION}
+git clone https://github.com/Code-and-Sorts/cookiecutter-api.git
+copier copy ./cookiecutter-api/{LANGUAGE_OPTION} ./my-api
 ```
 
-Follow the prompts to configure your project.
+Follow the prompts to configure your project. The generated project includes a
+`.copier-answers.yml` file, so you can pull in future template changes with:
+
+```console
+cd my-api
+copier update
+```
+
+> [!NOTE]
+> Unlike Cookiecutter's `--directory` flag, Copier selects the template from the path you
+> pass it rather than a sub-directory of a remote URL, so clone the repository first and
+> point Copier at the language directory.
 
 ## Supported Templates
 

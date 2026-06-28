@@ -1,18 +1,18 @@
-name: Dotnet Cookiecutter API Build
+name: Dotnet Copier API Build
 
 on:
   push:
     paths:
       - dotnet/**
       - .github/workflows/build-dotnet-pipeline.yaml
-      - .github/actions/setup-cookiecutter-template/**
+      - .github/actions/setup-copier-template/**
     branches:
       - main
   pull_request:
     paths:
       - dotnet/**
       - .github/workflows/build-dotnet-pipeline.yaml
-      - .github/actions/setup-cookiecutter-template/**
+      - .github/actions/setup-copier-template/**
     branches:
       - main
 
@@ -38,8 +38,8 @@ jobs:
       - name: Check out
         uses: actions/checkout@v6
 
-      - name: Setup Cookiecutter Template
-        uses: ./.github/actions/setup-cookiecutter-template
+      - name: Setup Copier Template
+        uses: ./.github/actions/setup-copier-template
         with:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}

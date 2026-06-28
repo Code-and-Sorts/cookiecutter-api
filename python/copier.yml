@@ -1,0 +1,72 @@
+_jinja_extensions:
+  - jinja2_strcase.StrcaseExtension
+  - jinja2_time.TimeExtension
+
+# Render every file as a template (Cookiecutter-style) instead of requiring a
+# .jinja suffix on each file.
+_templates_suffix: ""
+
+# The template content lives in template/; its contents are rendered directly
+# into the destination directory.
+_subdirectory: template
+
+project_name:
+  type: str
+  default: "Cookiecutter API"
+  # Validation runs against the values derived from the project name. Copier
+  # only evaluates validators for prompted questions, so the checks that
+  # Cookiecutter's pre_gen hook ran on the derived slug/endpoint/class live here.
+  validator: >-
+    {%- set project_slug = project_name.lower().replace(' ', '_') -%}
+    {%- set project_endpoint = project_name.lower().replace(' ', '-') -%}
+    {%- set project_class_name = project_name | to_camel -%}
+    {%- if not (project_slug | regex_search('^[_a-zA-Z][_a-zA-Z0-9]+$')) -%}
+    The project slug {{ project_slug }} is not a valid Python module name. Please do not use a - and use _ instead.
+    {%- elif not (project_endpoint | regex_search('^[a-zA-Z0-9\-_]*$')) -%}
+    The project endpoint {{ project_endpoint }} is not a valid REST endpoint name. Please do not use a space or _ and use - instead.
+    {%- elif not (project_class_name | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    The project class name {{ project_class_name }} is not a valid class name. Please create a class name using PascalCase.
+    {%- endif -%}
+
+project_description:
+  type: str
+  default: "This is a template repository for API projects."
+
+author:
+  type: str
+  default: "Code and Sorts (Colby Timm)"
+
+cloud_service:
+  type: str
+  default: "Azure Function App"
+  choices:
+    - "Azure Function App"
+    - "GCP Cloud Function"
+    - "AWS Lambda"
+
+open_source_license:
+  type: str
+  default: "MIT license"
+  choices:
+    - "MIT license"
+    - "BSD license"
+    - "ISC license"
+    - "Apache Software License 2.0"
+    - "GNU General Public License v3"
+    - "Not open source"
+
+# ---- Derived values (never prompted) ----
+project_slug:
+  type: str
+  when: false
+  default: "{{ project_name.lower().replace(' ', '_') }}"
+
+project_endpoint:
+  type: str
+  when: false
+  default: "{{ project_name.lower().replace(' ', '-') }}"
+
+project_class_name:
+  type: str
+  when: false
+  default: "{{ project_name | to_camel }}"

@@ -1,0 +1,20 @@
+{%- if cloud_service == 'Azure Function App' %}
+namespace {{project_class_name}}.Api.Interfaces;
+
+using Microsoft.Azure.Cosmos;
+
+public interface IDbConnectionFactory
+{
+    CosmosClient CreateClient();
+}
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+namespace {{project_class_name}}.Api.Interfaces;
+
+using Google.Cloud.Firestore;
+
+public interface IDbConnectionFactory
+{
+    FirestoreDb CreateClient();
+}
+{%- endif %}
