@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: {{project_description}}
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: dotnet8
+    MemorySize: 256
+
+Resources:
+  Create{{project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Create{{project_class_name}}::Post
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{project_class_name}}Table
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /api/{{project_endpoint}}
+            Method: POST
+
+  Get{{project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Get{{project_class_name}}::Get
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{project_class_name}}Table
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /api/{{project_endpoint}}/{id}
+            Method: GET
+
+  Get{{project_class_name}}ListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Get{{project_class_name}}List::Get
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{project_class_name}}Table
+      Events:
+        GetList:
+          Type: Api
+          Properties:
+            Path: /api/{{project_endpoint}}
+            Method: GET
+
+  Update{{project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Update{{project_class_name}}::Patch
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{project_class_name}}Table
+      Events:
+        Update:
+          Type: Api
+          Properties:
+            Path: /api/{{project_endpoint}}/{id}
+            Method: PATCH
+
+  Delete{{project_class_name}}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Delete{{project_class_name}}::Delete
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{project_class_name}}Table
+      Events:
+        Delete:
+          Type: Api
+          Properties:
+            Path: /api/{{project_endpoint}}/{id}
+            Method: DELETE
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Health::Get
+      CodeUri: ./
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /api/health
+            Method: GET
+
+  {{project_class_name}}Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: {{project_endpoint}}
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/{{project_endpoint}}"
+  {{project_class_name}}TableName:
+    Description: DynamoDB table name
+    Value: !Ref {{project_class_name}}Table

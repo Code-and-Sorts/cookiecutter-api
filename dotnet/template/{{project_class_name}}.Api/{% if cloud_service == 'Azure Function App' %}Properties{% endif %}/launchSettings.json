@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "{{project_class_name}}Function": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7118",
+      "launchBrowser": false
+    }
+  }
+}

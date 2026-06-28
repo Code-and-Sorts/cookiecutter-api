@@ -1,12 +1,12 @@
 name: Template Setup
-description: Configure your new API project from the cookiecutter template.
+description: Configure your new API project from the Copier template.
 title: "Template Setup"
 labels: ["template-setup"]
 body:
   - type: markdown
     attributes:
       value: |
-        Welcome! Fill out this form to generate your API project. Once submitted, a workflow will run the cookiecutter template and create a PR with your configured project.
+        Welcome! Fill out this form to generate your API project. Once submitted, a workflow will run the Copier template and create a PR with your configured project.
 
   - type: dropdown
     id: language

@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: {{ project_description }}
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.13
+
+Resources:
+  {{ project_class_name }}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_app.lambda_handler
+      CodeUri: .
+      Description: {{ project_description }}
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref {{ project_class_name }}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{ project_class_name }}Table
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /{{ project_endpoint }}/{item_id}
+            Method: get
+        GetList:
+          Type: Api
+          Properties:
+            Path: /{{ project_endpoint }}
+            Method: get
+        Create:
+          Type: Api
+          Properties:
+            Path: /{{ project_endpoint }}
+            Method: post
+        Update:
+          Type: Api
+          Properties:
+            Path: /{{ project_endpoint }}/{item_id}
+            Method: patch
+        Delete:
+          Type: Api
+          Properties:
+            Path: /{{ project_endpoint }}/{item_id}
+            Method: delete
+
+  {{ project_class_name }}Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: {{ project_slug }}
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  {{ project_class_name }}Api:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/{{ project_endpoint }}/"
+  {{ project_class_name }}Function:
+    Description: Lambda Function ARN
+    Value: !GetAtt {{ project_class_name }}Function.Arn

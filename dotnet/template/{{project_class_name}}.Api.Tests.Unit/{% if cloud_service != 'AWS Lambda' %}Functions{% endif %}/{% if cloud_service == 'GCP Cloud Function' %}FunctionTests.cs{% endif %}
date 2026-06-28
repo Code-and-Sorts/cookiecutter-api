@@ -1,0 +1,140 @@
+namespace {{project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Xunit;
+using {{project_class_name}}.Api;
+using {{project_class_name}}.Api.Dtos;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Requests;
+using Newtonsoft.Json;
+
+public class FunctionTest
+{
+    private readonly I{{project_class_name}}Controller _mock{{project_class_name}}Controller;
+    private readonly ILogger<Function> _mockLogger;
+    private readonly Function _function;
+
+    public FunctionTest()
+    {
+        _mock{{project_class_name}}Controller = Substitute.For<I{{project_class_name}}Controller>();
+        _mockLogger = Substitute.For<ILogger<Function>>();
+        _function = new Function(_mock{{project_class_name}}Controller, _mockLogger);
+    }
+
+    [Fact]
+    public async Task HandleAsync_Get_ReturnsResult()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var {{project_lower_camel_name}}Dto = new {{project_class_name}}Dto { Id = id, Name = "mock{{project_class_name}}" };
+        var httpContext = Mocks.CreateHttpContext("GET", "/{{project_endpoint}}/" + id);
+
+        _mock{{project_class_name}}Controller.GetAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult({{project_lower_camel_name}}Dto));
+
+        // Act
+        await _function.HandleAsync(httpContext);
+
+        // Assert
+        Assert.Equal(200, httpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GetList_ReturnsResults()
+    {
+        // Arrange
+        var {{project_lower_camel_name}}List = new List<{{project_class_name}}Dto>
+        {
+            new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}1" },
+            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{project_class_name}}2" }
+        };
+        var httpContext = Mocks.CreateHttpContext("GET", "/{{project_endpoint}}");
+
+        _mock{{project_class_name}}Controller.GetListAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<{{project_class_name}}Dto>>({{project_lower_camel_name}}List));
+
+        // Act
+        await _function.HandleAsync(httpContext);
+
+        // Assert
+        Assert.Equal(200, httpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_Post_ReturnsCreatedResult()
+    {
+        // Arrange
+        var createRequest = new Create{{project_class_name}}Request { Name = "mock{{project_class_name}}" };
+        var new{{project_class_name}}Dto = new {{project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}" };
+        var httpContext = Mocks.CreateHttpContext(createRequest, "POST", "/{{project_endpoint}}");
+
+        _mock{{project_class_name}}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new{{project_class_name}}Dto));
+
+        // Act
+        await _function.HandleAsync(httpContext);
+
+        // Assert
+        Assert.Equal(201, httpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_Patch_ReturnsUpdatedResult()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var updateRequest = new Update{{project_class_name}}Request { Name = "mockUpdated{{project_class_name}}" };
+        var updated{{project_class_name}}Dto = new {{project_class_name}}Dto { Id = id, Name = "mockUpdated{{project_class_name}}" };
+        var httpContext = Mocks.CreateHttpContext(updateRequest, "PATCH", "/{{project_endpoint}}/" + id);
+
+        _mock{{project_class_name}}Controller.UpdateAsync(id, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(updated{{project_class_name}}Dto));
+
+        // Act
+        await _function.HandleAsync(httpContext);
+
+        // Assert
+        Assert.Equal(200, httpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_Delete_ReturnsSuccessResult()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var httpContext = Mocks.CreateHttpContext("DELETE", "/{{project_endpoint}}/" + id);
+
+        _mock{{project_class_name}}Controller.DeleteAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _function.HandleAsync(httpContext);
+
+        // Assert
+        Assert.Equal(200, httpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        // Arrange
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var httpContext = Mocks.CreateHttpContext("GET", "/{{project_endpoint}}/" + id);
+
+        _mock{{project_class_name}}Controller.GetAsync(id, Arg.Any<CancellationToken>())
+            .Throws(new Exception("Mock exception"));
+
+        // Act
+        await _function.HandleAsync(httpContext);
+
+        // Assert
+        Assert.Equal(500, httpContext.Response.StatusCode);
+    }
+}
