@@ -6,7 +6,7 @@ import (
 	"context"
 {%- endif %}
 	"encoding/json"
-{%- if cloud_service == 'AWS Lambda' or 'delete' in used_ops %}
+{%- if 'delete' in used_ops %}
 	"fmt"
 {%- endif %}
 	"log"
@@ -14,7 +14,7 @@ import (
 	"net/http"
 {%- endif %}
 	"os"
-{%- if cloud_service == 'AWS Lambda' or 'list' in used_ops %}
+{%- if 'list' in used_ops %}
 	"strconv"
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -50,7 +50,14 @@ func newValidator() services.SchemaValidator {
 	}
 	return validator
 }
-{% if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
+{%- if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
+
+type appControllers struct {
+{%- for resource in resources %}
+	{{ resource.name }} controllers.{{ resource.name }}Controller
+{%- endfor %}
+}
+
 func main() {
 {%- if cloud_service == 'Azure Function App' %}
 	listenAddr := ":80"
@@ -58,14 +65,14 @@ func main() {
 		listenAddr = ":" + val
 	}
 
-	resourceControllers := initControllers()
+	c := initControllers()
 {%- elif cloud_service == 'GCP Cloud Function' %}
 	listenAddr := ":8080"
 	if val, ok := os.LookupEnv("PORT"); ok {
 		listenAddr = ":" + val
 	}
 
-	resourceControllers, cleanup := initControllers()
+	c, cleanup := initControllers()
 	defer cleanup()
 {%- endif %}
 
@@ -74,22 +81,22 @@ func main() {
 	mux.HandleFunc("GET /api/health", handleHealth())
 {%- for resource in resources %}
 {%- if "list" in resource.operations %}
-	mux.HandleFunc("GET /api/{{ resource.endpoint }}", handleGetList(resourceControllers["{{ resource.container }}"]))
+	mux.HandleFunc("GET /api/{{ resource.endpoint }}", handleGet{{ resource.name }}List(c.{{ resource.name }}))
 {%- endif %}
 {%- if "get_by_id" in resource.operations %}
-	mux.HandleFunc("GET /api/{{ resource.endpoint }}/{id}", handleGet(resourceControllers["{{ resource.container }}"]))
+	mux.HandleFunc("GET /api/{{ resource.endpoint }}/{id}", handleGet{{ resource.name }}(c.{{ resource.name }}))
 {%- endif %}
 {%- if "create" in resource.operations %}
-	mux.HandleFunc("POST /api/{{ resource.endpoint }}", handleCreate(resourceControllers["{{ resource.container }}"]))
+	mux.HandleFunc("POST /api/{{ resource.endpoint }}", handleCreate{{ resource.name }}(c.{{ resource.name }}))
 {%- endif %}
 {%- if "update" in resource.operations %}
-	mux.HandleFunc("PATCH /api/{{ resource.endpoint }}/{id}", handleUpdate(resourceControllers["{{ resource.container }}"]))
+	mux.HandleFunc("PATCH /api/{{ resource.endpoint }}/{id}", handleUpdate{{ resource.name }}(c.{{ resource.name }}))
 {%- endif %}
 {%- if "replace" in resource.operations %}
-	mux.HandleFunc("PUT /api/{{ resource.endpoint }}/{id}", handleReplace(resourceControllers["{{ resource.container }}"]))
+	mux.HandleFunc("PUT /api/{{ resource.endpoint }}/{id}", handleReplace{{ resource.name }}(c.{{ resource.name }}))
 {%- endif %}
 {%- if "delete" in resource.operations %}
-	mux.HandleFunc("DELETE /api/{{ resource.endpoint }}/{id}", handleDelete(resourceControllers["{{ resource.container }}"]))
+	mux.HandleFunc("DELETE /api/{{ resource.endpoint }}/{id}", handleDelete{{ resource.name }}(c.{{ resource.name }}))
 {%- endif %}
 {%- endfor %}
 
@@ -98,7 +105,7 @@ func main() {
 }
 
 {% if cloud_service == 'Azure Function App' -%}
-func initControllers() map[string]controllers.ItemController {
+func initControllers() appControllers {
 	endpoint := os.Getenv("CosmosDbEndpoint")
 	key := os.Getenv("CosmosDbKey")
 	databaseName := os.Getenv("CosmosDbDatabaseName")
@@ -118,27 +125,25 @@ func initControllers() map[string]controllers.ItemController {
 	}
 
 	validator := newValidator()
-	resourceControllers := make(map[string]controllers.ItemController)
-{%- for container in resources | map(attribute='container') | unique %}
+	var c appControllers
+{%- for resource in resources %}
 	{
-		containerName := os.Getenv("CosmosDbContainerName_{{ container | to_camel }}")
+		containerName := os.Getenv("CosmosDbContainerName_{{ resource.container | to_camel }}")
 		if containerName == "" {
-			containerName = "{{ container }}"
+			containerName = "{{ resource.container }}"
 		}
 		containerClient, err := client.NewContainer(databaseName, containerName)
 		if err != nil {
 			log.Fatalf("Failed to get Cosmos DB container %s: %v", containerName, err)
 		}
-		repo := repositories.NewItemRepository(containerClient)
-		svc := services.NewItemService(repo)
-		resourceControllers["{{ container }}"] = controllers.NewItemController(svc, validator)
+		c.{{ resource.name }} = controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repositories.New{{ resource.name }}Repository(containerClient)), validator)
 	}
 {%- endfor %}
 
-	return resourceControllers
+	return c
 }
 {%- elif cloud_service == 'GCP Cloud Function' -%}
-func initControllers() (map[string]controllers.ItemController, func()) {
+func initControllers() (appControllers, func()) {
 	projectID := os.Getenv("GCP_PROJECT_ID")
 	if projectID == "" {
 		log.Fatal("GCP_PROJECT_ID environment variable is required")
@@ -155,21 +160,19 @@ func initControllers() (map[string]controllers.ItemController, func()) {
 	}
 
 	validator := newValidator()
-	resourceControllers := make(map[string]controllers.ItemController)
-{%- for container in resources | map(attribute='container') | unique %}
+	var c appControllers
+{%- for resource in resources %}
 	{
-		collectionName := os.Getenv("FIRESTORE_COLLECTION_{{ container | to_camel }}")
+		collectionName := os.Getenv("FIRESTORE_COLLECTION_{{ resource.container | to_camel }}")
 		if collectionName == "" {
-			collectionName = "{{ container }}"
+			collectionName = "{{ resource.container }}"
 		}
 		collection := client.Collection(collectionName)
-		repo := repositories.NewItemRepository(collection)
-		svc := services.NewItemService(repo)
-		resourceControllers["{{ container }}"] = controllers.NewItemController(svc, validator)
+		c.{{ resource.name }} = controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repositories.New{{ resource.name }}Repository(collection)), validator)
 	}
 {%- endfor %}
 
-	return resourceControllers, func() { client.Close() }
+	return c, func() { client.Close() }
 }
 {%- endif %}
 
@@ -180,16 +183,17 @@ func handleHealth() http.HandlerFunc {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
-{%- if 'get_by_id' in used_ops %}
+{%- for resource in resources %}
+{%- if "get_by_id" in resource.operations %}
 
-func handleGet(controller controllers.ItemController) http.HandlerFunc {
+func handleGet{{ resource.name }}(controller controllers.{{ resource.name }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Get processed a request for %s.", r.URL.Path)
+		log.Printf("Get{{ resource.name }} processed a request.")
 
 		result, err := controller.Get(r.Context(), id)
 		if err != nil {
-			log.Printf("Exception in Get: %v", err)
+			log.Printf("Exception in Get{{ resource.name }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -200,16 +204,16 @@ func handleGet(controller controllers.ItemController) http.HandlerFunc {
 	}
 }
 {%- endif %}
-{%- if 'list' in used_ops %}
+{%- if "list" in resource.operations %}
 
-func handleGetList(controller controllers.ItemController) http.HandlerFunc {
+func handleGet{{ resource.name }}List(controller controllers.{{ resource.name }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("GetList processed a request for %s.", r.URL.Path)
+		log.Printf("Get{{ resource.name }}List processed a request.")
 
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		result, err := controller.GetList(r.Context(), limit)
 		if err != nil {
-			log.Printf("Exception in GetList: %v", err)
+			log.Printf("Exception in Get{{ resource.name }}List: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -220,15 +224,15 @@ func handleGetList(controller controllers.ItemController) http.HandlerFunc {
 	}
 }
 {%- endif %}
-{%- if 'create' in used_ops %}
+{%- if "create" in resource.operations %}
 
-func handleCreate(controller controllers.ItemController) http.HandlerFunc {
+func handleCreate{{ resource.name }}(controller controllers.{{ resource.name }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Create processed a request for %s.", r.URL.Path)
+		log.Printf("Create{{ resource.name }} processed a request.")
 
 		result, err := controller.Create(r.Context(), r.Body)
 		if err != nil {
-			log.Printf("Exception in Create: %v", err)
+			log.Printf("Exception in Create{{ resource.name }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -239,16 +243,16 @@ func handleCreate(controller controllers.ItemController) http.HandlerFunc {
 	}
 }
 {%- endif %}
-{%- if 'update' in used_ops %}
+{%- if "update" in resource.operations %}
 
-func handleUpdate(controller controllers.ItemController) http.HandlerFunc {
+func handleUpdate{{ resource.name }}(controller controllers.{{ resource.name }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Update processed a request for %s.", r.URL.Path)
+		log.Printf("Update{{ resource.name }} processed a request.")
 
 		result, err := controller.Update(r.Context(), id, r.Body)
 		if err != nil {
-			log.Printf("Exception in Update: %v", err)
+			log.Printf("Exception in Update{{ resource.name }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -259,16 +263,16 @@ func handleUpdate(controller controllers.ItemController) http.HandlerFunc {
 	}
 }
 {%- endif %}
-{%- if 'replace' in used_ops %}
+{%- if "replace" in resource.operations %}
 
-func handleReplace(controller controllers.ItemController) http.HandlerFunc {
+func handleReplace{{ resource.name }}(controller controllers.{{ resource.name }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Replace processed a request for %s.", r.URL.Path)
+		log.Printf("Replace{{ resource.name }} processed a request.")
 
 		result, err := controller.Replace(r.Context(), id, r.Body)
 		if err != nil {
-			log.Printf("Exception in Replace: %v", err)
+			log.Printf("Exception in Replace{{ resource.name }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -279,16 +283,16 @@ func handleReplace(controller controllers.ItemController) http.HandlerFunc {
 	}
 }
 {%- endif %}
-{%- if 'delete' in used_ops %}
+{%- if "delete" in resource.operations %}
 
-func handleDelete(controller controllers.ItemController) http.HandlerFunc {
+func handleDelete{{ resource.name }}(controller controllers.{{ resource.name }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Delete processed a request for %s.", r.URL.Path)
+		log.Printf("Delete{{ resource.name }} processed a request.")
 
 		err := controller.Delete(r.Context(), id)
 		if err != nil {
-			log.Printf("Exception in Delete: %v", err)
+			log.Printf("Exception in Delete{{ resource.name }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -296,28 +300,18 @@ func handleDelete(controller controllers.ItemController) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": fmt.Sprintf("item with id %s was deleted successfully.", id),
+			"message": fmt.Sprintf("{{ resource.name }} with id %s was deleted successfully.", id),
 		})
 	}
 }
 {%- endif %}
+{%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-type resourceRoute struct {
-	container  string
-	operations map[string]bool
-}
-
-var (
-	resourceControllers = map[string]controllers.ItemController{}
-
-	// routes maps each endpoint to its storage container and enabled operations.
-	routes = map[string]resourceRoute{
 {%- for resource in resources %}
-		"{{ resource.endpoint }}": {container: "{{ resource.container }}", operations: map[string]bool{ {%- for op in resource.operations %}"{{ op }}": true{% if not loop.last %}, {% endif %}{% endfor %}}},
+
+var {{ resource.name | to_lower_camel }}Controller controllers.{{ resource.name }}Controller
 {%- endfor %}
-	}
-)
 
 func init() {
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
@@ -327,15 +321,13 @@ func init() {
 
 	client := dynamodb.NewFromConfig(cfg)
 	validator := newValidator()
-{%- for container in resources | map(attribute='container') | unique %}
+{%- for resource in resources %}
 	{
-		tableName := os.Getenv("DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}")
+		tableName := os.Getenv("DYNAMODB_TABLE_NAME_{{ resource.container | upper | replace('-', '_') }}")
 		if tableName == "" {
-			tableName = "{{ container }}"
+			tableName = "{{ resource.container }}"
 		}
-		repo := repositories.NewItemRepository(client, tableName)
-		svc := services.NewItemService(repo)
-		resourceControllers["{{ container }}"] = controllers.NewItemController(svc, validator)
+		{{ resource.name | to_lower_camel }}Controller = controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repositories.New{{ resource.name }}Repository(client, tableName)), validator)
 	}
 {%- endfor %}
 }
@@ -344,8 +336,17 @@ func main() {
 	lambda.Start(handler)
 }
 
-func methodNotAllowed() (events.APIGatewayProxyResponse, error) {
-	return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+func jsonResponse(statusCode int, body any) (events.APIGatewayProxyResponse, error) {
+	data, _ := json.Marshal(body)
+	return events.APIGatewayProxyResponse{
+		StatusCode: statusCode,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(data),
+	}, nil
+}
+
+func handleHealth() (events.APIGatewayProxyResponse, error) {
+	return jsonResponse(200, map[string]string{"status": "ok"})
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -357,7 +358,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	// ``request.Resource`` is the API Gateway route template (e.g. "/cats/{item_id}"),
 	// so the first path segment is the literal endpoint and "{item_id}" marks an
-	// id-bearing route. Use it (not the concrete path) to resolve the resource.
+	// id-bearing route.
 	trimmed := strings.Trim(request.Resource, "/")
 	endpoint := trimmed
 	if idx := strings.Index(trimmed, "/"); idx >= 0 {
@@ -365,160 +366,93 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 	needsID := strings.Contains(request.Resource, "{item_id}")
 
-	route, ok := routes[endpoint]
-	if !ok {
-		return utils.GenerateErrorResponse("Not Found", 404), nil
-	}
-	controller := resourceControllers[route.container]
-
-	switch request.HTTPMethod {
-	case "GET":
-		if needsID {
-			if !route.operations["get_by_id"] {
-				return methodNotAllowed()
-			}
-			return handleGet(ctx, controller, request.PathParameters["item_id"])
-		}
-		if !route.operations["list"] {
-			return methodNotAllowed()
-		}
-		limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
-		return handleGetList(ctx, controller, limit)
-	case "POST":
-		if !route.operations["create"] {
-			return methodNotAllowed()
-		}
-		return handleCreate(ctx, controller, request.Body)
-	case "PATCH":
-		if !route.operations["update"] {
-			return methodNotAllowed()
-		}
-		return handleUpdate(ctx, controller, request.PathParameters["item_id"], request.Body)
-	case "PUT":
-		if !route.operations["replace"] {
-			return methodNotAllowed()
-		}
-		return handleReplace(ctx, controller, request.PathParameters["item_id"], request.Body)
-	case "DELETE":
-		if !route.operations["delete"] {
-			return methodNotAllowed()
-		}
-		return handleDelete(ctx, controller, request.PathParameters["item_id"])
+	switch endpoint {
+{%- for resource in resources %}
+	case "{{ resource.endpoint }}":
+		return handle{{ resource.name }}(ctx, request, needsID)
+{%- endfor %}
 	default:
 		return utils.GenerateErrorResponse("Not Found", 404), nil
 	}
 }
+{%- for resource in resources %}
+{%- set r = resource.name %}
+{%- set lc = resource.name | to_lower_camel %}
 
-func handleGet(ctx context.Context, controller controllers.ItemController, id string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Get processed a request.")
-
-	result, err := controller.Get(ctx, id)
-	if err != nil {
-		log.Printf("Exception in Get: %v", err)
-		return utils.DetectError(err), nil
+func handle{{ r }}(ctx context.Context, request events.APIGatewayProxyRequest, needsID bool) (events.APIGatewayProxyResponse, error) {
+	switch request.HTTPMethod {
+	case "GET":
+		if needsID {
+{%- if "get_by_id" in resource.operations %}
+			result, err := {{ lc }}Controller.Get(ctx, request.PathParameters["item_id"])
+			if err != nil {
+				log.Printf("Exception in Get{{ r }}: %v", err)
+				return utils.DetectError(err), nil
+			}
+			return jsonResponse(200, result)
+{%- else %}
+			return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+{%- endif %}
+		}
+{%- if "list" in resource.operations %}
+		limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
+		result, err := {{ lc }}Controller.GetList(ctx, limit)
+		if err != nil {
+			log.Printf("Exception in Get{{ r }}List: %v", err)
+			return utils.DetectError(err), nil
+		}
+		return jsonResponse(200, result)
+{%- else %}
+		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+{%- endif %}
+	case "POST":
+{%- if "create" in resource.operations %}
+		result, err := {{ lc }}Controller.Create(ctx, strings.NewReader(request.Body))
+		if err != nil {
+			log.Printf("Exception in Create{{ r }}: %v", err)
+			return utils.DetectError(err), nil
+		}
+		return jsonResponse(201, result)
+{%- else %}
+		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+{%- endif %}
+	case "PATCH":
+{%- if "update" in resource.operations %}
+		result, err := {{ lc }}Controller.Update(ctx, request.PathParameters["item_id"], strings.NewReader(request.Body))
+		if err != nil {
+			log.Printf("Exception in Update{{ r }}: %v", err)
+			return utils.DetectError(err), nil
+		}
+		return jsonResponse(200, result)
+{%- else %}
+		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+{%- endif %}
+	case "PUT":
+{%- if "replace" in resource.operations %}
+		result, err := {{ lc }}Controller.Replace(ctx, request.PathParameters["item_id"], strings.NewReader(request.Body))
+		if err != nil {
+			log.Printf("Exception in Replace{{ r }}: %v", err)
+			return utils.DetectError(err), nil
+		}
+		return jsonResponse(200, result)
+{%- else %}
+		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+{%- endif %}
+	case "DELETE":
+{%- if "delete" in resource.operations %}
+		if err := {{ lc }}Controller.Delete(ctx, request.PathParameters["item_id"]); err != nil {
+			log.Printf("Exception in Delete{{ r }}: %v", err)
+			return utils.DetectError(err), nil
+		}
+		return jsonResponse(200, map[string]string{
+			"message": fmt.Sprintf("{{ r }} with id %s was deleted successfully.", request.PathParameters["item_id"]),
+		})
+{%- else %}
+		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+{%- endif %}
+	default:
+		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
 	}
-
-	body, _ := json.Marshal(result)
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
 }
-
-func handleHealth() (events.APIGatewayProxyResponse, error) {
-	body, _ := json.Marshal(map[string]string{"status": "ok"})
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
-}
-
-func handleGetList(ctx context.Context, controller controllers.ItemController, limit int) (events.APIGatewayProxyResponse, error) {
-	log.Printf("GetList processed a request.")
-
-	result, err := controller.GetList(ctx, limit)
-	if err != nil {
-		log.Printf("Exception in GetList: %v", err)
-		return utils.DetectError(err), nil
-	}
-
-	body, _ := json.Marshal(result)
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
-}
-
-func handleCreate(ctx context.Context, controller controllers.ItemController, requestBody string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Create processed a request.")
-
-	result, err := controller.Create(ctx, strings.NewReader(requestBody))
-	if err != nil {
-		log.Printf("Exception in Create: %v", err)
-		return utils.DetectError(err), nil
-	}
-
-	body, _ := json.Marshal(result)
-	return events.APIGatewayProxyResponse{
-		StatusCode: 201,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
-}
-
-func handleUpdate(ctx context.Context, controller controllers.ItemController, id string, requestBody string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Update processed a request.")
-
-	result, err := controller.Update(ctx, id, strings.NewReader(requestBody))
-	if err != nil {
-		log.Printf("Exception in Update: %v", err)
-		return utils.DetectError(err), nil
-	}
-
-	body, _ := json.Marshal(result)
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
-}
-
-func handleReplace(ctx context.Context, controller controllers.ItemController, id string, requestBody string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Replace processed a request.")
-
-	result, err := controller.Replace(ctx, id, strings.NewReader(requestBody))
-	if err != nil {
-		log.Printf("Exception in Replace: %v", err)
-		return utils.DetectError(err), nil
-	}
-
-	body, _ := json.Marshal(result)
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
-}
-
-func handleDelete(ctx context.Context, controller controllers.ItemController, id string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Delete processed a request.")
-
-	err := controller.Delete(ctx, id)
-	if err != nil {
-		log.Printf("Exception in Delete: %v", err)
-		return utils.DetectError(err), nil
-	}
-
-	body, _ := json.Marshal(map[string]string{
-		"message": fmt.Sprintf("item with id %s was deleted successfully.", id),
-	})
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}, nil
-}
+{%- endfor %}
 {%- endif %}

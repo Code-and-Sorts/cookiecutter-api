@@ -10,13 +10,13 @@ import (
 	"{{project_endpoint}}/services"
 )
 
-//go:embed schemas/create_item_request.json
+//go:embed schemas/create_request.json
 var CreateRequestSchema string
 
-//go:embed schemas/update_item_request.json
+//go:embed schemas/update_request.json
 var UpdateRequestSchema string
 
-//go:embed schemas/replace_item_request.json
+//go:embed schemas/replace_request.json
 var ReplaceRequestSchema string
 
 // Bounds for list pagination, protecting the datastore from unbounded reads.
@@ -36,35 +36,35 @@ func CoerceLimit(limit int) int {
 	}
 	return limit
 }
-
-type ItemController interface {
-	Get(ctx context.Context, id string) (*models.ItemDto, error)
-	GetList(ctx context.Context, limit int) ([]models.ItemDto, error)
-	Create(ctx context.Context, body io.Reader) (*models.ItemDto, error)
-	Update(ctx context.Context, id string, body io.Reader) (*models.ItemDto, error)
-	Replace(ctx context.Context, id string, body io.Reader) (*models.ItemDto, error)
+{% for resource in resources %}
+type {{ resource.name }}Controller interface {
+	Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error)
+	GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error)
+	Create(ctx context.Context, body io.Reader) (*models.{{ resource.name }}Dto, error)
+	Update(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error)
+	Replace(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error)
 	Delete(ctx context.Context, id string) error
 }
 
-type itemController struct {
-	service         services.ItemService
+type {{ resource.name | to_lower_camel }}Controller struct {
+	service         services.{{ resource.name }}Service
 	schemaValidator services.SchemaValidator
 }
 
-func NewItemController(service services.ItemService, schemaValidator services.SchemaValidator) ItemController {
-	return &itemController{service: service, schemaValidator: schemaValidator}
+func New{{ resource.name }}Controller(service services.{{ resource.name }}Service, schemaValidator services.SchemaValidator) {{ resource.name }}Controller {
+	return &{{ resource.name | to_lower_camel }}Controller{service: service, schemaValidator: schemaValidator}
 }
 
-func (c *itemController) Get(ctx context.Context, id string) (*models.ItemDto, error) {
+func (c *{{ resource.name | to_lower_camel }}Controller) Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error) {
 	return c.service.Get(ctx, id)
 }
 
-func (c *itemController) GetList(ctx context.Context, limit int) ([]models.ItemDto, error) {
+func (c *{{ resource.name | to_lower_camel }}Controller) GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error) {
 	return c.service.GetList(ctx, CoerceLimit(limit))
 }
 
-func (c *itemController) Create(ctx context.Context, body io.Reader) (*models.ItemDto, error) {
-	var req models.CreateItemRequest
+func (c *{{ resource.name | to_lower_camel }}Controller) Create(ctx context.Context, body io.Reader) (*models.{{ resource.name }}Dto, error) {
+	var req models.Create{{ resource.name }}Request
 	if err := json.NewDecoder(body).Decode(&req); err != nil {
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
@@ -76,8 +76,8 @@ func (c *itemController) Create(ctx context.Context, body io.Reader) (*models.It
 	return c.service.Create(ctx, req)
 }
 
-func (c *itemController) Update(ctx context.Context, id string, body io.Reader) (*models.ItemDto, error) {
-	var req models.UpdateItemRequest
+func (c *{{ resource.name | to_lower_camel }}Controller) Update(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error) {
+	var req models.Update{{ resource.name }}Request
 	if err := json.NewDecoder(body).Decode(&req); err != nil {
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
@@ -91,8 +91,8 @@ func (c *itemController) Update(ctx context.Context, id string, body io.Reader) 
 	return c.service.Update(ctx, req)
 }
 
-func (c *itemController) Replace(ctx context.Context, id string, body io.Reader) (*models.ItemDto, error) {
-	var req models.ReplaceItemRequest
+func (c *{{ resource.name | to_lower_camel }}Controller) Replace(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error) {
+	var req models.Replace{{ resource.name }}Request
 	if err := json.NewDecoder(body).Decode(&req); err != nil {
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
@@ -106,6 +106,7 @@ func (c *itemController) Replace(ctx context.Context, id string, body io.Reader)
 	return c.service.Replace(ctx, req)
 }
 
-func (c *itemController) Delete(ctx context.Context, id string) error {
+func (c *{{ resource.name | to_lower_camel }}Controller) Delete(ctx context.Context, id string) error {
 	return c.service.Delete(ctx, id)
 }
+{% endfor %}

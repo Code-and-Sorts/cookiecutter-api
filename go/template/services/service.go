@@ -9,35 +9,35 @@ import (
 	"{{project_endpoint}}/models"
 	"{{project_endpoint}}/repositories"
 )
-
-type ItemService interface {
-	Get(ctx context.Context, id string) (*models.ItemDto, error)
-	GetList(ctx context.Context, limit int) ([]models.ItemDto, error)
-	Create(ctx context.Context, req models.CreateItemRequest) (*models.ItemDto, error)
-	Update(ctx context.Context, req models.UpdateItemRequest) (*models.ItemDto, error)
-	Replace(ctx context.Context, req models.ReplaceItemRequest) (*models.ItemDto, error)
+{% for resource in resources %}
+type {{ resource.name }}Service interface {
+	Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error)
+	GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error)
+	Create(ctx context.Context, req models.Create{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error)
+	Update(ctx context.Context, req models.Update{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error)
+	Replace(ctx context.Context, req models.Replace{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error)
 	Delete(ctx context.Context, id string) error
 }
 
-type itemService struct {
-	repository repositories.ItemRepository
+type {{ resource.name | to_lower_camel }}Service struct {
+	repository repositories.{{ resource.name }}Repository
 }
 
-func NewItemService(repository repositories.ItemRepository) ItemService {
-	return &itemService{repository: repository}
+func New{{ resource.name }}Service(repository repositories.{{ resource.name }}Repository) {{ resource.name }}Service {
+	return &{{ resource.name | to_lower_camel }}Service{repository: repository}
 }
 
-func (s *itemService) Get(ctx context.Context, id string) (*models.ItemDto, error) {
+func (s *{{ resource.name | to_lower_camel }}Service) Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error) {
 	return s.repository.Get(ctx, id)
 }
 
-func (s *itemService) GetList(ctx context.Context, limit int) ([]models.ItemDto, error) {
+func (s *{{ resource.name | to_lower_camel }}Service) GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error) {
 	return s.repository.GetList(ctx, limit)
 }
 
-func (s *itemService) Create(ctx context.Context, req models.CreateItemRequest) (*models.ItemDto, error) {
+func (s *{{ resource.name | to_lower_camel }}Service) Create(ctx context.Context, req models.Create{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error) {
 	now := time.Now().UTC()
-	newItem := models.Item{
+	new{{ resource.name }} := models.{{ resource.name }}{
 		BaseEntity: models.BaseEntity{
 			Id:               uuid.New().String(),
 			CreatedBy:        req.CreatedBy,
@@ -47,31 +47,32 @@ func (s *itemService) Create(ctx context.Context, req models.CreateItemRequest) 
 		},
 		Name: req.Name,
 	}
-	return s.repository.Create(ctx, newItem)
+	return s.repository.Create(ctx, new{{ resource.name }})
 }
 
-func (s *itemService) Update(ctx context.Context, req models.UpdateItemRequest) (*models.ItemDto, error) {
-	updatedItem := models.Item{
+func (s *{{ resource.name | to_lower_camel }}Service) Update(ctx context.Context, req models.Update{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error) {
+	updated{{ resource.name }} := models.{{ resource.name }}{
 		BaseEntity: models.BaseEntity{
 			Id:        req.Id,
 			UpdatedBy: req.UpdatedBy,
 		},
 		Name: req.Name,
 	}
-	return s.repository.Update(ctx, updatedItem)
+	return s.repository.Update(ctx, updated{{ resource.name }})
 }
 
-func (s *itemService) Replace(ctx context.Context, req models.ReplaceItemRequest) (*models.ItemDto, error) {
-	replacementItem := models.Item{
+func (s *{{ resource.name | to_lower_camel }}Service) Replace(ctx context.Context, req models.Replace{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error) {
+	replacement{{ resource.name }} := models.{{ resource.name }}{
 		BaseEntity: models.BaseEntity{
 			Id:        req.Id,
 			UpdatedBy: req.UpdatedBy,
 		},
 		Name: req.Name,
 	}
-	return s.repository.Replace(ctx, replacementItem)
+	return s.repository.Replace(ctx, replacement{{ resource.name }})
 }
 
-func (s *itemService) Delete(ctx context.Context, id string) error {
+func (s *{{ resource.name | to_lower_camel }}Service) Delete(ctx context.Context, id string) error {
 	return s.repository.Delete(ctx, id)
 }
+{% endfor %}
