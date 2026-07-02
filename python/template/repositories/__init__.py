@@ -1,15 +1,27 @@
 {% if cloud_service == 'Azure Function App' -%}
-from .repository import Repository, Database
+from .repository import (
+{%- for resource in resources %}
+    {{ resource.name }}Repository,
+{%- endfor %}
+    Database,
+)
 
-__all__ = ["Repository", "Database"]
-{%- endif %}
-{% if cloud_service == 'GCP Cloud Function' -%}
-from .repository import Repository
+__all__ = [
+{%- for resource in resources %}
+    "{{ resource.name }}Repository",
+{%- endfor %}
+    "Database",
+]
+{%- else -%}
+from .repository import (
+{%- for resource in resources %}
+    {{ resource.name }}Repository,
+{%- endfor %}
+)
 
-__all__ = ["Repository"]
-{%- endif %}
-{% if cloud_service == 'AWS Lambda' -%}
-from .repository import Repository
-
-__all__ = ["Repository"]
+__all__ = [
+{%- for resource in resources %}
+    "{{ resource.name }}Repository",
+{%- endfor %}
+]
 {%- endif %}

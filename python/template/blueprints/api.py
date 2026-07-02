@@ -1,7 +1,19 @@
 import logging
-from controllers import Controller
-from services import Service
-from repositories import Repository
+from controllers import (
+{%- for resource in resources %}
+    {{ resource.name }}Controller,
+{%- endfor %}
+)
+from services import (
+{%- for resource in resources %}
+    {{ resource.name }}Service,
+{%- endfor %}
+)
+from repositories import (
+{%- for resource in resources %}
+    {{ resource.name }}Repository,
+{%- endfor %}
+)
 from config import get_settings
 from utils import detect_error, response_generator
 {% if cloud_service == 'Azure Function App' -%}
@@ -12,17 +24,19 @@ bp = func.Blueprint()
 
 settings = get_settings()
 
+{% for resource in resources -%}
+def _build_{{ resource.name | to_snake }}_controller(container_client):
+    return {{ resource.name }}Controller({{ resource.name }}Service({{ resource.name }}Repository(container_client)))
 
-async def _run(container_id, operation):
+
+{% endfor -%}
+async def _run(container_id, build_controller, operation):
     # Scope the async Cosmos client to the request via `async with` so its
     # aiohttp session is always closed, avoiding leaked/unclosed sessions.
     async with CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key) as client:
         database_client = client.get_database_client(settings.cosmos_db_database_name)
         container_client = database_client.get_container_client(settings.container_names[container_id])
-        repository = Repository(container_client)
-        service = Service(repository)
-        controller = Controller(service)
-        return await operation(controller)
+        return await operation(build_controller(container_client))
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
 import asyncio
@@ -31,8 +45,13 @@ from flask import Request
 
 settings = get_settings()
 
+{% for resource in resources -%}
+def _build_{{ resource.name | to_snake }}_controller(collection):
+    return {{ resource.name }}Controller({{ resource.name }}Service({{ resource.name }}Repository(collection)))
 
-async def _run(container_id, operation):
+
+{% endfor -%}
+async def _run(container_id, build_controller, operation):
     # Build the async Firestore client inside the request's event loop so its
     # gRPC transport binds to the loop that drives it. Each invocation runs on
     # a fresh asyncio.run() loop, so a module-level client would be bound to an
@@ -43,10 +62,7 @@ async def _run(container_id, operation):
     )
     try:
         collection = db.collection(settings.collections[container_id])
-        repository = Repository(collection)
-        service = Service(repository)
-        controller = Controller(service)
-        return await operation(controller)
+        return await operation(build_controller(collection))
     finally:
         db.close()
 {%- endif %}
@@ -55,14 +71,13 @@ import asyncio
 import aioboto3
 
 settings = get_settings()
-# A single aioboto3 session is reused; each call opens a short-lived
-# async resource context so DynamoDB I/O is non-blocking. One controller is
-# wired per distinct container (resources sharing a container share storage).
+# A single aioboto3 session is reused; each call opens a short-lived async
+# resource context so DynamoDB I/O is non-blocking. One controller is wired
+# per resource, its repository bound to that resource's storage table.
 session = aioboto3.Session()
-_controllers = {}
-{%- for container in resources | map(attribute='container') | unique %}
-_controllers["{{ container }}"] = Controller(Service(Repository(
-    session, settings.tables["{{ container }}"], settings.aws_region
+{%- for resource in resources %}
+_{{ resource.name | to_snake }}_controller = {{ resource.name }}Controller({{ resource.name }}Service({{ resource.name }}Repository(
+    session, settings.tables["{{ resource.container }}"], settings.aws_region
 )))
 {%- endfor %}
 {%- endif %}
@@ -110,13 +125,13 @@ def get_by_id_{{ slug }}(event):
     logging.info("Get {{ resource.endpoint }} by ID processed a request.")
     try:
 {%- if cloud_service == 'Azure Function App' %}
-        item = await _run("{{ resource.container }}", lambda c: c.get_by_id(req))
+        item = await _run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.get_by_id(req))
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        item = asyncio.run(_run("{{ resource.container }}", lambda c: c.get_by_id(request)))
+        item = asyncio.run(_run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.get_by_id(request)))
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        item = asyncio.run(_controllers["{{ resource.container }}"].get_by_id(event))
+        item = asyncio.run(_{{ slug }}_controller.get_by_id(event))
 {%- endif %}
         return response_generator(item)
     except Exception as error:
@@ -139,13 +154,13 @@ def get_list_{{ slug }}(event):
     logging.info("Get {{ resource.endpoint }} list processed a request.")
     try:
 {%- if cloud_service == 'Azure Function App' %}
-        items = await _run("{{ resource.container }}", lambda c: c.get_list(req))
+        items = await _run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.get_list(req))
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        items = asyncio.run(_run("{{ resource.container }}", lambda c: c.get_list(request)))
+        items = asyncio.run(_run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.get_list(request)))
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        items = asyncio.run(_controllers["{{ resource.container }}"].get_list(event))
+        items = asyncio.run(_{{ slug }}_controller.get_list(event))
 {%- endif %}
         return response_generator(items)
     except Exception as error:
@@ -168,13 +183,13 @@ def create_{{ slug }}(event):
     logging.info("Create {{ resource.endpoint }} processed a request.")
     try:
 {%- if cloud_service == 'Azure Function App' %}
-        created_item = await _run("{{ resource.container }}", lambda c: c.create(req))
+        created_item = await _run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.create(req))
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        created_item = asyncio.run(_run("{{ resource.container }}", lambda c: c.create(request)))
+        created_item = asyncio.run(_run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.create(request)))
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        created_item = asyncio.run(_controllers["{{ resource.container }}"].create(event))
+        created_item = asyncio.run(_{{ slug }}_controller.create(event))
 {%- endif %}
         return response_generator(created_item, 201)
     except Exception as error:
@@ -197,13 +212,13 @@ def update_{{ slug }}(event):
     logging.info("Patch {{ resource.endpoint }} processed a request.")
     try:
 {%- if cloud_service == 'Azure Function App' %}
-        updated_item = await _run("{{ resource.container }}", lambda c: c.update(req))
+        updated_item = await _run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.update(req))
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        updated_item = asyncio.run(_run("{{ resource.container }}", lambda c: c.update(request)))
+        updated_item = asyncio.run(_run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.update(request)))
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        updated_item = asyncio.run(_controllers["{{ resource.container }}"].update(event))
+        updated_item = asyncio.run(_{{ slug }}_controller.update(event))
 {%- endif %}
         return response_generator(updated_item, 200)
     except Exception as error:
@@ -226,13 +241,13 @@ def replace_{{ slug }}(event):
     logging.info("Replace {{ resource.endpoint }} processed a request.")
     try:
 {%- if cloud_service == 'Azure Function App' %}
-        replaced_item = await _run("{{ resource.container }}", lambda c: c.replace(req))
+        replaced_item = await _run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.replace(req))
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        replaced_item = asyncio.run(_run("{{ resource.container }}", lambda c: c.replace(request)))
+        replaced_item = asyncio.run(_run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.replace(request)))
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        replaced_item = asyncio.run(_controllers["{{ resource.container }}"].replace(event))
+        replaced_item = asyncio.run(_{{ slug }}_controller.replace(event))
 {%- endif %}
         return response_generator(replaced_item, 200)
     except Exception as error:
@@ -255,18 +270,18 @@ def delete_{{ slug }}(event):
     logging.info("Delete {{ resource.endpoint }} processed a request.")
     try:
 {%- if cloud_service == 'Azure Function App' %}
-        await _run("{{ resource.container }}", lambda c: c.soft_delete(req))
+        await _run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.soft_delete(req))
         return func.HttpResponse(
             body="{{ resource.name }} deleted.",
             status_code=200
         )
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        asyncio.run(_run("{{ resource.container }}", lambda c: c.soft_delete(request)))
+        asyncio.run(_run("{{ resource.container }}", _build_{{ slug }}_controller, lambda c: c.soft_delete(request)))
         return ("{{ resource.name }} deleted.", 200)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        asyncio.run(_controllers["{{ resource.container }}"].soft_delete(event))
+        asyncio.run(_{{ slug }}_controller.soft_delete(event))
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json"},
