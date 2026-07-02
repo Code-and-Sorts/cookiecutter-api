@@ -12,12 +12,28 @@ This project is a Dotnet-based REST API built using [Azure Function Apps](https:
 This project is a Dotnet-based REST API built using [AWS Lambda](https://aws.amazon.com/lambda/) with [API Gateway](https://aws.amazon.com/api-gateway/). The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The Lambda functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+The REST API exposes the following resources and operations:
+{% for resource in resources %}
+- **`/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
+{%- if "list" in resource.operations %}
+  - `GET /{{ resource.endpoint }}` — list
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+  - `GET /{{ resource.endpoint }}/{id}` — get by ID
+{%- endif %}
+{%- if "create" in resource.operations %}
+  - `POST /{{ resource.endpoint }}` — create
+{%- endif %}
+{%- if "update" in resource.operations %}
+  - `PATCH /{{ resource.endpoint }}/{id}` — partial update
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  - `PUT /{{ resource.endpoint }}/{id}` — full replace
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  - `DELETE /{{ resource.endpoint }}/{id}` — soft delete
+{%- endif %}
+{%- endfor %}
 
 Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring a streamlined and consistent environment for managing Dotnet packages and their dependencies.
 

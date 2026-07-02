@@ -1,6 +1,7 @@
 namespace {{project_class_name}}.Api;
 
 using System;
+using System.Collections.Generic;
 using {{project_class_name}}.Api.Controllers;
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Repositories;
@@ -22,9 +23,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<I{{project_class_name}}Service, {{project_class_name}}Service>();
-        services.AddScoped<I{{project_class_name}}Controller, {{project_class_name}}Controller>();
-
+        // Controllers are wired per storage container in AddPersistence and
+        // resolved by the functions via IReadOnlyDictionary<string, IItemController>.
         return services;
     }
 
@@ -33,29 +33,26 @@ public static class DependencyInjection
     {
         string cosmosConnectionString = configuration.GetConnectionString("CosmosDb") ?? string.Empty;
         string databaseName = configuration.GetValue<string>("CosmosDbDatabaseName") ?? string.Empty;
-        string containerName = configuration.GetValue<string>("CosmosDbContainerName") ?? string.Empty;
 
-        if (string.IsNullOrEmpty(cosmosConnectionString) || string.IsNullOrEmpty(databaseName) || string.IsNullOrEmpty(containerName))
+        if (string.IsNullOrEmpty(cosmosConnectionString) || string.IsNullOrEmpty(databaseName))
         {
             throw new InvalidOperationException("CosmosDb configuration is missing or incomplete.");
         }
 
-        services.AddSingleton(provider =>
-            new CosmosClient(cosmosConnectionString)
-        );
+        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString));
 
-        services.AddSingleton<I{{project_class_name}}Repository>(provider =>
+        services.AddSingleton<IReadOnlyDictionary<string, IItemController>>(provider =>
         {
-            var cosmosClient = provider.GetService<CosmosClient>();
-            if (cosmosClient == null)
+            var cosmosClient = provider.GetRequiredService<CosmosClient>();
+            var controllers = new Dictionary<string, IItemController>();
+{%- for container in resources | map(attribute='container') | unique %}
             {
-                throw new InvalidOperationException("CosmosDb Client is null.");
+                string containerName = configuration.GetValue<string>("CosmosDbContainerName_{{ container | to_camel }}") ?? "{{ container }}";
+                var repository = new ItemRepository(cosmosClient, databaseName, containerName);
+                controllers["{{ container }}"] = new ItemController(new ItemService(repository));
             }
-            return new {{project_class_name}}Repository(
-                cosmosClient,
-                databaseName,
-                containerName
-            );
+{%- endfor %}
+            return controllers;
         });
 
         return services;
@@ -66,9 +63,8 @@ public static class DependencyInjection
     {
         string projectId = configuration.GetValue<string>("GCP_PROJECT_ID") ?? string.Empty;
         string databaseId = configuration.GetValue<string>("FIRESTORE_DATABASE") ?? "(default)";
-        string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION") ?? string.Empty;
 
-        if (string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(collectionName))
+        if (string.IsNullOrEmpty(projectId))
         {
             throw new InvalidOperationException("Firestore configuration is missing or incomplete.");
         }
@@ -77,27 +73,19 @@ public static class DependencyInjection
             new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build()
         );
 
-        services.AddSingleton<IFirestoreContext<Entities.{{project_class_name}}>>(provider =>
+        services.AddSingleton<IReadOnlyDictionary<string, IItemController>>(provider =>
         {
-            var firestoreDb = provider.GetService<FirestoreDb>();
-            if (firestoreDb == null)
+            var firestoreDb = provider.GetRequiredService<FirestoreDb>();
+            var controllers = new Dictionary<string, IItemController>();
+{%- for container in resources | map(attribute='container') | unique %}
             {
-                throw new InvalidOperationException("Firestore Client is null.");
+                string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION_{{ container | to_camel }}") ?? "{{ container }}";
+                var context = new FirestoreContext<Entities.Item>(firestoreDb, collectionName);
+                var repository = new ItemRepository(context);
+                controllers["{{ container }}"] = new ItemController(new ItemService(repository));
             }
-            return new FirestoreContext<Entities.{{project_class_name}}>(
-                firestoreDb,
-                collectionName
-            );
-        });
-
-        services.AddSingleton<I{{project_class_name}}Repository>(provider =>
-        {
-            var context = provider.GetService<IFirestoreContext<Entities.{{project_class_name}}>>();
-            if (context == null)
-            {
-                throw new InvalidOperationException("Firestore Context is null.");
-            }
-            return new {{project_class_name}}Repository(context);
+{%- endfor %}
+            return controllers;
         });
 
         return services;
@@ -106,22 +94,20 @@ public static class DependencyInjection
 {%- if cloud_service == 'AWS Lambda' %}
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
-        string tableName = Environment.GetEnvironmentVariable("DYNAMODB_TABLE_NAME") ?? string.Empty;
-
-        if (string.IsNullOrEmpty(tableName))
-        {
-            throw new InvalidOperationException("DynamoDB table name configuration is missing. Set the DYNAMODB_TABLE_NAME environment variable.");
-        }
-
         services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
 
-        services.AddSingleton<I{{project_class_name}}Repository>(provider =>
+        services.AddSingleton<IReadOnlyDictionary<string, IItemController>>(provider =>
         {
             var dynamoClient = provider.GetRequiredService<IAmazonDynamoDB>();
-            return new {{project_class_name}}Repository(
-                dynamoClient,
-                tableName
-            );
+            var controllers = new Dictionary<string, IItemController>();
+{%- for container in resources | map(attribute='container') | unique %}
+            {
+                string tableName = Environment.GetEnvironmentVariable("DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}") ?? "{{ container }}";
+                var repository = new ItemRepository(dynamoClient, tableName);
+                controllers["{{ container }}"] = new ItemController(new ItemService(repository));
+            }
+{%- endfor %}
+            return controllers;
         });
 
         return services;

@@ -12,98 +12,98 @@ using {{project_class_name}}.Api.Services;
 using NSubstitute;
 using Xunit;
 
-public class {{project_class_name}}ServiceTest
+public class ItemServiceTest
 {
-    private readonly I{{project_class_name}}Repository _{{project_lower_camel_name}}RepositoryMock;
-    private readonly {{project_class_name}}Service _{{project_lower_camel_name}}Service;
+    private readonly IItemRepository _itemRepositoryMock;
+    private readonly ItemService _itemService;
 
-    public {{project_class_name}}ServiceTest()
+    public ItemServiceTest()
     {
-        _{{project_lower_camel_name}}RepositoryMock = Substitute.For<I{{project_class_name}}Repository>();
-        _{{project_lower_camel_name}}Service = new {{project_class_name}}Service(_{{project_lower_camel_name}}RepositoryMock);
+        _itemRepositoryMock = Substitute.For<IItemRepository>();
+        _itemService = new ItemService(_itemRepositoryMock);
     }
 
     [Fact]
-    public async Task GetAsync_ShouldReturn{{project_class_name}}Dto()
+    public async Task GetAsync_ShouldReturnItemDto()
     {
         // Arrange
-        var {{project_lower_camel_name}}Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = {{project_lower_camel_name}}Id, Name = "mock{{project_class_name}}" };
-        _{{project_lower_camel_name}}RepositoryMock.GetAsync({{project_lower_camel_name}}Id, Arg.Any<CancellationToken>())
-            .Returns(expected{{project_class_name}});
+        var itemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var expectedItem = new ItemDto { Id = itemId, Name = "mockItem" };
+        _itemRepositoryMock.GetAsync(itemId, Arg.Any<CancellationToken>())
+            .Returns(expectedItem);
 
         // Act
-        var result = await _{{project_lower_camel_name}}Service.GetAsync({{project_lower_camel_name}}Id);
+        var result = await _itemService.GetAsync(itemId);
 
         // Assert
-        Assert.Equal(expected{{project_class_name}}, result);
+        Assert.Equal(expectedItem, result);
     }
 
     [Fact]
-    public async Task GetListAsync_ShouldReturnListOf{{project_class_name}}Dto()
+    public async Task GetListAsync_ShouldReturnListOfItemDto()
     {
         // Arrange
-        var expected{{project_class_name}}List = new List<{{project_class_name}}Dto>
+        var expectedItemList = new List<ItemDto>
         {
-            new {{project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}1" },
-            new {{project_class_name}}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{project_class_name}}2" }
+            new ItemDto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockItem1" },
+            new ItemDto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mockItem2" }
         };
-        _{{project_lower_camel_name}}RepositoryMock.GetListAsync(Arg.Any<CancellationToken>())
-            .Returns(expected{{project_class_name}}List);
+        _itemRepositoryMock.GetListAsync(Arg.Any<CancellationToken>())
+            .Returns(expectedItemList);
 
         // Act
-        var result = await _{{project_lower_camel_name}}Service.GetListAsync();
+        var result = await _itemService.GetListAsync();
 
         // Assert
-        Assert.Equal(expected{{project_class_name}}List, result);
+        Assert.Equal(expectedItemList, result);
     }
 
     [Fact]
-    public async Task CreateAsync_ShouldReturnCreated{{project_class_name}}Dto()
+    public async Task CreateAsync_ShouldReturnCreatedItemDto()
     {
         // Arrange
-        var createRequest = new Create{{project_class_name}}Request { Name = "mockCreate{{project_class_name}}" };
-        var new{{project_class_name}} = new {{project_class_name}} { Id = Guid.NewGuid().ToString(), Name = createRequest.Name };
-        var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = new{{project_class_name}}.Id, Name = new{{project_class_name}}.Name };
-        _{{project_lower_camel_name}}RepositoryMock.CreateAsync(Arg.Any<{{project_class_name}}>(), Arg.Any<CancellationToken>())
-            .Returns(expected{{project_class_name}});
+        var createRequest = new CreateItemRequest { Name = "mockCreateItem" };
+        var newItem = new Item { Id = Guid.NewGuid().ToString(), Name = createRequest.Name };
+        var expectedItem = new ItemDto { Id = newItem.Id, Name = newItem.Name };
+        _itemRepositoryMock.CreateAsync(Arg.Any<Item>(), Arg.Any<CancellationToken>())
+            .Returns(expectedItem);
 
         // Act
-        var result = await _{{project_lower_camel_name}}Service.CreateAsync(createRequest);
+        var result = await _itemService.CreateAsync(createRequest);
 
         // Assert
-        Assert.Equal(expected{{project_class_name}}, result);
+        Assert.Equal(expectedItem, result);
     }
 
     [Fact]
-    public async Task UpdateAsync_ShouldReturnUpdated{{project_class_name}}Dto()
+    public async Task UpdateAsync_ShouldReturnUpdatedItemDto()
     {
         // Arrange
-        var updateRequest = new Update{{project_class_name}}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdate{{project_class_name}}" };
-        var updated{{project_class_name}} = new {{project_class_name}} { Id = updateRequest.Id, Name = updateRequest.Name };
-        var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = updated{{project_class_name}}.Id, Name = updated{{project_class_name}}.Name };
-        _{{project_lower_camel_name}}RepositoryMock.UpdateAsync(Arg.Any<{{project_class_name}}>(), Arg.Any<CancellationToken>())
-            .Returns(expected{{project_class_name}});
+        var updateRequest = new UpdateItemRequest { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdateItem" };
+        var updatedItem = new Item { Id = updateRequest.Id, Name = updateRequest.Name };
+        var expectedItem = new ItemDto { Id = updatedItem.Id, Name = updatedItem.Name };
+        _itemRepositoryMock.UpdateAsync(Arg.Any<Item>(), Arg.Any<CancellationToken>())
+            .Returns(expectedItem);
 
         // Act
-        var result = await _{{project_lower_camel_name}}Service.UpdateAsync(updateRequest);
+        var result = await _itemService.UpdateAsync(updateRequest);
 
         // Assert
-        Assert.Equal(expected{{project_class_name}}, result);
+        Assert.Equal(expectedItem, result);
     }
 
     [Fact]
     public async Task DeleteAsync_ShouldCallRepositoryDelete()
     {
         // Arrange
-        var {{project_lower_camel_name}}Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        _{{project_lower_camel_name}}RepositoryMock.DeleteAsync({{project_lower_camel_name}}Id, Arg.Any<CancellationToken>())
+        var itemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        _itemRepositoryMock.DeleteAsync(itemId, Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         // Act
-        await _{{project_lower_camel_name}}Service.DeleteAsync({{project_lower_camel_name}}Id);
+        await _itemService.DeleteAsync(itemId);
 
         // Assert
-        await _{{project_lower_camel_name}}RepositoryMock.Received(1).DeleteAsync({{project_lower_camel_name}}Id, Arg.Any<CancellationToken>());
+        await _itemRepositoryMock.Received(1).DeleteAsync(itemId, Arg.Any<CancellationToken>());
     }
 }

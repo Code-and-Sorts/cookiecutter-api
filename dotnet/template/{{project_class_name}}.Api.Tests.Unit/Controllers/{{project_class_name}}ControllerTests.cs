@@ -12,98 +12,98 @@ using Newtonsoft.Json;
 using NSubstitute;
 using Xunit;
 
-public class {{project_class_name}}ControllerTest
+public class ItemControllerTest
 {
-    private readonly I{{project_class_name}}Service _mock{{project_class_name}}Service;
-    private readonly {{project_class_name}}Controller _{{project_lower_camel_name}}Controller;
+    private readonly IItemService _mockItemService;
+    private readonly ItemController _itemController;
 
-    public {{project_class_name}}ControllerTest()
+    public ItemControllerTest()
     {
-        _mock{{project_class_name}}Service = Substitute.For<I{{project_class_name}}Service>();
-        _{{project_lower_camel_name}}Controller = new {{project_class_name}}Controller(_mock{{project_class_name}}Service);
+        _mockItemService = Substitute.For<IItemService>();
+        _itemController = new ItemController(_mockItemService);
     }
 
-    private static MemoryStream CreateMemoryStream<T>(T {{project_lower_camel_name}}Request)
+    private static MemoryStream CreateMemoryStream<T>(T itemRequest)
     {
         var stream = new MemoryStream();
         using var writer = new StreamWriter(stream, leaveOpen: true);
-        writer.Write(JsonConvert.SerializeObject({{project_lower_camel_name}}Request));
+        writer.Write(JsonConvert.SerializeObject(itemRequest));
         writer.Flush();
         stream.Position = 0;
         return stream;
     }
 
     [Fact]
-    public async Task GetAsync_Returns{{project_class_name}}Dto()
+    public async Task GetAsync_ReturnsItemDto()
     {
         // Arrange
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = id };
-        _mock{{project_class_name}}Service.GetAsync(id, Arg.Any<CancellationToken>()).Returns(expected{{project_class_name}});
+        var expectedItem = new ItemDto { Id = id };
+        _mockItemService.GetAsync(id, Arg.Any<CancellationToken>()).Returns(expectedItem);
 
         // Act
-        var result = await _{{project_lower_camel_name}}Controller.GetAsync(id);
+        var result = await _itemController.GetAsync(id);
 
         // Assert
-        await _mock{{project_class_name}}Service.Received(1).GetAsync(id, Arg.Any<CancellationToken>());
+        await _mockItemService.Received(1).GetAsync(id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GetListAsync_ReturnsListOf{{project_class_name}}Dto()
+    public async Task GetListAsync_ReturnsListOfItemDto()
     {
         // Arrange
-        var expected{{project_class_name}}List = new List<{{project_class_name}}Dto> { new {{project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" }, new {{project_class_name}}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0" } };
-        _mock{{project_class_name}}Service.GetListAsync(Arg.Any<CancellationToken>()).Returns(expected{{project_class_name}}List);
+        var expectedItemList = new List<ItemDto> { new ItemDto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" }, new ItemDto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0" } };
+        _mockItemService.GetListAsync(Arg.Any<CancellationToken>()).Returns(expectedItemList);
 
         // Act
-        await _{{project_lower_camel_name}}Controller.GetListAsync();
+        await _itemController.GetListAsync();
 
         // Assert
-        await _mock{{project_class_name}}Service.Received(1).GetListAsync(Arg.Any<CancellationToken>());
+        await _mockItemService.Received(1).GetListAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task CreateAsync_ReturnsCreated{{project_class_name}}Dto()
+    public async Task CreateAsync_ReturnsCreatedItemDto()
     {
         // Arrange
-        var createRequest = new Create{{project_class_name}}Request { Name = "mockCreate{{project_class_name}}", CreatedBy = "TestUser", UpdatedBy = "TestUser" };
-        var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockCreate{{project_class_name}}" };
+        var createRequest = new CreateItemRequest { Name = "mockCreateItem", CreatedBy = "TestUser", UpdatedBy = "TestUser" };
+        var expectedItem = new ItemDto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockCreateItem" };
 
-        _mock{{project_class_name}}Service
-            .CreateAsync(Arg.Is<Create{{project_class_name}}Request>(r => r.Name == createRequest.Name), Arg.Any<CancellationToken>())
-            .Returns(expected{{project_class_name}});
+        _mockItemService
+            .CreateAsync(Arg.Is<CreateItemRequest>(r => r.Name == createRequest.Name), Arg.Any<CancellationToken>())
+            .Returns(expectedItem);
 
         var stream = CreateMemoryStream(createRequest);
 
         // Act
-        var result = await _{{project_lower_camel_name}}Controller.CreateAsync(stream);
+        var result = await _itemController.CreateAsync(stream);
 
         // Assert
-        await _mock{{project_class_name}}Service.Received(1).CreateAsync(
-            Arg.Is<Create{{project_class_name}}Request>(r => r.Name == createRequest.Name), Arg.Any<CancellationToken>());
-        Assert.Equal(expected{{project_class_name}}, result);
+        await _mockItemService.Received(1).CreateAsync(
+            Arg.Is<CreateItemRequest>(r => r.Name == createRequest.Name), Arg.Any<CancellationToken>());
+        Assert.Equal(expectedItem, result);
     }
 
     [Fact]
-    public async Task UpdateAsync_ReturnsUpdated{{project_class_name}}Dto()
+    public async Task UpdateAsync_ReturnsUpdatedItemDto()
     {
         // Arrange
-        var {{project_lower_camel_name}}Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var updateRequest = new Update{{project_class_name}}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdated{{project_class_name}}" };
-        var expected{{project_class_name}} = new {{project_class_name}}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdated{{project_class_name}}" };
+        var itemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var updateRequest = new UpdateItemRequest { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdatedItem" };
+        var expectedItem = new ItemDto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdatedItem" };
 
-        _mock{{project_class_name}}Service
-            .UpdateAsync(Arg.Is<Update{{project_class_name}}Request>(r => r.Name == updateRequest.Name), Arg.Any<CancellationToken>())
-            .Returns(expected{{project_class_name}});
+        _mockItemService
+            .UpdateAsync(Arg.Is<UpdateItemRequest>(r => r.Name == updateRequest.Name), Arg.Any<CancellationToken>())
+            .Returns(expectedItem);
 
         // Act
         var stream = CreateMemoryStream(updateRequest);
-        var result = await _{{project_lower_camel_name}}Controller.UpdateAsync({{project_lower_camel_name}}Id, stream);
+        var result = await _itemController.UpdateAsync(itemId, stream);
 
         // Assert
-        await _mock{{project_class_name}}Service.Received(1).UpdateAsync(
-            Arg.Is<Update{{project_class_name}}Request>(r => r.Name == updateRequest.Name), Arg.Any<CancellationToken>());
-        Assert.Equal(expected{{project_class_name}}, result);
+        await _mockItemService.Received(1).UpdateAsync(
+            Arg.Is<UpdateItemRequest>(r => r.Name == updateRequest.Name), Arg.Any<CancellationToken>());
+        Assert.Equal(expectedItem, result);
     }
 
     [Fact]
@@ -111,12 +111,12 @@ public class {{project_class_name}}ControllerTest
     {
         // Arrange
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        _mock{{project_class_name}}Service.DeleteAsync(id, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _mockItemService.DeleteAsync(id, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         // Act
-        await _{{project_lower_camel_name}}Controller.DeleteAsync(id);
+        await _itemController.DeleteAsync(id);
 
         // Assert
-        await _mock{{project_class_name}}Service.Received(1).DeleteAsync(id, Arg.Any<CancellationToken>());
+        await _mockItemService.Received(1).DeleteAsync(id, Arg.Any<CancellationToken>());
     }
 }

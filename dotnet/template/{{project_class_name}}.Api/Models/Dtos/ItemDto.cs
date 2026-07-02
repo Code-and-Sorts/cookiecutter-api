@@ -1,6 +1,6 @@
 namespace {{project_class_name}}.Api.Dtos;
 
-public class {{project_class_name}}Dto
+public class ItemDto
 {
     public string Id { get; set; } = default!;
 

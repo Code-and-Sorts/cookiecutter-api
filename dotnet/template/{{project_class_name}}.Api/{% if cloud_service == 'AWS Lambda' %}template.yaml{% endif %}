@@ -9,100 +9,130 @@ Globals:
     MemorySize: 256
 
 Resources:
-  Create{{project_class_name}}Function:
+{%- for resource in resources %}
+{%- set cn = resource.name %}
+{%- set tableRef = resource.container | to_camel %}
+{%- set tableEnv = 'DYNAMODB_TABLE_NAME_' ~ (resource.container | upper | replace('-', '_')) %}
+{%- if "get_by_id" in resource.operations %}
+  Get{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Create{{project_class_name}}::Post
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Get{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
-          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+          {{ tableEnv }}: !Ref {{ tableRef }}Table
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{project_class_name}}Table
-      Events:
-        Create:
-          Type: Api
-          Properties:
-            Path: /api/{{project_endpoint}}
-            Method: POST
-
-  Get{{project_class_name}}Function:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Get{{project_class_name}}::Get
-      CodeUri: ./
-      Environment:
-        Variables:
-          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref {{project_class_name}}Table
+            TableName: !Ref {{ tableRef }}Table
       Events:
         GetById:
           Type: Api
           Properties:
-            Path: /api/{{project_endpoint}}/{id}
+            Path: /api/{{ resource.endpoint }}/{id}
             Method: GET
-
-  Get{{project_class_name}}ListFunction:
+{%- endif %}
+{%- if "list" in resource.operations %}
+  Get{{ cn }}ListFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Get{{project_class_name}}List::Get
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Get{{ cn }}List
       CodeUri: ./
       Environment:
         Variables:
-          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+          {{ tableEnv }}: !Ref {{ tableRef }}Table
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{project_class_name}}Table
+            TableName: !Ref {{ tableRef }}Table
       Events:
         GetList:
           Type: Api
           Properties:
-            Path: /api/{{project_endpoint}}
+            Path: /api/{{ resource.endpoint }}
             Method: GET
-
-  Update{{project_class_name}}Function:
+{%- endif %}
+{%- if "create" in resource.operations %}
+  Create{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Update{{project_class_name}}::Patch
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Create{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
-          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+          {{ tableEnv }}: !Ref {{ tableRef }}Table
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{project_class_name}}Table
+            TableName: !Ref {{ tableRef }}Table
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /api/{{ resource.endpoint }}
+            Method: POST
+{%- endif %}
+{%- if "update" in resource.operations %}
+  Update{{ cn }}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Update{{ cn }}
+      CodeUri: ./
+      Environment:
+        Variables:
+          {{ tableEnv }}: !Ref {{ tableRef }}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{ tableRef }}Table
       Events:
         Update:
           Type: Api
           Properties:
-            Path: /api/{{project_endpoint}}/{id}
+            Path: /api/{{ resource.endpoint }}/{id}
             Method: PATCH
-
-  Delete{{project_class_name}}Function:
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  Replace{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Delete{{project_class_name}}::Delete
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Replace{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
-          DYNAMODB_TABLE_NAME: !Ref {{project_class_name}}Table
+          {{ tableEnv }}: !Ref {{ tableRef }}Table
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{project_class_name}}Table
+            TableName: !Ref {{ tableRef }}Table
+      Events:
+        Replace:
+          Type: Api
+          Properties:
+            Path: /api/{{ resource.endpoint }}/{id}
+            Method: PUT
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  Delete{{ cn }}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Delete{{ cn }}
+      CodeUri: ./
+      Environment:
+        Variables:
+          {{ tableEnv }}: !Ref {{ tableRef }}Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{ tableRef }}Table
       Events:
         Delete:
           Type: Api
           Properties:
-            Path: /api/{{project_endpoint}}/{id}
+            Path: /api/{{ resource.endpoint }}/{id}
             Method: DELETE
+{%- endif %}
+{%- endfor %}
 
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.Health::Get
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Health
       CodeUri: ./
       Events:
         Health:
@@ -110,11 +140,11 @@ Resources:
           Properties:
             Path: /api/health
             Method: GET
-
-  {{project_class_name}}Table:
+{% for container in resources | map(attribute='container') | unique %}
+  {{ container | to_camel }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{project_endpoint}}
+      TableName: {{ container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -122,11 +152,13 @@ Resources:
         - AttributeName: id
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
-
+{% endfor %}
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/{{project_endpoint}}"
-  {{project_class_name}}TableName:
-    Description: DynamoDB table name
-    Value: !Ref {{project_class_name}}Table
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/"
+{%- for container in resources | map(attribute='container') | unique %}
+  {{ container | to_camel }}TableName:
+    Description: DynamoDB table name for the {{ container }} container
+    Value: !Ref {{ container | to_camel }}Table
+{%- endfor %}

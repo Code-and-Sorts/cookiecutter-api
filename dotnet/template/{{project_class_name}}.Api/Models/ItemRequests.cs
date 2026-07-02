@@ -2,7 +2,7 @@ namespace {{project_class_name}}.Api.Requests;
 
 using Newtonsoft.Json;
 
-public class Create{{project_class_name}}Request
+public class CreateItemRequest
 {
     [JsonProperty("name")]
     public string Name { get; set; } = default!;
@@ -14,7 +14,19 @@ public class Create{{project_class_name}}Request
     public string UpdatedBy { get; set; } = default!;
 }
 
-public class Update{{project_class_name}}Request
+public class UpdateItemRequest
+{
+    [JsonIgnore]
+    public string Id { get; set; } = default!;
+
+    [JsonProperty("name")]
+    public string Name { get; set; } = default!;
+
+    [JsonProperty("updatedBy")]
+    public string UpdatedBy { get; set; } = default!;
+}
+
+public class ReplaceItemRequest
 {
     [JsonIgnore]
     public string Id { get; set; } = default!;

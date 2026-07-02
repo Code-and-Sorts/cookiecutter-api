@@ -1,7 +1,7 @@
 namespace {{project_class_name}}.Api;
 
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Cloud.Functions.Framework;
@@ -13,30 +13,23 @@ using Newtonsoft.Json;
 
 public class Function : IHttpFunction
 {
-    private const string Endpoint = "{{project_endpoint}}";
-    private readonly I{{project_class_name}}Controller _{{project_lower_camel_name}}Controller;
+    private sealed record ResourceRoute(string Container, HashSet<string> Operations);
+
+    // Endpoint -> its storage container and enabled operations.
+    private static readonly Dictionary<string, ResourceRoute> Resources = new()
+    {
+{%- for resource in resources %}
+        ["{{ resource.endpoint }}"] = new ResourceRoute("{{ resource.container }}", new HashSet<string> { {% for op in resource.operations %}"{{ op }}"{% if not loop.last %}, {% endif %}{% endfor %} }),
+{%- endfor %}
+    };
+
+    private readonly IReadOnlyDictionary<string, IItemController> _controllers;
     private readonly ILogger<Function> _logger;
 
-    public Function(I{{project_class_name}}Controller {{project_lower_camel_name}}Controller, ILogger<Function> logger)
+    public Function(IReadOnlyDictionary<string, IItemController> controllers, ILogger<Function> logger)
     {
-        _{{project_lower_camel_name}}Controller = {{project_lower_camel_name}}Controller;
+        _controllers = controllers;
         _logger = logger;
-    }
-
-    private static bool IsValidEndpointPath(string path)
-    {
-        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length >= 1 && segments[0] == Endpoint;
-    }
-
-    private static string? ParseId(string path)
-    {
-        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length >= 2 && segments[0] == Endpoint)
-        {
-            return segments[1];
-        }
-        return null;
     }
 
     private static async Task WriteJsonResponse(HttpResponse response, int statusCode, object body, CancellationToken ct = default)
@@ -56,7 +49,6 @@ public class Function : IHttpFunction
         try
         {
             var path = request.Path.Value ?? string.Empty;
-
             var trimmedPath = path.TrimEnd('/');
             if (request.Method == "GET" && (trimmedPath == "/health" || trimmedPath.EndsWith("/health")))
             {
@@ -64,68 +56,108 @@ public class Function : IHttpFunction
                 return;
             }
 
-            if (!IsValidEndpointPath(path))
+            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var endpoint = segments.Length >= 1 ? segments[0] : string.Empty;
+            var id = segments.Length >= 2 ? segments[1] : null;
+
+            if (!Resources.TryGetValue(endpoint, out var route))
             {
                 await WriteJsonResponse(response, 404, new { error = "Not found." }, ct);
                 return;
             }
 
+            var controller = _controllers[route.Container];
+
             switch (request.Method)
             {
                 case "GET":
                 {
-                    var id = ParseId(path);
                     if (id != null)
                     {
-                        _logger.LogInformation("Get{{project_class_name}} processed a request.");
-                        var result = await _{{project_lower_camel_name}}Controller.GetAsync(id, ct);
+                        if (!route.Operations.Contains("get_by_id"))
+                        {
+                            await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                            return;
+                        }
+                        var result = await controller.GetAsync(id, ct);
                         await WriteJsonResponse(response, 200, result, ct);
                         return;
                     }
-                    _logger.LogInformation("Get{{project_class_name}}List processed a request.");
-                    var results = await _{{project_lower_camel_name}}Controller.GetListAsync(ct);
+                    if (!route.Operations.Contains("list"))
+                    {
+                        await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                        return;
+                    }
+                    var results = await controller.GetListAsync(ct);
                     await WriteJsonResponse(response, 200, results, ct);
                     return;
                 }
 
                 case "POST":
                 {
-                    if (ParseId(path) != null)
+                    if (!route.Operations.Contains("create"))
+                    {
+                        await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                        return;
+                    }
+                    if (id != null)
                     {
                         await WriteJsonResponse(response, 400, new { error = "POST does not accept an item ID." }, ct);
                         return;
                     }
-                    _logger.LogInformation("Create{{project_class_name}} processed a request.");
-                    var created = await _{{project_lower_camel_name}}Controller.CreateAsync(request.Body, ct);
+                    var created = await controller.CreateAsync(request.Body, ct);
                     await WriteJsonResponse(response, 201, created, ct);
                     return;
                 }
 
                 case "PATCH":
                 {
-                    var id = ParseId(path);
+                    if (!route.Operations.Contains("update"))
+                    {
+                        await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                        return;
+                    }
                     if (id == null)
                     {
                         await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
                         return;
                     }
-                    _logger.LogInformation("Update{{project_class_name}} processed a request.");
-                    var updated = await _{{project_lower_camel_name}}Controller.UpdateAsync(id, request.Body, ct);
+                    var updated = await controller.UpdateAsync(id, request.Body, ct);
                     await WriteJsonResponse(response, 200, updated, ct);
+                    return;
+                }
+
+                case "PUT":
+                {
+                    if (!route.Operations.Contains("replace"))
+                    {
+                        await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                        return;
+                    }
+                    if (id == null)
+                    {
+                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
+                        return;
+                    }
+                    var replaced = await controller.ReplaceAsync(id, request.Body, ct);
+                    await WriteJsonResponse(response, 200, replaced, ct);
                     return;
                 }
 
                 case "DELETE":
                 {
-                    var id = ParseId(path);
+                    if (!route.Operations.Contains("delete"))
+                    {
+                        await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                        return;
+                    }
                     if (id == null)
                     {
                         await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
                         return;
                     }
-                    _logger.LogInformation("Delete{{project_class_name}} processed a request.");
-                    await _{{project_lower_camel_name}}Controller.DeleteAsync(id, ct);
-                    await WriteJsonResponse(response, 200, new { message = $"{{project_class_name}} with id {id} was deleted successfully." }, ct);
+                    await controller.DeleteAsync(id, ct);
+                    await WriteJsonResponse(response, 200, new { message = $"{endpoint} with id {id} was deleted successfully." }, ct);
                     return;
                 }
 
