@@ -33,6 +33,18 @@ import (
 	"{{project_endpoint}}/services"
 	"{{project_endpoint}}/utils"
 )
+
+func newValidator() services.SchemaValidator {
+	validator, err := services.NewSchemaValidator(map[string]string{
+		"create_request":  controllers.CreateRequestSchema,
+		"update_request":  controllers.UpdateRequestSchema,
+		"replace_request": controllers.ReplaceRequestSchema,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize schema validator: %v", err)
+	}
+	return validator
+}
 {% if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
 func main() {
 {%- if cloud_service == 'Azure Function App' %}
@@ -41,39 +53,53 @@ func main() {
 		listenAddr = ":" + val
 	}
 
-	controller := initController()
+	resourceControllers := initControllers()
 {%- elif cloud_service == 'GCP Cloud Function' %}
 	listenAddr := ":8080"
 	if val, ok := os.LookupEnv("PORT"); ok {
 		listenAddr = ":" + val
 	}
 
-	controller, cleanup := initController()
+	resourceControllers, cleanup := initControllers()
 	defer cleanup()
 {%- endif %}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/health", handleHealth())
-	mux.HandleFunc("GET /api/{{project_endpoint}}/{id}", handleGet(controller))
-	mux.HandleFunc("GET /api/{{project_endpoint}}", handleGetList(controller))
-	mux.HandleFunc("POST /api/{{project_endpoint}}", handleCreate(controller))
-	mux.HandleFunc("PATCH /api/{{project_endpoint}}/{id}", handleUpdate(controller))
-	mux.HandleFunc("DELETE /api/{{project_endpoint}}/{id}", handleDelete(controller))
+{%- for resource in resources %}
+{%- if "list" in resource.operations %}
+	mux.HandleFunc("GET /api/{{ resource.endpoint }}", handleGetList(resourceControllers["{{ resource.container }}"]))
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+	mux.HandleFunc("GET /api/{{ resource.endpoint }}/{id}", handleGet(resourceControllers["{{ resource.container }}"]))
+{%- endif %}
+{%- if "create" in resource.operations %}
+	mux.HandleFunc("POST /api/{{ resource.endpoint }}", handleCreate(resourceControllers["{{ resource.container }}"]))
+{%- endif %}
+{%- if "update" in resource.operations %}
+	mux.HandleFunc("PATCH /api/{{ resource.endpoint }}/{id}", handleUpdate(resourceControllers["{{ resource.container }}"]))
+{%- endif %}
+{%- if "replace" in resource.operations %}
+	mux.HandleFunc("PUT /api/{{ resource.endpoint }}/{id}", handleReplace(resourceControllers["{{ resource.container }}"]))
+{%- endif %}
+{%- if "delete" in resource.operations %}
+	mux.HandleFunc("DELETE /api/{{ resource.endpoint }}/{id}", handleDelete(resourceControllers["{{ resource.container }}"]))
+{%- endif %}
+{%- endfor %}
 
 	log.Printf("About to listen on %s", listenAddr)
 	log.Fatal(http.ListenAndServe(listenAddr, mux))
 }
 
 {% if cloud_service == 'Azure Function App' -%}
-func initController() controllers.{{project_class_name}}Controller {
+func initControllers() map[string]controllers.ItemController {
 	endpoint := os.Getenv("CosmosDbEndpoint")
 	key := os.Getenv("CosmosDbKey")
 	databaseName := os.Getenv("CosmosDbDatabaseName")
-	containerName := os.Getenv("CosmosDbContainerName")
 
-	if endpoint == "" || key == "" || databaseName == "" || containerName == "" {
-		log.Fatal("CosmosDbEndpoint, CosmosDbKey, CosmosDbDatabaseName and CosmosDbContainerName environment variables are required")
+	if endpoint == "" || key == "" || databaseName == "" {
+		log.Fatal("CosmosDbEndpoint, CosmosDbKey and CosmosDbDatabaseName environment variables are required")
 	}
 
 	cred, err := azcosmos.NewKeyCredential(key)
@@ -86,27 +112,28 @@ func initController() controllers.{{project_class_name}}Controller {
 		log.Fatalf("Failed to create Cosmos DB client: %v", err)
 	}
 
-	container, err := client.NewContainer(databaseName, containerName)
-	if err != nil {
-		log.Fatalf("Failed to get Cosmos DB container: %v", err)
+	validator := newValidator()
+	resourceControllers := make(map[string]controllers.ItemController)
+{%- for container in resources | map(attribute='container') | unique %}
+	{
+		containerName := os.Getenv("CosmosDbContainerName_{{ container | to_camel }}")
+		if containerName == "" {
+			containerName = "{{ container }}"
+		}
+		containerClient, err := client.NewContainer(databaseName, containerName)
+		if err != nil {
+			log.Fatalf("Failed to get Cosmos DB container %s: %v", containerName, err)
+		}
+		repo := repositories.NewItemRepository(containerClient)
+		svc := services.NewItemService(repo)
+		resourceControllers["{{ container }}"] = controllers.NewItemController(svc, validator)
 	}
+{%- endfor %}
 
-	repo := repositories.New{{project_class_name}}Repository(container)
-	svc := services.New{{project_class_name}}Service(repo)
-	validator, err := services.NewSchemaValidator(map[string]string{
-		"create_request": controllers.CreateRequestSchema,
-		"update_request": controllers.UpdateRequestSchema,
-	})
-	if err != nil {
-		log.Fatalf("Failed to initialize schema validator: %v", err)
-	}
-	ctrl := controllers.New{{project_class_name}}Controller(svc, validator)
-
-	return ctrl
+	return resourceControllers
 }
-{%- endif %}
-{% if cloud_service == 'GCP Cloud Function' -%}
-func initController() (controllers.{{project_class_name}}Controller, func()) {
+{%- elif cloud_service == 'GCP Cloud Function' -%}
+func initControllers() (map[string]controllers.ItemController, func()) {
 	projectID := os.Getenv("GCP_PROJECT_ID")
 	if projectID == "" {
 		log.Fatal("GCP_PROJECT_ID environment variable is required")
@@ -115,10 +142,6 @@ func initController() (controllers.{{project_class_name}}Controller, func()) {
 	if databaseName == "" {
 		databaseName = "(default)"
 	}
-	collectionName := os.Getenv("FIRESTORE_COLLECTION")
-	if collectionName == "" {
-		log.Fatal("FIRESTORE_COLLECTION environment variable is required")
-	}
 
 	ctx := context.Background()
 	client, err := firestore.NewClientWithDatabase(ctx, projectID, databaseName)
@@ -126,31 +149,33 @@ func initController() (controllers.{{project_class_name}}Controller, func()) {
 		log.Fatalf("Failed to create Firestore client: %v", err)
 	}
 
-	collection := client.Collection(collectionName)
-
-	repo := repositories.New{{project_class_name}}Repository(collection)
-	svc := services.New{{project_class_name}}Service(repo)
-	validator, err := services.NewSchemaValidator(map[string]string{
-		"create_request": controllers.CreateRequestSchema,
-		"update_request": controllers.UpdateRequestSchema,
-	})
-	if err != nil {
-		log.Fatalf("Failed to initialize schema validator: %v", err)
+	validator := newValidator()
+	resourceControllers := make(map[string]controllers.ItemController)
+{%- for container in resources | map(attribute='container') | unique %}
+	{
+		collectionName := os.Getenv("FIRESTORE_COLLECTION_{{ container | to_camel }}")
+		if collectionName == "" {
+			collectionName = "{{ container }}"
+		}
+		collection := client.Collection(collectionName)
+		repo := repositories.NewItemRepository(collection)
+		svc := services.NewItemService(repo)
+		resourceControllers["{{ container }}"] = controllers.NewItemController(svc, validator)
 	}
-	ctrl := controllers.New{{project_class_name}}Controller(svc, validator)
+{%- endfor %}
 
-	return ctrl, func() { client.Close() }
+	return resourceControllers, func() { client.Close() }
 }
 {%- endif %}
 
-func handleGet(controller controllers.{{project_class_name}}Controller) http.HandlerFunc {
+func handleGet(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Get{{project_class_name}} processed a request.")
+		log.Printf("Get processed a request for %s.", r.URL.Path)
 
 		result, err := controller.Get(r.Context(), id)
 		if err != nil {
-			log.Printf("Exception in Get{{project_class_name}}: %v", err)
+			log.Printf("Exception in Get: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -169,14 +194,14 @@ func handleHealth() http.HandlerFunc {
 	}
 }
 
-func handleGetList(controller controllers.{{project_class_name}}Controller) http.HandlerFunc {
+func handleGetList(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Get{{project_class_name}}List processed a request.")
+		log.Printf("GetList processed a request for %s.", r.URL.Path)
 
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		result, err := controller.GetList(r.Context(), limit)
 		if err != nil {
-			log.Printf("Exception in Get{{project_class_name}}List: %v", err)
+			log.Printf("Exception in GetList: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -187,13 +212,13 @@ func handleGetList(controller controllers.{{project_class_name}}Controller) http
 	}
 }
 
-func handleCreate(controller controllers.{{project_class_name}}Controller) http.HandlerFunc {
+func handleCreate(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Create{{project_class_name}} processed a request.")
+		log.Printf("Create processed a request for %s.", r.URL.Path)
 
 		result, err := controller.Create(r.Context(), r.Body)
 		if err != nil {
-			log.Printf("Exception in Create{{project_class_name}}: %v", err)
+			log.Printf("Exception in Create: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -204,14 +229,14 @@ func handleCreate(controller controllers.{{project_class_name}}Controller) http.
 	}
 }
 
-func handleUpdate(controller controllers.{{project_class_name}}Controller) http.HandlerFunc {
+func handleUpdate(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Update{{project_class_name}} processed a request.")
+		log.Printf("Update processed a request for %s.", r.URL.Path)
 
 		result, err := controller.Update(r.Context(), id, r.Body)
 		if err != nil {
-			log.Printf("Exception in Update{{project_class_name}}: %v", err)
+			log.Printf("Exception in Update: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -222,14 +247,32 @@ func handleUpdate(controller controllers.{{project_class_name}}Controller) http.
 	}
 }
 
-func handleDelete(controller controllers.{{project_class_name}}Controller) http.HandlerFunc {
+func handleReplace(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Printf("Delete{{project_class_name}} processed a request.")
+		log.Printf("Replace processed a request for %s.", r.URL.Path)
+
+		result, err := controller.Replace(r.Context(), id, r.Body)
+		if err != nil {
+			log.Printf("Exception in Replace: %v", err)
+			utils.DetectError(w, err)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(result)
+	}
+}
+
+func handleDelete(controller controllers.ItemController) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		log.Printf("Delete processed a request for %s.", r.URL.Path)
 
 		err := controller.Delete(r.Context(), id)
 		if err != nil {
-			log.Printf("Exception in Delete{{project_class_name}}: %v", err)
+			log.Printf("Exception in Delete: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
@@ -237,41 +280,55 @@ func handleDelete(controller controllers.{{project_class_name}}Controller) http.
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": fmt.Sprintf("{{project_class_name}} with id %s was deleted successfully.", id),
+			"message": fmt.Sprintf("item with id %s was deleted successfully.", id),
 		})
 	}
 }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-var controller controllers.{{project_class_name}}Controller
+type resourceRoute struct {
+	container  string
+	operations map[string]bool
+}
+
+var (
+	resourceControllers = map[string]controllers.ItemController{}
+
+	// routes maps each endpoint to its storage container and enabled operations.
+	routes = map[string]resourceRoute{
+{%- for resource in resources %}
+		"{{ resource.endpoint }}": {container: "{{ resource.container }}", operations: map[string]bool{ {%- for op in resource.operations %}"{{ op }}": true{% if not loop.last %}, {% endif %}{% endfor %}}},
+{%- endfor %}
+	}
+)
 
 func init() {
-	tableName := os.Getenv("DYNAMODB_TABLE_NAME")
-	if tableName == "" {
-		log.Fatal("DYNAMODB_TABLE_NAME environment variable is required")
-	}
-
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 
 	client := dynamodb.NewFromConfig(cfg)
-
-	repo := repositories.New{{project_class_name}}Repository(client, tableName)
-	svc := services.New{{project_class_name}}Service(repo)
-	validator, err := services.NewSchemaValidator(map[string]string{
-		"create_request": controllers.CreateRequestSchema,
-		"update_request": controllers.UpdateRequestSchema,
-	})
-	if err != nil {
-		log.Fatalf("Failed to initialize schema validator: %v", err)
+	validator := newValidator()
+{%- for container in resources | map(attribute='container') | unique %}
+	{
+		tableName := os.Getenv("DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}")
+		if tableName == "" {
+			tableName = "{{ container }}"
+		}
+		repo := repositories.NewItemRepository(client, tableName)
+		svc := services.NewItemService(repo)
+		resourceControllers["{{ container }}"] = controllers.NewItemController(svc, validator)
 	}
-	controller = controllers.New{{project_class_name}}Controller(svc, validator)
+{%- endfor %}
 }
 
 func main() {
 	lambda.Start(handler)
+}
+
+func methodNotAllowed() (events.APIGatewayProxyResponse, error) {
+	return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -281,32 +338,66 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return handleHealth()
 	}
 
+	// ``request.Resource`` is the API Gateway route template (e.g. "/cats/{item_id}"),
+	// so the first path segment is the literal endpoint and "{item_id}" marks an
+	// id-bearing route. Use it (not the concrete path) to resolve the resource.
+	trimmed := strings.Trim(request.Resource, "/")
+	endpoint := trimmed
+	if idx := strings.Index(trimmed, "/"); idx >= 0 {
+		endpoint = trimmed[:idx]
+	}
+	needsID := strings.Contains(request.Resource, "{item_id}")
+
+	route, ok := routes[endpoint]
+	if !ok {
+		return utils.GenerateErrorResponse("Not Found", 404), nil
+	}
+	controller := resourceControllers[route.container]
+
 	switch request.HTTPMethod {
 	case "GET":
-		if id, ok := request.PathParameters["item_id"]; ok {
-			return handleGet(ctx, id)
+		if needsID {
+			if !route.operations["get_by_id"] {
+				return methodNotAllowed()
+			}
+			return handleGet(ctx, controller, request.PathParameters["item_id"])
+		}
+		if !route.operations["list"] {
+			return methodNotAllowed()
 		}
 		limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
-		return handleGetList(ctx, limit)
+		return handleGetList(ctx, controller, limit)
 	case "POST":
-		return handleCreate(ctx, request.Body)
+		if !route.operations["create"] {
+			return methodNotAllowed()
+		}
+		return handleCreate(ctx, controller, request.Body)
 	case "PATCH":
-		id := request.PathParameters["item_id"]
-		return handleUpdate(ctx, id, request.Body)
+		if !route.operations["update"] {
+			return methodNotAllowed()
+		}
+		return handleUpdate(ctx, controller, request.PathParameters["item_id"], request.Body)
+	case "PUT":
+		if !route.operations["replace"] {
+			return methodNotAllowed()
+		}
+		return handleReplace(ctx, controller, request.PathParameters["item_id"], request.Body)
 	case "DELETE":
-		id := request.PathParameters["item_id"]
-		return handleDelete(ctx, id)
+		if !route.operations["delete"] {
+			return methodNotAllowed()
+		}
+		return handleDelete(ctx, controller, request.PathParameters["item_id"])
 	default:
 		return utils.GenerateErrorResponse("Not Found", 404), nil
 	}
 }
 
-func handleGet(ctx context.Context, id string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Get{{project_class_name}} processed a request.")
+func handleGet(ctx context.Context, controller controllers.ItemController, id string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Get processed a request.")
 
 	result, err := controller.Get(ctx, id)
 	if err != nil {
-		log.Printf("Exception in Get{{project_class_name}}: %v", err)
+		log.Printf("Exception in Get: %v", err)
 		return utils.DetectError(err), nil
 	}
 
@@ -327,12 +418,12 @@ func handleHealth() (events.APIGatewayProxyResponse, error) {
 	}, nil
 }
 
-func handleGetList(ctx context.Context, limit int) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Get{{project_class_name}}List processed a request.")
+func handleGetList(ctx context.Context, controller controllers.ItemController, limit int) (events.APIGatewayProxyResponse, error) {
+	log.Printf("GetList processed a request.")
 
 	result, err := controller.GetList(ctx, limit)
 	if err != nil {
-		log.Printf("Exception in Get{{project_class_name}}List: %v", err)
+		log.Printf("Exception in GetList: %v", err)
 		return utils.DetectError(err), nil
 	}
 
@@ -344,12 +435,12 @@ func handleGetList(ctx context.Context, limit int) (events.APIGatewayProxyRespon
 	}, nil
 }
 
-func handleCreate(ctx context.Context, requestBody string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Create{{project_class_name}} processed a request.")
+func handleCreate(ctx context.Context, controller controllers.ItemController, requestBody string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Create processed a request.")
 
 	result, err := controller.Create(ctx, strings.NewReader(requestBody))
 	if err != nil {
-		log.Printf("Exception in Create{{project_class_name}}: %v", err)
+		log.Printf("Exception in Create: %v", err)
 		return utils.DetectError(err), nil
 	}
 
@@ -361,12 +452,12 @@ func handleCreate(ctx context.Context, requestBody string) (events.APIGatewayPro
 	}, nil
 }
 
-func handleUpdate(ctx context.Context, id string, requestBody string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Update{{project_class_name}} processed a request.")
+func handleUpdate(ctx context.Context, controller controllers.ItemController, id string, requestBody string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Update processed a request.")
 
 	result, err := controller.Update(ctx, id, strings.NewReader(requestBody))
 	if err != nil {
-		log.Printf("Exception in Update{{project_class_name}}: %v", err)
+		log.Printf("Exception in Update: %v", err)
 		return utils.DetectError(err), nil
 	}
 
@@ -378,17 +469,34 @@ func handleUpdate(ctx context.Context, id string, requestBody string) (events.AP
 	}, nil
 }
 
-func handleDelete(ctx context.Context, id string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Delete{{project_class_name}} processed a request.")
+func handleReplace(ctx context.Context, controller controllers.ItemController, id string, requestBody string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Replace processed a request.")
+
+	result, err := controller.Replace(ctx, id, strings.NewReader(requestBody))
+	if err != nil {
+		log.Printf("Exception in Replace: %v", err)
+		return utils.DetectError(err), nil
+	}
+
+	body, _ := json.Marshal(result)
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
+}
+
+func handleDelete(ctx context.Context, controller controllers.ItemController, id string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Delete processed a request.")
 
 	err := controller.Delete(ctx, id)
 	if err != nil {
-		log.Printf("Exception in Delete{{project_class_name}}: %v", err)
+		log.Printf("Exception in Delete: %v", err)
 		return utils.DetectError(err), nil
 	}
 
 	body, _ := json.Marshal(map[string]string{
-		"message": fmt.Sprintf("{{project_class_name}} with id %s was deleted successfully.", id),
+		"message": fmt.Sprintf("item with id %s was deleted successfully.", id),
 	})
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,

@@ -32,23 +32,24 @@ import (
 	"{{project_endpoint}}/models"
 )
 
-type {{project_class_name}}Repository interface {
-	Get(ctx context.Context, id string) (*models.{{project_class_name}}Dto, error)
-	GetList(ctx context.Context, limit int) ([]models.{{project_class_name}}Dto, error)
-	Create(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error)
-	Update(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error)
+type ItemRepository interface {
+	Get(ctx context.Context, id string) (*models.ItemDto, error)
+	GetList(ctx context.Context, limit int) ([]models.ItemDto, error)
+	Create(ctx context.Context, item models.Item) (*models.ItemDto, error)
+	Update(ctx context.Context, item models.Item) (*models.ItemDto, error)
+	Replace(ctx context.Context, item models.Item) (*models.ItemDto, error)
 	Delete(ctx context.Context, id string) error
 }
 {% if cloud_service == 'Azure Function App' %}
-type {{project_lower_camel_name}}Repository struct {
+type itemRepository struct {
 	container *azcosmos.ContainerClient
 }
 
-func New{{project_class_name}}Repository(container *azcosmos.ContainerClient) {{project_class_name}}Repository {
-	return &{{project_lower_camel_name}}Repository{container: container}
+func NewItemRepository(container *azcosmos.ContainerClient) ItemRepository {
+	return &itemRepository{container: container}
 }
 
-func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id string) (*models.{{project_class_name}}, error) {
+func (r *itemRepository) getItem(ctx context.Context, id string) (*models.Item, error) {
 	pk := azcosmos.NewPartitionKeyString(id)
 	resp, err := r.container.ReadItem(ctx, pk, id, nil)
 	if err != nil {
@@ -59,7 +60,7 @@ func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id
 		return nil, err
 	}
 
-	var item models.{{project_class_name}}
+	var item models.Item
 	if err := json.Unmarshal(resp.Value, &item); err != nil {
 		return nil, err
 	}
@@ -71,23 +72,23 @@ func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id
 	return &item, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Get(ctx context.Context, id string) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Get(ctx context.Context, id string) (*models.ItemDto, error) {
 	item, err := r.getItem(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   item.Id,
 		Name: item.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) GetList(ctx context.Context, limit int) ([]models.ItemDto, error) {
 	query := fmt.Sprintf("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT %d", limit)
 	pager := r.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
 
-	var results []models.{{project_class_name}}Dto
+	var results []models.ItemDto
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
@@ -95,11 +96,11 @@ func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, li
 		}
 
 		for _, item := range resp.Items {
-			var entity models.{{project_class_name}}
+			var entity models.Item
 			if err := json.Unmarshal(item, &entity); err != nil {
 				return nil, err
 			}
-			results = append(results, models.{{project_class_name}}Dto{
+			results = append(results, models.ItemDto{
 				Id:   entity.Id,
 				Name: entity.Name,
 			})
@@ -113,7 +114,7 @@ func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, li
 	return results, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Create(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Create(ctx context.Context, item models.Item) (*models.ItemDto, error) {
 	pk := azcosmos.NewPartitionKeyString(item.Id)
 	data, err := json.Marshal(item)
 	if err != nil {
@@ -125,30 +126,30 @@ func (r *{{project_lower_camel_name}}Repository) Create(ctx context.Context, ite
 		return nil, err
 	}
 
-	var created models.{{project_class_name}}
+	var created models.Item
 	if err := json.Unmarshal(resp.Value, &created); err != nil {
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   created.Id,
 		Name: created.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Update(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Update(ctx context.Context, item models.Item) (*models.ItemDto, error) {
 	currentItem, err := r.getItem(ctx, item.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	updateItem := models.{{project_class_name}}{
+	updateItem := models.Item{
 		BaseEntity: models.BaseEntity{
 			Id:               currentItem.Id,
 			IsDeleted:        currentItem.IsDeleted,
 			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp:  currentItem.CreatedTimestamp,
-			UpdatedTimestamp:  time.Now().UTC(),
+			CreatedTimestamp: currentItem.CreatedTimestamp,
+			UpdatedTimestamp: time.Now().UTC(),
 		},
 	}
 
@@ -175,18 +176,58 @@ func (r *{{project_lower_camel_name}}Repository) Update(ctx context.Context, ite
 		return nil, err
 	}
 
-	var updated models.{{project_class_name}}
+	var updated models.Item
 	if err := json.Unmarshal(resp.Value, &updated); err != nil {
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   updated.Id,
 		Name: updated.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Delete(ctx context.Context, id string) error {
+func (r *itemRepository) Replace(ctx context.Context, item models.Item) (*models.ItemDto, error) {
+	currentItem, err := r.getItem(ctx, item.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	replacementItem := models.Item{
+		BaseEntity: models.BaseEntity{
+			Id:               currentItem.Id,
+			IsDeleted:        false,
+			CreatedBy:        currentItem.CreatedBy,
+			CreatedTimestamp: currentItem.CreatedTimestamp,
+			UpdatedBy:        item.UpdatedBy,
+			UpdatedTimestamp: time.Now().UTC(),
+		},
+		Name: item.Name,
+	}
+
+	pk := azcosmos.NewPartitionKeyString(replacementItem.Id)
+	data, err := json.Marshal(replacementItem)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.container.ReplaceItem(ctx, pk, replacementItem.Id, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var replaced models.Item
+	if err := json.Unmarshal(resp.Value, &replaced); err != nil {
+		return nil, err
+	}
+
+	return &models.ItemDto{
+		Id:   replaced.Id,
+		Name: replaced.Name,
+	}, nil
+}
+
+func (r *itemRepository) Delete(ctx context.Context, id string) error {
 	item, err := r.getItem(ctx, id)
 	if err != nil {
 		return err
@@ -204,15 +245,15 @@ func (r *{{project_lower_camel_name}}Repository) Delete(ctx context.Context, id 
 }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-type {{project_lower_camel_name}}Repository struct {
+type itemRepository struct {
 	collection *firestore.CollectionRef
 }
 
-func New{{project_class_name}}Repository(collection *firestore.CollectionRef) {{project_class_name}}Repository {
-	return &{{project_lower_camel_name}}Repository{collection: collection}
+func NewItemRepository(collection *firestore.CollectionRef) ItemRepository {
+	return &itemRepository{collection: collection}
 }
 
-func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id string) (*models.{{project_class_name}}, error) {
+func (r *itemRepository) getItem(ctx context.Context, id string) (*models.Item, error) {
 	doc, err := r.collection.Doc(id).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
@@ -221,7 +262,7 @@ func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id
 		return nil, err
 	}
 
-	var item models.{{project_class_name}}
+	var item models.Item
 	if err := doc.DataTo(&item); err != nil {
 		return nil, err
 	}
@@ -233,23 +274,23 @@ func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id
 	return &item, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Get(ctx context.Context, id string) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Get(ctx context.Context, id string) (*models.ItemDto, error) {
 	item, err := r.getItem(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   item.Id,
 		Name: item.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) GetList(ctx context.Context, limit int) ([]models.ItemDto, error) {
 	iter := r.collection.Where("isDeleted", "==", false).Limit(limit).Documents(ctx)
 	defer iter.Stop()
 
-	var results []models.{{project_class_name}}Dto
+	var results []models.ItemDto
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -259,11 +300,11 @@ func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, li
 			return nil, err
 		}
 
-		var entity models.{{project_class_name}}
+		var entity models.Item
 		if err := doc.DataTo(&entity); err != nil {
 			return nil, err
 		}
-		results = append(results, models.{{project_class_name}}Dto{
+		results = append(results, models.ItemDto{
 			Id:   entity.Id,
 			Name: entity.Name,
 		})
@@ -272,31 +313,31 @@ func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, li
 	return results, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Create(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Create(ctx context.Context, item models.Item) (*models.ItemDto, error) {
 	_, err := r.collection.Doc(item.Id).Set(ctx, item)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   item.Id,
 		Name: item.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Update(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Update(ctx context.Context, item models.Item) (*models.ItemDto, error) {
 	currentItem, err := r.getItem(ctx, item.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	updateItem := models.{{project_class_name}}{
+	updateItem := models.Item{
 		BaseEntity: models.BaseEntity{
 			Id:               currentItem.Id,
 			IsDeleted:        currentItem.IsDeleted,
 			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp:  currentItem.CreatedTimestamp,
-			UpdatedTimestamp:  time.Now().UTC(),
+			CreatedTimestamp: currentItem.CreatedTimestamp,
+			UpdatedTimestamp: time.Now().UTC(),
 		},
 	}
 
@@ -317,13 +358,42 @@ func (r *{{project_lower_camel_name}}Repository) Update(ctx context.Context, ite
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   updateItem.Id,
 		Name: updateItem.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Delete(ctx context.Context, id string) error {
+func (r *itemRepository) Replace(ctx context.Context, item models.Item) (*models.ItemDto, error) {
+	currentItem, err := r.getItem(ctx, item.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	replacementItem := models.Item{
+		BaseEntity: models.BaseEntity{
+			Id:               currentItem.Id,
+			IsDeleted:        false,
+			CreatedBy:        currentItem.CreatedBy,
+			CreatedTimestamp: currentItem.CreatedTimestamp,
+			UpdatedBy:        item.UpdatedBy,
+			UpdatedTimestamp: time.Now().UTC(),
+		},
+		Name: item.Name,
+	}
+
+	_, err = r.collection.Doc(replacementItem.Id).Set(ctx, replacementItem)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.ItemDto{
+		Id:   replacementItem.Id,
+		Name: replacementItem.Name,
+	}, nil
+}
+
+func (r *itemRepository) Delete(ctx context.Context, id string) error {
 	item, err := r.getItem(ctx, id)
 	if err != nil {
 		return err
@@ -335,16 +405,16 @@ func (r *{{project_lower_camel_name}}Repository) Delete(ctx context.Context, id 
 }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-type {{project_lower_camel_name}}Repository struct {
+type itemRepository struct {
 	client    *dynamodb.Client
 	tableName string
 }
 
-func New{{project_class_name}}Repository(client *dynamodb.Client, tableName string) {{project_class_name}}Repository {
-	return &{{project_lower_camel_name}}Repository{client: client, tableName: tableName}
+func NewItemRepository(client *dynamodb.Client, tableName string) ItemRepository {
+	return &itemRepository{client: client, tableName: tableName}
 }
 
-func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id string) (*models.{{project_class_name}}, error) {
+func (r *itemRepository) getItem(ctx context.Context, id string) (*models.Item, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
@@ -362,7 +432,7 @@ func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id
 		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
 	}
 
-	var item models.{{project_class_name}}
+	var item models.Item
 	if err := attributevalue.UnmarshalMap(resp.Item, &item); err != nil {
 		return nil, err
 	}
@@ -374,26 +444,26 @@ func (r *{{project_lower_camel_name}}Repository) getItem(ctx context.Context, id
 	return &item, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Get(ctx context.Context, id string) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Get(ctx context.Context, id string) (*models.ItemDto, error) {
 	item, err := r.getItem(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   item.Id,
 		Name: item.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, limit int) ([]models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) GetList(ctx context.Context, limit int) ([]models.ItemDto, error) {
 	filt := expression.Equal(expression.Name("isDeleted"), expression.Value(false))
 	expr, err := expression.NewBuilder().WithFilter(filt).Build()
 	if err != nil {
 		return nil, err
 	}
 
-	var results []models.{{project_class_name}}Dto
+	var results []models.ItemDto
 	var lastKey map[string]types.AttributeValue
 
 	for {
@@ -412,11 +482,11 @@ func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, li
 		}
 
 		for _, item := range resp.Items {
-			var entity models.{{project_class_name}}
+			var entity models.Item
 			if err := attributevalue.UnmarshalMap(item, &entity); err != nil {
 				return nil, err
 			}
-			results = append(results, models.{{project_class_name}}Dto{
+			results = append(results, models.ItemDto{
 				Id:   entity.Id,
 				Name: entity.Name,
 			})
@@ -435,7 +505,7 @@ func (r *{{project_lower_camel_name}}Repository) GetList(ctx context.Context, li
 	return results, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Create(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Create(ctx context.Context, item models.Item) (*models.ItemDto, error) {
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
 		return nil, err
@@ -449,25 +519,25 @@ func (r *{{project_lower_camel_name}}Repository) Create(ctx context.Context, ite
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   item.Id,
 		Name: item.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Update(ctx context.Context, item models.{{project_class_name}}) (*models.{{project_class_name}}Dto, error) {
+func (r *itemRepository) Update(ctx context.Context, item models.Item) (*models.ItemDto, error) {
 	currentItem, err := r.getItem(ctx, item.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	updateItem := models.{{project_class_name}}{
+	updateItem := models.Item{
 		BaseEntity: models.BaseEntity{
 			Id:               currentItem.Id,
 			IsDeleted:        currentItem.IsDeleted,
 			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp:  currentItem.CreatedTimestamp,
-			UpdatedTimestamp:  time.Now().UTC(),
+			CreatedTimestamp: currentItem.CreatedTimestamp,
+			UpdatedTimestamp: time.Now().UTC(),
 		},
 	}
 
@@ -496,13 +566,50 @@ func (r *{{project_lower_camel_name}}Repository) Update(ctx context.Context, ite
 		return nil, err
 	}
 
-	return &models.{{project_class_name}}Dto{
+	return &models.ItemDto{
 		Id:   updateItem.Id,
 		Name: updateItem.Name,
 	}, nil
 }
 
-func (r *{{project_lower_camel_name}}Repository) Delete(ctx context.Context, id string) error {
+func (r *itemRepository) Replace(ctx context.Context, item models.Item) (*models.ItemDto, error) {
+	currentItem, err := r.getItem(ctx, item.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	replacementItem := models.Item{
+		BaseEntity: models.BaseEntity{
+			Id:               currentItem.Id,
+			IsDeleted:        false,
+			CreatedBy:        currentItem.CreatedBy,
+			CreatedTimestamp: currentItem.CreatedTimestamp,
+			UpdatedBy:        item.UpdatedBy,
+			UpdatedTimestamp: time.Now().UTC(),
+		},
+		Name: item.Name,
+	}
+
+	av, err := attributevalue.MarshalMap(replacementItem)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = r.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(r.tableName),
+		Item:      av,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.ItemDto{
+		Id:   replacementItem.Id,
+		Name: replacementItem.Name,
+	}, nil
+}
+
+func (r *itemRepository) Delete(ctx context.Context, id string) error {
 	item, err := r.getItem(ctx, id)
 	if err != nil {
 		return err

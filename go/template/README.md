@@ -13,12 +13,28 @@ This project is a Go-based REST API built using [Google Cloud Functions](https:/
 This project is a Go-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with [API Gateway](https://docs.aws.amazon.com/apigateway/). The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) framework is used for local development and deployment.
 {%- endif %}
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+The REST API exposes the following resources and operations:
+{% for resource in resources %}
+- **`/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
+{%- if "list" in resource.operations %}
+  - `GET /{{ resource.endpoint }}` — list
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+  - `GET /{{ resource.endpoint }}/{id}` — get by ID
+{%- endif %}
+{%- if "create" in resource.operations %}
+  - `POST /{{ resource.endpoint }}` — create
+{%- endif %}
+{%- if "update" in resource.operations %}
+  - `PATCH /{{ resource.endpoint }}/{id}` — partial update
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  - `PUT /{{ resource.endpoint }}/{id}` — full replace
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  - `DELETE /{{ resource.endpoint }}/{id}` — soft delete
+{%- endif %}
+{%- endfor %}
 
 Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ensuring a streamlined and consistent environment for managing Go packages and their dependencies.
 
@@ -231,11 +247,8 @@ This is also run automatically in CI on every PR and push to main.
     ├── models
     ├── utils
 {%- if cloud_service == 'Azure Function App' %}
-    ├── get{{ project_class_name }}
-    ├── get{{ project_class_name }}s
-    ├── create{{ project_class_name }}
-    ├── update{{ project_class_name }}
-    └── delete{{ project_class_name }}
+    ├── httpApi
+    └── main.go
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
     └── main.go
