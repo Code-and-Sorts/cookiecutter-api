@@ -1,2 +1,2 @@
-export * from './item.service';
+export * from './service';
 export * from './schemaValidator.service';

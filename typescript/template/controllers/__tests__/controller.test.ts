@@ -10,85 +10,78 @@ process.env.FIRESTORE_DATABASE = '(default)';
 process.env.AWS_REGION = 'us-east-1';
 {%- endif %}
 
-import { ItemController } from '@controllers';
-import { ItemService } from '@services';
 import {
-    ItemRequestSchema,
-    ItemUpdateSchema,
+{%- for resource in resources %}
+    {{ resource.name }}Controller,
+{%- endfor %}
+} from '@controllers';
+import {
+{%- for resource in resources %}
+    {{ resource.name }}Service,
+{%- endfor %}
+} from '@services';
+import {
+{%- for resource in resources %}
+    {{ resource.name }}RequestSchema,
+    {{ resource.name }}UpdateSchema,
+{%- endfor %}
     GuidSchema,
 } from '@models';
 import { SchemaValidator } from '@services';
 import { ValidationError } from '@errors';
 import { injectable } from 'inversify';
+{% for resource in resources %}
+{%- set r = resource.name %}
+describe('{{ r }}Controller', () => {
+    const mockGet = jest.fn();
+    const mockList = jest.fn();
+    const mockCreate = jest.fn();
+    const mockUpdate = jest.fn();
+    const mockReplace = jest.fn();
+    const mockDelete = jest.fn();
 
-let mockResult;
-const mockGet = jest.fn().mockImplementation(() => mockResult);
-const mockList = jest.fn().mockImplementation(() => mockResult);
-const mockCreate = jest.fn().mockImplementation(() => mockResult);
-const mockUpdate = jest.fn().mockImplementation(() => mockResult);
-const mockReplace = jest.fn().mockImplementation(() => mockResult);
-const mockDelete = jest.fn().mockImplementation(() => mockResult);
+    @injectable()
+    class Mock{{ r }}Service {
+        get = mockGet;
+        list = mockList;
+        create = mockCreate;
+        update = mockUpdate;
+        replace = mockReplace;
+        delete = mockDelete;
+    }
 
-@injectable()
-class MockItemService {
-    constructor() { }
-    get = mockGet;
-    list = mockList;
-    create = mockCreate;
-    update = mockUpdate;
-    replace = mockReplace;
-    delete = mockDelete;
-}
-
-describe('ItemController', () => {
     beforeEach(() => {
         jest.resetAllMocks();
     });
 
     const mockValidGuid = '91ed1c70-5412-449a-b949-80542a4eb3d5';
     const mockInvalidGuid = 'invalid-guid';
-    const mockItemPostRequest = {
-        name: 'mockItem',
-    };
-    const mockItemInvalidPostRequest = {
-        name: 'mockItem',
-        invalidProp: 'mockInvalidProp',
-    };
-    const mockItemPutRequest = {
-        id: mockValidGuid,
-        name: 'mockItem',
-    };
-    const mockItemInvalidPutRequest = {
-        id: mockInvalidGuid,
-        name: 'mockItem',
-    };
+    const mockPostRequest = { name: 'mock{{ r }}' };
+    const mockInvalidPostRequest = { name: 'mock{{ r }}', invalidProp: 'mockInvalidProp' };
+    const mockPutRequest = { id: mockValidGuid, name: 'mock{{ r }}' };
+    const mockInvalidPutRequest = { id: mockInvalidGuid, name: 'mock{{ r }}' };
     const mockSchemaValidator = new SchemaValidator();
-    const mockItemService = new MockItemService() as unknown as ItemService;
-    const mockItemController = new ItemController(
-        mockItemService as ItemService,
-        mockSchemaValidator as SchemaValidator,
-    );
+    const mockService = new Mock{{ r }}Service() as unknown as {{ r }}Service;
+    const mockController = new {{ r }}Controller(mockService, mockSchemaValidator);
+{%- if "create" in resource.operations %}
 
     describe('post', () => {
         it('should successfully call service', async () => {
-            await mockItemController.post(mockItemPostRequest);
+            await mockController.post(mockPostRequest);
             expect(mockCreate).toHaveBeenCalledTimes(1);
         });
 
         it('should successfully validate the item request', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate')
-                .mockReturnValue(mockItemPostRequest);
-            await mockItemController.post(mockItemPostRequest);
+            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPostRequest);
+            await mockController.post(mockPostRequest);
             expect(validator).toHaveBeenCalledTimes(1);
-            expect(validator).toHaveBeenCalledWith(mockItemPostRequest, ItemRequestSchema);
+            expect(validator).toHaveBeenCalledWith(mockPostRequest, {{ r }}RequestSchema);
         });
 
         it('should successfully throw for invalid request', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate');
+            const validator = jest.spyOn(mockSchemaValidator, 'validate');
             try {
-                await mockItemController.post(mockItemInvalidPostRequest);
+                await mockController.post(mockInvalidPostRequest);
             } catch (error) {
                 expect(validator).toHaveBeenCalledTimes(1);
                 expect(error).toBeInstanceOf(ValidationError);
@@ -97,27 +90,26 @@ describe('ItemController', () => {
             }
         });
     });
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
 
     describe('get', () => {
         it('should successfully call service', async () => {
-            await mockItemController.get(mockValidGuid);
+            await mockController.get(mockValidGuid);
             expect(mockGet).toHaveBeenCalledTimes(1);
         });
 
         it('should successfully validate a valid ID', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate')
-                .mockReturnValue(mockValidGuid);
-            await mockItemController.get(mockValidGuid);
+            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockValidGuid);
+            await mockController.get(mockValidGuid);
             expect(validator).toHaveBeenCalledTimes(1);
             expect(validator).toHaveBeenCalledWith(mockValidGuid, GuidSchema);
         });
 
         it('should successfully throw validation error for invalid ID', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate');
+            const validator = jest.spyOn(mockSchemaValidator, 'validate');
             try {
-                await mockItemController.get(mockInvalidGuid);
+                await mockController.get(mockInvalidGuid);
             } catch (error) {
                 expect(validator).toHaveBeenCalledTimes(1);
                 expect(error).toBeInstanceOf(ValidationError);
@@ -126,47 +118,48 @@ describe('ItemController', () => {
             }
         });
     });
+{%- endif %}
+{%- if "list" in resource.operations %}
 
     describe('list', () => {
         it('should successfully call service', async () => {
-            await mockItemController.list();
+            await mockController.list();
             expect(mockList).toHaveBeenCalledTimes(1);
         });
 
         it('should default the limit when not provided', async () => {
-            await mockItemController.list();
+            await mockController.list();
             expect(mockList).toHaveBeenCalledWith(100);
         });
 
         it('should coerce and clamp the limit query param', async () => {
-            await mockItemController.list('5');
+            await mockController.list('5');
             expect(mockList).toHaveBeenCalledWith(5);
 
-            await mockItemController.list('999999');
+            await mockController.list('999999');
             expect(mockList).toHaveBeenCalledWith(1000);
         });
     });
+{%- endif %}
+{%- if "update" in resource.operations %}
 
     describe('update', () => {
         it('should successfully call service', async () => {
-            await mockItemController.update(mockItemPutRequest);
+            await mockController.update(mockPutRequest);
             expect(mockUpdate).toHaveBeenCalledTimes(1);
         });
 
         it('should successfully validate a valid ID', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate')
-                .mockReturnValue(mockItemPutRequest);
-            await mockItemController.update(mockItemPutRequest);
+            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPutRequest);
+            await mockController.update(mockPutRequest);
             expect(validator).toHaveBeenCalledTimes(2);
-            expect(validator).toHaveBeenCalledWith(mockItemPutRequest, ItemUpdateSchema);
+            expect(validator).toHaveBeenCalledWith(mockPutRequest, {{ r }}UpdateSchema);
         });
 
         it('should successfully throw validation error for invalid ID', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate');
+            const validator = jest.spyOn(mockSchemaValidator, 'validate');
             try {
-                await mockItemController.update(mockItemInvalidPutRequest);
+                await mockController.update(mockInvalidPutRequest);
             } catch (error) {
                 expect(validator).toHaveBeenCalledTimes(1);
                 expect(error).toBeInstanceOf(ValidationError);
@@ -175,43 +168,42 @@ describe('ItemController', () => {
             }
         });
     });
+{%- endif %}
+{%- if "replace" in resource.operations %}
 
     describe('replace', () => {
         it('should successfully call service', async () => {
-            await mockItemController.replace(mockItemPutRequest);
+            await mockController.replace(mockPutRequest);
             expect(mockReplace).toHaveBeenCalledTimes(1);
         });
 
         it('should successfully validate the request', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate')
-                .mockReturnValue(mockItemPutRequest);
-            await mockItemController.replace(mockItemPutRequest);
+            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPutRequest);
+            await mockController.replace(mockPutRequest);
             expect(validator).toHaveBeenCalledTimes(2);
-            expect(validator).toHaveBeenCalledWith(mockItemPutRequest, ItemUpdateSchema);
+            expect(validator).toHaveBeenCalledWith(mockPutRequest, {{ r }}UpdateSchema);
         });
     });
+{%- endif %}
+{%- if "delete" in resource.operations %}
 
     describe('delete', () => {
         it('should successfully call service', async () => {
-            await mockItemController.delete(mockValidGuid);
+            await mockController.delete(mockValidGuid);
             expect(mockDelete).toHaveBeenCalledTimes(1);
         });
 
         it('should successfully validate a valid ID', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate')
-                .mockReturnValue(mockValidGuid);
-            await mockItemController.delete(mockValidGuid);
+            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockValidGuid);
+            await mockController.delete(mockValidGuid);
             expect(validator).toHaveBeenCalledTimes(1);
             expect(validator).toHaveBeenCalledWith(mockValidGuid, GuidSchema);
         });
 
         it('should successfully throw validation error for invalid ID', async () => {
-            const validator = jest
-                .spyOn(mockSchemaValidator, 'validate');
+            const validator = jest.spyOn(mockSchemaValidator, 'validate');
             try {
-                await mockItemController.delete(mockInvalidGuid);
+                await mockController.delete(mockInvalidGuid);
             } catch (error) {
                 expect(validator).toHaveBeenCalledTimes(1);
                 expect(error).toBeInstanceOf(ValidationError);
@@ -220,4 +212,6 @@ describe('ItemController', () => {
             }
         });
     });
+{%- endif %}
 });
+{% endfor %}

@@ -1,14 +1,15 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { controllers } from '@config/inversity.config';
-import { Item } from '@models';
-import { detectError } from '@utils';
-
-// Endpoint -> its container and enabled operations.
-const RESOURCES: Record<string, { container: string; operations: string[] }> = {
+import {
 {%- for resource in resources %}
-  '{{ resource.endpoint }}': { container: '{{ resource.container }}', operations: {{ resource.operations | tojson }} },
+  {{ resource.name | to_lower_camel }}Controller,
 {%- endfor %}
-};
+} from '@config/inversity.config';
+import {
+{%- for resource in resources %}
+  {{ resource.name }},
+{%- endfor %}
+} from '@models';
+import { detectError } from '@utils';
 
 const jsonResponse = (statusCode: number, body: unknown): APIGatewayProxyResult => ({
   statusCode,
@@ -17,7 +18,64 @@ const jsonResponse = (statusCode: number, body: unknown): APIGatewayProxyResult 
 });
 
 const notAllowed = () => jsonResponse(405, { error: 'Method not allowed.' });
-
+{% for resource in resources %}
+{%- set c = resource.name | to_lower_camel %}
+const handle{{ resource.name }} = async (event: APIGatewayProxyEvent, id?: string): Promise<APIGatewayProxyResult> => {
+  switch (event.httpMethod) {
+    case 'GET': {
+      if (id) {
+{%- if "get_by_id" in resource.operations %}
+        return jsonResponse(200, await {{ c }}Controller.get(id));
+{%- else %}
+        return notAllowed();
+{%- endif %}
+      }
+{%- if "list" in resource.operations %}
+      return jsonResponse(200, await {{ c }}Controller.list(event.queryStringParameters?.limit ?? undefined));
+{%- else %}
+      return notAllowed();
+{%- endif %}
+    }
+    case 'POST': {
+{%- if "create" in resource.operations %}
+      const item: {{ resource.name }} = JSON.parse(event.body || '{}');
+      return jsonResponse(201, await {{ c }}Controller.post(item));
+{%- else %}
+      return notAllowed();
+{%- endif %}
+    }
+    case 'PATCH': {
+{%- if "update" in resource.operations %}
+      const item: {{ resource.name }} = JSON.parse(event.body || '{}');
+      return jsonResponse(200, await {{ c }}Controller.update({ id, ...item }));
+{%- else %}
+      return notAllowed();
+{%- endif %}
+    }
+    case 'PUT': {
+{%- if "replace" in resource.operations %}
+      const item: {{ resource.name }} = JSON.parse(event.body || '{}');
+      return jsonResponse(200, await {{ c }}Controller.replace({ id, ...item }));
+{%- else %}
+      return notAllowed();
+{%- endif %}
+    }
+    case 'DELETE': {
+{%- if "delete" in resource.operations %}
+      if (!id) {
+        return jsonResponse(400, { error: 'Missing item ID.' });
+      }
+      await {{ c }}Controller.delete(id);
+      return jsonResponse(200, { message: `{{ resource.endpoint }} with ID ${id} deleted.` });
+{%- else %}
+      return notAllowed();
+{%- endif %}
+    }
+    default:
+      return notAllowed();
+  }
+};
+{% endfor %}
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   // ``resource`` is the API Gateway route template (e.g. "/cats/{id}"); its
   // first segment is the literal endpoint used to resolve the resource.
@@ -28,54 +86,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   const endpoint = routePath.split('/').filter(Boolean)[0];
   const id = event.pathParameters?.id;
-  const resource = RESOURCES[endpoint];
-  if (!resource) {
-    return jsonResponse(404, { error: 'Not found.' });
-  }
-
-  const controller = controllers[resource.container];
-  const has = (op: string) => resource.operations.includes(op);
 
   try {
-    switch (event.httpMethod) {
-      case 'GET': {
-        if (id) {
-          if (!has('get_by_id')) return notAllowed();
-          return jsonResponse(200, await controller.get(id));
-        }
-        if (!has('list')) return notAllowed();
-        return jsonResponse(200, await controller.list(event.queryStringParameters?.limit ?? undefined));
-      }
-
-      case 'POST': {
-        if (!has('create')) return notAllowed();
-        const item: Item = JSON.parse(event.body || '{}');
-        return jsonResponse(201, await controller.post(item));
-      }
-
-      case 'PATCH': {
-        if (!has('update')) return notAllowed();
-        const item: Item = JSON.parse(event.body || '{}');
-        return jsonResponse(200, await controller.update({ id, ...item }));
-      }
-
-      case 'PUT': {
-        if (!has('replace')) return notAllowed();
-        const item: Item = JSON.parse(event.body || '{}');
-        return jsonResponse(200, await controller.replace({ id, ...item }));
-      }
-
-      case 'DELETE': {
-        if (!has('delete')) return notAllowed();
-        if (!id) {
-          return jsonResponse(400, { error: 'Missing item ID.' });
-        }
-        await controller.delete(id);
-        return jsonResponse(200, { message: `${endpoint} with ID ${id} deleted.` });
-      }
-
+    switch (endpoint) {
+{%- for resource in resources %}
+      case '{{ resource.endpoint }}':
+        return await handle{{ resource.name }}(event, id);
+{%- endfor %}
       default:
-        return notAllowed();
+        return jsonResponse(404, { error: 'Not found.' });
     }
   } catch (error) {
     const errorResponse = detectError(error);

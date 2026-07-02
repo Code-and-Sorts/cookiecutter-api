@@ -1,6 +1,14 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { controllers } from '@config/inversity.config';
-import { Item } from '@models';
+import {
+{%- for resource in resources %}
+    {{ resource.name | to_lower_camel }}Controller,
+{%- endfor %}
+} from '@config/inversity.config';
+import {
+{%- for resource in resources %}
+    {{ resource.name }},
+{%- endfor %}
+} from '@models';
 import { detectError } from '@utils';
 
 const jsonResponse = (status: number, body: unknown): HttpResponseInit => ({
@@ -16,6 +24,7 @@ app.http('health', {
     handler: async (): Promise<HttpResponseInit> => jsonResponse(200, { status: 'ok' }),
 });
 {% for resource in resources %}
+{%- set c = resource.name | to_lower_camel %}
 {%- if "get_by_id" in resource.operations %}
 
 app.http('getById{{ resource.name }}', {
@@ -25,7 +34,7 @@ app.http('getById{{ resource.name }}', {
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         context.log(`Get {{ resource.endpoint }} by id: '${request.url}'`);
         try {
-            const result = await controllers['{{ resource.container }}'].get(request.params.id);
+            const result = await {{ c }}Controller.get(request.params.id);
             return jsonResponse(200, result);
         } catch (error) {
             return detectError(error);
@@ -43,7 +52,7 @@ app.http('list{{ resource.name }}', {
         context.log(`List {{ resource.endpoint }}: '${request.url}'`);
         try {
             const limit = request.query.get('limit') ?? undefined;
-            const result = await controllers['{{ resource.container }}'].list(limit);
+            const result = await {{ c }}Controller.list(limit);
             return jsonResponse(200, result);
         } catch (error) {
             return detectError(error);
@@ -60,8 +69,8 @@ app.http('create{{ resource.name }}', {
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         context.log(`Create {{ resource.endpoint }}: '${request.url}'`);
         try {
-            const item = await request.json() as Item;
-            const result = await controllers['{{ resource.container }}'].post(item);
+            const item = await request.json() as {{ resource.name }};
+            const result = await {{ c }}Controller.post(item);
             return jsonResponse(201, result);
         } catch (error) {
             return detectError(error);
@@ -78,8 +87,8 @@ app.http('update{{ resource.name }}', {
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         context.log(`Update {{ resource.endpoint }}: '${request.url}'`);
         try {
-            const item = await request.json() as Item;
-            const result = await controllers['{{ resource.container }}'].update({ id: request.params.id, ...item });
+            const item = await request.json() as {{ resource.name }};
+            const result = await {{ c }}Controller.update({ id: request.params.id, ...item });
             return jsonResponse(200, result);
         } catch (error) {
             return detectError(error);
@@ -96,8 +105,8 @@ app.http('replace{{ resource.name }}', {
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         context.log(`Replace {{ resource.endpoint }}: '${request.url}'`);
         try {
-            const item = await request.json() as Item;
-            const result = await controllers['{{ resource.container }}'].replace({ id: request.params.id, ...item });
+            const item = await request.json() as {{ resource.name }};
+            const result = await {{ c }}Controller.replace({ id: request.params.id, ...item });
             return jsonResponse(200, result);
         } catch (error) {
             return detectError(error);
@@ -114,7 +123,7 @@ app.http('delete{{ resource.name }}', {
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         context.log(`Delete {{ resource.endpoint }}: '${request.url}'`);
         try {
-            await controllers['{{ resource.container }}'].delete(request.params.id);
+            await {{ c }}Controller.delete(request.params.id);
             return jsonResponse(200, { message: `{{ resource.name }} with ID ${request.params.id} deleted.` });
         } catch (error) {
             return detectError(error);

@@ -1,14 +1,15 @@
 import * as ff from '@google-cloud/functions-framework';
-import { controllers } from '@config/inversity.config';
-import { Item } from '@models';
-import { detectError } from '@utils';
-
-// Endpoint -> its container and enabled operations.
-const RESOURCES: Record<string, { container: string; operations: string[] }> = {
+import {
 {%- for resource in resources %}
-  '{{ resource.endpoint }}': { container: '{{ resource.container }}', operations: {{ resource.operations | tojson }} },
+  {{ resource.name | to_lower_camel }}Controller,
 {%- endfor %}
-};
+} from '@config/inversity.config';
+import {
+{%- for resource in resources %}
+  {{ resource.name }},
+{%- endfor %}
+} from '@models';
+import { detectError } from '@utils';
 
 const jsonResponse = (res: ff.Response, status: number, body: unknown): void => {
   res.status(status).json(body);
@@ -25,52 +26,64 @@ ff.http('api', async (req: ff.Request, res: ff.Response) => {
   const segments = cleanPath.split('/').filter(Boolean);
   const endpoint = segments[0];
   const id = segments[1];
-  const resource = RESOURCES[endpoint];
-  if (!resource) {
-    return jsonResponse(res, 404, { error: 'Not found.' });
-  }
-
-  const controller = controllers[resource.container];
-  const has = (op: string) => resource.operations.includes(op);
 
   try {
-    switch (req.method) {
-      case 'GET': {
-        if (id) {
-          if (!has('get_by_id')) return notAllowed(res);
-          return jsonResponse(res, 200, await controller.get(id));
+    switch (endpoint) {
+{%- for resource in resources %}
+{%- set c = resource.name | to_lower_camel %}
+      case '{{ resource.endpoint }}': {
+        switch (req.method) {
+          case 'GET': {
+            if (id) {
+{%- if "get_by_id" in resource.operations %}
+              return jsonResponse(res, 200, await {{ c }}Controller.get(id));
+{%- else %}
+              return notAllowed(res);
+{%- endif %}
+            }
+{%- if "list" in resource.operations %}
+            return jsonResponse(res, 200, await {{ c }}Controller.list(req.query.limit as string | undefined));
+{%- else %}
+            return notAllowed(res);
+{%- endif %}
+          }
+          case 'POST': {
+{%- if "create" in resource.operations %}
+            return jsonResponse(res, 201, await {{ c }}Controller.post(req.body as {{ resource.name }}));
+{%- else %}
+            return notAllowed(res);
+{%- endif %}
+          }
+          case 'PATCH': {
+{%- if "update" in resource.operations %}
+            return jsonResponse(res, 200, await {{ c }}Controller.update({ id, ...(req.body as {{ resource.name }}) }));
+{%- else %}
+            return notAllowed(res);
+{%- endif %}
+          }
+          case 'PUT': {
+{%- if "replace" in resource.operations %}
+            return jsonResponse(res, 200, await {{ c }}Controller.replace({ id, ...(req.body as {{ resource.name }}) }));
+{%- else %}
+            return notAllowed(res);
+{%- endif %}
+          }
+          case 'DELETE': {
+{%- if "delete" in resource.operations %}
+            if (!id) return jsonResponse(res, 400, { error: 'Missing item ID.' });
+            await {{ c }}Controller.delete(id);
+            return jsonResponse(res, 200, { message: `{{ resource.endpoint }} with ID ${id} deleted.` });
+{%- else %}
+            return notAllowed(res);
+{%- endif %}
+          }
+          default:
+            return notAllowed(res);
         }
-        if (!has('list')) return notAllowed(res);
-        return jsonResponse(res, 200, await controller.list(req.query.limit as string | undefined));
       }
-
-      case 'POST': {
-        if (!has('create')) return notAllowed(res);
-        const created = await controller.post(req.body as Item);
-        return jsonResponse(res, 201, created);
-      }
-
-      case 'PATCH': {
-        if (!has('update')) return notAllowed(res);
-        const updated = await controller.update({ id, ...(req.body as Item) });
-        return jsonResponse(res, 200, updated);
-      }
-
-      case 'PUT': {
-        if (!has('replace')) return notAllowed(res);
-        const replaced = await controller.replace({ id, ...(req.body as Item) });
-        return jsonResponse(res, 200, replaced);
-      }
-
-      case 'DELETE': {
-        if (!has('delete')) return notAllowed(res);
-        if (!id) return jsonResponse(res, 400, { error: 'Missing item ID.' });
-        await controller.delete(id);
-        return jsonResponse(res, 200, { message: `${endpoint} with ID ${id} deleted.` });
-      }
-
+{%- endfor %}
       default:
-        return notAllowed(res);
+        return jsonResponse(res, 404, { error: 'Not found.' });
     }
   } catch (error) {
     const errorResponse = detectError(error);
