@@ -1,73 +1,76 @@
 import * as ff from '@google-cloud/functions-framework';
-import { {{project_class_name}}Controller } from '@controllers';
-import { container } from '@config/inversity.config';
-import { {{project_class_name}} } from '@models';
+import { controllers } from '@config/inversity.config';
+import { Item } from '@models';
 import { detectError } from '@utils';
 
-const ENDPOINT = '{{project_endpoint}}';
-
-/**
- * Parses the item ID from the request path.
- * Expected paths: /{endpoint}/{id} or /{endpoint}
- */
-const parseId = (path: string): string | undefined => {
-  const segments = path.split('/').filter(Boolean);
-  if (segments.length >= 2 && segments[0] === ENDPOINT) {
-    return segments[1];
-  }
-  return undefined;
+// Endpoint -> its container and enabled operations.
+const RESOURCES: Record<string, { container: string; operations: string[] }> = {
+{%- for resource in resources %}
+  '{{ resource.endpoint }}': { container: '{{ resource.container }}', operations: {{ resource.operations | tojson }} },
+{%- endfor %}
 };
 
 const jsonResponse = (res: ff.Response, status: number, body: unknown): void => {
   res.status(status).json(body);
 };
 
+const notAllowed = (res: ff.Response) => jsonResponse(res, 405, { error: 'Method not allowed.' });
+
 ff.http('api', async (req: ff.Request, res: ff.Response) => {
-  if (req.path.replace(/\/+$/, '').endsWith('/health')) {
+  const cleanPath = req.path.replace(/\/+$/, '');
+  if (cleanPath.endsWith('/health')) {
     return jsonResponse(res, 200, { status: 'ok' });
   }
 
-  const controller = container.resolve({{project_class_name}}Controller);
+  const segments = cleanPath.split('/').filter(Boolean);
+  const endpoint = segments[0];
+  const id = segments[1];
+  const resource = RESOURCES[endpoint];
+  if (!resource) {
+    return jsonResponse(res, 404, { error: 'Not found.' });
+  }
+
+  const controller = controllers[resource.container];
+  const has = (op: string) => resource.operations.includes(op);
 
   try {
     switch (req.method) {
       case 'GET': {
-        const id = parseId(req.path);
         if (id) {
-          const result = await controller.get(id);
-          return jsonResponse(res, 200, result);
+          if (!has('get_by_id')) return notAllowed(res);
+          return jsonResponse(res, 200, await controller.get(id));
         }
-        const results = await controller.list(req.query.limit as string | undefined);
-        return jsonResponse(res, 200, results);
+        if (!has('list')) return notAllowed(res);
+        return jsonResponse(res, 200, await controller.list(req.query.limit as string | undefined));
       }
 
       case 'POST': {
-        const {{project_lower_camel_name}}: {{project_class_name}} = req.body as {{project_class_name}};
-        const created = await controller.post({{project_lower_camel_name}});
+        if (!has('create')) return notAllowed(res);
+        const created = await controller.post(req.body as Item);
         return jsonResponse(res, 201, created);
       }
 
-      case 'PUT':
       case 'PATCH': {
-        const id = parseId(req.path);
-        const {{project_lower_camel_name}}: {{project_class_name}} = req.body as {{project_class_name}};
-        const updated = await controller.update({ id, ...{{project_lower_camel_name}} });
+        if (!has('update')) return notAllowed(res);
+        const updated = await controller.update({ id, ...(req.body as Item) });
         return jsonResponse(res, 200, updated);
       }
 
+      case 'PUT': {
+        if (!has('replace')) return notAllowed(res);
+        const replaced = await controller.replace({ id, ...(req.body as Item) });
+        return jsonResponse(res, 200, replaced);
+      }
+
       case 'DELETE': {
-        const id = parseId(req.path);
-        if (!id) {
-          return jsonResponse(res, 400, { error: 'Missing item ID.' });
-        }
+        if (!has('delete')) return notAllowed(res);
+        if (!id) return jsonResponse(res, 400, { error: 'Missing item ID.' });
         await controller.delete(id);
-        return jsonResponse(res, 200, {
-          message: `{{project_class_name}} with ID ${id} deleted.`,
-        });
+        return jsonResponse(res, 200, { message: `${endpoint} with ID ${id} deleted.` });
       }
 
       default:
-        return jsonResponse(res, 405, { error: 'Method not allowed.' });
+        return notAllowed(res);
     }
   } catch (error) {
     const errorResponse = detectError(error);

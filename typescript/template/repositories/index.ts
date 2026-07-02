@@ -1,2 +1,2 @@
-export * from './{{project_lower_camel_name}}.repository';
+export * from './item.repository';
 export * from './base.repository';

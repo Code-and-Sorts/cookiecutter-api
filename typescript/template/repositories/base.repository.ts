@@ -68,6 +68,19 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
+  replaceRecord = async (item: T): Promise<T> => {
+    try {
+      await this.getRecord(item.id);
+      const { resource: replacedRecord } = await this._container.item(item.id, item.id).replace<T>(item);
+      return replacedRecord as T;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new ProxyError(`Error replacing item with id ${item.id}.`);
+    }
+  };
+
   deleteRecord = async (id: string): Promise<void> => {
     try {
       const operations: PatchOperation[] = [
@@ -165,6 +178,19 @@ export class BaseRepository<T extends BaseItemRecord> {
         throw error;
       }
       throw new ProxyError(`Error upserting item with id ${updates.id}.`);
+    }
+  };
+
+  replaceRecord = async (item: T): Promise<T> => {
+    try {
+      await this.getRecord(item.id);
+      await this._collection.doc(item.id).set(item);
+      return item;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new ProxyError(`Error replacing item with id ${item.id}.`);
     }
   };
 
@@ -275,6 +301,22 @@ export class BaseRepository<T extends BaseItemRecord> {
         throw error;
       }
       throw new ProxyError(`Error upserting item with id ${updates.id}.`);
+    }
+  };
+
+  replaceRecord = async (item: T): Promise<T> => {
+    try {
+      await this.getRecord(item.id);
+      await this._docClient.send(new PutCommand({
+        TableName: this._tableName,
+        Item: item as Record<string, unknown>,
+      }));
+      return item;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new ProxyError(`Error replacing item with id ${item.id}.`);
     }
   };
 
