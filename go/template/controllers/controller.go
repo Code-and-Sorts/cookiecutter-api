@@ -1,12 +1,19 @@
+{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
+{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+{%- set uses_models = uses_body or ('get_by_id' in used_ops) or ('list' in used_ops) -%}
 package controllers
 
 import (
 	"context"
 	_ "embed"
+{%- if uses_body %}
 	"encoding/json"
 	"io"
+{%- endif %}
+{%- if uses_models %}
 
 	"{{project_endpoint}}/models"
+{%- endif %}
 	"{{project_endpoint}}/services"
 )
 
@@ -37,34 +44,53 @@ func CoerceLimit(limit int) int {
 	return limit
 }
 {% for resource in resources %}
-type {{ resource.name }}Controller interface {
-	Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error)
-	GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error)
-	Create(ctx context.Context, body io.Reader) (*models.{{ resource.name }}Dto, error)
-	Update(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error)
-	Replace(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error)
+{%- set r = resource.name %}
+{%- set lc = resource.name | to_lower_camel %}
+type {{ r }}Controller interface {
+{%- if "get_by_id" in resource.operations %}
+	Get(ctx context.Context, id string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "list" in resource.operations %}
+	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "create" in resource.operations %}
+	Create(ctx context.Context, body io.Reader) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "update" in resource.operations %}
+	Update(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "replace" in resource.operations %}
+	Replace(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "delete" in resource.operations %}
 	Delete(ctx context.Context, id string) error
+{%- endif %}
 }
 
-type {{ resource.name | to_lower_camel }}Controller struct {
-	service         services.{{ resource.name }}Service
+type {{ lc }}Controller struct {
+	service         services.{{ r }}Service
 	schemaValidator services.SchemaValidator
 }
 
-func New{{ resource.name }}Controller(service services.{{ resource.name }}Service, schemaValidator services.SchemaValidator) {{ resource.name }}Controller {
-	return &{{ resource.name | to_lower_camel }}Controller{service: service, schemaValidator: schemaValidator}
+func New{{ r }}Controller(service services.{{ r }}Service, schemaValidator services.SchemaValidator) {{ r }}Controller {
+	return &{{ lc }}Controller{service: service, schemaValidator: schemaValidator}
 }
+{%- if "get_by_id" in resource.operations %}
 
-func (c *{{ resource.name | to_lower_camel }}Controller) Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error) {
+func (c *{{ lc }}Controller) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	return c.service.Get(ctx, id)
 }
+{%- endif %}
+{%- if "list" in resource.operations %}
 
-func (c *{{ resource.name | to_lower_camel }}Controller) GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error) {
+func (c *{{ lc }}Controller) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	return c.service.GetList(ctx, CoerceLimit(limit))
 }
+{%- endif %}
+{%- if "create" in resource.operations %}
 
-func (c *{{ resource.name | to_lower_camel }}Controller) Create(ctx context.Context, body io.Reader) (*models.{{ resource.name }}Dto, error) {
-	var req models.Create{{ resource.name }}Request
+func (c *{{ lc }}Controller) Create(ctx context.Context, body io.Reader) (*models.{{ r }}Dto, error) {
+	var req models.Create{{ r }}Request
 	if err := json.NewDecoder(body).Decode(&req); err != nil {
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
@@ -75,9 +101,11 @@ func (c *{{ resource.name | to_lower_camel }}Controller) Create(ctx context.Cont
 
 	return c.service.Create(ctx, req)
 }
+{%- endif %}
+{%- if "update" in resource.operations %}
 
-func (c *{{ resource.name | to_lower_camel }}Controller) Update(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error) {
-	var req models.Update{{ resource.name }}Request
+func (c *{{ lc }}Controller) Update(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
+	var req models.Update{{ r }}Request
 	if err := json.NewDecoder(body).Decode(&req); err != nil {
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
@@ -90,9 +118,11 @@ func (c *{{ resource.name | to_lower_camel }}Controller) Update(ctx context.Cont
 
 	return c.service.Update(ctx, req)
 }
+{%- endif %}
+{%- if "replace" in resource.operations %}
 
-func (c *{{ resource.name | to_lower_camel }}Controller) Replace(ctx context.Context, id string, body io.Reader) (*models.{{ resource.name }}Dto, error) {
-	var req models.Replace{{ resource.name }}Request
+func (c *{{ lc }}Controller) Replace(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
+	var req models.Replace{{ r }}Request
 	if err := json.NewDecoder(body).Decode(&req); err != nil {
 		return nil, &models.ValidationError{Message: "Invalid request body."}
 	}
@@ -105,8 +135,11 @@ func (c *{{ resource.name | to_lower_camel }}Controller) Replace(ctx context.Con
 
 	return c.service.Replace(ctx, req)
 }
+{%- endif %}
+{%- if "delete" in resource.operations %}
 
-func (c *{{ resource.name | to_lower_camel }}Controller) Delete(ctx context.Context, id string) error {
+func (c *{{ lc }}Controller) Delete(ctx context.Context, id string) error {
 	return c.service.Delete(ctx, id)
 }
+{%- endif %}
 {% endfor %}

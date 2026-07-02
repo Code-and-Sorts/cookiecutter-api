@@ -65,6 +65,7 @@ func setup{{ r }}ServiceTest() (*mock{{ r }}Repository, {{ r }}Service) {
 	service := New{{ r }}Service(mockRepo)
 	return mockRepo, service
 }
+{%- if "get_by_id" in resource.operations %}
 
 func TestGet{{ r }}_ShouldReturn{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
@@ -78,6 +79,8 @@ func TestGet{{ r }}_ShouldReturn{{ r }}Dto(t *testing.T) {
 	assert.Equal(t, expected, result)
 	mockRepo.AssertExpectations(t)
 }
+{%- endif %}
+{%- if "list" in resource.operations %}
 
 func TestGet{{ r }}List_ShouldReturnListOf{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
@@ -93,6 +96,8 @@ func TestGet{{ r }}List_ShouldReturnListOf{{ r }}Dto(t *testing.T) {
 	assert.Equal(t, expected, result)
 	mockRepo.AssertExpectations(t)
 }
+{%- endif %}
+{%- if "create" in resource.operations %}
 
 func TestCreate{{ r }}_ShouldReturnCreated{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
@@ -106,6 +111,8 @@ func TestCreate{{ r }}_ShouldReturnCreated{{ r }}Dto(t *testing.T) {
 	assert.Equal(t, expected, result)
 	mockRepo.AssertExpectations(t)
 }
+{%- endif %}
+{%- if "update" in resource.operations %}
 
 func TestUpdate{{ r }}_ShouldReturnUpdated{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
@@ -119,6 +126,8 @@ func TestUpdate{{ r }}_ShouldReturnUpdated{{ r }}Dto(t *testing.T) {
 	assert.Equal(t, expected, result)
 	mockRepo.AssertExpectations(t)
 }
+{%- endif %}
+{%- if "replace" in resource.operations %}
 
 func TestReplace{{ r }}_ShouldReturnReplaced{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
@@ -132,6 +141,8 @@ func TestReplace{{ r }}_ShouldReturnReplaced{{ r }}Dto(t *testing.T) {
 	assert.Equal(t, expected, result)
 	mockRepo.AssertExpectations(t)
 }
+{%- endif %}
+{%- if "delete" in resource.operations %}
 
 func TestDelete{{ r }}_ShouldCallRepositoryDelete(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
@@ -143,4 +154,5 @@ func TestDelete{{ r }}_ShouldCallRepositoryDelete(t *testing.T) {
 	assert.NoError(t, err)
 	mockRepo.AssertCalled(t, "Delete", mock.Anything, id)
 }
+{%- endif %}
 {% endfor %}

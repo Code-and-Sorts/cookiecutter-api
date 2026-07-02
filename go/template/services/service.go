@@ -1,43 +1,69 @@
+{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
+{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+{%- set uses_models = uses_body or ('get_by_id' in used_ops) or ('list' in used_ops) -%}
 package services
 
 import (
 	"context"
+{%- if 'create' in used_ops %}
 	"time"
 
 	"github.com/google/uuid"
+{%- endif %}
+{%- if uses_models %}
 
 	"{{project_endpoint}}/models"
+{%- endif %}
 	"{{project_endpoint}}/repositories"
 )
 {% for resource in resources %}
-type {{ resource.name }}Service interface {
-	Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error)
-	GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error)
-	Create(ctx context.Context, req models.Create{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error)
-	Update(ctx context.Context, req models.Update{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error)
-	Replace(ctx context.Context, req models.Replace{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error)
+{%- set r = resource.name %}
+{%- set lc = resource.name | to_lower_camel %}
+type {{ r }}Service interface {
+{%- if "get_by_id" in resource.operations %}
+	Get(ctx context.Context, id string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "list" in resource.operations %}
+	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "create" in resource.operations %}
+	Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "update" in resource.operations %}
+	Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "replace" in resource.operations %}
+	Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if "delete" in resource.operations %}
 	Delete(ctx context.Context, id string) error
+{%- endif %}
 }
 
-type {{ resource.name | to_lower_camel }}Service struct {
-	repository repositories.{{ resource.name }}Repository
+type {{ lc }}Service struct {
+	repository repositories.{{ r }}Repository
 }
 
-func New{{ resource.name }}Service(repository repositories.{{ resource.name }}Repository) {{ resource.name }}Service {
-	return &{{ resource.name | to_lower_camel }}Service{repository: repository}
+func New{{ r }}Service(repository repositories.{{ r }}Repository) {{ r }}Service {
+	return &{{ lc }}Service{repository: repository}
 }
+{%- if "get_by_id" in resource.operations %}
 
-func (s *{{ resource.name | to_lower_camel }}Service) Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error) {
+func (s *{{ lc }}Service) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	return s.repository.Get(ctx, id)
 }
+{%- endif %}
+{%- if "list" in resource.operations %}
 
-func (s *{{ resource.name | to_lower_camel }}Service) GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error) {
+func (s *{{ lc }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	return s.repository.GetList(ctx, limit)
 }
+{%- endif %}
+{%- if "create" in resource.operations %}
 
-func (s *{{ resource.name | to_lower_camel }}Service) Create(ctx context.Context, req models.Create{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error) {
+func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error) {
 	now := time.Now().UTC()
-	new{{ resource.name }} := models.{{ resource.name }}{
+	new{{ r }} := models.{{ r }}{
 		BaseEntity: models.BaseEntity{
 			Id:               uuid.New().String(),
 			CreatedBy:        req.CreatedBy,
@@ -47,32 +73,39 @@ func (s *{{ resource.name | to_lower_camel }}Service) Create(ctx context.Context
 		},
 		Name: req.Name,
 	}
-	return s.repository.Create(ctx, new{{ resource.name }})
+	return s.repository.Create(ctx, new{{ r }})
 }
+{%- endif %}
+{%- if "update" in resource.operations %}
 
-func (s *{{ resource.name | to_lower_camel }}Service) Update(ctx context.Context, req models.Update{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error) {
-	updated{{ resource.name }} := models.{{ resource.name }}{
+func (s *{{ lc }}Service) Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error) {
+	updated{{ r }} := models.{{ r }}{
 		BaseEntity: models.BaseEntity{
 			Id:        req.Id,
 			UpdatedBy: req.UpdatedBy,
 		},
 		Name: req.Name,
 	}
-	return s.repository.Update(ctx, updated{{ resource.name }})
+	return s.repository.Update(ctx, updated{{ r }})
 }
+{%- endif %}
+{%- if "replace" in resource.operations %}
 
-func (s *{{ resource.name | to_lower_camel }}Service) Replace(ctx context.Context, req models.Replace{{ resource.name }}Request) (*models.{{ resource.name }}Dto, error) {
-	replacement{{ resource.name }} := models.{{ resource.name }}{
+func (s *{{ lc }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error) {
+	replacement{{ r }} := models.{{ r }}{
 		BaseEntity: models.BaseEntity{
 			Id:        req.Id,
 			UpdatedBy: req.UpdatedBy,
 		},
 		Name: req.Name,
 	}
-	return s.repository.Replace(ctx, replacement{{ resource.name }})
+	return s.repository.Replace(ctx, replacement{{ r }})
 }
+{%- endif %}
+{%- if "delete" in resource.operations %}
 
-func (s *{{ resource.name | to_lower_camel }}Service) Delete(ctx context.Context, id string) error {
+func (s *{{ lc }}Service) Delete(ctx context.Context, id string) error {
 	return s.repository.Delete(ctx, id)
 }
+{%- endif %}
 {% endfor %}
