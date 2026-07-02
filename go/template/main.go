@@ -1,3 +1,4 @@
+{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
 package main
 
 import (
@@ -5,13 +6,17 @@ import (
 	"context"
 {%- endif %}
 	"encoding/json"
+{%- if cloud_service == 'AWS Lambda' or 'delete' in used_ops %}
 	"fmt"
+{%- endif %}
 	"log"
 {%- if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
 	"net/http"
 {%- endif %}
 	"os"
+{%- if cloud_service == 'AWS Lambda' or 'list' in used_ops %}
 	"strconv"
+{%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 	"strings"
 {%- endif %}
@@ -168,6 +173,15 @@ func initControllers() (map[string]controllers.ItemController, func()) {
 }
 {%- endif %}
 
+func handleHealth() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+{%- if 'get_by_id' in used_ops %}
+
 func handleGet(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -185,14 +199,8 @@ func handleGet(controller controllers.ItemController) http.HandlerFunc {
 		json.NewEncoder(w).Encode(result)
 	}
 }
-
-func handleHealth() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	}
-}
+{%- endif %}
+{%- if 'list' in used_ops %}
 
 func handleGetList(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -211,6 +219,8 @@ func handleGetList(controller controllers.ItemController) http.HandlerFunc {
 		json.NewEncoder(w).Encode(result)
 	}
 }
+{%- endif %}
+{%- if 'create' in used_ops %}
 
 func handleCreate(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -228,6 +238,8 @@ func handleCreate(controller controllers.ItemController) http.HandlerFunc {
 		json.NewEncoder(w).Encode(result)
 	}
 }
+{%- endif %}
+{%- if 'update' in used_ops %}
 
 func handleUpdate(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -246,6 +258,8 @@ func handleUpdate(controller controllers.ItemController) http.HandlerFunc {
 		json.NewEncoder(w).Encode(result)
 	}
 }
+{%- endif %}
+{%- if 'replace' in used_ops %}
 
 func handleReplace(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -264,6 +278,8 @@ func handleReplace(controller controllers.ItemController) http.HandlerFunc {
 		json.NewEncoder(w).Encode(result)
 	}
 }
+{%- endif %}
+{%- if 'delete' in used_ops %}
 
 func handleDelete(controller controllers.ItemController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -284,6 +300,7 @@ func handleDelete(controller controllers.ItemController) http.HandlerFunc {
 		})
 	}
 }
+{%- endif %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 type resourceRoute struct {
