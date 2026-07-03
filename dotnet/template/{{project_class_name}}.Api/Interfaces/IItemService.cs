@@ -5,18 +5,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Requests;
-
-public interface IItemService
+{% for resource in resources %}
+public interface I{{ resource.name }}Service
 {
-    Task<ItemDto> GetAsync(string id, CancellationToken ct = default);
-
-    Task<IEnumerable<ItemDto>> GetListAsync(CancellationToken ct = default);
-
-    Task<ItemDto> CreateAsync(CreateItemRequest item, CancellationToken ct = default);
-
-    Task<ItemDto> UpdateAsync(UpdateItemRequest item, CancellationToken ct = default);
-
-    Task<ItemDto> ReplaceAsync(ReplaceItemRequest item, CancellationToken ct = default);
-
+{%- if "get_by_id" in resource.operations %}
+    Task<{{ resource.name }}Dto> GetAsync(string id, CancellationToken ct = default);
+{%- endif %}
+{%- if "list" in resource.operations %}
+    Task<IEnumerable<{{ resource.name }}Dto>> GetListAsync(CancellationToken ct = default);
+{%- endif %}
+{%- if "create" in resource.operations %}
+    Task<{{ resource.name }}Dto> CreateAsync(Create{{ resource.name }}Request item, CancellationToken ct = default);
+{%- endif %}
+{%- if "update" in resource.operations %}
+    Task<{{ resource.name }}Dto> UpdateAsync(Update{{ resource.name }}Request item, CancellationToken ct = default);
+{%- endif %}
+{%- if "replace" in resource.operations %}
+    Task<{{ resource.name }}Dto> ReplaceAsync(Replace{{ resource.name }}Request item, CancellationToken ct = default);
+{%- endif %}
+{%- if "delete" in resource.operations %}
     Task DeleteAsync(string id, CancellationToken ct = default);
+{%- endif %}
 }
+{% endfor %}

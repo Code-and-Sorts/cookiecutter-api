@@ -8,53 +8,67 @@ using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Requests;
-
-public class ItemService : IItemService
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}Service : I{{ r }}Service
 {
-    private readonly IItemRepository _itemRepository;
+    private readonly I{{ r }}Repository _repository;
 
-    public ItemService(IItemRepository itemRepository)
+    public {{ r }}Service(I{{ r }}Repository repository)
     {
-        _itemRepository = itemRepository;
+        _repository = repository;
     }
+{%- if "get_by_id" in resource.operations %}
 
-    public async Task<ItemDto> GetAsync(string id, CancellationToken ct = default) => await _itemRepository.GetAsync(id, ct);
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => await _repository.GetAsync(id, ct);
+{%- endif %}
+{%- if "list" in resource.operations %}
 
-    public async Task<IEnumerable<ItemDto>> GetListAsync(CancellationToken ct = default) => await _itemRepository.GetListAsync(ct);
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default) => await _repository.GetListAsync(ct);
+{%- endif %}
+{%- if "create" in resource.operations %}
 
-    public async Task<ItemDto> CreateAsync(CreateItemRequest item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default)
     {
-        var newItem = new Item
+        var new{{ r }} = new {{ r }}
         {
             Id = Guid.NewGuid().ToString(),
             Name = item.Name,
             CreatedBy = item.CreatedBy,
             UpdatedBy = item.UpdatedBy,
         };
-        return await _itemRepository.CreateAsync(newItem, ct);
+        return await _repository.CreateAsync(new{{ r }}, ct);
     }
+{%- endif %}
+{%- if "update" in resource.operations %}
 
-    public async Task<ItemDto> UpdateAsync(UpdateItemRequest item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, CancellationToken ct = default)
     {
-        var updatedItem = new Item
+        var updated{{ r }} = new {{ r }}
         {
             Id = item.Id,
             Name = item.Name,
             UpdatedBy = item.UpdatedBy,
         };
-        return await _itemRepository.UpdateAsync(updatedItem, ct);
+        return await _repository.UpdateAsync(updated{{ r }}, ct);
     }
+{%- endif %}
+{%- if "replace" in resource.operations %}
 
-    public async Task<ItemDto> ReplaceAsync(ReplaceItemRequest item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, CancellationToken ct = default)
     {
-        var replacedItem = new Item
+        var replaced{{ r }} = new {{ r }}
         {
             Id = item.Id,
             Name = item.Name,
             UpdatedBy = item.UpdatedBy,
         };
-        return await _itemRepository.ReplaceAsync(replacedItem, ct);
+        return await _repository.ReplaceAsync(replaced{{ r }}, ct);
     }
+{%- endif %}
+{%- if "delete" in resource.operations %}
 
-    public async Task DeleteAsync(string id, CancellationToken ct = default) => await _itemRepository.DeleteAsync(id, ct);
+    public async Task DeleteAsync(string id, CancellationToken ct = default) => await _repository.DeleteAsync(id, ct);
+{%- endif %}
 }
+{% endfor %}

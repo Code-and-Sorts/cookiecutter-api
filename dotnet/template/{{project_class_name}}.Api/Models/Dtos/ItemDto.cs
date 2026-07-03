@@ -1,6 +1,6 @@
 namespace {{project_class_name}}.Api.Dtos;
-
-public class ItemDto
+{% for resource in resources %}
+public class {{ resource.name }}Dto
 {
     public string Id { get; set; } = default!;
 
@@ -8,3 +8,4 @@ public class ItemDto
 
     public string UpdatedBy { get; set; } = default!;
 }
+{% endfor %}

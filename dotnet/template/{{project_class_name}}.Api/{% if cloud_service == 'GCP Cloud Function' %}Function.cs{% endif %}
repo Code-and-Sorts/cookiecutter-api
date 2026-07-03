@@ -1,7 +1,6 @@
 namespace {{project_class_name}}.Api;
 
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Cloud.Functions.Framework;
@@ -13,22 +12,20 @@ using Newtonsoft.Json;
 
 public class Function : IHttpFunction
 {
-    private sealed record ResourceRoute(string Container, HashSet<string> Operations);
-
-    // Endpoint -> its storage container and enabled operations.
-    private static readonly Dictionary<string, ResourceRoute> Resources = new()
-    {
 {%- for resource in resources %}
-        ["{{ resource.endpoint }}"] = new ResourceRoute("{{ resource.container }}", new HashSet<string> { {% for op in resource.operations %}"{{ op }}"{% if not loop.last %}, {% endif %}{% endfor %} }),
+    private readonly I{{ resource.name }}Controller _{{ resource.name | to_lower_camel }}Controller;
 {%- endfor %}
-    };
-
-    private readonly IReadOnlyDictionary<string, IItemController> _controllers;
     private readonly ILogger<Function> _logger;
 
-    public Function(IReadOnlyDictionary<string, IItemController> controllers, ILogger<Function> logger)
+    public Function(
+{%- for resource in resources %}
+        I{{ resource.name }}Controller {{ resource.name | to_lower_camel }}Controller,
+{%- endfor %}
+        ILogger<Function> logger)
     {
-        _controllers = controllers;
+{%- for resource in resources %}
+        _{{ resource.name | to_lower_camel }}Controller = {{ resource.name | to_lower_camel }}Controller;
+{%- endfor %}
         _logger = logger;
     }
 
@@ -59,112 +56,110 @@ public class Function : IHttpFunction
             var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var endpoint = segments.Length >= 1 ? segments[0] : string.Empty;
             var id = segments.Length >= 2 ? segments[1] : null;
-
-            if (!Resources.TryGetValue(endpoint, out var route))
+{% for resource in resources %}
+{%- set r = resource.name %}
+            if (endpoint == "{{ resource.endpoint }}")
             {
-                await WriteJsonResponse(response, 404, new { error = "Not found." }, ct);
-                return;
-            }
-
-            var controller = _controllers[route.Container];
-
-            switch (request.Method)
-            {
-                case "GET":
+                switch (request.Method)
                 {
-                    if (id != null)
+                    case "GET":
                     {
-                        if (!route.Operations.Contains("get_by_id"))
+                        if (id != null)
                         {
+{%- if "get_by_id" in resource.operations %}
+                            var result = await _{{ r | to_lower_camel }}Controller.GetAsync(id, ct);
+                            await WriteJsonResponse(response, 200, result, ct);
+                            return;
+{%- else %}
                             await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                             return;
+{%- endif %}
                         }
-                        var result = await controller.GetAsync(id, ct);
-                        await WriteJsonResponse(response, 200, result, ct);
+{%- if "list" in resource.operations %}
+                        var results = await _{{ r | to_lower_camel }}Controller.GetListAsync(ct);
+                        await WriteJsonResponse(response, 200, results, ct);
                         return;
-                    }
-                    if (!route.Operations.Contains("list"))
-                    {
+{%- else %}
                         await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                         return;
+{%- endif %}
                     }
-                    var results = await controller.GetListAsync(ct);
-                    await WriteJsonResponse(response, 200, results, ct);
-                    return;
-                }
 
-                case "POST":
-                {
-                    if (!route.Operations.Contains("create"))
+                    case "POST":
                     {
+{%- if "create" in resource.operations %}
+                        if (id != null)
+                        {
+                            await WriteJsonResponse(response, 400, new { error = "POST does not accept an item ID." }, ct);
+                            return;
+                        }
+                        var created = await _{{ r | to_lower_camel }}Controller.CreateAsync(request.Body, ct);
+                        await WriteJsonResponse(response, 201, created, ct);
+                        return;
+{%- else %}
                         await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                         return;
+{%- endif %}
                     }
-                    if (id != null)
-                    {
-                        await WriteJsonResponse(response, 400, new { error = "POST does not accept an item ID." }, ct);
-                        return;
-                    }
-                    var created = await controller.CreateAsync(request.Body, ct);
-                    await WriteJsonResponse(response, 201, created, ct);
-                    return;
-                }
 
-                case "PATCH":
-                {
-                    if (!route.Operations.Contains("update"))
+                    case "PATCH":
                     {
+{%- if "update" in resource.operations %}
+                        if (id == null)
+                        {
+                            await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
+                            return;
+                        }
+                        var updated = await _{{ r | to_lower_camel }}Controller.UpdateAsync(id, request.Body, ct);
+                        await WriteJsonResponse(response, 200, updated, ct);
+                        return;
+{%- else %}
                         await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                         return;
+{%- endif %}
                     }
-                    if (id == null)
-                    {
-                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
-                        return;
-                    }
-                    var updated = await controller.UpdateAsync(id, request.Body, ct);
-                    await WriteJsonResponse(response, 200, updated, ct);
-                    return;
-                }
 
-                case "PUT":
-                {
-                    if (!route.Operations.Contains("replace"))
+                    case "PUT":
                     {
+{%- if "replace" in resource.operations %}
+                        if (id == null)
+                        {
+                            await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
+                            return;
+                        }
+                        var replaced = await _{{ r | to_lower_camel }}Controller.ReplaceAsync(id, request.Body, ct);
+                        await WriteJsonResponse(response, 200, replaced, ct);
+                        return;
+{%- else %}
                         await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                         return;
+{%- endif %}
                     }
-                    if (id == null)
-                    {
-                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
-                        return;
-                    }
-                    var replaced = await controller.ReplaceAsync(id, request.Body, ct);
-                    await WriteJsonResponse(response, 200, replaced, ct);
-                    return;
-                }
 
-                case "DELETE":
-                {
-                    if (!route.Operations.Contains("delete"))
+                    case "DELETE":
                     {
+{%- if "delete" in resource.operations %}
+                        if (id == null)
+                        {
+                            await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
+                            return;
+                        }
+                        await _{{ r | to_lower_camel }}Controller.DeleteAsync(id, ct);
+                        await WriteJsonResponse(response, 200, new { message = $"{{ r }} with id {id} was deleted successfully." }, ct);
+                        return;
+{%- else %}
                         await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
                         return;
+{%- endif %}
                     }
-                    if (id == null)
-                    {
-                        await WriteJsonResponse(response, 400, new { error = "Missing item ID." }, ct);
-                        return;
-                    }
-                    await controller.DeleteAsync(id, ct);
-                    await WriteJsonResponse(response, 200, new { message = $"{endpoint} with id {id} was deleted successfully." }, ct);
-                    return;
-                }
 
-                default:
-                    await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
-                    return;
+                    default:
+                        await WriteJsonResponse(response, 405, new { error = "Method not allowed." }, ct);
+                        return;
+                }
             }
+{% endfor %}
+            await WriteJsonResponse(response, 404, new { error = "Not found." }, ct);
         }
         catch (Exception ex)
         {

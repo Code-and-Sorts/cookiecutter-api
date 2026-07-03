@@ -16,9 +16,15 @@ public class DeleteOkObjectResult
     public required string Message { get; set; }
 }
 
-public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controllers, ILogger<ItemFunctions> logger)
+public class ItemFunctions(
+{%- for resource in resources %}
+    I{{ resource.name }}Controller {{ resource.name | to_lower_camel }}Controller,
+{%- endfor %}
+    ILogger<ItemFunctions> logger)
 {
-    private readonly IReadOnlyDictionary<string, IItemController> _controllers = controllers;
+{%- for resource in resources %}
+    private readonly I{{ resource.name }}Controller _{{ resource.name | to_lower_camel }}Controller = {{ resource.name | to_lower_camel }}Controller;
+{%- endfor %}
     private readonly ILogger<ItemFunctions> _logger = logger;
 
     [Function("Health")]
@@ -36,7 +42,7 @@ public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controll
     {
         try
         {
-            return new OkObjectResult(await _controllers["{{ resource.container }}"].GetAsync(id, ct));
+            return new OkObjectResult(await _{{ resource.name | to_lower_camel }}Controller.GetAsync(id, ct));
         }
         catch (Exception ex)
         {
@@ -53,7 +59,7 @@ public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controll
     {
         try
         {
-            return new OkObjectResult(await _controllers["{{ resource.container }}"].GetListAsync(ct));
+            return new OkObjectResult(await _{{ resource.name | to_lower_camel }}Controller.GetListAsync(ct));
         }
         catch (Exception ex)
         {
@@ -70,7 +76,7 @@ public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controll
     {
         try
         {
-            var created = await _controllers["{{ resource.container }}"].CreateAsync(req.Body, ct);
+            var created = await _{{ resource.name | to_lower_camel }}Controller.CreateAsync(req.Body, ct);
             return new CreatedResult($"/api/{{ resource.endpoint }}", created);
         }
         catch (Exception ex)
@@ -88,7 +94,7 @@ public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controll
     {
         try
         {
-            return new OkObjectResult(await _controllers["{{ resource.container }}"].UpdateAsync(id, req.Body, ct));
+            return new OkObjectResult(await _{{ resource.name | to_lower_camel }}Controller.UpdateAsync(id, req.Body, ct));
         }
         catch (Exception ex)
         {
@@ -105,7 +111,7 @@ public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controll
     {
         try
         {
-            return new OkObjectResult(await _controllers["{{ resource.container }}"].ReplaceAsync(id, req.Body, ct));
+            return new OkObjectResult(await _{{ resource.name | to_lower_camel }}Controller.ReplaceAsync(id, req.Body, ct));
         }
         catch (Exception ex)
         {
@@ -122,7 +128,7 @@ public class ItemFunctions(IReadOnlyDictionary<string, IItemController> controll
     {
         try
         {
-            await _controllers["{{ resource.container }}"].DeleteAsync(id, ct);
+            await _{{ resource.name | to_lower_camel }}Controller.DeleteAsync(id, ct);
             return new OkObjectResult(new DeleteOkObjectResult { Message = $"{{ resource.name }} with id {id} was deleted successfully." });
         }
         catch (Exception ex)

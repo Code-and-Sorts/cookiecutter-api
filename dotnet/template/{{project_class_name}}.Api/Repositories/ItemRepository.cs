@@ -12,22 +12,23 @@ using {{project_class_name}}.Api.Interfaces;
 {%- if cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Cosmos;
 {%- endif %}
-
-public class ItemRepository : IItemRepository
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}Repository : I{{ r }}Repository
 {
 {%- if cloud_service == 'Azure Function App' %}
     // Default cap on list reads to avoid unbounded queries.
     private const int DefaultListLimit = 100;
     private readonly Container _container;
 
-    public ItemRepository(CosmosClient cosmosClient, string databaseName, string containerName)
+    public {{ r }}Repository(CosmosClient cosmosClient, string databaseName, string containerName)
     {
         _container = cosmosClient.GetContainer(databaseName, containerName);
     }
 
-    private async Task<Item> GetItemAsync(string id, CancellationToken ct)
+    private async Task<{{ r }}> GetItemAsync(string id, CancellationToken ct)
     {
-        var response = await _container.ReadItemAsync<Item>(id, new PartitionKey(id), null, ct);
+        var response = await _container.ReadItemAsync<{{ r }}>(id, new PartitionKey(id), null, ct);
         var item = response.Resource;
 
         if (item.IsDeleted)
@@ -37,21 +38,21 @@ public class ItemRepository : IItemRepository
         return item;
     }
 
-    public async Task<ItemDto> GetAsync(string id, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
     {
         var item = await GetItemAsync(id, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         };
     }
 
-    public async Task<IEnumerable<ItemDto>> GetListAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
     {
-        var query = _container.GetItemQueryIterator<Item>($"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {DefaultListLimit}");
-        var results = new List<Item>();
+        var query = _container.GetItemQueryIterator<{{ r }}>($"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {DefaultListLimit}");
+        var results = new List<{{ r }}>();
 
         while (query.HasMoreResults && results.Count < DefaultListLimit)
         {
@@ -59,28 +60,28 @@ public class ItemRepository : IItemRepository
             results.AddRange(response.Resource);
         }
 
-        return results.Take(DefaultListLimit).Select(item => new ItemDto
+        return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         });
     }
 
-    public async Task<ItemDto> CreateAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> CreateAsync({{ r }} item, CancellationToken ct = default)
     {
         var response = await _container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
         var created = response.Resource;
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = created.Id,
             Name = created.Name,
         };
     }
 
-    public async Task<ItemDto> UpdateAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> UpdateAsync({{ r }} item, CancellationToken ct = default)
     {
         var currentItem = await GetItemAsync(item.Id, ct);
-        var updateItem = new Item
+        var updateItem = new {{ r }}
         {
             Id = currentItem.Id,
             Name = item.Name ?? currentItem.Name,
@@ -89,19 +90,19 @@ public class ItemRepository : IItemRepository
             UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy,
             UpdatedTimestamp = DateTime.UtcNow,
         };
-        var response = await _container.ReplaceItemAsync<Item>(updateItem, updateItem.Id, new PartitionKey(updateItem.Id), null, ct);
+        var response = await _container.ReplaceItemAsync<{{ r }}>(updateItem, updateItem.Id, new PartitionKey(updateItem.Id), null, ct);
         var updated = response.Resource;
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = updated.Id,
             Name = updated.Name,
         };
     }
 
-    public async Task<ItemDto> ReplaceAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> ReplaceAsync({{ r }} item, CancellationToken ct = default)
     {
         var currentItem = await GetItemAsync(item.Id, ct);
-        var replaceItem = new Item
+        var replaceItem = new {{ r }}
         {
             Id = currentItem.Id,
             Name = item.Name,
@@ -110,9 +111,9 @@ public class ItemRepository : IItemRepository
             UpdatedBy = item.UpdatedBy,
             UpdatedTimestamp = DateTime.UtcNow,
         };
-        var response = await _container.ReplaceItemAsync<Item>(replaceItem, replaceItem.Id, new PartitionKey(replaceItem.Id), null, ct);
+        var response = await _container.ReplaceItemAsync<{{ r }}>(replaceItem, replaceItem.Id, new PartitionKey(replaceItem.Id), null, ct);
         var replaced = response.Resource;
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = replaced.Id,
             Name = replaced.Name,
@@ -123,20 +124,20 @@ public class ItemRepository : IItemRepository
     {
         var item = await GetItemAsync(id, ct);
         item.IsDeleted = true;
-        await _container.ReplaceItemAsync<Item>(item, item.Id, new PartitionKey(item.Id), null, ct);
+        await _container.ReplaceItemAsync<{{ r }}>(item, item.Id, new PartitionKey(item.Id), null, ct);
     }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
     // Default cap on list reads to avoid unbounded queries.
     private const int DefaultListLimit = 100;
-    private readonly IFirestoreContext<Item> _context;
+    private readonly IFirestoreContext<{{ r }}> _context;
 
-    public ItemRepository(IFirestoreContext<Item> context)
+    public {{ r }}Repository(IFirestoreContext<{{ r }}> context)
     {
         _context = context;
     }
 
-    private async Task<Item> GetItemAsync(string id, CancellationToken ct)
+    private async Task<{{ r }}> GetItemAsync(string id, CancellationToken ct)
     {
         var item = await _context.GetAsync(id, ct);
 
@@ -148,43 +149,43 @@ public class ItemRepository : IItemRepository
         return item;
     }
 
-    public async Task<ItemDto> GetAsync(string id, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
     {
         var item = await GetItemAsync(id, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         };
     }
 
-    public async Task<IEnumerable<ItemDto>> GetListAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
     {
         var results = await _context.GetListAsync("isDeleted", false, ct);
 
-        return results.Take(DefaultListLimit).Select(item => new ItemDto
+        return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         });
     }
 
-    public async Task<ItemDto> CreateAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> CreateAsync({{ r }} item, CancellationToken ct = default)
     {
         await _context.SetAsync(item.Id, item, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         };
     }
 
-    public async Task<ItemDto> UpdateAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> UpdateAsync({{ r }} item, CancellationToken ct = default)
     {
         var currentItem = await GetItemAsync(item.Id, ct);
-        var updateItem = new Item
+        var updateItem = new {{ r }}
         {
             Id = currentItem.Id,
             Name = item.Name ?? currentItem.Name,
@@ -196,17 +197,17 @@ public class ItemRepository : IItemRepository
 
         await _context.SetAsync(updateItem.Id, updateItem, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = updateItem.Id,
             Name = updateItem.Name,
         };
     }
 
-    public async Task<ItemDto> ReplaceAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> ReplaceAsync({{ r }} item, CancellationToken ct = default)
     {
         var currentItem = await GetItemAsync(item.Id, ct);
-        var replaceItem = new Item
+        var replaceItem = new {{ r }}
         {
             Id = currentItem.Id,
             Name = item.Name,
@@ -218,7 +219,7 @@ public class ItemRepository : IItemRepository
 
         await _context.SetAsync(replaceItem.Id, replaceItem, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = replaceItem.Id,
             Name = replaceItem.Name,
@@ -234,6 +235,7 @@ public class ItemRepository : IItemRepository
     }
 {%- endif %}
 }
+{% endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 namespace {{project_class_name}}.Api.Repositories;
@@ -248,21 +250,22 @@ using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-
-public class ItemRepository : IItemRepository
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}Repository : I{{ r }}Repository
 {
     // Default cap on list reads to avoid unbounded scans.
     private const int DefaultListLimit = 100;
     private readonly IAmazonDynamoDB _dynamoClient;
     private readonly string _tableName;
 
-    public ItemRepository(IAmazonDynamoDB dynamoClient, string tableName)
+    public {{ r }}Repository(IAmazonDynamoDB dynamoClient, string tableName)
     {
         _dynamoClient = dynamoClient;
         _tableName = tableName;
     }
 
-    private static Dictionary<string, AttributeValue> ToAttributeMap(Item entity)
+    private static Dictionary<string, AttributeValue> ToAttributeMap({{ r }} entity)
     {
         return new Dictionary<string, AttributeValue>
         {
@@ -276,9 +279,9 @@ public class ItemRepository : IItemRepository
         };
     }
 
-    private static Item FromAttributeMap(Dictionary<string, AttributeValue> item)
+    private static {{ r }} FromAttributeMap(Dictionary<string, AttributeValue> item)
     {
-        return new Item
+        return new {{ r }}
         {
             Id = item.TryGetValue("id", out var id) ? id.S : string.Empty,
             Name = item.TryGetValue("name", out var name) ? name.S : string.Empty,
@@ -290,7 +293,7 @@ public class ItemRepository : IItemRepository
         };
     }
 
-    private async Task<Item> GetItemAsync(string id, CancellationToken ct)
+    private async Task<{{ r }}> GetItemAsync(string id, CancellationToken ct)
     {
         var response = await _dynamoClient.GetItemAsync(new GetItemRequest
         {
@@ -316,20 +319,20 @@ public class ItemRepository : IItemRepository
         return entity;
     }
 
-    public async Task<ItemDto> GetAsync(string id, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
     {
         var item = await GetItemAsync(id, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         };
     }
 
-    public async Task<IEnumerable<ItemDto>> GetListAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
     {
-        var results = new List<Item>();
+        var results = new List<{{ r }}>();
         Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
         do
@@ -351,14 +354,14 @@ public class ItemRepository : IItemRepository
             lastEvaluatedKey = response.LastEvaluatedKey.Count > 0 ? response.LastEvaluatedKey : null;
         } while (lastEvaluatedKey != null && results.Count < DefaultListLimit);
 
-        return results.Take(DefaultListLimit).Select(item => new ItemDto
+        return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         });
     }
 
-    public async Task<ItemDto> CreateAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> CreateAsync({{ r }} item, CancellationToken ct = default)
     {
         await _dynamoClient.PutItemAsync(new PutItemRequest
         {
@@ -366,17 +369,17 @@ public class ItemRepository : IItemRepository
             Item = ToAttributeMap(item)
         }, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = item.Id,
             Name = item.Name,
         };
     }
 
-    public async Task<ItemDto> UpdateAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> UpdateAsync({{ r }} item, CancellationToken ct = default)
     {
         var currentItem = await GetItemAsync(item.Id, ct);
-        var updateItem = new Item
+        var updateItem = new {{ r }}
         {
             Id = currentItem.Id,
             Name = item.Name ?? currentItem.Name,
@@ -392,17 +395,17 @@ public class ItemRepository : IItemRepository
             Item = ToAttributeMap(updateItem)
         }, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = updateItem.Id,
             Name = updateItem.Name,
         };
     }
 
-    public async Task<ItemDto> ReplaceAsync(Item item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> ReplaceAsync({{ r }} item, CancellationToken ct = default)
     {
         var currentItem = await GetItemAsync(item.Id, ct);
-        var replaceItem = new Item
+        var replaceItem = new {{ r }}
         {
             Id = currentItem.Id,
             Name = item.Name,
@@ -418,7 +421,7 @@ public class ItemRepository : IItemRepository
             Item = ToAttributeMap(replaceItem)
         }, ct);
 
-        return new ItemDto
+        return new {{ r }}Dto
         {
             Id = replaceItem.Id,
             Name = replaceItem.Name,
@@ -437,4 +440,5 @@ public class ItemRepository : IItemRepository
         }, ct);
     }
 }
+{% endfor %}
 {%- endif %}

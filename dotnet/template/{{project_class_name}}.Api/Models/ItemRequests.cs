@@ -1,8 +1,9 @@
 namespace {{project_class_name}}.Api.Requests;
 
 using Newtonsoft.Json;
-
-public class CreateItemRequest
+{% for resource in resources %}
+{%- if "create" in resource.operations %}
+public class Create{{ resource.name }}Request
 {
     [JsonProperty("name")]
     public string Name { get; set; } = default!;
@@ -13,8 +14,9 @@ public class CreateItemRequest
     [JsonProperty("updatedBy")]
     public string UpdatedBy { get; set; } = default!;
 }
-
-public class UpdateItemRequest
+{% endif %}
+{%- if "update" in resource.operations %}
+public class Update{{ resource.name }}Request
 {
     [JsonIgnore]
     public string Id { get; set; } = default!;
@@ -25,8 +27,9 @@ public class UpdateItemRequest
     [JsonProperty("updatedBy")]
     public string UpdatedBy { get; set; } = default!;
 }
-
-public class ReplaceItemRequest
+{% endif %}
+{%- if "replace" in resource.operations %}
+public class Replace{{ resource.name }}Request
 {
     [JsonIgnore]
     public string Id { get; set; } = default!;
@@ -37,3 +40,5 @@ public class ReplaceItemRequest
     [JsonProperty("updatedBy")]
     public string UpdatedBy { get; set; } = default!;
 }
+{% endif %}
+{%- endfor %}
