@@ -113,3 +113,31 @@ jobs:
             "HEAD:refs/heads/${BRANCH}"
 
           echo "Published \`${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # TEMP: one-shot cleanup of the deprecated `examples/*` (plural) branch prefix
+  # after the rename to `example/*`. Remove this job once the old branches are
+  # gone (a later run will simply find none to delete).
+  prune-legacy-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete legacy examples/* branches
+        env:
+          GH_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          refs=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api}/git/matching-refs/heads/examples/" | jq -r '.[].ref')
+          if [ -z "${refs}" ]; then
+            echo "No legacy examples/* branches to delete."
+            exit 0
+          fi
+          echo "${refs}" | while read -r ref; do
+            [ -z "${ref}" ] && continue
+            code=$(curl -sS -X DELETE -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${api}/git/${ref}")
+            echo "Deleted ${ref} (HTTP ${code})"
+          done
