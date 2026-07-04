@@ -1,11 +1,11 @@
 name: Publish Example Branches
 
 # Renders every template combination (language x cloud x resources fixture) with
-# Copier and force-publishes each generated project to its own `examples/*`
+# Copier and force-publishes each generated project to its own `example/*`
 # branch, so the generated output is browsable without running Copier locally.
 #
-# Branch naming: examples/<language>-<cloud>-<fixture>
-#   e.g. examples/dotnet-azure-multi, examples/python-aws-single
+# Branch naming: example/<language>-<cloud>-<fixture>
+#   e.g. example/dotnet-azure-multi, example/python-aws-single
 #
 # Full-fidelity publishing (including each generated project's own
 # .github/workflows/build-pipeline.yml) requires a Personal Access Token with
@@ -73,7 +73,7 @@ jobs:
         env:
           PUBLISH_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN || github.token }}
           HAS_PAT: ${{ secrets.EXAMPLES_PUBLISH_TOKEN != '' }}
-          BRANCH: examples/${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
+          BRANCH: example/${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
           COMBO: "${{ matrix.language }} / ${{ matrix.cloud.name }} / ${{ matrix.fixture }}"
           SOURCE_SHA: ${{ github.sha }}
         run: |
