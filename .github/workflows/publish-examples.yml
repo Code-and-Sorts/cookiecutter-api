@@ -1,11 +1,16 @@
 name: Publish Example Branches
 
-# Renders every template combination (language x cloud x resources fixture) with
-# Copier and force-publishes each generated project to its own `example/*`
-# branch, so the generated output is browsable without running Copier locally.
+# Renders template combinations (language x cloud x resources fixture) with
+# Copier and force-publishes each generated project to its own example branch,
+# so the generated output is browsable without running Copier locally.
 #
-# Branch naming: example/<language>-<cloud>-<fixture>
-#   e.g. example/dotnet-azure-multi, example/python-aws-single
+# Branch naming:
+#   push to main      -> example/<language>-<cloud>-<fixture>
+#   pull request      -> example/pr-<number>-<language>-<cloud>-<fixture>
+#
+# On a pull request only the language(s) whose template dir changed are
+# rendered (so a Python PR publishes only example/pr-<n>-python-* branches);
+# pushes to main render all four languages.
 #
 # Full-fidelity publishing (including each generated project's own
 # .github/workflows/build-pipeline.yml) requires a Personal Access Token with
@@ -18,8 +23,16 @@ on:
   push:
     branches:
       - main
-      # TEMP: verification on this feature branch. Remove once verified/merged.
-      - claude/multi-endpoint-dotnet
+    paths:
+      - go/**
+      - python/**
+      - typescript/**
+      - dotnet/**
+      - .github/workflows/publish-examples.yml
+      - .github/actions/setup-copier-template/**
+  pull_request:
+    branches:
+      - main
     paths:
       - go/**
       - python/**
@@ -37,16 +50,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      languages: ${{ steps.pick.outputs.languages }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Pick languages to render
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          all=(go python typescript dotnet)
+          sel=()
+          if [ "${EVENT}" = "pull_request" ]; then
+            changed=$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" || true)
+            for l in "${all[@]}"; do
+              if printf '%s\n' "${changed}" | grep -qE "^${l}/"; then
+                sel+=("${l}")
+              fi
+            done
+            # If only shared files changed (e.g. the workflow itself), render all.
+            if [ ${#sel[@]} -eq 0 ]; then sel=("${all[@]}"); fi
+          else
+            sel=("${all[@]}")
+          fi
+          json=$(printf '%s\n' "${sel[@]}" | jq -R . | jq -cs .)
+          echo "languages=${json}" >> "$GITHUB_OUTPUT"
+          echo "Selected languages: ${json}"
+
   publish-examples:
+    needs: resolve
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        language:
-          - go
-          - python
-          - typescript
-          - dotnet
+        language: ${{ fromJSON(needs.resolve.outputs.languages) }}
         cloud:
           - name: "Azure Function App"
             slug: azure
@@ -60,6 +106,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Render example project
         uses: ./.github/actions/setup-copier-template
@@ -73,9 +121,9 @@ jobs:
         env:
           PUBLISH_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN || github.token }}
           HAS_PAT: ${{ secrets.EXAMPLES_PUBLISH_TOKEN != '' }}
-          BRANCH: example/${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
+          BRANCH: ${{ github.event_name == 'pull_request' && format('example/pr-{0}-{1}-{2}-{3}', github.event.pull_request.number, matrix.language, matrix.cloud.slug, matrix.fixture) || format('example/{0}-{1}-{2}', matrix.language, matrix.cloud.slug, matrix.fixture) }}
           COMBO: "${{ matrix.language }} / ${{ matrix.cloud.name }} / ${{ matrix.fixture }}"
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           cd _example
@@ -113,31 +161,3 @@ jobs:
             "HEAD:refs/heads/${BRANCH}"
 
           echo "Published \`${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
-
-  # TEMP: one-shot cleanup of the deprecated `examples/*` (plural) branch prefix
-  # after the rename to `example/*`. Remove this job once the old branches are
-  # gone (a later run will simply find none to delete).
-  prune-legacy-examples:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete legacy examples/* branches
-        env:
-          GH_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN || github.token }}
-        run: |
-          set -euo pipefail
-          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
-          refs=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${api}/git/matching-refs/heads/examples/" | jq -r '.[].ref')
-          if [ -z "${refs}" ]; then
-            echo "No legacy examples/* branches to delete."
-            exit 0
-          fi
-          echo "${refs}" | while read -r ref; do
-            [ -z "${ref}" ] && continue
-            code=$(curl -sS -X DELETE -o /dev/null -w '%{http_code}' \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "${api}/git/${ref}")
-            echo "Deleted ${ref} (HTTP ${code})"
-          done
