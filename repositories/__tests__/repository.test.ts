@@ -1,0 +1,99 @@
+import "reflect-metadata";
+
+import { Firestore } from "@google-cloud/firestore";
+import {
+    KittenClawsRepository,
+} from "@repositories";
+import { injectable } from "inversify";
+
+let mockResult;
+
+@injectable()
+class MockFirestore {
+    public collection = jest.fn().mockImplementation(() => mockResult);
+}
+
+describe('KittenClawsRepository', () => {
+    beforeEach(() => {
+        jest.resetAllMocks();
+    });
+
+    const mockFirestore = new MockFirestore() as unknown as Firestore;
+    const mockRepository = new KittenClawsRepository(mockFirestore.collection('mock-collection'));
+    const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+    const mockItem = { name: 'mockKittenClaws' };
+    const mockRepositoryResponse = [
+        {
+            id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
+            name: 'mockKittenClaws1',
+            isDeleted: false,
+            createdTimestamp: '2024-03-24T00:00:00.000Z',
+            updatedTimestamp: '2024-03-24T00:00:00.000Z',
+            createdBy: 'mockUser',
+            updatedBy: 'mockUser',
+        },
+        {
+            id: '8123e7f0-b294-4b55-9bd6-d87734d5ad21',
+            name: 'mockKittenClaws2',
+            isDeleted: false,
+            createdTimestamp: '2024-03-24T00:00:00.000Z',
+            updatedTimestamp: '2024-03-24T00:00:00.000Z',
+            createdBy: 'mockUser',
+            updatedBy: 'mockUser',
+        }
+    ];
+    const mockItemUpdate = { name: 'mockKittenClawsUpdate' };
+
+    describe('create', () => {
+        it('should delegate to the base repository', async () => {
+            const base = jest.spyOn(mockRepository, 'addRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            await mockRepository.create(mockItem);
+            expect(base).toHaveBeenCalledTimes(1);
+            expect(base).toHaveBeenCalledWith(mockItem);
+        });
+    });
+
+    describe('get', () => {
+        it('should delegate to the base repository', async () => {
+            const base = jest.spyOn(mockRepository, 'getRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            await mockRepository.get(mockId);
+            expect(base).toHaveBeenCalledTimes(1);
+            expect(base).toHaveBeenCalledWith(mockId);
+        });
+    });
+
+    describe('list', () => {
+        it('should delegate to the base repository', async () => {
+            const base = jest.spyOn(mockRepository, 'getRecords').mockResolvedValue(mockRepositoryResponse);
+            await mockRepository.list();
+            expect(base).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('update', () => {
+        it('should delegate to the base repository', async () => {
+            const base = jest.spyOn(mockRepository, 'updateRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            await mockRepository.update(mockItemUpdate);
+            expect(base).toHaveBeenCalledTimes(1);
+            expect(base).toHaveBeenCalledWith(mockItemUpdate);
+        });
+    });
+
+    describe('replace', () => {
+        it('should delegate to the base repository', async () => {
+            const base = jest.spyOn(mockRepository, 'replaceRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            await mockRepository.replace(mockRepositoryResponse[0]);
+            expect(base).toHaveBeenCalledTimes(1);
+            expect(base).toHaveBeenCalledWith(mockRepositoryResponse[0]);
+        });
+    });
+
+    describe('delete', () => {
+        it('should delegate to the base repository', async () => {
+            const base = jest.spyOn(mockRepository, 'deleteRecord').mockResolvedValue();
+            await mockRepository.delete(mockId);
+            expect(base).toHaveBeenCalledTimes(1);
+            expect(base).toHaveBeenCalledWith(mockId);
+        });
+    });
+});
