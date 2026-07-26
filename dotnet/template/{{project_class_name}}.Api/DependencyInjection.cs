@@ -22,8 +22,6 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        // Controllers are wired per resource in AddPersistence and injected
-        // into the functions as their per-resource I<Resource>Controller.
         return services;
     }
 
