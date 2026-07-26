@@ -17,7 +17,6 @@ import {
 import { ValidationError } from '@errors';
 import { SchemaValidator } from '@services';
 
-// Bounds for list pagination, protecting the datastore from unbounded reads.
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 1000;
 

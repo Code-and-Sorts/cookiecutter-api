@@ -77,8 +77,6 @@ const handle{{ resource.name }} = async (event: APIGatewayProxyEvent, id?: strin
 };
 {% endfor %}
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  // ``resource`` is the API Gateway route template (e.g. "/cats/{id}"); its
-  // first segment is the literal endpoint used to resolve the resource.
   const routePath = (event.resource || event.path || '').replace(/\/+$/, '');
   if (event.httpMethod === 'GET' && routePath.endsWith('/health')) {
     return jsonResponse(200, { status: 'ok' });

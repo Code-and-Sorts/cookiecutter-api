@@ -47,8 +47,6 @@ const client = DynamoDBDocumentClient.from(dynamoClient);
 
 const validator = new SchemaValidator();
 
-// One controller is wired per resource, its repository bound to that
-// resource's storage handle (resources sharing a container id share storage).
 {%- for resource in resources %}
 {%- set r = resource.name %}
 {%- if cloud_service == 'Azure Function App' %}
