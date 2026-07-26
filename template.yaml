@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.13
+
+Resources:
+  KittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_app.lambda_handler
+      CodeUri: .
+      Description: Kitties got claws...beware
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTY_CATS: !Ref KittyCatsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittyCatsTable
+      Events:
+        ListKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties
+            Method: get
+        GetKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties/{item_id}
+            Method: get
+        CreateKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties
+            Method: post
+        UpdateKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties/{item_id}
+            Method: patch
+        DeleteKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties/{item_id}
+            Method: delete
+
+
+  KittyCatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kitty_cats
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  KittenClawsApi:
+    Description: API Gateway endpoint base URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  KittenClawsFunction:
+    Description: Lambda Function ARN
+    Value: !GetAtt KittenClawsFunction.Arn
