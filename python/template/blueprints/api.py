@@ -31,8 +31,6 @@ def _build_{{ resource.name | to_snake }}_controller(container_client):
 
 {% endfor -%}
 async def _run(container_id, build_controller, operation):
-    # Scope the async Cosmos client to the request via `async with` so its
-    # aiohttp session is always closed, avoiding leaked/unclosed sessions.
     async with CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key) as client:
         database_client = client.get_database_client(settings.cosmos_db_database_name)
         container_client = database_client.get_container_client(settings.container_names[container_id])
@@ -52,10 +50,6 @@ def _build_{{ resource.name | to_snake }}_controller(collection):
 
 {% endfor -%}
 async def _run(container_id, build_controller, operation):
-    # Build the async Firestore client inside the request's event loop so its
-    # gRPC transport binds to the loop that drives it. Each invocation runs on
-    # a fresh asyncio.run() loop, so a module-level client would be bound to an
-    # already-closed loop on subsequent requests.
     db = firestore.AsyncClient(
         project=settings.gcp_project_id,
         database=settings.firestore_database
@@ -71,9 +65,6 @@ import asyncio
 import aioboto3
 
 settings = get_settings()
-# A single aioboto3 session is reused; each call opens a short-lived async
-# resource context so DynamoDB I/O is non-blocking. One controller is wired
-# per resource, its repository bound to that resource's storage table.
 session = aioboto3.Session()
 {%- for resource in resources %}
 _{{ resource.name | to_snake }}_controller = {{ resource.name }}Controller({{ resource.name }}Service({{ resource.name }}Repository(
@@ -294,7 +285,6 @@ def delete_{{ slug }}(event):
 {% endfor %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-# Dispatch table for the Lambda handler: endpoint -> {(method, needs_id): handler}.
 ROUTES = {
 {%- for resource in resources %}
 {%- set slug = resource.name | to_snake %}

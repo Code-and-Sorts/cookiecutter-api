@@ -177,9 +177,6 @@ class {{ r }}Repository:
 {%- endif %}
 
     async def replace(self, item: {{ r }}) -> Optional[{{ r }}Response]:
-        # Full-document replace (PUT). The item must already exist; the stored
-        # document is overwritten in full rather than merged with the previous
-        # version (contrast with ``update``, which patches).
         await self.get_by_id(item.id)
         new_item_dict = item.model_dump(exclude_none=True)
 {%- if cloud_service == 'Azure Function App' %}

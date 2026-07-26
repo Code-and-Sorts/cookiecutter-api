@@ -10,9 +10,6 @@ def lambda_handler(event, context):
     http_method = event.get("httpMethod", "")
     resource = event.get("resource", "")
 
-    # ``resource`` is the API Gateway route template (e.g. "/cats/{item_id}"),
-    # so the first path segment is the literal endpoint and "{item_id}" marks an
-    # id-bearing route. Use it (not the concrete path) to resolve the resource.
     if http_method == "GET" and resource.rstrip("/").endswith("/health"):
         return health(event)
 

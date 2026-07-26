@@ -31,8 +31,6 @@ from models import (
 {%- endfor %}
 )
 
-# Upper bound on a single list page, protecting the datastore from
-# pathologically large reads even if a client asks for more.
 MAX_LIST_LIMIT = 1000
 
 
