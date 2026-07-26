@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+
+Globals:
+  Function:
+    Timeout: 30
+
+Resources:
+  KittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      Handler: bootstrap
+      Runtime: provided.al2023
+      CodeUri: .
+      Description: Kitties got claws...beware
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        GetCatById:
+          Type: Api
+          Properties:
+            Path: /cats/{item_id}
+            Method: get
+        GetCatList:
+          Type: Api
+          Properties:
+            Path: /cats
+            Method: get
+        CreateCat:
+          Type: Api
+          Properties:
+            Path: /cats
+            Method: post
+        UpdateCat:
+          Type: Api
+          Properties:
+            Path: /cats/{item_id}
+            Method: patch
+        DeleteCat:
+          Type: Api
+          Properties:
+            Path: /cats/{item_id}
+            Method: delete
+        GetDogById:
+          Type: Api
+          Properties:
+            Path: /dogs/{item_id}
+            Method: get
+        GetDogList:
+          Type: Api
+          Properties:
+            Path: /dogs
+            Method: get
+        CreateDog:
+          Type: Api
+          Properties:
+            Path: /dogs
+            Method: post
+        ReplaceDog:
+          Type: Api
+          Properties:
+            Path: /dogs/{item_id}
+            Method: put
+        DeleteDog:
+          Type: Api
+          Properties:
+            Path: /dogs/{item_id}
+            Method: delete
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+
+  AnimalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: animals
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  KittenClawsApi:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  KittenClawsFunction:
+    Description: Lambda Function ARN
+    Value: !GetAtt KittenClawsFunction.Arn
+  AnimalsTableName:
+    Description: DynamoDB table name for the animals container
+    Value: !Ref AnimalsTable
