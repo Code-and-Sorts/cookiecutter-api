@@ -1,0 +1,55 @@
+name: Typescript API Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-typescript:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        node-version:
+          - "18.x"
+          - "20.x"
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Setup Node ${{ matrix.node-version }} Environment
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - run: corepack enable
+        shell: bash
+
+      - name: Run install
+        run: yarn install --no-immutable
+        shell: bash
+
+      - name: Run build
+        run: yarn build
+        shell: bash
+
+      - name: Run lint
+        run: yarn lint
+        shell: bash
+
+      - name: Unit tests
+        run: yarn test:unit
+        shell: bash
+
+      - name: Run dependency vulnerability scan
+        continue-on-error: true
+        run: yarn npm audit --severity moderate
+        shell: bash
