@@ -1,0 +1,40 @@
+{
+  "name": "kitties",
+  "version": "1.0.0",
+  "description": "Kitties got claws...beware",
+  "packageManager": "yarn@4.13.0",
+  "main": "dist/functions/*.js",
+  "scripts": {
+    "build": "rm -rf dist && tsc && tsc-alias",
+    "start": "func start --typescript",
+    "test:unit": "yarn jest --verbose --coverage",
+    "lint": "eslint .",
+    "format": "eslint --fix . && prettier --write .",
+    "audit": "yarn npm audit --severity moderate"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.2.0",
+    "@azure/functions": "^4.6.0",
+    "dotenv": "^17.0.0",
+    "inversify": "^6.1.4",
+    "reflect-metadata": "^0.2.2",
+    "uuid": "^11.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.0.0",
+    "azure-functions-core-tools": "^4.x",
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.0",
+    "ts-jest": "^29.2.5",
+    "tsc-alias": "^1.8.10",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.0.0"
+  },
+  "author": "Sir Meowsalots",
+  "license": "ISC"
+}
