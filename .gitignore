@@ -1,0 +1,31 @@
+# Binaries
+handler
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Azure Functions localsettings file
+local.settings.json
+
+# Azurite
+__azurite_*.json
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/

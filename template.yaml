@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+
+Globals:
+  Function:
+    Timeout: 30
+
+Resources:
+  KittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      Handler: bootstrap
+      Runtime: provided.al2023
+      CodeUri: .
+      Description: Kitties got claws...beware
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTIES: !Ref KittiesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittiesTable
+      Events:
+        GetKittenClawsById:
+          Type: Api
+          Properties:
+            Path: /kitties/{item_id}
+            Method: get
+        GetKittenClawsList:
+          Type: Api
+          Properties:
+            Path: /kitties
+            Method: get
+        CreateKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties
+            Method: post
+        UpdateKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties/{item_id}
+            Method: patch
+        DeleteKittenClaws:
+          Type: Api
+          Properties:
+            Path: /kitties/{item_id}
+            Method: delete
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+
+  KittiesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kitties
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  KittenClawsApi:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  KittenClawsFunction:
+    Description: Lambda Function ARN
+    Value: !GetAtt KittenClawsFunction.Arn
+  KittiesTableName:
+    Description: DynamoDB table name for the kitties container
+    Value: !Ref KittiesTable
