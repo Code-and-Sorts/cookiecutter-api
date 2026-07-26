@@ -1,0 +1,27 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_src_path: ./go
+author: Sir Meowsalots
+cloud_service: Azure Function App
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: animals
+    endpoint: cats
+    name: Cat
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - delete
+-   container: animals
+    endpoint: dogs
+    name: Dog
+    operations:
+    - list
+    - get_by_id
+    - create
+    - replace
+    - delete
+

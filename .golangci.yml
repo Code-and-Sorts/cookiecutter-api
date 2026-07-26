@@ -1,0 +1,13 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+  disable:
+    - errcheck
+
+run:
+  timeout: 5m
