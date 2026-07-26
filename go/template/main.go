@@ -356,9 +356,6 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return handleHealth()
 	}
 
-	// ``request.Resource`` is the API Gateway route template (e.g. "/cats/{item_id}"),
-	// so the first path segment is the literal endpoint and "{item_id}" marks an
-	// id-bearing route.
 	trimmed := strings.Trim(request.Resource, "/")
 	endpoint := trimmed
 	if idx := strings.Index(trimmed, "/"); idx >= 0 {
