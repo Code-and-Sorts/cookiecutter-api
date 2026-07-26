@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "KittenClaws"
+version = "0.1.0"
+description = "Kitties got claws...beware"
+authors = ["Sir Meowsalots"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.13,<3.15"
+pydantic = "^2.12.0"
+pydantic-settings = "^2.6.0"
+azure-cosmos = "^4.15.0"
+
+
+pytest-mock = "^3.14.0"
+pytest-describe = "^3.0.0"
+
+[tool.poetry.group.dev.dependencies]
+azure-functions = "2.1.0"
+pytest = "^9.0.0"
+pytest-cov = "^7.0.0"
+ruff = "^0.15.0"
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["*_test.py"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E402", "E501", "W293"]
+
+[tool.ruff.lint.per-file-ignores]
+"blueprints/*" = ["F821", "F401"]
+"main.py" = ["F401"]
+"repositories/*" = ["F401"]
+"*_test.py" = ["F401", "F841"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
