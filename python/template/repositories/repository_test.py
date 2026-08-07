@@ -1,8 +1,18 @@
 import asyncio
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
-from models import {{ project_class_name }}, {{ project_class_name }}Response, generate_utc_timestamp
-from repositories import {{ project_class_name }}Repository
+from models import (
+{%- for resource in resources %}
+    {{ resource.name }},
+    {{ resource.name }}Response,
+{%- endfor %}
+    generate_utc_timestamp,
+)
+from repositories import (
+{%- for resource in resources %}
+    {{ resource.name }}Repository,
+{%- endfor %}
+)
 from errors import NotFoundError
 
 
@@ -23,13 +33,6 @@ class _AsyncIterator:
             return next(self._iter)
         except StopIteration:
             raise StopAsyncIteration
-
-
-mock_item_responses = [
-    {{ project_class_name }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5',name='mockName1',type='mockType1'),
-    {{ project_class_name }}Response(id='de6cbc87-5969-458c-8444-3512a82250bc',name='mockName2',type='mockType2')
-]
-mock_update_item_response = {{ project_class_name }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5',name='mockName1-Update',type='mockType1-Update')
 
 {% if cloud_service == 'Azure Function App' -%}
 mock_query = [
@@ -59,8 +62,16 @@ mock_upsert = {
     "updatedDate": "2024-08-10T20:41:30Z"
 }
 
+{% for resource in resources %}
+{%- set r = resource.name %}
+{%- set slug = r | to_snake %}
+_{{ slug }}_responses = [
+    {{ r }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5', name='mockName1', type='mockType1'),
+    {{ r }}Response(id='de6cbc87-5969-458c-8444-3512a82250bc', name='mockName2', type='mockType2')
+]
 
-def describe_item_service():
+
+def describe_{{ slug }}_repository():
     @pytest.fixture
     def mock_cosmos_client():
         client = MagicMock()
@@ -72,58 +83,58 @@ def describe_item_service():
     def describe_get_by_id():
         def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator(mock_query)
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
+            repository = {{ r }}Repository(mock_cosmos_client)
             result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
             mock_cosmos_client.query_items.assert_called_once_with(
                 query="SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false",
                 parameters=[{"name": "@id", "value": "ac1df01c-7ece-4a20-ab60-179829dad8f5"}]
             )
-            assert result == mock_item_responses[0]
+            assert result == _{{ slug }}_responses[0]
 
         def test_not_found_error(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator([])
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
+            repository = {{ r }}Repository(mock_cosmos_client)
             with pytest.raises(NotFoundError):
                 asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
         def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator(mock_query)
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
+            repository = {{ r }}Repository(mock_cosmos_client)
             result = asyncio.run(repository.get_list())
             mock_cosmos_client.query_items.assert_called_once_with(
                 query="SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100"
             )
-            assert result == mock_item_responses
+            assert result == _{{ slug }}_responses
 
         def test_successfully_call_empty_result(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator([])
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
+            repository = {{ r }}Repository(mock_cosmos_client)
             result = asyncio.run(repository.get_list())
             assert result == []
 
     def describe_create():
         def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.create_item.return_value = mock_query[0]
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
-            mock_item = {{ project_class_name }}(**mock_query[0])
+            repository = {{ r }}Repository(mock_cosmos_client)
+            mock_item = {{ r }}(**mock_query[0])
             mock_item.id = 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
             result = asyncio.run(repository.create(item=mock_item))
             mock_cosmos_client.create_item.assert_called_once_with(mock_query[0])
-            assert result == mock_item_responses[0]
+            assert result == _{{ slug }}_responses[0]
 
     def describe_update():
         def test_successfully_call(mock_cosmos_client):
-            mock_item_response = {{ project_class_name }}Response(
+            mock_item_response = {{ r }}Response(
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                 name='mockName1',
                 type='mockType1'
             )
             mock_cosmos_client.upsert_item.return_value = mock_upsert
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
+            repository = {{ r }}Repository(mock_cosmos_client)
             with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
                 result = asyncio.run(repository.update(
-                    item={{ project_class_name }}(
+                    item={{ r }}(
                         id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                         name='mockName1-Update',
                         type='mockType1-Update'
@@ -135,10 +146,31 @@ def describe_item_service():
                 assert result.name == 'mockName1-Update'
                 assert result.type == 'mockType1-Update'
 
+    def describe_replace():
+        def test_successfully_call(mock_cosmos_client):
+            mock_item_response = {{ r }}Response(
+                id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                name='mockName1',
+                type='mockType1'
+            )
+            mock_cosmos_client.upsert_item.return_value = mock_upsert
+            repository = {{ r }}Repository(mock_cosmos_client)
+            with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
+                result = asyncio.run(repository.replace(
+                    item={{ r }}(
+                        id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                        name='mockName1-Update',
+                        type='mockType1-Update'
+                    )
+                ))
+                repository.get_by_id.assert_called_once()
+                mock_cosmos_client.upsert_item.assert_called_once()
+                assert result.name == 'mockName1-Update'
+
     def describe_delete():
         def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.patch_item.return_value = mock_query[0]
-            repository = {{ project_class_name }}Repository(mock_cosmos_client)
+            repository = {{ r }}Repository(mock_cosmos_client)
             asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
             mock_cosmos_client.patch_item.assert_called_once_with(
                 item='ac1df01c-7ece-4a20-ab60-179829dad8f5',
@@ -146,11 +178,19 @@ def describe_item_service():
                 patch_operations=[{ 'op': 'replace', 'path': '/isDeleted', 'value': True }],
                 filter_predicate='from c WHERE c.isDeleted = false'
             )
+{% endfor %}
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
+{% for resource in resources %}
+{%- set r = resource.name %}
+{%- set slug = r | to_snake %}
+_{{ slug }}_responses = [
+    {{ r }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5', name='mockName1', type='mockType1'),
+    {{ r }}Response(id='de6cbc87-5969-458c-8444-3512a82250bc', name='mockName2', type='mockType2')
+]
 
 
-def describe_item_service():
+def describe_{{ slug }}_repository():
     @pytest.fixture
     def mock_firestore_collection():
         return MagicMock()
@@ -168,11 +208,11 @@ def describe_item_service():
             mock_doc_ref.get = AsyncMock(return_value=mock_doc)
             mock_firestore_collection.document.return_value = mock_doc_ref
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
+            repository = {{ r }}Repository(mock_firestore_collection)
             result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
-            assert result == mock_item_responses[0]
+            assert result == _{{ slug }}_responses[0]
 
         def test_not_found_error(mock_firestore_collection):
             mock_doc = MagicMock()
@@ -181,7 +221,7 @@ def describe_item_service():
             mock_doc_ref.get = AsyncMock(return_value=mock_doc)
             mock_firestore_collection.document.return_value = mock_doc_ref
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
+            repository = {{ r }}Repository(mock_firestore_collection)
             with pytest.raises(NotFoundError):
                 asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
@@ -205,12 +245,12 @@ def describe_item_service():
             mock_query.stream.return_value = _AsyncIterator([mock_doc1, mock_doc2])
             mock_firestore_collection.where.return_value = mock_query
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
+            repository = {{ r }}Repository(mock_firestore_collection)
             result = asyncio.run(repository.get_list())
 
             mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
             mock_query.limit.assert_called_once_with(100)
-            assert result == mock_item_responses
+            assert result == _{{ slug }}_responses
 
         def test_successfully_call_empty_result(mock_firestore_collection):
             mock_query = MagicMock()
@@ -218,7 +258,7 @@ def describe_item_service():
             mock_query.stream.return_value = _AsyncIterator([])
             mock_firestore_collection.where.return_value = mock_query
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
+            repository = {{ r }}Repository(mock_firestore_collection)
             result = asyncio.run(repository.get_list())
 
             mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
@@ -230,8 +270,8 @@ def describe_item_service():
             mock_doc_ref.set = AsyncMock()
             mock_firestore_collection.document.return_value = mock_doc_ref
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
-            mock_item = {{ project_class_name }}(
+            repository = {{ r }}Repository(mock_firestore_collection)
+            mock_item = {{ r }}(
                 name='mockName1',
                 type='mockType1',
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
@@ -240,11 +280,11 @@ def describe_item_service():
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             mock_doc_ref.set.assert_called_once()
-            assert result.id == mock_item_responses[0].id
+            assert result.id == _{{ slug }}_responses[0].id
 
     def describe_update():
         def test_successfully_call(mock_firestore_collection):
-            mock_item_response = {{ project_class_name }}Response(
+            mock_item_response = {{ r }}Response(
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                 name='mockName1',
                 type='mockType1'
@@ -254,10 +294,10 @@ def describe_item_service():
             mock_doc_ref.update = AsyncMock()
             mock_firestore_collection.document.return_value = mock_doc_ref
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
+            repository = {{ r }}Repository(mock_firestore_collection)
             with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
                 result = asyncio.run(repository.update(
-                    item={{ project_class_name }}(
+                    item={{ r }}(
                         id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                         name='mockName1-Update',
                         type='mockType1-Update'
@@ -266,6 +306,29 @@ def describe_item_service():
                 assert result.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
                 assert result.name == 'mockName1-Update'
                 assert result.type == 'mockType1-Update'
+
+    def describe_replace():
+        def test_successfully_call(mock_firestore_collection):
+            mock_item_response = {{ r }}Response(
+                id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                name='mockName1',
+                type='mockType1'
+            )
+            mock_doc_ref = MagicMock()
+            mock_doc_ref.set = AsyncMock()
+            mock_firestore_collection.document.return_value = mock_doc_ref
+
+            repository = {{ r }}Repository(mock_firestore_collection)
+            with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
+                result = asyncio.run(repository.replace(
+                    item={{ r }}(
+                        id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                        name='mockName1-Update',
+                        type='mockType1-Update'
+                    )
+                ))
+                mock_doc_ref.set.assert_called_once()
+                assert result.name == 'mockName1-Update'
 
     def describe_delete():
         def test_successfully_call(mock_firestore_collection):
@@ -280,15 +343,14 @@ def describe_item_service():
             mock_doc_ref.update = AsyncMock()
             mock_firestore_collection.document.return_value = mock_doc_ref
 
-            repository = {{ project_class_name }}Repository(mock_firestore_collection)
+            repository = {{ r }}Repository(mock_firestore_collection)
             asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             mock_doc_ref.update.assert_called_once_with({'isDeleted': True})
+{% endfor %}
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
-
-
 def _make_session(table_mock):
     """Build a mock aioboto3 Session whose ``resource(...)`` async context
     manager yields a DynamoDB resource exposing the given table mock."""
@@ -301,8 +363,16 @@ def _make_session(table_mock):
     session.resource = MagicMock(return_value=cm)
     return session
 
+{% for resource in resources %}
+{%- set r = resource.name %}
+{%- set slug = r | to_snake %}
+_{{ slug }}_responses = [
+    {{ r }}Response(id='ac1df01c-7ece-4a20-ab60-179829dad8f5', name='mockName1', type='mockType1'),
+    {{ r }}Response(id='de6cbc87-5969-458c-8444-3512a82250bc', name='mockName2', type='mockType2')
+]
 
-def describe_item_service():
+
+def describe_{{ slug }}_repository():
     @pytest.fixture
     def mock_dynamodb_table():
         table = MagicMock()
@@ -313,7 +383,7 @@ def describe_item_service():
         return table
 
     def _repository(table):
-        return {{ project_class_name }}Repository(_make_session(table), "kitties", "us-east-1")
+        return {{ r }}Repository(_make_session(table), "{{ resource.container }}", "us-east-1")
 
     def describe_get_by_id():
         def test_successfully_call(mock_dynamodb_table):
@@ -330,7 +400,7 @@ def describe_item_service():
             result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_dynamodb_table.get_item.assert_called_once_with(Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"})
-            assert result == mock_item_responses[0]
+            assert result == _{{ slug }}_responses[0]
 
         def test_not_found_error(mock_dynamodb_table):
             mock_dynamodb_table.get_item.return_value = {}
@@ -362,7 +432,7 @@ def describe_item_service():
             result = asyncio.run(repository.get_list())
 
             mock_dynamodb_table.scan.assert_called_once()
-            assert result == mock_item_responses
+            assert result == _{{ slug }}_responses
 
         def test_successfully_call_empty_result(mock_dynamodb_table):
             mock_dynamodb_table.scan.return_value = {"Items": []}
@@ -376,7 +446,7 @@ def describe_item_service():
     def describe_create():
         def test_successfully_call(mock_dynamodb_table):
             repository = _repository(mock_dynamodb_table)
-            mock_item = {{ project_class_name }}(
+            mock_item = {{ r }}(
                 name='mockName1',
                 type='mockType1',
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
@@ -384,11 +454,11 @@ def describe_item_service():
             result = asyncio.run(repository.create(item=mock_item))
 
             mock_dynamodb_table.put_item.assert_called_once()
-            assert result.id == mock_item_responses[0].id
+            assert result.id == _{{ slug }}_responses[0].id
 
     def describe_update():
         def test_successfully_call(mock_dynamodb_table):
-            mock_item_response = {{ project_class_name }}Response(
+            mock_item_response = {{ r }}Response(
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                 name='mockName1',
                 type='mockType1'
@@ -397,7 +467,7 @@ def describe_item_service():
             repository = _repository(mock_dynamodb_table)
             with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
                 result = asyncio.run(repository.update(
-                    item={{ project_class_name }}(
+                    item={{ r }}(
                         id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                         name='mockName1-Update',
                         type='mockType1-Update'
@@ -406,6 +476,25 @@ def describe_item_service():
                 assert result.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
                 assert result.name == 'mockName1-Update'
                 assert result.type == 'mockType1-Update'
+
+    def describe_replace():
+        def test_successfully_call(mock_dynamodb_table):
+            mock_item_response = {{ r }}Response(
+                id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                name='mockName1',
+                type='mockType1'
+            )
+            repository = _repository(mock_dynamodb_table)
+            with patch.object(repository, 'get_by_id', new=AsyncMock(return_value=mock_item_response)):
+                result = asyncio.run(repository.replace(
+                    item={{ r }}(
+                        id='ac1df01c-7ece-4a20-ab60-179829dad8f5',
+                        name='mockName1-Update',
+                        type='mockType1-Update'
+                    )
+                ))
+                mock_dynamodb_table.put_item.assert_called_once()
+                assert result.name == 'mockName1-Update'
 
     def describe_delete():
         def test_successfully_call(mock_dynamodb_table):
@@ -418,4 +507,5 @@ def describe_item_service():
                 ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
                 ExpressionAttributeValues={":val": True, ":false": False}
             )
+{% endfor %}
 {%- endif %}

@@ -70,3 +70,51 @@ project_class_name:
   type: str
   when: false
   default: "{{ project_name | to_camel }}"
+
+# ---- REST resources ----
+# A list of resources to generate. Each resource gets its own URL endpoint, a
+# storage container (resources sharing a container id share storage), and a
+# chosen subset of operations. The default is a single resource matching the
+# project name with today's CRUD behaviour, so answering only project_name
+# reproduces the original single-resource project.
+resources:
+  type: yaml
+  multiline: true
+  help: >-
+    Resources to generate. Each item: name (PascalCase), endpoint (kebab-case URL
+    segment), container (storage id; equal ids share storage), operations (subset of
+    list, get_by_id, create, update, replace, delete).
+  default: |
+    - name: "{{ project_class_name }}"
+      endpoint: "{{ project_endpoint }}"
+      container: "{{ project_slug }}"
+      operations: ["list", "get_by_id", "create", "update", "delete"]
+  validator: >-
+    {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
+    {%- set ns = namespace(err="", eps=[], names=[]) -%}
+    {%- if resources | length < 1 -%}
+    {%- set ns.err = "At least one resource is required." -%}
+    {%- else -%}
+    {%- for r in resources -%}
+    {%- if not ns.err -%}
+    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
+    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
+    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
+    {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
+    {%- elif (r.operations | default([]) | length) < 1 -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' must enable at least one operation." -%}
+    {%- elif r.operations | reject('in', valid_ops) | list | length > 0 -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' has an invalid operation. Allowed: " ~ (valid_ops | join(', ')) ~ "." -%}
+    {%- elif r.endpoint in ns.eps -%}
+    {%- set ns.err = "Duplicate endpoint '" ~ r.endpoint ~ "'." -%}
+    {%- elif r.name in ns.names -%}
+    {%- set ns.err = "Duplicate resource name '" ~ r.name ~ "'." -%}
+    {%- endif -%}
+    {%- set ns.eps = ns.eps + [r.endpoint] -%}
+    {%- set ns.names = ns.names + [r.name] -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {{ ns.err }}

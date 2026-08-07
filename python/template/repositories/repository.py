@@ -11,7 +11,12 @@ from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 {%- endif %}
 from typing import List, Optional
-from models import {{ project_class_name }}, {{ project_class_name }}Response
+from models import (
+{%- for resource in resources %}
+    {{ resource.name }},
+    {{ resource.name }}Response,
+{%- endfor %}
+)
 from errors import NotFoundError
 
 # Default cap on the number of items returned by list endpoints to avoid
@@ -32,8 +37,9 @@ class Database:
             self.name = name
             self.container_name = container_name
 {%- endif %}
-
-class {{ project_class_name }}Repository:
+{% for resource in resources %}
+{%- set r = resource.name %}
+class {{ r }}Repository:
 {%- if cloud_service == 'Azure Function App' %}
     def __init__(self, container_client: ContainerProxy):
         self.container_client = container_client
@@ -49,7 +55,7 @@ class {{ project_class_name }}Repository:
         self.region = region
 {%- endif %}
 
-    async def get_by_id(self, item_id: str) -> Optional[{{ project_class_name }}Response]:
+    async def get_by_id(self, item_id: str) -> Optional[{{ r }}Response]:
 {%- if cloud_service == 'Azure Function App' %}
         query = "SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false"
         parameters = [
@@ -59,7 +65,7 @@ class {{ project_class_name }}Repository:
             query=query,
             parameters=parameters
         ):
-            return {{ project_class_name }}Response.model_validate(item)
+            return {{ r }}Response.model_validate(item)
 
         raise NotFoundError()
 {%- endif %}
@@ -72,7 +78,7 @@ class {{ project_class_name }}Repository:
         if data.get('isDeleted', False):
             raise NotFoundError()
 
-        return {{ project_class_name }}Response.model_validate(data)
+        return {{ r }}Response.model_validate(data)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
@@ -83,14 +89,14 @@ class {{ project_class_name }}Repository:
         if not item or item.get("isDeleted", False):
             raise NotFoundError()
 
-        return {{ project_class_name }}Response.model_validate(item)
+        return {{ r }}Response.model_validate(item)
 {%- endif %}
 
-    async def get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[{{ project_class_name }}Response | None]:
+    async def get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[{{ r }}Response | None]:
 {%- if cloud_service == 'Azure Function App' %}
         query = f"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {int(limit)}"
         items = [
-            {{ project_class_name }}Response.model_validate(item)
+            {{ r }}Response.model_validate(item)
             async for item in self.container_client.query_items(query=query)
         ]
         return items
@@ -100,7 +106,7 @@ class {{ project_class_name }}Repository:
         items = []
         async for doc in query.stream():
             data = doc.to_dict()
-            items.append({{ project_class_name }}Response.model_validate(data))
+            items.append({{ r }}Response.model_validate(data))
         return items
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -120,31 +126,31 @@ class {{ project_class_name }}Repository:
                 items.extend(response.get("Items", []))
 
         items = items[:limit]
-        return [{{ project_class_name }}Response.model_validate(item) for item in items]
+        return [{{ r }}Response.model_validate(item) for item in items]
 {%- endif %}
 
-    async def create(self, item: {{ project_class_name }}) -> {{ project_class_name }}Response:
+    async def create(self, item: {{ r }}) -> {{ r }}Response:
         item_dict = item.model_dump(exclude_none=True)
 {%- if cloud_service == 'Azure Function App' %}
         created_item = await self.container_client.create_item(item_dict)
 
-        return {{ project_class_name }}Response.model_validate(created_item)
+        return {{ r }}Response.model_validate(created_item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
         await doc_ref.set(item_dict)
 
-        return {{ project_class_name }}Response.model_validate(item_dict)
+        return {{ r }}Response.model_validate(item_dict)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
             table = await dynamodb.Table(self.table_name)
             await table.put_item(Item=item_dict)
 
-        return {{ project_class_name }}Response.model_validate(item_dict)
+        return {{ r }}Response.model_validate(item_dict)
 {%- endif %}
 
-    async def update(self, item: {{ project_class_name }}) -> Optional[{{ project_class_name }}Response]:
+    async def update(self, item: {{ r }}) -> Optional[{{ r }}Response]:
         new_item_dict = item.model_dump(exclude_none=True)
         previous_item = await self.get_by_id(item.id)
         if not previous_item:
@@ -154,20 +160,42 @@ class {{ project_class_name }}Repository:
 {%- if cloud_service == 'Azure Function App' %}
         updated_item = await self.container_client.upsert_item(patched_item)
 
-        return {{ project_class_name }}Response.model_validate(updated_item)
+        return {{ r }}Response.model_validate(updated_item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item.id)
         await doc_ref.update(patched_item)
 
-        return {{ project_class_name }}Response.model_validate(patched_item)
+        return {{ r }}Response.model_validate(patched_item)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
             table = await dynamodb.Table(self.table_name)
             await table.put_item(Item=patched_item)
 
-        return {{ project_class_name }}Response.model_validate(patched_item)
+        return {{ r }}Response.model_validate(patched_item)
+{%- endif %}
+
+    async def replace(self, item: {{ r }}) -> Optional[{{ r }}Response]:
+        await self.get_by_id(item.id)
+        new_item_dict = item.model_dump(exclude_none=True)
+{%- if cloud_service == 'Azure Function App' %}
+        replaced_item = await self.container_client.upsert_item(new_item_dict)
+
+        return {{ r }}Response.model_validate(replaced_item)
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+        doc_ref = self.collection.document(item.id)
+        await doc_ref.set(new_item_dict)
+
+        return {{ r }}Response.model_validate(new_item_dict)
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            table = await dynamodb.Table(self.table_name)
+            await table.put_item(Item=new_item_dict)
+
+        return {{ r }}Response.model_validate(new_item_dict)
 {%- endif %}
 
     async def delete(self, item_id: str):
@@ -211,3 +239,4 @@ class {{ project_class_name }}Repository:
                 raise NotFoundError()
             raise
 {%- endif %}
+{% endfor %}

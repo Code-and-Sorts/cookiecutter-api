@@ -1,3 +1,11 @@
-from .{{project_slug}}_service import {{ project_class_name }}Service
+from .service import (
+{%- for resource in resources %}
+    {{ resource.name }}Service,
+{%- endfor %}
+)
 
-__all__ = ["{{ project_class_name }}Service"]
+__all__ = [
+{%- for resource in resources %}
+    "{{ resource.name }}Service",
+{%- endfor %}
+]

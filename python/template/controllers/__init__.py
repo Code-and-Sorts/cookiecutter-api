@@ -1,3 +1,11 @@
-from .{{project_slug}}_controller import {{project_class_name}}Controller
+from .controller import (
+{%- for resource in resources %}
+    {{ resource.name }}Controller,
+{%- endfor %}
+)
 
-__all__ = ["{{project_class_name}}Controller"]
+__all__ = [
+{%- for resource in resources %}
+    "{{ resource.name }}Controller",
+{%- endfor %}
+]

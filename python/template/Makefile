@@ -11,9 +11,11 @@ run: ## Run function app.
 	@poetry run func start
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
-	@echo "🚀 Running Cloud Function (get_list endpoint)"
-	@echo "Use 'poetry run functions-framework --target=<function_name> --source=main.py' to run specific functions"
-	@poetry run functions-framework --target=get_list --source=main.py --port=8080
+{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
+{%- set first_fn = op_fn[resources[0].operations[0]] ~ '_' ~ (resources[0].name | to_snake) -%}
+	@echo "🚀 Running Cloud Function ({{ first_fn }})"
+	@echo "Each function deploys separately. Use 'poetry run functions-framework --target=<function_name> --source=main.py' to run a specific one."
+	@poetry run functions-framework --target={{ first_fn }} --source=main.py --port=8080
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
 	@echo "🚀 Building and running Lambda API locally via SAM"
