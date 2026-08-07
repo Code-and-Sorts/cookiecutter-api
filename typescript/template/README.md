@@ -6,12 +6,28 @@
 
 This project is a Typescript NodeJS-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+The REST API exposes the following resources and operations:
+{% for resource in resources %}
+- **`/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
+{%- if "list" in resource.operations %}
+  - `GET /{{ resource.endpoint }}` — list
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+  - `GET /{{ resource.endpoint }}/{id}` — get by ID
+{%- endif %}
+{%- if "create" in resource.operations %}
+  - `POST /{{ resource.endpoint }}` — create
+{%- endif %}
+{%- if "update" in resource.operations %}
+  - `PATCH /{{ resource.endpoint }}/{id}` — partial update
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  - `PUT /{{ resource.endpoint }}/{id}` — full replace
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  - `DELETE /{{ resource.endpoint }}/{id}` — soft delete
+{%- endif %}
+{%- endfor %}
 
 Dependency management is handled using [Yarn](https://yarnpkg.com/), ensuring a streamlined and consistent environment for managing node packages and their dependencies.
 
