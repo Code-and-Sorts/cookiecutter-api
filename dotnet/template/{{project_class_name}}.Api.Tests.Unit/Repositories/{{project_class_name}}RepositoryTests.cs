@@ -16,140 +16,147 @@ using {{project_class_name}}.Api.Interfaces;
 {%- endif %}
 using NSubstitute;
 using Xunit;
-
-public class {{project_class_name}}RepositoryTest
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}RepositoryTest
 {
 {%- if cloud_service == 'Azure Function App' %}
     private readonly Container _mockContainer;
-    private readonly {{project_class_name}}Repository _repository;
+    private readonly {{ r }}Repository _repository;
 
-    public {{project_class_name}}RepositoryTest()
+    public {{ r }}RepositoryTest()
     {
         var mockCosmosClient = Substitute.For<CosmosClient>();
         _mockContainer = Substitute.For<Container>();
         mockCosmosClient.GetContainer(Arg.Any<string>(), Arg.Any<string>()).Returns(_mockContainer);
-        _repository = new {{project_class_name}}Repository(mockCosmosClient, "mockDatabaseName", "mockContainerName");
+        _repository = new {{ r }}Repository(mockCosmosClient, "mockDatabaseName", "mockContainerName");
     }
 
     [Fact]
-    public async Task GetAsync_ShouldReturn{{project_class_name}}Dto()
+    public async Task GetAsync_ShouldReturn{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}" };
-        var response = Substitute.For<ItemResponse<{{project_class_name}}>>();
-        response.Resource.Returns({{project_lower_camel_name}});
-        _mockContainer.ReadItemAsync<{{project_class_name}}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
+        var response = Substitute.For<ItemResponse<{{ r }}>>();
+        response.Resource.Returns(item);
+        _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(response);
 
-        // Act
         var result = await _repository.GetAsync("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
-        Assert.Equal("mock{{project_class_name}}", result.Name);
+        Assert.Equal("mock{{ r }}", result.Name);
     }
 
     [Fact]
-    public async Task GetListAsync_ShouldReturnListOf{{project_class_name}}Dto()
+    public async Task GetListAsync_ShouldReturnListOf{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}}List = new List<{{project_class_name}}>
+        var itemList = new List<{{ r }}>
         {
-            new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}1" },
-            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{project_class_name}}2" }
+            new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}1" },
+            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }
         };
-        var feedResponse = Substitute.For<FeedResponse<{{project_class_name}}>>();
-        feedResponse.Resource.Returns({{project_lower_camel_name}}List);
+        var feedResponse = Substitute.For<FeedResponse<{{ r }}>>();
+        feedResponse.Resource.Returns(itemList);
 
-        var feedIterator = Substitute.For<FeedIterator<{{project_class_name}}>>();
+        var feedIterator = Substitute.For<FeedIterator<{{ r }}>>();
         feedIterator.HasMoreResults.Returns(true, false);
         feedIterator.ReadNextAsync(Arg.Any<CancellationToken>()).Returns(feedResponse);
 
-        _mockContainer.GetItemQueryIterator<{{project_class_name}}>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100")
+        _mockContainer.GetItemQueryIterator<{{ r }}>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100")
             .Returns(feedIterator);
 
-        // Act
         var result = await _repository.GetListAsync(CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(2, result.Count());
-        Assert.Contains(result, r => r.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && r.Name == "mock{{project_class_name}}1");
-        Assert.Contains(result, r => r.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && r.Name == "mock{{project_class_name}}2");
+        Assert.Contains(result, res => res.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && res.Name == "mock{{ r }}1");
+        Assert.Contains(result, res => res.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && res.Name == "mock{{ r }}2");
     }
 
     [Fact]
-    public async Task CreateAsync_ShouldReturnCreated{{project_class_name}}Dto()
+    public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}" };
-        var response = Substitute.For<ItemResponse<{{project_class_name}}>>();
-        response.Resource.Returns({{project_lower_camel_name}});
-        _mockContainer.CreateItemAsync(Arg.Any<{{project_class_name}}>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
+        var response = Substitute.For<ItemResponse<{{ r }}>>();
+        response.Resource.Returns(item);
+        _mockContainer.CreateItemAsync(Arg.Any<{{ r }}>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(response);
 
-        // Act
-        var result = await _repository.CreateAsync({{project_lower_camel_name}}, CancellationToken.None);
+        var result = await _repository.CreateAsync(item, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
-        Assert.Equal("mock{{project_class_name}}", result.Name);
+        Assert.Equal("mock{{ r }}", result.Name);
     }
 
     [Fact]
-    public async Task UpdateAsync_ShouldReturnUpdated{{project_class_name}}Dto()
+    public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}New", UpdatedBy = "User1" };
-        var current{{project_class_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
-        var readResponse = Substitute.For<ItemResponse<{{project_class_name}}>>();
-        readResponse.Resource.Returns(current{{project_class_name}});
-        var replaceResponse = Substitute.For<ItemResponse<{{project_class_name}}>>();
-        replaceResponse.Resource.Returns({{project_lower_camel_name}});
-        _mockContainer.ReadItemAsync<{{project_class_name}}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        var readResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        readResponse.Resource.Returns(currentItem);
+        var replaceResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        replaceResponse.Resource.Returns(item);
+        _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(readResponse);
-        _mockContainer.ReplaceItemAsync(Arg.Any<{{project_class_name}}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(replaceResponse);
 
-        // Act
-        var result = await _repository.UpdateAsync({{project_lower_camel_name}}, CancellationToken.None);
+        var result = await _repository.UpdateAsync(item, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
-        Assert.Equal("mock{{project_class_name}}New", result.Name);
+        Assert.Equal("mock{{ r }}New", result.Name);
     }
 
     [Fact]
-    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
+    public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
-        // Arrange
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        var readResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        readResponse.Resource.Returns(currentItem);
+        var replaceResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        replaceResponse.Resource.Returns(item);
+        _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+                        .Returns(readResponse);
+        _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+                        .Returns(replaceResponse);
+
+        var result = await _repository.ReplaceAsync(item, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
+        Assert.Equal("mock{{ r }}New", result.Name);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldMark{{ r }}AsDeleted()
+    {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var existing{{project_class_name}} = new {{project_class_name}}
+        var existingItem = new {{ r }}
         {
             Id = id,
-            Name = "mock{{project_class_name}}",
+            Name = "mock{{ r }}",
             IsDeleted = false
         };
 
-        var mockResponse = Substitute.For<ItemResponse<{{project_class_name}}>>();
-        mockResponse.Resource.Returns(existing{{project_class_name}});
+        var mockResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        mockResponse.Resource.Returns(existingItem);
 
-        _mockContainer.ReadItemAsync<{{project_class_name}}>(
+        _mockContainer.ReadItemAsync<{{ r }}>(
             id,
             new PartitionKey(id),
             null,
             Arg.Any<CancellationToken>())
             .Returns(mockResponse);
 
-        // Act
         await _repository.DeleteAsync(id, CancellationToken.None);
 
-        // Assert
         await _mockContainer.Received(1).ReplaceItemAsync(
-            Arg.Is<{{project_class_name}}>(k => k.IsDeleted == true),
+            Arg.Is<{{ r }}>(k => k.IsDeleted == true),
             id,
             Arg.Any<PartitionKey>(),
             null,
@@ -157,118 +164,118 @@ public class {{project_class_name}}RepositoryTest
     }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    private readonly IFirestoreContext<{{project_class_name}}> _mockContext;
-    private readonly {{project_class_name}}Repository _repository;
+    private readonly IFirestoreContext<{{ r }}> _mockContext;
+    private readonly {{ r }}Repository _repository;
 
-    public {{project_class_name}}RepositoryTest()
+    public {{ r }}RepositoryTest()
     {
-        _mockContext = Substitute.For<IFirestoreContext<{{project_class_name}}>>();
-        _repository = new {{project_class_name}}Repository(_mockContext);
+        _mockContext = Substitute.For<IFirestoreContext<{{ r }}>>();
+        _repository = new {{ r }}Repository(_mockContext);
     }
 
     [Fact]
-    public async Task GetAsync_ShouldReturn{{project_class_name}}Dto()
+    public async Task GetAsync_ShouldReturn{{ r }}Dto()
     {
-        // Arrange
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = id, Name = "mock{{project_class_name}}" };
-        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns({{project_lower_camel_name}});
+        var item = new {{ r }} { Id = id, Name = "mock{{ r }}" };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(item);
 
-        // Act
         var result = await _repository.GetAsync(id, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
-        Assert.Equal("mock{{project_class_name}}", result.Name);
+        Assert.Equal("mock{{ r }}", result.Name);
     }
 
     [Fact]
     public async Task GetAsync_ShouldThrowWhenNotFound()
     {
-        // Arrange
         var id = "non-existent-id";
-        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(({{project_class_name}}?)null);
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(({{ r }}?)null);
 
-        // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync(id, CancellationToken.None));
     }
 
     [Fact]
-    public async Task GetListAsync_ShouldReturnListOf{{project_class_name}}Dto()
+    public async Task GetListAsync_ShouldReturnListOf{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}}List = new List<{{project_class_name}}>
+        var itemList = new List<{{ r }}>
         {
-            new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}1" },
-            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{project_class_name}}2" }
+            new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}1" },
+            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }
         };
-        _mockContext.GetListAsync("isDeleted", false, Arg.Any<CancellationToken>()).Returns({{project_lower_camel_name}}List);
+        _mockContext.GetListAsync("isDeleted", false, Arg.Any<CancellationToken>()).Returns(itemList);
 
-        // Act
         var result = await _repository.GetListAsync(CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(2, result.Count());
-        Assert.Contains(result, r => r.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && r.Name == "mock{{project_class_name}}1");
-        Assert.Contains(result, r => r.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && r.Name == "mock{{project_class_name}}2");
+        Assert.Contains(result, res => res.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && res.Name == "mock{{ r }}1");
+        Assert.Contains(result, res => res.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && res.Name == "mock{{ r }}2");
     }
 
     [Fact]
-    public async Task CreateAsync_ShouldReturnCreated{{project_class_name}}Dto()
+    public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}" };
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
 
-        // Act
-        var result = await _repository.CreateAsync({{project_lower_camel_name}}, CancellationToken.None);
+        var result = await _repository.CreateAsync(item, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
-        Assert.Equal("mock{{project_class_name}}", result.Name);
-        await _mockContext.Received(1).SetAsync({{project_lower_camel_name}}.Id, {{project_lower_camel_name}}, Arg.Any<CancellationToken>());
+        Assert.Equal("mock{{ r }}", result.Name);
+        await _mockContext.Received(1).SetAsync(item.Id, item, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task UpdateAsync_ShouldReturnUpdated{{project_class_name}}Dto()
+    public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
-        // Arrange
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = id, Name = "mock{{project_class_name}}New", UpdatedBy = "User1" };
-        var current{{project_class_name}} = new {{project_class_name}} { Id = id, Name = "mock{{project_class_name}}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
-        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(current{{project_class_name}});
+        var item = new {{ r }} { Id = id, Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }} { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(currentItem);
 
-        // Act
-        var result = await _repository.UpdateAsync({{project_lower_camel_name}}, CancellationToken.None);
+        var result = await _repository.UpdateAsync(item, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
-        Assert.Equal("mock{{project_class_name}}New", result.Name);
-        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{project_class_name}}>(), Arg.Any<CancellationToken>());
+        Assert.Equal("mock{{ r }}New", result.Name);
+        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
+    public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
-        // Arrange
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var existing{{project_class_name}} = new {{project_class_name}} { Id = id, Name = "mock{{project_class_name}}", IsDeleted = false };
-        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(existing{{project_class_name}});
+        var item = new {{ r }} { Id = id, Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }} { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(currentItem);
 
-        // Act
+        var result = await _repository.ReplaceAsync(item, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(id, result.Id);
+        Assert.Equal("mock{{ r }}New", result.Name);
+        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldMark{{ r }}AsDeleted()
+    {
+        var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var existingItem = new {{ r }} { Id = id, Name = "mock{{ r }}", IsDeleted = false };
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(existingItem);
+
         await _repository.DeleteAsync(id, CancellationToken.None);
 
-        // Assert
         await _mockContext.Received(1).SetAsync(
             id,
-            Arg.Is<{{project_class_name}}>(k => k.IsDeleted == true),
+            Arg.Is<{{ r }}>(k => k.IsDeleted == true),
             Arg.Any<CancellationToken>());
     }
 {%- endif %}
 }
+{% endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 namespace {{project_class_name}}.Api.Tests.Unit;
@@ -284,29 +291,29 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using NSubstitute;
 using Xunit;
-
-public class {{project_class_name}}RepositoryTest
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}RepositoryTest
 {
     private readonly IAmazonDynamoDB _mockDynamoClient;
-    private readonly {{project_class_name}}Repository _repository;
+    private readonly {{ r }}Repository _repository;
 
-    public {{project_class_name}}RepositoryTest()
+    public {{ r }}RepositoryTest()
     {
         _mockDynamoClient = Substitute.For<IAmazonDynamoDB>();
-        _repository = new {{project_class_name}}Repository(_mockDynamoClient, "mockTableName");
+        _repository = new {{ r }}Repository(_mockDynamoClient, "mockTableName");
     }
 
     [Fact]
-    public async Task GetAsync_ShouldReturn{{project_class_name}}Dto()
+    public async Task GetAsync_ShouldReturn{{ r }}Dto()
     {
-        // Arrange
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
         var response = new GetItemResponse
         {
             Item = new Dictionary<string, AttributeValue>
             {
                 { "id", new AttributeValue { S = id } },
-                { "name", new AttributeValue { S = "mock{{project_class_name}}" } },
+                { "name", new AttributeValue { S = "mock{{ r }}" } },
                 { "isDeleted", new AttributeValue { BOOL = false } },
                 { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
                 { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
@@ -317,19 +324,16 @@ public class {{project_class_name}}RepositoryTest
         _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(response);
 
-        // Act
         var result = await _repository.GetAsync(id, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
-        Assert.Equal("mock{{project_class_name}}", result.Name);
+        Assert.Equal("mock{{ r }}", result.Name);
     }
 
     [Fact]
-    public async Task GetListAsync_ShouldReturnListOf{{project_class_name}}Dto()
+    public async Task GetListAsync_ShouldReturnListOf{{ r }}Dto()
     {
-        // Arrange
         var response = new ScanResponse
         {
             Items = new List<Dictionary<string, AttributeValue>>
@@ -337,7 +341,7 @@ public class {{project_class_name}}RepositoryTest
                 new()
                 {
                     { "id", new AttributeValue { S = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" } },
-                    { "name", new AttributeValue { S = "mock{{project_class_name}}1" } },
+                    { "name", new AttributeValue { S = "mock{{ r }}1" } },
                     { "isDeleted", new AttributeValue { BOOL = false } },
                     { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
                     { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
@@ -347,7 +351,7 @@ public class {{project_class_name}}RepositoryTest
                 new()
                 {
                     { "id", new AttributeValue { S = "5615ff05-3032-4459-88ad-b6a4c3e51ca0" } },
-                    { "name", new AttributeValue { S = "mock{{project_class_name}}2" } },
+                    { "name", new AttributeValue { S = "mock{{ r }}2" } },
                     { "isDeleted", new AttributeValue { BOOL = false } },
                     { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
                     { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
@@ -360,44 +364,38 @@ public class {{project_class_name}}RepositoryTest
         _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
             .Returns(response);
 
-        // Act
         var result = await _repository.GetListAsync(CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(2, result.Count());
-        Assert.Contains(result, r => r.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && r.Name == "mock{{project_class_name}}1");
-        Assert.Contains(result, r => r.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && r.Name == "mock{{project_class_name}}2");
+        Assert.Contains(result, res => res.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && res.Name == "mock{{ r }}1");
+        Assert.Contains(result, res => res.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && res.Name == "mock{{ r }}2");
     }
 
     [Fact]
-    public async Task CreateAsync_ShouldReturnCreated{{project_class_name}}Dto()
+    public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}" };
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        // Act
-        var result = await _repository.CreateAsync({{project_lower_camel_name}}, CancellationToken.None);
+        var result = await _repository.CreateAsync(item, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
-        Assert.Equal("mock{{project_class_name}}", result.Name);
+        Assert.Equal("mock{{ r }}", result.Name);
     }
 
     [Fact]
-    public async Task UpdateAsync_ShouldReturnUpdated{{project_class_name}}Dto()
+    public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
-        // Arrange
-        var {{project_lower_camel_name}} = new {{project_class_name}} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{project_class_name}}New", UpdatedBy = "User1" };
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
         var getResponse = new GetItemResponse
         {
             Item = new Dictionary<string, AttributeValue>
             {
                 { "id", new AttributeValue { S = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" } },
-                { "name", new AttributeValue { S = "mock{{project_class_name}}Old" } },
+                { "name", new AttributeValue { S = "mock{{ r }}Old" } },
                 { "isDeleted", new AttributeValue { BOOL = false } },
                 { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
                 { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
@@ -410,26 +408,52 @@ public class {{project_class_name}}RepositoryTest
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        // Act
-        var result = await _repository.UpdateAsync({{project_lower_camel_name}}, CancellationToken.None);
+        var result = await _repository.UpdateAsync(item, CancellationToken.None);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
-        Assert.Equal("mock{{project_class_name}}New", result.Name);
+        Assert.Equal("mock{{ r }}New", result.Name);
     }
 
     [Fact]
-    public async Task DeleteAsync_ShouldMarkItemAsDeleted()
+    public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
-        // Arrange
+        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var getResponse = new GetItemResponse
+        {
+            Item = new Dictionary<string, AttributeValue>
+            {
+                { "id", new AttributeValue { S = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" } },
+                { "name", new AttributeValue { S = "mock{{ r }}Old" } },
+                { "isDeleted", new AttributeValue { BOOL = false } },
+                { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
+                { "createdBy", new AttributeValue { S = "User2" } },
+                { "updatedBy", new AttributeValue { S = "User2" } },
+            }
+        };
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(getResponse);
+        _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PutItemResponse());
+
+        var result = await _repository.ReplaceAsync(item, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
+        Assert.Equal("mock{{ r }}New", result.Name);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldMark{{ r }}AsDeleted()
+    {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
         var getResponse = new GetItemResponse
         {
             Item = new Dictionary<string, AttributeValue>
             {
                 { "id", new AttributeValue { S = id } },
-                { "name", new AttributeValue { S = "mock{{project_class_name}}" } },
+                { "name", new AttributeValue { S = "mock{{ r }}" } },
                 { "isDeleted", new AttributeValue { BOOL = false } },
                 { "createdTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
                 { "updatedTimestamp", new AttributeValue { S = DateTime.UtcNow.ToString("o") } },
@@ -442,13 +466,12 @@ public class {{project_class_name}}RepositoryTest
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        // Act
         await _repository.DeleteAsync(id, CancellationToken.None);
 
-        // Assert
         await _mockDynamoClient.Received(1).PutItemAsync(
-            Arg.Is<PutItemRequest>(r => r.Item["isDeleted"].BOOL == true),
+            Arg.Is<PutItemRequest>(req => req.Item["isDeleted"].BOOL == true),
             Arg.Any<CancellationToken>());
     }
 }
+{% endfor %}
 {%- endif %}

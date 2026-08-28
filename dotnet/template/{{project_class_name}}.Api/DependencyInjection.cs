@@ -22,9 +22,6 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<I{{project_class_name}}Service, {{project_class_name}}Service>();
-        services.AddScoped<I{{project_class_name}}Controller, {{project_class_name}}Controller>();
-
         return services;
     }
 
@@ -33,30 +30,24 @@ public static class DependencyInjection
     {
         string cosmosConnectionString = configuration.GetConnectionString("CosmosDb") ?? string.Empty;
         string databaseName = configuration.GetValue<string>("CosmosDbDatabaseName") ?? string.Empty;
-        string containerName = configuration.GetValue<string>("CosmosDbContainerName") ?? string.Empty;
 
-        if (string.IsNullOrEmpty(cosmosConnectionString) || string.IsNullOrEmpty(databaseName) || string.IsNullOrEmpty(containerName))
+        if (string.IsNullOrEmpty(cosmosConnectionString) || string.IsNullOrEmpty(databaseName))
         {
             throw new InvalidOperationException("CosmosDb configuration is missing or incomplete.");
         }
 
-        services.AddSingleton(provider =>
-            new CosmosClient(cosmosConnectionString)
-        );
+        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString));
+{%- for resource in resources %}
+{%- set r = resource.name %}
 
-        services.AddSingleton<I{{project_class_name}}Repository>(provider =>
+        services.AddSingleton<I{{ r }}Controller>(provider =>
         {
-            var cosmosClient = provider.GetService<CosmosClient>();
-            if (cosmosClient == null)
-            {
-                throw new InvalidOperationException("CosmosDb Client is null.");
-            }
-            return new {{project_class_name}}Repository(
-                cosmosClient,
-                databaseName,
-                containerName
-            );
+            var cosmosClient = provider.GetRequiredService<CosmosClient>();
+            string containerName = configuration.GetValue<string>("CosmosDbContainerName_{{ resource.container | to_camel }}") ?? "{{ resource.container }}";
+            var repository = new {{ r }}Repository(cosmosClient, databaseName, containerName);
+            return new {{ r }}Controller(new {{ r }}Service(repository));
         });
+{%- endfor %}
 
         return services;
     }
@@ -66,9 +57,8 @@ public static class DependencyInjection
     {
         string projectId = configuration.GetValue<string>("GCP_PROJECT_ID") ?? string.Empty;
         string databaseId = configuration.GetValue<string>("FIRESTORE_DATABASE") ?? "(default)";
-        string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION") ?? string.Empty;
 
-        if (string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(collectionName))
+        if (string.IsNullOrEmpty(projectId))
         {
             throw new InvalidOperationException("Firestore configuration is missing or incomplete.");
         }
@@ -76,29 +66,18 @@ public static class DependencyInjection
         services.AddSingleton(provider =>
             new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build()
         );
+{%- for resource in resources %}
+{%- set r = resource.name %}
 
-        services.AddSingleton<IFirestoreContext<Entities.{{project_class_name}}>>(provider =>
+        services.AddSingleton<I{{ r }}Controller>(provider =>
         {
-            var firestoreDb = provider.GetService<FirestoreDb>();
-            if (firestoreDb == null)
-            {
-                throw new InvalidOperationException("Firestore Client is null.");
-            }
-            return new FirestoreContext<Entities.{{project_class_name}}>(
-                firestoreDb,
-                collectionName
-            );
+            var firestoreDb = provider.GetRequiredService<FirestoreDb>();
+            string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION_{{ resource.container | to_camel }}") ?? "{{ resource.container }}";
+            var context = new FirestoreContext<Entities.{{ r }}>(firestoreDb, collectionName);
+            var repository = new {{ r }}Repository(context);
+            return new {{ r }}Controller(new {{ r }}Service(repository));
         });
-
-        services.AddSingleton<I{{project_class_name}}Repository>(provider =>
-        {
-            var context = provider.GetService<IFirestoreContext<Entities.{{project_class_name}}>>();
-            if (context == null)
-            {
-                throw new InvalidOperationException("Firestore Context is null.");
-            }
-            return new {{project_class_name}}Repository(context);
-        });
+{%- endfor %}
 
         return services;
     }
@@ -106,23 +85,18 @@ public static class DependencyInjection
 {%- if cloud_service == 'AWS Lambda' %}
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
-        string tableName = Environment.GetEnvironmentVariable("DYNAMODB_TABLE_NAME") ?? string.Empty;
-
-        if (string.IsNullOrEmpty(tableName))
-        {
-            throw new InvalidOperationException("DynamoDB table name configuration is missing. Set the DYNAMODB_TABLE_NAME environment variable.");
-        }
-
         services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
+{%- for resource in resources %}
+{%- set r = resource.name %}
 
-        services.AddSingleton<I{{project_class_name}}Repository>(provider =>
+        services.AddSingleton<I{{ r }}Controller>(provider =>
         {
             var dynamoClient = provider.GetRequiredService<IAmazonDynamoDB>();
-            return new {{project_class_name}}Repository(
-                dynamoClient,
-                tableName
-            );
+            string tableName = Environment.GetEnvironmentVariable("DYNAMODB_TABLE_NAME_{{ resource.container | upper | replace('-', '_') }}") ?? "{{ resource.container }}";
+            var repository = new {{ r }}Repository(dynamoClient, tableName);
+            return new {{ r }}Controller(new {{ r }}Service(repository));
         });
+{%- endfor %}
 
         return services;
     }
