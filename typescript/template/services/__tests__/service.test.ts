@@ -145,6 +145,21 @@ describe('{{ r }}Service', () => {
             expect(result).toEqual(mockUpdateResponse);
             expect(repository).toHaveBeenCalledTimes(1);
         });
+
+        it('should refresh updatedTimestamp without sending audit fields', async () => {
+            mockUpdate.mockResolvedValue(mockRepositoryUpdateResponse);
+            await mockService.update(mockUpdateRequest);
+            const written = mockUpdate.mock.calls[0][0];
+            expect(written).toEqual(expect.objectContaining(mockUpdateRequest));
+            expect(written.createdBy).toBeUndefined();
+            expect(written.createdTimestamp).toBeUndefined();
+            expect(Date.parse(written.updatedTimestamp)).toBeGreaterThan(Date.parse(mockRepositoryUpdateResponse.updatedTimestamp));
+        });
+
+        it('should propagate not found for missing or soft-deleted records', async () => {
+            mockUpdate.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
+            await expect(mockService.update(mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
+        });
     });
 {%- endif %}
 {%- if "replace" in resource.operations %}

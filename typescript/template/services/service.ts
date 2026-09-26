@@ -45,7 +45,7 @@ export class {{ r }}Service {
 {%- if "update" in resource.operations %}
 
   update = async (item: {{ r }}Update): Promise<{{ r }}Response> => {
-    const updatedItem = await this._repo.update(item);
+    const updatedItem = await this._repo.update({ ...item, updatedTimestamp: new Date().toISOString() });
     return {{ r }}ResponseSchema.parse(updatedItem);
   };
 {%- endif %}
