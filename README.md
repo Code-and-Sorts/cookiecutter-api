@@ -48,6 +48,32 @@ cd my-api
 copier update
 ```
 
+### Multiple resources
+
+By default a generated project exposes one REST resource named after the project. To
+expose several, answer the `resources` prompt or pass them in a YAML file:
+
+```yaml
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+  - name: "Dog"
+    endpoint: "dogs"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "replace", "delete"]
+```
+
+```console
+copier copy --data-file resources.yml ./cookiecutter-api/{LANGUAGE_OPTION} ./my-api
+```
+
+`name` is the PascalCase type name, `endpoint` the URL segment, and `container` the storage
+container, collection or table. Resources that share a `container` share their records.
+`operations` is any subset of `list`, `get_by_id`, `create`, `update` (PATCH), `replace`
+(PUT) and `delete`; only those routes are generated.
+
 ## Supported Templates
 
 <table width="100%">
@@ -105,6 +131,10 @@ Dotnet
 
 Go
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-go-az-func-api)
+
+Every language and cloud is also rendered on each push to `main` and published to
+`example/<language>-<cloud>-<single|multi>` branches (for example
+`example/dotnet-azure-multi`), so you can browse the generated code without running Copier.
 
 ## Resources
 
