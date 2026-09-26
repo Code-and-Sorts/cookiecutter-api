@@ -53,8 +53,9 @@ func newValidator() services.SchemaValidator {
 {%- if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
 
 type appControllers struct {
+{%- set name_width = resources | map(attribute='name') | map('length') | max %}
 {%- for resource in resources %}
-	{{ resource.name }} controllers.{{ resource.name }}Controller
+	{{ resource.name ~ ' ' * (name_width - resource.name | length) }} controllers.{{ resource.name }}Controller
 {%- endfor %}
 }
 
@@ -163,7 +164,7 @@ func initControllers() (appControllers, func()) {
 	var c appControllers
 {%- for resource in resources %}
 	{
-		collectionName := os.Getenv("FIRESTORE_COLLECTION_{{ resource.container | to_camel }}")
+		collectionName := os.Getenv("FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}")
 		if collectionName == "" {
 			collectionName = "{{ resource.container }}"
 		}
@@ -366,7 +367,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	switch endpoint {
 {%- for resource in resources %}
 	case "{{ resource.endpoint }}":
-		return handle{{ resource.name }}(ctx, request, needsID)
+		return dispatch{{ resource.name }}(ctx, request, needsID)
 {%- endfor %}
 	default:
 		return utils.GenerateErrorResponse("Not Found", 404), nil
@@ -376,7 +377,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 {%- set r = resource.name %}
 {%- set lc = resource.name | to_lower_camel %}
 
-func handle{{ r }}(ctx context.Context, request events.APIGatewayProxyRequest, needsID bool) (events.APIGatewayProxyResponse, error) {
+func dispatch{{ r }}(ctx context.Context, request events.APIGatewayProxyRequest, needsID bool) (events.APIGatewayProxyResponse, error) {
 	switch request.HTTPMethod {
 	case "GET":
 		if needsID {

@@ -12,8 +12,7 @@ import (
 	"encoding/json"
 {%- endif %}
 	"testing"
-{%- if uses_models %}
-
+{% if uses_models %}
 	"{{project_endpoint}}/models"
 {%- endif %}
 	"{{project_endpoint}}/services"
