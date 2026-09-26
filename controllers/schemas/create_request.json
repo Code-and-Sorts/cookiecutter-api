@@ -1,0 +1,17 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1
+        },
+        "createdBy": {
+            "type": "string"
+        },
+        "updatedBy": {
+            "type": "string"
+        }
+    },
+    "required": ["name"]
+}
