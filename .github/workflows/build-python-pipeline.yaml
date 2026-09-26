@@ -13,8 +13,6 @@ on:
       - python/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
-    branches:
-      - main
 
 jobs:
   build-python:
@@ -32,27 +30,60 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         python-version:
-          - "3.13"
           - "3.14"
+        fixture:
+          - single
+        include:
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "Azure Function App"
+            python-version: "3.14"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "GCP Cloud Function"
+            python-version: "3.14"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "AWS Lambda"
+            python-version: "3.14"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "Azure Function App"
+            python-version: "3.14"
+            fixture: edge
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "GCP Cloud Function"
+            python-version: "3.14"
+            fixture: edge
+          - os: ubuntu-latest
+            template-type: python
+            cloud-service: "AWS Lambda"
+            python-version: "3.14"
+            fixture: edge
       fail-fast: false
     steps:
       - name: Check out
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Copier Template
         uses: ./.github/actions/setup-copier-template
         with:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
+          resources-fixture: ${{ matrix.fixture }}
 
       - name: Set up python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
         env:
-          POETRY_VERSION: "1.8.3"
+          POETRY_VERSION: "2.5.1"
         run: curl -sSL https://install.python-poetry.org | python - -y
         shell: bash
 
@@ -72,10 +103,10 @@ jobs:
 
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.cloud-service }}-${{ hashFiles('**/pyproject.toml') }}
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.cloud-service }}-${{ matrix.fixture }}-${{ hashFiles('**/pyproject.toml') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -96,6 +127,14 @@ jobs:
             poetry run pytest --cov
         shell: bash
 
+      - name: Run Makefile targets
+        if: runner.os != 'Windows'
+        run: |
+            cd "KittenClaws"
+            make install
+            make test-unit
+        shell: bash
+
       - name: Run dependency vulnerability scan
         continue-on-error: true
         run: |
@@ -106,7 +145,7 @@ jobs:
             status=$?
             set -e
             {
-              echo "### Python dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo "### Python dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }})"
               echo ""
               echo '```'
               cat audit.log

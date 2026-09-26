@@ -1,127 +1,75 @@
+{%- set route_prefix = '' if cloud_service == 'AWS Lambda' else '/api' -%}
+{%- set ns = namespace(sort=0) -%}
 {
     "clientName": "Thunder Client",
-    "collectionName": "{{ project_class_name }}s Requests",
+    "collectionName": "{{ project_class_name }} Requests",
     "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
     "dateExported": "2024-08-10T22:25:59.850Z",
     "version": "1.2",
     "folders": [],
     "requests": [
+{%- for resource in resources %}
+{%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
+{%- set base_url = '{{baseUrl}}' ~ route_prefix ~ '/' ~ resource.endpoint %}
+{%- for op in ["list", "get_by_id", "create", "update", "replace", "delete"] if op in resource.operations %}
+{%- if op == "list" %}{% set label, method, url, status = "Get " ~ resource.name ~ " List", "GET", base_url, "200" %}
+{%- elif op == "get_by_id" %}{% set label, method, url, status = "Get " ~ resource.name ~ " by ID", "GET", base_url ~ "/" ~ id_var, "200" %}
+{%- elif op == "create" %}{% set label, method, url, status = "Create " ~ resource.name, "POST", base_url, "201" %}
+{%- elif op == "update" %}{% set label, method, url, status = "Update " ~ resource.name, "PATCH", base_url ~ "/" ~ id_var, "200" %}
+{%- elif op == "replace" %}{% set label, method, url, status = "Replace " ~ resource.name, "PUT", base_url ~ "/" ~ id_var, "200" %}
+{%- else %}{% set label, method, url, status = "Delete " ~ resource.name, "DELETE", base_url ~ "/" ~ id_var, "200" %}
+{%- endif %}
+{%- if ns.sort > 0 %},{% endif %}
+{%- set ns.sort = ns.sort + 10000 %}
         {
-            "_id": "a26e1715-1b03-4e9a-855a-1694f972b6da",
+            "_id": "{{ resource.endpoint }}-{{ op | replace('_', '-') }}",
             "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
             "containerId": "",
-            "name": "Get {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}",
-            "method": "GET",
-            "sortNum": 10000,
+            "name": "{{ label }}",
+            "url": "{{ url }}",
+            "method": "{{ method }}",
+            "sortNum": {{ ns.sort }},
             "created": "2024-08-10T20:25:19.095Z",
             "modified": "2024-08-10T20:42:18.713Z",
             "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "c9e0f3f9-2f59-4adc-97af-a1b63c03db81",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Get {{ project_class_name }} by ID",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "GET",
-            "sortNum": 20000,
-            "created": "2024-08-10T20:26:15.998Z",
-            "modified": "2024-08-10T20:42:41.531Z",
-            "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "0f157099-1bbf-49ed-b06d-c089c868b488",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Create {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}",
-            "method": "POST",
-            "sortNum": 30000,
-            "created": "2024-08-10T20:26:20.281Z",
-            "modified": "2024-08-10T21:37:03.009Z",
-            "headers": [],
+{%- if op == "create" %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"Item1\",\n  \"type\": \"item\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1\",\n  \"createdBy\": \"ThunderClient\",\n  \"updatedBy\": \"ThunderClient\"\n}",
                 "form": []
             },
+{%- elif op == "update" %}
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1-Update\",\n  \"updatedBy\": \"ThunderClient\"\n}",
+                "form": []
+            },
+{%- elif op == "replace" %}
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1-Replace\",\n  \"updatedBy\": \"ThunderClient\"\n}",
+                "form": []
+            },
+{%- endif %}
             "tests": [
                 {
                     "type": "res-code",
                     "custom": "",
                     "action": "equal",
-                    "value": "201"
-                },
+                    "value": "{{ status }}"
+                }
+{%- if op == "create" %},
                 {
                     "type": "set-env-var",
                     "custom": "json.id",
                     "action": "setto",
-                    "value": "{{ '{{itemId}}' }}"
+                    "value": "{{ id_var }}"
                 }
-            ]
-        },
-        {
-            "_id": "6f0060e6-1215-46cf-9fcf-58978b949064",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Update {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "PATCH",
-            "sortNum": 40000,
-            "created": "2024-08-10T20:26:22.436Z",
-            "modified": "2024-08-10T20:41:19.211Z",
-            "headers": [],
-            "body": {
-                "type": "json",
-                "raw": "{\n  \"name\": \"Item1-Update\"\n}",
-                "form": []
-            },
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "55de1112-4666-402b-8831-58937afbe355",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Delete {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "DELETE",
-            "sortNum": 50000,
-            "created": "2024-08-10T20:26:54.814Z",
-            "modified": "2024-08-10T20:41:58.983Z",
-            "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
+{%- endif %}
             ]
         }
+{%- endfor %}
+{%- endfor %}
     ],
     "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
 }

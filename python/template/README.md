@@ -14,18 +14,46 @@ This project is a Python-based REST API built using [Google Cloud Functions](htt
 This project is a Python-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with API Gateway. The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered Lambda functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} %}
+{%- set containers = resources | map(attribute='container') | unique | list %}
+{%- if cloud_service == 'Azure Function App' %}
+{%- set prefix = '/api/' %}
+{%- elif cloud_service == 'AWS Lambda' %}
+{%- set prefix = '/' %}
+{%- endif %}
+The REST API exposes the following resources and operations:
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+Each operation is deployed as its own Cloud Run function, so every path starts with the function name (for example `https://REGION-PROJECT_ID.cloudfunctions.net/<function>`, or `http://localhost:8080/<function>` locally).
+{%- endif %}
+{% for resource in resources %}
+- **{{ resource.name }}** (container: `{{ resource.container }}`)
+{%- for op in resource.operations %}
+{%- set method = {'list': 'GET', 'get_by_id': 'GET', 'create': 'POST', 'update': 'PATCH', 'replace': 'PUT', 'delete': 'DELETE'}[op] %}
+{%- set with_id = op not in ['list', 'create'] %}
+{%- set label = {'list': 'list', 'get_by_id': 'get by ID', 'create': 'create', 'update': 'partial update', 'replace': 'full replace', 'delete': 'soft delete'}[op] %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+  - `{{ method }} /{{ op_fn[op] }}_{{ resource.name | to_snake }}{% if with_id %}/{item_id}{% endif %}` — {{ label }}
+{%- else %}
+  - `{{ method }} {{ prefix }}{{ resource.endpoint }}{% if with_id %}/{item_id}{% endif %}` — {{ label }}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+A health check is available at `{% if cloud_service == 'GCP Cloud Function' %}GET /health{% else %}GET {{ prefix }}health{% endif %}`.
+{%- for container in containers %}
+{%- set sharing = resources | selectattr('container', 'equalto', container) | map(attribute='name') | list %}
+{%- if sharing | length > 1 %}
+
+> **Shared container:** {{ sharing[:-1] | join(", ") }} and {{ sharing[-1] }} read and write the `{{ container }}` container. There is no type discriminator, so they share the same records: an item created through one resource is visible, and can be changed or deleted, through the others.
+{%- endif %}
+{%- endfor %}
 
 {% if cloud_service == 'Azure Function App' -%}
 Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
-Dependency management can be handled using either [Poetry](https://python-poetry.org/) for development or requirements.txt for GCP deployment.
+Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
 Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
@@ -63,7 +91,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 ## Prerequisites
 
-- Python >=3.9, <3.12
+- Python 3.14
 
 {% if cloud_service == 'Azure Function App' -%}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
@@ -72,7 +100,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - [Poetry](https://python-poetry.org/): For dependency management and virtual environment setup.
 
-- Azure Account: An active Azure subscription for deploying the Function App.
+- Azure Account: An active Azure subscription for deploying the Function App. Python 3.14 apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
 
 - Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
 {%- endif %}
@@ -96,8 +124,43 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - AWS Account: An active AWS account for deploying Lambda functions.
 
-- DynamoDB Table: A DynamoDB table will be created automatically via the SAM template.
+- DynamoDB Tables: One table per container is created automatically via the SAM template.
 {%- endif %}
+
+## Configuration
+
+Settings are read from environment variables (case-insensitive).
+{%- if cloud_service == 'Azure Function App' %} For local development set them in `local.settings.json`.{% endif %}
+{%- if cloud_service == 'AWS Lambda' %} The table names are wired to the tables created in `template.yaml`.{% endif %}
+
+| Variable | Description | Default |
+| --- | --- | --- |
+{%- if cloud_service == 'Azure Function App' %}
+| `Cosmos_Db_Uri` | Cosmos DB account endpoint | required |
+| `Cosmos_Db_Key` | Cosmos DB account key | required |
+| `Cosmos_Db_Database_Name` | Cosmos DB database name | required |
+{%- for container in containers %}
+| `Container_Name_{{ container | replace('-', '_') }}` | Cosmos DB container for `{{ container }}` | `{{ container }}` |
+{%- endfor %}
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+| `GCP_PROJECT_ID` | GCP project ID | required |
+| `FIRESTORE_DATABASE` | Firestore database name | `(default)` |
+{%- for container in containers %}
+| `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}` | Firestore collection for `{{ container }}` | `{{ container }}` |
+{%- endfor %}
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+| `AWS_REGION` | AWS region | `us-east-1` |
+{%- for container in containers %}
+| `DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}` | DynamoDB table for `{{ container }}` | `{{ container }}` |
+{%- endfor %}
+{%- endif %}
+
+> **Note:** earlier versions of this template used a single
+{%- if cloud_service == 'Azure Function App' %} `COSMOS_DB_CONTAINER_NAME`{% endif %}
+{%- if cloud_service == 'GCP Cloud Function' %} `FIRESTORE_COLLECTION`{% endif %}
+{%- if cloud_service == 'AWS Lambda' %} `DYNAMODB_TABLE_NAME`{% endif %} variable. It has been replaced by one variable per container, listed above.
 
 ## Setup and Installation
 
@@ -151,37 +214,43 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 4. Set Environment Variables
 
-    Set the following environment variables for local development:
-    - `GCP_PROJECT_ID`: Your GCP project ID
-    - `FIRESTORE_DATABASE`: Firestore database name (defaults to "(default)")
-    - `FIRESTORE_COLLECTION`: Firestore collection name (defaults to "{{ project_slug }}")
+    Set the environment variables listed under [Configuration](#configuration) for local development.
 
 5. Run the API Locally
 
-    To run a specific function locally using Functions Framework:
+    Each operation deploys as its own function. Run a specific one locally using Functions Framework:
 
     ```console
-    # Run the get_list function
-    poetry run functions-framework --target=get_list --source=main.py --port=8080
-    
-    # Or run other functions
-    poetry run functions-framework --target=get_by_id --source=main.py --port=8080
-    poetry run functions-framework --target=create --source=main.py --port=8080
+{%- for resource in resources %}
+{%- for op in resource.operations %}
+    poetry run functions-framework --target={{ op_fn[op] }}_{{ resource.name | to_snake }} --source=main.py --port=8080
+{%- endfor %}
+{%- endfor %}
     ```
 
 6. Deploy to GCP
 
-    Deploy individual functions to GCP Cloud Functions:
+    Cloud Run functions install dependencies from a `requirements.txt`. Export one from Poetry first (this needs the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin):
 
     ```console
-    # Deploy the get_list function
-    gcloud functions deploy get_list \
-      --runtime python313 \
+    poetry export --without dev --output requirements.txt
+    ```
+
+    Then deploy each function:
+
+    ```console
+{%- for resource in resources %}
+{%- for op in resource.operations %}
+{%- set fn = op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
+    gcloud functions deploy {{ fn }} \
+      --runtime python314 \
       --trigger-http \
       --allow-unauthenticated \
-      --entry-point get_list \
+      --entry-point {{ fn }} \
       --source . \
-      --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION={{ project_slug }}
+      --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}={{ resource.container }}
+{%- endfor %}
+{%- endfor %}
     ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
@@ -211,8 +280,11 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
     > **Note:** API endpoints that interact with DynamoDB require a running DynamoDB instance.
     > For local development, you can use [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
-    > or connect to a deployed DynamoDB table by configuring your AWS credentials and setting the
-    > `DYNAMODB_TABLE_NAME` environment variable in `template.yaml`.
+    > or connect to deployed DynamoDB tables by configuring your AWS credentials and setting the
+    > per-container table variables in `template.yaml`:
+{%- for container in containers %}
+    > `DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}`{% if not loop.last %},{% else %}.{% endif %}
+{%- endfor %}
 
 5. Deploy to AWS
 
@@ -284,8 +356,7 @@ This is also run automatically in CI on every PR and push to main.
 │   ├── services           - Services
 │   └── utils              - Error detect & response generator utilities
 │
-├── main.py                - Cloud Functions entry point
-└── requirements.txt       - Production dependencies for GCP deployment
+└── main.py                - Cloud Functions entry point
 ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}

@@ -31,8 +31,6 @@ on:
       - .github/workflows/publish-examples.yml
       - .github/actions/setup-copier-template/**
   pull_request:
-    branches:
-      - main
     paths:
       - go/**
       - python/**

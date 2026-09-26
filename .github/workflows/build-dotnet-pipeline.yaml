@@ -13,8 +13,6 @@ on:
       - dotnet/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
-    branches:
-      - main
 
 jobs:
   build-dotnet:

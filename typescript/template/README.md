@@ -1,121 +1,252 @@
+{%- set containers = resources | map(attribute='container') | unique | list -%}
+{%- if cloud_service == 'Azure Function App' -%}
+{%- set base_path = '/api' -%}
+{%- set env_prefix = 'COSMOS_CONTAINER_' -%}
+{%- set store_word = 'Cosmos DB container' -%}
+{%- elif cloud_service == 'GCP Cloud Function' -%}
+{%- set base_path = '' -%}
+{%- set env_prefix = 'FIRESTORE_COLLECTION_' -%}
+{%- set store_word = 'Firestore collection' -%}
+{%- else -%}
+{%- set base_path = '' -%}
+{%- set env_prefix = 'DYNAMODB_TABLE_NAME_' -%}
+{%- set store_word = 'DynamoDB table' -%}
+{%- endif -%}
 # {{ project_name }} API
 
 [![](https://img.shields.io/badge/made%20using%20cookiecutter%20api-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/Code-and-Sorts/cookiecutter-api)
 
 ## Overview
 
-This project is a Typescript NodeJS-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
+{% if cloud_service == 'Azure Function App' -%}
+This project is a TypeScript Node.js REST API built on [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/) (programming model v4) and backed by [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/). Each enabled operation is registered as its own HTTP-triggered function.
+{%- elif cloud_service == 'GCP Cloud Function' -%}
+This project is a TypeScript Node.js REST API built on [Cloud Run functions](https://cloud.google.com/functions/docs) with the [Functions Framework](https://github.com/GoogleCloudPlatform/functions-framework-nodejs) and backed by [Firestore](https://cloud.google.com/firestore/docs). A single HTTP function named `api` routes every request to the matching resource.
+{%- else -%}
+This project is a TypeScript Node.js REST API built on [AWS Lambda](https://docs.aws.amazon.com/lambda/) behind Amazon API Gateway and backed by [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/). A single Lambda handler routes every request to the matching resource, and `template.yaml` is an [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) template for local runs and deployment.
+{%- endif %}
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+The API follows a controller → service → repository layout, validates input with [Zod](https://zod.dev/), and soft-deletes records by setting `isDeleted`.
 
-Dependency management is handled using [Yarn](https://yarnpkg.com/), ensuring a streamlined and consistent environment for managing node packages and their dependencies.
+## Endpoints
 
-## Features
+{% if cloud_service == 'Azure Function App' -%}
+Azure Functions serves HTTP functions under the `/api` route prefix. Every route except `/api/health` uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+{%- elif cloud_service == 'GCP Cloud Function' -%}
+Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally).
+{%- else -%}
+Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`).
+{%- endif %}
 
-- Azure Function Apps: Utilizes Azure's serverless platform to create scalable and efficient endpoints with HTTP triggers.
+- `GET {{ base_path }}/health` — health check
+{%- for resource in resources %}
+- **{{ resource.name }}** (storage: `{{ resource.container }}`)
+{%- if "list" in resource.operations %}
+  - `GET {{ base_path }}/{{ resource.endpoint }}?limit=100` — list (default 100, max 1000)
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+  - `GET {{ base_path }}/{{ resource.endpoint }}/{id}` — get by ID
+{%- endif %}
+{%- if "create" in resource.operations %}
+  - `POST {{ base_path }}/{{ resource.endpoint }}` — create
+{%- endif %}
+{%- if "update" in resource.operations %}
+  - `PATCH {{ base_path }}/{{ resource.endpoint }}/{id}` — partial update
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  - `PUT {{ base_path }}/{{ resource.endpoint }}/{id}` — full replace (keeps `createdBy`/`createdTimestamp`, refreshes `updatedTimestamp`)
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  - `DELETE {{ base_path }}/{{ resource.endpoint }}/{id}` — soft delete
+{%- endif %}
+{%- endfor %}
 
-- Typescript NodeJS-Based: Written entirely in Typescript NodeJS, leveraging its rich ecosystem and libraries for rapid development.
+The `id` in the path always wins over an `id` in a PATCH or PUT body. Operations that were not generated for a resource{% if cloud_service == 'Azure Function App' %} have no function registered{% else %} return 405 Method Not Allowed{% endif %}.
 
-- Yarn for Dependency Management: Manages all node dependencies with Yarn, making the development environment consistent and easy to set up.
+## Storage
 
-- Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
+Each resource is stored in the {{ store_word }} named by its `container` setting. The name can be overridden per container with an environment variable:
+
+| Container | Environment variable | Default | Resources |
+|---|---|---|---|
+{%- for container in containers %}
+| `{{ container }}` | `{{ env_prefix }}{{ container | upper | replace('-', '_') }}` | `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- endfor %}
+
+> [!IMPORTANT]
+> Resources that share a container share records. There is no type discriminator, so a record created through one resource's endpoint is listed, read, updated and deleted through every other resource that uses the same container. Give resources separate containers unless that is what you want.
+
+> [!NOTE]
+> Upgrading from a single-resource project generated by an earlier version of this template? Storage and environment names changed:
+{%- if cloud_service == 'Azure Function App' %}
+> the single Cosmos DB container was `{{ project_endpoint }}s-sql-container`; each resource now uses the container named by its `container` id (`{{ project_endpoint }}` for the default single resource), overridable with `COSMOS_CONTAINER_<CONTAINER>`. The database is still `{{ project_endpoint }}s-sql-db` (overridable with `COSMOS_DB_DATABASE_NAME`).
+{%- elif cloud_service == 'GCP Cloud Function' %}
+> `FIRESTORE_COLLECTION` is now `FIRESTORE_COLLECTION_<CONTAINER>`, one per container (for example `FIRESTORE_COLLECTION_{{ containers[0] | upper | replace('-', '_') }}`).
+{%- else %}
+> `DYNAMODB_TABLE_NAME` is now `DYNAMODB_TABLE_NAME_<CONTAINER>`, one per container (for example `DYNAMODB_TABLE_NAME_{{ containers[0] | upper | replace('-', '_') }}`).
+{%- endif %}
+> Set the variable to the old name to keep using existing data.
+
+`<CONTAINER>` is the container id upper-cased with `-` replaced by `_`.
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+{%- if cloud_service == 'Azure Function App' %}
+| `COSMOS_DB_URL` | yes | Cosmos DB account endpoint |
+| `COSMOS_DB_KEY` | yes | Cosmos DB account key |
+| `COSMOS_DB_DATABASE_NAME` | no | Database name (default `{{ project_endpoint }}s-sql-db`) |
+{%- elif cloud_service == 'GCP Cloud Function' %}
+| `GCP_PROJECT_ID` | yes | Google Cloud project that hosts Firestore |
+| `FIRESTORE_DATABASE` | no | Firestore database id (default `(default)`) |
+{%- else %}
+| `AWS_REGION` | no | Region of the DynamoDB tables (default `us-east-1`; set by Lambda at runtime) |
+{%- endif %}
+{%- for container in containers %}
+| `{{ env_prefix }}{{ container | upper | replace('-', '_') }}` | no | {{ store_word }} for `{{ container }}` (default `{{ container }}`) |
+{%- endfor %}
+
+Locally the variables are read from the process environment and from a `.env` file in the project root.
 
 ## Prerequisites
 
-- NodeJS >=18.x, <=20.x
+- [Node.js](https://nodejs.org/) 24 (LTS)
+- [Yarn](https://yarnpkg.com/) 4, enabled with `corepack enable`
+{%- if cloud_service == 'Azure Function App' %}
+- [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) v4 (installed as a dev dependency)
+- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/) and an Azure subscription
+- A Cosmos DB for NoSQL account, in Azure or the [emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator)
+{%- elif cloud_service == 'GCP Cloud Function' %}
+- [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) and a Google Cloud project
+- A Firestore database in Native mode, or the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator)
+{%- else %}
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) and [Docker](https://www.docker.com/) for local runs
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and an AWS account
+{%- endif %}
 
-- [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
+## Setup
 
-- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/): To deploy and manage Azure Function Apps.
-
-- [Yarn](https://yarnpkg.com/): For dependency management.
-
-- Azure Account: An active Azure subscription for deploying the Function App.
-
-- Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
-
-## Setup and Installation
-
-1. Install Azure Functions Core Tools
-
-    Follow the [documentation](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=linux%2Cisolated-process%2Cnode-v4%2Cpython-v2%2Chttp-trigger%2Ccontainer-apps&pivots=programming-language-typescript#install-the-azure-functions-core-tools) to install Azure Function Core Tools based on your operating system.
-
-2. Install Yarn
-
-    If you haven't already installed Yarn, you can do so by following the [official installation guide](https://yarnpkg.com/getting-started/install).
-
-3. Install Dependencies
-
-    Install all dependencies:
-
-    ```console
-    yarn
-    ```
-
-    To be able to run the project locally, set the environment variable values in the .env project file.
-
-4. Run the API Locally
-
-    ```console
-    yarn build
-    yarn start
-    ```
-
-    This command starts the local development server using the Azure Function Core Tools, where you can interact with your API endpoints.
-
-5. Thunderclient
-
-    Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
-
-## Development Workflow
-
-### Adding a New Dependency
-
-```bash
-yarn add <package-name>
+```console
+corepack enable
+yarn install
+yarn build
 ```
 
-### Removing a Dependency
+## Run locally
 
-```bash
-yarn remove <package-name>
+{% if cloud_service == 'Azure Function App' -%}
+Add the environment variables to the `Values` of `local.settings.json` (or to `.env`), then start the Functions host:
+
+```console
+yarn build
+yarn start
 ```
 
-## Running Tests
+The API is served at `http://localhost:7071/api`.
+{%- elif cloud_service == 'GCP Cloud Function' -%}
+Export the environment variables (or put them in `.env`), then start the Functions Framework:
 
-Ensure your code is working as expected by running unit tests using jest:
-
-```bash
-yarn test:unit
+```console
+yarn build
+yarn start
 ```
 
-## Vulnerability Scanning
+The API is served at `http://localhost:8080`. To use the Firestore emulator, also set `FIRESTORE_EMULATOR_HOST`.
+{%- else -%}
+Build the project, then start API Gateway and Lambda locally with SAM (requires Docker):
 
-Scan project dependencies for known security vulnerabilities using [yarn npm audit](https://yarnpkg.com/cli/npm/audit):
-
-```bash
-yarn audit
+```console
+yarn build
+sam build
+sam local start-api
 ```
 
-This is also run automatically in CI on every PR and push to main.
+The API is served at `http://127.0.0.1:3000`. The functions reach DynamoDB with your local AWS credentials; the table names come from `template.yaml`.
+{%- endif %}
+
+The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation and a `baseUrl` that matches the local server above.
+
+## Deploy
+
+{% if cloud_service == 'Azure Function App' -%}
+Create a Function App on the Flex Consumption plan with the Node.js 24 runtime, set the environment variables as app settings, and publish:
+
+```console
+az functionapp create \
+  --resource-group <resource-group> \
+  --name <function-app-name> \
+  --storage-account <storage-account> \
+  --flexconsumption-location <region> \
+  --runtime node \
+  --runtime-version 24 \
+  --functions-version 4
+
+az functionapp config appsettings set \
+  --resource-group <resource-group> \
+  --name <function-app-name> \
+  --settings COSMOS_DB_URL=<url> COSMOS_DB_KEY=<key>
+
+yarn build
+func azure functionapp publish <function-app-name>
+```
+
+Node.js 24 is not available on the Linux Consumption plan, which stops at Node.js 22; use Flex Consumption, Premium or Dedicated.
+{%- elif cloud_service == 'GCP Cloud Function' -%}
+Deploy the `api` entry point with the Node.js 24 runtime. Cloud Build installs the dependencies and runs `yarn build`:
+
+```console
+gcloud functions deploy {{ project_endpoint }} \
+  --gen2 \
+  --region <region> \
+  --runtime nodejs24 \
+  --source . \
+  --entry-point api \
+  --trigger-http \
+  --set-env-vars GCP_PROJECT_ID=<project-id>
+```
+
+Add `{{ env_prefix }}<CONTAINER>=<name>` to `--set-env-vars` to override a collection name.
+{%- else -%}
+`template.yaml` defines the Lambda function (Node.js 24, `nodejs24.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
+
+```console
+yarn build
+sam build
+sam deploy --guided
+```
+{%- endif %}
+
+## Development
+
+```console
+yarn lint        # ESLint
+yarn format      # ESLint --fix and Prettier
+yarn test:unit   # Jest with coverage thresholds
+yarn audit       # yarn npm audit --severity moderate
+```
 
 ## Repository structure
 
 ```text
-└── cookiecutter-template-typescript
-    ├── .thunderclient     - Thunderclient collection
-    ├── config             - Depency injection config
-    ├── controller         - Controllers
-    ├── functions          - Function App methods
-    ├── repository         - Cosmos DB repository
-    ├── service            - Services
-    ├── types              - Zod models and errors
-    └── utils              - Error detect & response generator utilities
+├── .thunderclient     - Thunder Client collection
+├── config             - Wiring of repositories, services and controllers
+├── controllers        - Request validation
+{%- if cloud_service == 'Azure Function App' %}
+├── functions          - Azure Functions HTTP triggers
+{%- endif %}
+├── repositories       - {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} access
+├── services           - Business logic
+├── types              - Zod models, environment schema and errors
+├── utils              - Error to HTTP response mapping
+{%- if cloud_service == 'GCP Cloud Function' %}
+├── main.ts            - Functions Framework entry point
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+├── lambda.ts          - Lambda handler
+├── template.yaml      - AWS SAM template
+{%- endif %}
+└── package.json       - Scripts and dependencies
 ```
 
 ## License

@@ -1,4 +1,3 @@
-import 'reflect-metadata';
 import { BaseRepository } from '@repositories';
 {% if cloud_service == 'Azure Function App' -%}
 import { Container } from '@azure/cosmos';
@@ -102,7 +101,6 @@ const mockDeleteRecordOperations = [
 ];
 const mockDeleteRecordCondition = 'FROM c WHERE c.isDeleted = false';
 
-let mockResult;
 let mockFetchAll;
 let mockReplace;
 let mockCreate;
@@ -113,10 +111,10 @@ let mockBaseRepository;
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockFetchAll = jest.fn().mockImplementation(() => mockResult);
-        mockReplace = jest.fn().mockImplementation(() => mockResult);
-        mockCreate = jest.fn().mockImplementation(() => mockResult);
-        mockPatch = jest.fn().mockImplementation(() => mockResult);
+        mockFetchAll = jest.fn();
+        mockReplace = jest.fn();
+        mockCreate = jest.fn();
+        mockPatch = jest.fn();
         mockContainer = {
             items: {
                 query: () => ({
@@ -247,6 +245,27 @@ describe('BaseRepository', () => {
                 expect(error).toBeInstanceOf(ProxyError);
                 expect(error.statusCode).toEqual(502);
                 expect(error.message).toEqual(`Error upserting item with id ${mock{{project_class_name}}Id}.`);
+            }
+        });
+    });
+
+    describe('replaceRecord', () => {
+        it('should successfully get and replace record', async () => {
+            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
+            mockReplace.mockReturnValue({ resource: mock{{project_class_name}}Records[0] });
+            await mockBaseRepository.replaceRecord(mock{{project_class_name}}Update);
+            expect(getRecord).toHaveBeenCalledTimes(1);
+            expect(mockReplace).toHaveBeenCalledTimes(1);
+        });
+
+        it('should rethrow not found error', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not Found'));
+            try {
+                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Update);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
             }
         });
     });
@@ -455,6 +474,27 @@ describe('BaseRepository', () => {
                 .mockRejectedValue(new NotFoundError('Not found'));
             try {
                 await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+            }
+        });
+    });
+
+    describe('replaceRecord', () => {
+        it('should successfully replace document', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{project_class_name}}Records[0]);
+            const result = await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
+            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
+            expect(mockSet).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{project_class_name}}Records[0]);
+        });
+
+        it('should rethrow not found error', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not found'));
+            try {
+                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
             }
@@ -670,6 +710,28 @@ describe('BaseRepository', () => {
                 expect(error).toBeInstanceOf(ProxyError);
                 expect(error.statusCode).toEqual(502);
                 expect(error.message).toEqual(`Error upserting item with id ${mock{{project_class_name}}Id}.`);
+            }
+        });
+    });
+
+    describe('replaceRecord', () => {
+        it('should successfully get and put replaced record', async () => {
+            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{project_class_name}}Records[0]);
+            mockSend.mockResolvedValue({});
+            const result = await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
+            expect(getRecord).toHaveBeenCalledTimes(1);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{project_class_name}}Records[0]);
+        });
+
+        it('should rethrow not found error', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not found'));
+            try {
+                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
             }
         });
     });
