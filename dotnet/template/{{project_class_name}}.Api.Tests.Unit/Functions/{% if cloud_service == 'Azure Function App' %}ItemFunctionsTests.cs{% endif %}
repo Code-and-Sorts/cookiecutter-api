@@ -1,0 +1,244 @@
+{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
+{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+namespace {{project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Xunit;
+using {{project_class_name}}.Api.Dtos;
+using {{project_class_name}}.Api.Functions;
+using {{project_class_name}}.Api.Interfaces;
+{%- if uses_body %}
+using {{project_class_name}}.Api.Requests;
+{%- endif %}
+using {{project_class_name}}.Api.Utils;
+using Newtonsoft.Json;
+
+public class HealthFunctionTest
+{
+    [Fact]
+    public async Task Health_ReturnsOk()
+    {
+        var functions = new ItemFunctions(
+{%- for resource in resources %}
+            Substitute.For<I{{ resource.name }}Controller>(),
+{%- endfor %}
+            Substitute.For<ILogger<ItemFunctions>>());
+
+        var result = await functions.Health(Mocks.CreateHttpRequestData(), TestContext.Current.CancellationToken);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, okResult.StatusCode);
+    }
+}
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}FunctionsTest
+{
+    private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+    private readonly I{{ r }}Controller _mock{{ r }}Controller;
+    private readonly ItemFunctions _functions;
+
+    public {{ r }}FunctionsTest()
+    {
+        _mock{{ r }}Controller = Substitute.For<I{{ r }}Controller>();
+        _functions = new ItemFunctions(
+{%- for other in resources %}
+{%- if other.name == r %}
+            _mock{{ r }}Controller,
+{%- else %}
+            Substitute.For<I{{ other.name }}Controller>(),
+{%- endif %}
+{%- endfor %}
+            Substitute.For<ILogger<ItemFunctions>>());
+    }
+{%- if "get_by_id" in resource.operations %}
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsOkResult_When{{ r }}IsFound()
+    {
+        var dto = new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" };
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(dto);
+
+        var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId, TestContext.Current.CancellationToken);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, okResult.StatusCode);
+        Assert.Equal(dto, okResult.Value);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId, TestContext.Current.CancellationToken);
+
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        var error = Assert.IsType<BaseError>(errorResult.Value);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal("Mock exception", error.ErrorMessage);
+    }
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsOkResult_WithItems()
+    {
+        var dtos = new List<{{ r }}Dto>
+        {
+            new() { Id = ItemId, Name = "mock{{ r }}1" },
+            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
+        };
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>()).Returns(dtos);
+
+        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, okResult.StatusCode);
+        Assert.Equal(dtos, okResult.Value);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
+
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        var error = Assert.IsType<BaseError>(errorResult.Value);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal("Mock exception", error.ErrorMessage);
+    }
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsCreatedResult_When{{ r }}IsCreated()
+    {
+        var request = new Create{{ r }}Request { Name = "mock{{ r }}" };
+        var dto = new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" };
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
+
+        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"), TestContext.Current.CancellationToken);
+
+        var createdResult = Assert.IsType<CreatedResult>(result);
+        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(JsonConvert.SerializeObject(createdResult.Value));
+        Assert.Equal(201, createdResult.StatusCode);
+        Assert.Equal("/api/{{ resource.endpoint }}", createdResult.Location);
+        Assert.Equal(dto.Id, responseDto!.Id);
+        Assert.Equal(dto.Name, responseDto.Name);
+    }
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        var request = new Create{{ r }}Request { Name = "mock{{ r }}" };
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"), TestContext.Current.CancellationToken);
+
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        var error = Assert.IsType<BaseError>(errorResult.Value);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal("Mock exception", error.ErrorMessage);
+    }
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+    [Fact]
+    public async Task Update{{ r }}_ReturnsOkResult_When{{ r }}IsUpdated()
+    {
+        var request = new Update{{ r }}Request { Name = "mockUpdated{{ r }}" };
+        var dto = new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" };
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
+
+        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId, TestContext.Current.CancellationToken);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, okResult.StatusCode);
+        Assert.Equal(dto, okResult.Value);
+    }
+
+    [Fact]
+    public async Task Update{{ r }}_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        var request = new Update{{ r }}Request { Name = "mockUpdated{{ r }}" };
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId, TestContext.Current.CancellationToken);
+
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        var error = Assert.IsType<BaseError>(errorResult.Value);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal("Mock exception", error.ErrorMessage);
+    }
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+    [Fact]
+    public async Task Replace{{ r }}_ReturnsOkResult_When{{ r }}IsReplaced()
+    {
+        var request = new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" };
+        var dto = new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" };
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
+
+        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId, TestContext.Current.CancellationToken);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, okResult.StatusCode);
+        Assert.Equal(dto, okResult.Value);
+    }
+
+    [Fact]
+    public async Task Replace{{ r }}_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        var request = new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" };
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId, TestContext.Current.CancellationToken);
+
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        var error = Assert.IsType<BaseError>(errorResult.Value);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal("Mock exception", error.ErrorMessage);
+    }
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+    [Fact]
+    public async Task Delete{{ r }}_ReturnsOkResult_When{{ r }}IsDeleted()
+    {
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var message = Assert.IsType<DeleteOkObjectResult>(okResult.Value);
+        Assert.Equal(200, okResult.StatusCode);
+        Assert.Equal($"{{ r }} with id {ItemId} was deleted successfully.", message.Message);
+    }
+
+    [Fact]
+    public async Task Delete{{ r }}_ReturnsErrorResult_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
+
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        var error = Assert.IsType<BaseError>(errorResult.Value);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal("Mock exception", error.ErrorMessage);
+    }
+{%- endif %}
+}
+{% endfor %}
