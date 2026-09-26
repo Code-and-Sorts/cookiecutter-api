@@ -56,6 +56,7 @@ describe('{{ r }}Service', () => {
     const mockCreateRequest = { name: 'mock{{ r }}1' };
     const mockCreateSchema = {
         id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
+        isDeleted: false,
         name: 'mock{{ r }}1',
         createdTimestamp: '2024-03-24T00:00:00.000Z',
         updatedTimestamp: '2024-03-24T00:00:00.000Z',

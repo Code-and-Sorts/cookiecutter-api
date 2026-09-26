@@ -51,7 +51,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: T): Promise<T> => {
+  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -163,7 +163,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: T): Promise<T> => {
+  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -284,7 +284,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: T): Promise<T> => {
+  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {

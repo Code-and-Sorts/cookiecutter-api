@@ -7,7 +7,7 @@ export const {{ resource.name }}Schema = z.object({
 
 export const {{ resource.name }}UpdateSchema = z.object({
     id: z.string(),
-}).merge({{ resource.name }}Schema).strict();
+}).extend({{ resource.name }}Schema.shape).strict();
 
 export const {{ resource.name }}RequestSchema = {{ resource.name }}Schema.strict();
 

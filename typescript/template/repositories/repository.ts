@@ -35,7 +35,7 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
   create = async (newItem: {{ r }}Record): Promise<{{ r }}Record> => this.addRecord(newItem);
   get = async (id: string): Promise<{{ r }}Record> => this.getRecord(id);
   list = async (limit?: number): Promise<{{ r }}Record[]> => this.getRecords(limit);
-  update = async (item: Partial<{{ r }}Record>): Promise<{{ r }}Record> => this.updateRecord(item);
+  update = async (item: Partial<{{ r }}Record> & { id: string }): Promise<{{ r }}Record> => this.updateRecord(item);
   replace = async (item: {{ r }}Record): Promise<{{ r }}Record> => this.replaceRecord(item);
   delete = async (id: string): Promise<void> => this.deleteRecord(id);
 }

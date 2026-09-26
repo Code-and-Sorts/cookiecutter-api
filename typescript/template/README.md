@@ -111,7 +111,7 @@ Locally the variables are read from the process environment and from a `.env` fi
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 22 (LTS)
+- [Node.js](https://nodejs.org/) 24 (LTS)
 - [Yarn](https://yarnpkg.com/) 4, enabled with `corepack enable`
 {%- if cloud_service == 'Azure Function App' %}
 - [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) v4 (installed as a dev dependency)
@@ -170,7 +170,7 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
 ## Deploy
 
 {% if cloud_service == 'Azure Function App' -%}
-Create a Function App on the Flex Consumption plan with the Node.js 22 runtime, set the environment variables as app settings, and publish:
+Create a Function App on the Flex Consumption plan with the Node.js 24 runtime, set the environment variables as app settings, and publish:
 
 ```console
 az functionapp create \
@@ -179,7 +179,7 @@ az functionapp create \
   --storage-account <storage-account> \
   --flexconsumption-location <region> \
   --runtime node \
-  --runtime-version 22 \
+  --runtime-version 24 \
   --functions-version 4
 
 az functionapp config appsettings set \
@@ -190,14 +190,16 @@ az functionapp config appsettings set \
 yarn build
 func azure functionapp publish <function-app-name>
 ```
+
+Node.js 24 is not available on the Linux Consumption plan, which stops at Node.js 22; use Flex Consumption, Premium or Dedicated.
 {%- elif cloud_service == 'GCP Cloud Function' -%}
-Deploy the `api` entry point with the Node.js 22 runtime. Cloud Build installs the dependencies and runs `yarn build`:
+Deploy the `api` entry point with the Node.js 24 runtime. Cloud Build installs the dependencies and runs `yarn build`:
 
 ```console
 gcloud functions deploy {{ project_endpoint }} \
   --gen2 \
   --region <region> \
-  --runtime nodejs22 \
+  --runtime nodejs24 \
   --source . \
   --entry-point api \
   --trigger-http \
@@ -206,7 +208,7 @@ gcloud functions deploy {{ project_endpoint }} \
 
 Add `{{ env_prefix }}<CONTAINER>=<name>` to `--set-env-vars` to override a collection name.
 {%- else -%}
-`template.yaml` defines the Lambda function (Node.js 22, `nodejs22.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
+`template.yaml` defines the Lambda function (Node.js 24, `nodejs24.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
 
 ```console
 yarn build

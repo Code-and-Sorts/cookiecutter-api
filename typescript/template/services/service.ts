@@ -44,7 +44,7 @@ export class {{ r }}Service {
 {%- endif %}
 {%- if "update" in resource.operations %}
 
-  update = async (item: Partial<{{ r }}Response>): Promise<{{ r }}Response> => {
+  update = async (item: {{ r }}Update): Promise<{{ r }}Response> => {
     const updatedItem = await this._repo.update(item);
     return {{ r }}ResponseSchema.parse(updatedItem);
   };

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 {% if cloud_service == 'Azure Function App' %}
 export const baseEnvSchema = z.object({
-    COSMOS_DB_URL: z.string().url(),
+    COSMOS_DB_URL: z.url(),
     COSMOS_DB_KEY: z.string().min(1),
     COSMOS_DB_DATABASE_NAME: z.string().default('{{ project_endpoint }}s-sql-db'),
 {%- for container in resources | map(attribute='container') | unique %}

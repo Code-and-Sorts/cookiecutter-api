@@ -101,7 +101,6 @@ const mockDeleteRecordOperations = [
 ];
 const mockDeleteRecordCondition = 'FROM c WHERE c.isDeleted = false';
 
-let mockResult;
 let mockFetchAll;
 let mockReplace;
 let mockCreate;
@@ -112,10 +111,10 @@ let mockBaseRepository;
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockFetchAll = jest.fn().mockImplementation(() => mockResult);
-        mockReplace = jest.fn().mockImplementation(() => mockResult);
-        mockCreate = jest.fn().mockImplementation(() => mockResult);
-        mockPatch = jest.fn().mockImplementation(() => mockResult);
+        mockFetchAll = jest.fn();
+        mockReplace = jest.fn();
+        mockCreate = jest.fn();
+        mockPatch = jest.fn();
         mockContainer = {
             items: {
                 query: () => ({

@@ -5,7 +5,7 @@ Description: {{ project_description }}
 Globals:
   Function:
     Timeout: 30
-    Runtime: nodejs22.x
+    Runtime: nodejs24.x
 
 Resources:
   {{ project_class_name }}Function:

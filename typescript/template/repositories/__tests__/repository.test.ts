@@ -13,7 +13,7 @@ import {
 {%- endfor %}
 } from "@repositories";
 
-let mockResult;
+const mockResult = {};
 {% if cloud_service == 'Azure Function App' %}
 class MockCosmosClient {
     public database = jest.fn().mockImplementation(() => ({
@@ -53,7 +53,13 @@ describe('{{ r }}Repository', () => {
     const mockRepository = new {{ r }}Repository(mockDocClient, 'mock-table');
 {%- endif %}
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockItem = { name: 'mock{{ r }}' };
+    const mockItem = {
+        id: mockId,
+        name: 'mock{{ r }}',
+        isDeleted: false,
+        createdTimestamp: '2024-03-24T00:00:00.000Z',
+        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+    };
     const mockRepositoryResponse = [
         {
             id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
@@ -74,7 +80,7 @@ describe('{{ r }}Repository', () => {
             updatedBy: 'mockUser',
         }
     ];
-    const mockItemUpdate = { name: 'mock{{ r }}Update' };
+    const mockItemUpdate = { id: mockId, name: 'mock{{ r }}Update' };
 
     describe('create', () => {
         it('should delegate to the base repository', async () => {

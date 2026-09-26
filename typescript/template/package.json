@@ -2,7 +2,7 @@
   "name": "{{project_endpoint}}",
   "version": "1.0.0",
   "description": "{{project_description}}",
-  "packageManager": "yarn@4.13.0",
+  "packageManager": "yarn@4.18.1",
 {%- if cloud_service == 'Azure Function App' %}
   "main": "dist/functions/*.js",
 {%- endif %}
@@ -15,6 +15,9 @@
     "dist"
   ],
 {%- endif %}
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
 {%- if cloud_service == 'Azure Function App' %}
@@ -33,39 +36,38 @@
   },
   "dependencies": {
 {%- if cloud_service == 'Azure Function App' %}
-    "@azure/cosmos": "^4.2.0",
-    "@azure/functions": "^4.6.0",
+    "@azure/cosmos": "^4.10.1",
+    "@azure/functions": "^4.16.5",
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    "@google-cloud/firestore": "^7.11.0",
-    "@google-cloud/functions-framework": "^3.4.5",
+    "@google-cloud/firestore": "^9.2.0",
+    "@google-cloud/functions-framework": "^5.0.5",
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    "@aws-sdk/client-dynamodb": "^3.700.0",
-    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@aws-sdk/client-dynamodb": "^3.1139.0",
+    "@aws-sdk/lib-dynamodb": "^3.1139.0",
 {%- endif %}
-    "dotenv": "^17.0.0",
-    "uuid": "^11.0.3",
-    "zod": "^3.23.8"
+    "dotenv": "^18.0.3",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
-    "@types/node": "^24.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.13.6",
 {%- if cloud_service == 'Azure Function App' %}
-    "azure-functions-core-tools": "^4.x",
+    "azure-functions-core-tools": "^4.15.1",
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    "@types/aws-lambda": "^8.10.145",
+    "@types/aws-lambda": "^8.10.163",
 {%- endif %}
-    "@eslint/js": "^9.0.0",
-    "eslint": "^9.0.0",
-    "eslint-config-prettier": "^10.0.0",
-    "jest": "^29.7.0",
-    "prettier": "^3.4.0",
-    "ts-jest": "^29.2.5",
-    "tsc-alias": "^1.8.10",
-    "typescript": "^5.7.2",
-    "typescript-eslint": "^8.0.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.5.2",
+    "prettier": "^3.9.9",
+    "ts-jest": "^29.4.13",
+    "tsc-alias": "^1.9.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1"
   },
   "author": "{{author}}",
   "license": "ISC"
