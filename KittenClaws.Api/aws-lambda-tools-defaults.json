@@ -1,0 +1,9 @@
+{
+    "profile": "",
+    "region": "",
+    "configuration": "Release",
+    "function-runtime": "dotnet10",
+    "function-memory-size": 256,
+    "function-timeout": 30,
+    "template": "template.yaml"
+}
