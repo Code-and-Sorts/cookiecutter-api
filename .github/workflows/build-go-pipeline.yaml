@@ -32,11 +32,11 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         go-version:
-          - "1.25"
+          - "1.27"
       fail-fast: false
     steps:
       - name: Check out
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Copier Template
         uses: ./.github/actions/setup-copier-template
@@ -45,12 +45,21 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
 
       - name: Setup Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
 
       - name: Install dependencies
         run: make install
+        working-directory: KittenClaws
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+        working-directory: KittenClaws
+        shell: bash
+
+      - name: Vet
+        run: go vet ./...
         working-directory: KittenClaws
 
       - name: Build
@@ -60,6 +69,7 @@ jobs:
       - name: Run lint
         uses: golangci/golangci-lint-action@v9
         with:
+          version: v2.14.0
           working-directory: KittenClaws
 
       - name: Test with the Go CLI
