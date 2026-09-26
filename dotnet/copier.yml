@@ -91,18 +91,9 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Health", "BaseEntity", "Mocks", "System", "Newtonsoft",
-      "Action", "Activator", "ApplicationException", "Arg", "Array", "Assert", "Attribute",
-      "Buffer", "CancellationToken", "Console", "Convert", "DateTime", "Delegate", "Enum",
-      "Enumerable", "Environment", "Exception", "GC", "Guid", "Half", "Index", "Int128",
-      "Interlocked", "KeyValuePair", "Lock", "Math", "Monitor", "Mutex", "Nullable", "Object",
-      "Parallel", "Queryable", "Random", "Range", "Record", "Semaphore", "String", "Substitute",
-      "Task", "TestContext", "Thread", "TimeProvider", "Timeout", "Timer", "Tuple", "Type", "Uri",
-      "ValueTask", "Version", "Volatile"] -%}
-    {%- if cloud_service == "Azure Function App" -%}
-    {%- set reserved_names = reserved_names + ["Container", "Database", "PartitionKey", "User"] -%}
-    {%- elif cloud_service == "GCP Cloud Function" -%}
-    {%- set reserved_names = reserved_names + ["Google"] -%}
+    {%- set reserved_names = ["Health", "Base"] -%}
+    {%- if cloud_service == "AWS Lambda" -%}
+    {%- set reserved_names = reserved_names + ["Type", "HashCode"] -%}
     {%- endif -%}
     {%- set ns = namespace(err="", eps=[], names=[], containers=[]) -%}
     {%- if resources | length < 1 -%}
@@ -116,7 +107,7 @@ resources:
     {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name in reserved_names -%}
-    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a type or namespace the generated " ~ cloud_service ~ " project already uses. Choose another name." -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a type or method the generated " ~ cloud_service ~ " project already uses. Choose another name." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
     {%- elif r.endpoint == "health" -%}
@@ -135,6 +126,8 @@ resources:
     {%- set ns.err = "Duplicate resource name '" ~ r.name ~ "' (names must differ ignoring case)." -%}
     {%- elif (name_key ~ "list") in ns.names or (name_key.endswith("list") and name_key[:-4] in ns.names) -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' collides with the generated list function of another resource." -%}
+    {%- elif ("i" ~ name_key) in ns.names or (name_key.startswith("i") and name_key[1:] in ns.names) -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' collides with the generated interfaces of another resource (I<Name>Controller, I<Name>Service, I<Name>Repository)." -%}
     {%- endif -%}
     {%- if not ns.err -%}
     {%- set container = r.container | string -%}

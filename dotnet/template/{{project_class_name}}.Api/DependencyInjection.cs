@@ -73,7 +73,7 @@ public static class DependencyInjection
         {
             var firestoreDb = provider.GetRequiredService<FirestoreDb>();
             string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}") ?? "{{ resource.container }}";
-            var context = new FirestoreContext<Entities.{{ r }}>(firestoreDb, collectionName);
+            var context = new FirestoreContext<Entities.{{ r }}Entity>(firestoreDb, collectionName);
             var repository = new {{ r }}Repository(context);
             return new {{ r }}Controller(new {{ r }}Service(repository));
         });

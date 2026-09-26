@@ -12,11 +12,11 @@ public interface I{{ resource.name }}Repository
 
     Task<IEnumerable<{{ resource.name }}Dto>> GetListAsync(CancellationToken ct = default);
 
-    Task<{{ resource.name }}Dto> CreateAsync({{ resource.name }} item, CancellationToken ct = default);
+    Task<{{ resource.name }}Dto> CreateAsync({{ resource.name }}Entity item, CancellationToken ct = default);
 
-    Task<{{ resource.name }}Dto> UpdateAsync({{ resource.name }} item, CancellationToken ct = default);
+    Task<{{ resource.name }}Dto> UpdateAsync({{ resource.name }}Entity item, CancellationToken ct = default);
 
-    Task<{{ resource.name }}Dto> ReplaceAsync({{ resource.name }} item, CancellationToken ct = default);
+    Task<{{ resource.name }}Dto> ReplaceAsync({{ resource.name }}Entity item, CancellationToken ct = default);
 
     Task DeleteAsync(string id, CancellationToken ct = default);
 }

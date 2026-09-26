@@ -66,9 +66,9 @@ public class {{ r }}ServiceTest
     public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
         var createRequest = new Create{{ r }}Request { Name = "mockCreate{{ r }}" };
-        var new{{ r }} = new {{ r }} { Id = Guid.NewGuid().ToString(), Name = createRequest.Name };
+        var new{{ r }} = new {{ r }}Entity { Id = Guid.NewGuid().ToString(), Name = createRequest.Name };
         var expectedItem = new {{ r }}Dto { Id = new{{ r }}.Id, Name = new{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
         var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest, TestContext.Current.CancellationToken);
@@ -82,9 +82,9 @@ public class {{ r }}ServiceTest
     public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
         var updateRequest = new Update{{ r }}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdate{{ r }}" };
-        var updated{{ r }} = new {{ r }} { Id = updateRequest.Id, Name = updateRequest.Name };
+        var updated{{ r }} = new {{ r }}Entity { Id = updateRequest.Id, Name = updateRequest.Name };
         var expectedItem = new {{ r }}Dto { Id = updated{{ r }}.Id, Name = updated{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.UpdateAsync(Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.UpdateAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
         var result = await _{{ r | to_lower_camel }}Service.UpdateAsync(updateRequest, TestContext.Current.CancellationToken);
@@ -98,9 +98,9 @@ public class {{ r }}ServiceTest
     public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
         var replaceRequest = new Replace{{ r }}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockReplace{{ r }}" };
-        var replaced{{ r }} = new {{ r }} { Id = replaceRequest.Id, Name = replaceRequest.Name };
+        var replaced{{ r }} = new {{ r }}Entity { Id = replaceRequest.Id, Name = replaceRequest.Name };
         var expectedItem = new {{ r }}Dto { Id = replaced{{ r }}.Id, Name = replaced{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.ReplaceAsync(Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.ReplaceAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
         var result = await _{{ r | to_lower_camel }}Service.ReplaceAsync(replaceRequest, TestContext.Current.CancellationToken);

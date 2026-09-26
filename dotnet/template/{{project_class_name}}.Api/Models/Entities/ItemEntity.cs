@@ -8,7 +8,7 @@ using Google.Cloud.Firestore;
 {%- if cloud_service == 'GCP Cloud Function' %}
 [FirestoreData]
 {%- endif %}
-public class {{ resource.name }} : BaseEntity
+public class {{ resource.name }}Entity : BaseEntity
 {
     [JsonProperty("name")]
 {%- if cloud_service == 'GCP Cloud Function' %}

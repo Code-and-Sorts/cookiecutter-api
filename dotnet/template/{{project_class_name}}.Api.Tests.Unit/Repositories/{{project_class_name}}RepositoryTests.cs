@@ -35,10 +35,10 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task GetAsync_ShouldReturn{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
-        var response = Substitute.For<ItemResponse<{{ r }}>>();
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
+        var response = Substitute.For<ItemResponse<{{ r }}Entity>>();
         response.Resource.Returns(item);
-        _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReadItemAsync<{{ r }}Entity>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(response);
 
         var result = await _repository.GetAsync("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", TestContext.Current.CancellationToken);
@@ -51,19 +51,19 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task GetListAsync_ShouldReturnListOf{{ r }}Dto()
     {
-        var itemList = new List<{{ r }}>
+        var itemList = new List<{{ r }}Entity>
         {
             new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}1" },
             new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }
         };
-        var feedResponse = Substitute.For<FeedResponse<{{ r }}>>();
+        var feedResponse = Substitute.For<FeedResponse<{{ r }}Entity>>();
         feedResponse.Resource.Returns(itemList);
 
-        var feedIterator = Substitute.For<FeedIterator<{{ r }}>>();
+        var feedIterator = Substitute.For<FeedIterator<{{ r }}Entity>>();
         feedIterator.HasMoreResults.Returns(true, false);
         feedIterator.ReadNextAsync(Arg.Any<CancellationToken>()).Returns(feedResponse);
 
-        _mockContainer.GetItemQueryIterator<{{ r }}>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100")
+        _mockContainer.GetItemQueryIterator<{{ r }}Entity>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100")
             .Returns(feedIterator);
 
         var result = await _repository.GetListAsync(TestContext.Current.CancellationToken);
@@ -77,10 +77,10 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
-        var response = Substitute.For<ItemResponse<{{ r }}>>();
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
+        var response = Substitute.For<ItemResponse<{{ r }}Entity>>();
         response.Resource.Returns(item);
-        _mockContainer.CreateItemAsync(Arg.Any<{{ r }}>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.CreateItemAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(response);
 
         var result = await _repository.CreateAsync(item, TestContext.Current.CancellationToken);
@@ -93,15 +93,15 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
-        var currentItem = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
-        var readResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        var readResponse = Substitute.For<ItemResponse<{{ r }}Entity>>();
         readResponse.Resource.Returns(currentItem);
-        var replaceResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        var replaceResponse = Substitute.For<ItemResponse<{{ r }}Entity>>();
         replaceResponse.Resource.Returns(item);
-        _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReadItemAsync<{{ r }}Entity>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(readResponse);
-        _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(replaceResponse);
 
         var result = await _repository.UpdateAsync(item, TestContext.Current.CancellationToken);
@@ -114,15 +114,15 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
-        var currentItem = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
-        var readResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        var readResponse = Substitute.For<ItemResponse<{{ r }}Entity>>();
         readResponse.Resource.Returns(currentItem);
-        var replaceResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        var replaceResponse = Substitute.For<ItemResponse<{{ r }}Entity>>();
         replaceResponse.Resource.Returns(item);
-        _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReadItemAsync<{{ r }}Entity>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(readResponse);
-        _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(replaceResponse);
 
         var result = await _repository.ReplaceAsync(item, TestContext.Current.CancellationToken);
@@ -136,17 +136,17 @@ public class {{ r }}RepositoryTest
     public async Task DeleteAsync_ShouldMark{{ r }}AsDeleted()
     {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var existingItem = new {{ r }}
+        var existingItem = new {{ r }}Entity
         {
             Id = id,
             Name = "mock{{ r }}",
             IsDeleted = false
         };
 
-        var mockResponse = Substitute.For<ItemResponse<{{ r }}>>();
+        var mockResponse = Substitute.For<ItemResponse<{{ r }}Entity>>();
         mockResponse.Resource.Returns(existingItem);
 
-        _mockContainer.ReadItemAsync<{{ r }}>(
+        _mockContainer.ReadItemAsync<{{ r }}Entity>(
             id,
             new PartitionKey(id),
             null,
@@ -156,7 +156,7 @@ public class {{ r }}RepositoryTest
         await _repository.DeleteAsync(id, TestContext.Current.CancellationToken);
 
         await _mockContainer.Received(1).ReplaceItemAsync(
-            Arg.Is<{{ r }}>(k => k.IsDeleted == true),
+            Arg.Is<{{ r }}Entity>(k => k.IsDeleted == true),
             id,
             Arg.Any<PartitionKey>(),
             null,
@@ -164,12 +164,12 @@ public class {{ r }}RepositoryTest
     }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    private readonly IFirestoreContext<{{ r }}> _mockContext;
+    private readonly IFirestoreContext<{{ r }}Entity> _mockContext;
     private readonly {{ r }}Repository _repository;
 
     public {{ r }}RepositoryTest()
     {
-        _mockContext = Substitute.For<IFirestoreContext<{{ r }}>>();
+        _mockContext = Substitute.For<IFirestoreContext<{{ r }}Entity>>();
         _repository = new {{ r }}Repository(_mockContext);
     }
 
@@ -177,7 +177,7 @@ public class {{ r }}RepositoryTest
     public async Task GetAsync_ShouldReturn{{ r }}Dto()
     {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var item = new {{ r }} { Id = id, Name = "mock{{ r }}" };
+        var item = new {{ r }}Entity { Id = id, Name = "mock{{ r }}" };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(item);
 
         var result = await _repository.GetAsync(id, TestContext.Current.CancellationToken);
@@ -191,7 +191,7 @@ public class {{ r }}RepositoryTest
     public async Task GetAsync_ShouldThrowWhenNotFound()
     {
         var id = "non-existent-id";
-        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(({{ r }}?)null);
+        _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(({{ r }}Entity?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync(id, TestContext.Current.CancellationToken));
     }
@@ -199,7 +199,7 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task GetListAsync_ShouldReturnListOf{{ r }}Dto()
     {
-        var itemList = new List<{{ r }}>
+        var itemList = new List<{{ r }}Entity>
         {
             new() { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}1" },
             new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }
@@ -217,7 +217,7 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
 
         var result = await _repository.CreateAsync(item, TestContext.Current.CancellationToken);
 
@@ -231,8 +231,8 @@ public class {{ r }}RepositoryTest
     public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var item = new {{ r }} { Id = id, Name = "mock{{ r }}New", UpdatedBy = "User1" };
-        var currentItem = new {{ r }} { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        var item = new {{ r }}Entity { Id = id, Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }}Entity { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(currentItem);
 
         var result = await _repository.UpdateAsync(item, TestContext.Current.CancellationToken);
@@ -240,15 +240,15 @@ public class {{ r }}RepositoryTest
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
         Assert.Equal("mock{{ r }}New", result.Name);
-        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>());
+        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var item = new {{ r }} { Id = id, Name = "mock{{ r }}New", UpdatedBy = "User1" };
-        var currentItem = new {{ r }} { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
+        var item = new {{ r }}Entity { Id = id, Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var currentItem = new {{ r }}Entity { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(currentItem);
 
         var result = await _repository.ReplaceAsync(item, TestContext.Current.CancellationToken);
@@ -256,21 +256,21 @@ public class {{ r }}RepositoryTest
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
         Assert.Equal("mock{{ r }}New", result.Name);
-        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>());
+        await _mockContext.Received(1).SetAsync(id, Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DeleteAsync_ShouldMark{{ r }}AsDeleted()
     {
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var existingItem = new {{ r }} { Id = id, Name = "mock{{ r }}", IsDeleted = false };
+        var existingItem = new {{ r }}Entity { Id = id, Name = "mock{{ r }}", IsDeleted = false };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(existingItem);
 
         await _repository.DeleteAsync(id, TestContext.Current.CancellationToken);
 
         await _mockContext.Received(1).SetAsync(
             id,
-            Arg.Is<{{ r }}>(k => k.IsDeleted == true),
+            Arg.Is<{{ r }}Entity>(k => k.IsDeleted == true),
             Arg.Any<CancellationToken>());
     }
 {%- endif %}
@@ -394,7 +394,7 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
@@ -408,7 +408,7 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
         var getResponse = new GetItemResponse
         {
             Item = new Dictionary<string, AttributeValue>
@@ -437,7 +437,7 @@ public class {{ r }}RepositoryTest
     [Fact]
     public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
     {
-        var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
+        var item = new {{ r }}Entity { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}New", UpdatedBy = "User1" };
         var getResponse = new GetItemResponse
         {
             Item = new Dictionary<string, AttributeValue>

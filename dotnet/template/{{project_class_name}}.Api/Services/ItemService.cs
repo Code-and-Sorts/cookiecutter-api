@@ -30,7 +30,7 @@ public class {{ r }}Service : I{{ r }}Service
 
     public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default)
     {
-        var new{{ r }} = new {{ r }}
+        var new{{ r }} = new {{ r }}Entity
         {
             Id = Guid.NewGuid().ToString(),
             Name = item.Name,
@@ -44,7 +44,7 @@ public class {{ r }}Service : I{{ r }}Service
 
     public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, CancellationToken ct = default)
     {
-        var updated{{ r }} = new {{ r }}
+        var updated{{ r }} = new {{ r }}Entity
         {
             Id = item.Id,
             Name = item.Name,
@@ -57,7 +57,7 @@ public class {{ r }}Service : I{{ r }}Service
 
     public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, CancellationToken ct = default)
     {
-        var replaced{{ r }} = new {{ r }}
+        var replaced{{ r }} = new {{ r }}Entity
         {
             Id = item.Id,
             Name = item.Name,
