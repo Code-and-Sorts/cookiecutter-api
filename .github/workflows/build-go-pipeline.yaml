@@ -33,6 +33,39 @@ jobs:
           - "AWS Lambda"
         go-version:
           - "1.27"
+        fixture:
+          - single
+        include:
+          - os: ubuntu-latest
+            template-type: go
+            cloud-service: "Azure Function App"
+            go-version: "1.27"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: go
+            cloud-service: "GCP Cloud Function"
+            go-version: "1.27"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: go
+            cloud-service: "AWS Lambda"
+            go-version: "1.27"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: go
+            cloud-service: "Azure Function App"
+            go-version: "1.27"
+            fixture: edge
+          - os: ubuntu-latest
+            template-type: go
+            cloud-service: "GCP Cloud Function"
+            go-version: "1.27"
+            fixture: edge
+          - os: ubuntu-latest
+            template-type: go
+            cloud-service: "AWS Lambda"
+            go-version: "1.27"
+            fixture: edge
       fail-fast: false
     steps:
       - name: Check out
@@ -43,6 +76,7 @@ jobs:
         with:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
+          resources-fixture: ${{ matrix.fixture }}
 
       - name: Setup Go ${{ matrix.go-version }}
         uses: actions/setup-go@v7
@@ -87,7 +121,7 @@ jobs:
             status=$?
             set -e
             {
-              echo "### Go dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo "### Go dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }})"
               echo ""
               echo '```'
               cat audit.log
