@@ -1,0 +1,15 @@
+# Multi-resource showcase for the published example branches.
+#
+# Two resources sharing a single storage container ("animals") with different
+# operation subsets — Cat exposes PATCH (update) while Dog exposes PUT
+# (replace) — to demonstrate configurable endpoints, shared storage, and
+# per-operation method subsetting in one generated project.
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+  - name: "Dog"
+    endpoint: "dogs"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "replace", "delete"]

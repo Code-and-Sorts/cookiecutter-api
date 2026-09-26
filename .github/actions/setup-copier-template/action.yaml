@@ -8,13 +8,24 @@ inputs:
   template-cloud-service:
     required: true
     description: Template cloud service
+  resources-fixture:
+    required: false
+    default: "single"
+    description: >-
+      Which resources fixture to render: "single" renders the default single
+      resource derived from the project name; any other value renders
+      fixtures/<value>-resources.yml (e.g. "multi", "edge").
+  output-dir:
+    required: false
+    default: "KittenClaws"
+    description: Directory to render the generated project into.
 
 runs:
   using: "composite"
 
   steps:
     - name: Set up python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: 3.14
 
@@ -28,6 +39,10 @@ runs:
 
     - name: Create Copier Template
       run: |
+        extra_args=()
+        if [ "${{ inputs.resources-fixture }}" != "single" ]; then
+          extra_args+=(--data-file "${{ github.action_path }}/fixtures/${{ inputs.resources-fixture }}-resources.yml")
+        fi
         copier copy --defaults --trust \
           --data project_name="KittenClaws" \
           --data project_description="Kitties got claws...beware" \
@@ -38,5 +53,6 @@ runs:
           --data author="Sir Meowsalots" \
           --data cloud_service="${{ inputs.template-cloud-service }}" \
           --data open_source_license="MIT license" \
-          ./${{ inputs.template-language }} ./KittenClaws
+          "${extra_args[@]}" \
+          ./${{ inputs.template-language }} ./${{ inputs.output-dir }}
       shell: bash

@@ -12,6 +12,27 @@
   "labels": [
     "dependencies"
   ],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "rebaseWhen": "behind-base-branch",
+  "minimumReleaseAge": "3 days",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^typescript/template/package\\.json$/"],
+      "matchStrings": ["\"(?<depName>@?[a-z0-9][^\"]*)\": \"\\^(?<currentValue>\\d[^\"]*)\""],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^typescript/template/package\\.json$/"],
+      "matchStrings": ["\"packageManager\": \"yarn@(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "yarn",
+      "packageNameTemplate": "@yarnpkg/cli-dist",
+      "datasourceTemplate": "npm"
+    }
+  ],
   "packageRules": [
     {
       "description": "Group non-major dependency updates per language template",
@@ -38,6 +59,12 @@
       "description": "Group GitHub Actions updates together",
       "matchManagers": ["github-actions"],
       "groupName": "github actions"
+    },
+    {
+      "description": "@types/node follows the Node.js runtime the clouds support, so its major moves with the runtime",
+      "matchPackageNames": ["@types/node"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ]
 }
