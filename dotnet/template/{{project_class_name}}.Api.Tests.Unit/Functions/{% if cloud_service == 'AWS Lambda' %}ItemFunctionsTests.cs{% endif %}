@@ -1,0 +1,231 @@
+{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
+{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+namespace {{project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Xunit;
+using {{project_class_name}}.Api.Dtos;
+using {{project_class_name}}.Api.Functions;
+using {{project_class_name}}.Api.Interfaces;
+{%- if uses_body %}
+using {{project_class_name}}.Api.Requests;
+{%- endif %}
+using {{project_class_name}}.Api.Utils;
+using Newtonsoft.Json;
+
+public class HealthFunctionTest
+{
+    [Fact]
+    public void Health_ReturnsOk()
+    {
+        var functions = new ItemFunctions(
+{%- for resource in resources %}
+            Substitute.For<I{{ resource.name }}Controller>(),
+{%- endfor %}
+            Substitute.For<ILogger<ItemFunctions>>());
+
+        var response = functions.Health(Mocks.CreateApiGatewayRequest());
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Contains("ok", response.Body);
+    }
+}
+{% for resource in resources %}
+{%- set r = resource.name %}
+public class {{ r }}FunctionsTest
+{
+    private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+    private readonly I{{ r }}Controller _mock{{ r }}Controller;
+    private readonly ItemFunctions _functions;
+
+    public {{ r }}FunctionsTest()
+    {
+        _mock{{ r }}Controller = Substitute.For<I{{ r }}Controller>();
+        _functions = new ItemFunctions(
+{%- for other in resources %}
+{%- if other.name == r %}
+            _mock{{ r }}Controller,
+{%- else %}
+            Substitute.For<I{{ other.name }}Controller>(),
+{%- endif %}
+{%- endfor %}
+            Substitute.For<ILogger<ItemFunctions>>());
+    }
+
+    private static Dictionary<string, string> IdPath() => new() { { "id", ItemId } };
+{%- if "get_by_id" in resource.operations %}
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsOk_When{{ r }}IsFound()
+    {
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+
+        var response = await _functions.Get{{ r }}(Mocks.CreateApiGatewayRequest("GET", IdPath()));
+        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(ItemId, responseDto!.Id);
+        Assert.Equal("mock{{ r }}", responseDto.Name);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Get{{ r }}(Mocks.CreateApiGatewayRequest("GET", IdPath()));
+        var error = JsonConvert.DeserializeObject<BaseError>(response.Body);
+
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("Mock exception", error!.ErrorMessage);
+    }
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsOk_WithItems()
+    {
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<{{ r }}Dto>
+            {
+                new() { Id = ItemId, Name = "mock{{ r }}1" },
+                new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
+            });
+
+        var response = await _functions.Get{{ r }}List(Mocks.CreateApiGatewayRequest(httpMethod: "GET"));
+        var responseDtos = JsonConvert.DeserializeObject<List<{{ r }}Dto>>(response.Body);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(2, responseDtos!.Count);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Get{{ r }}List(Mocks.CreateApiGatewayRequest(httpMethod: "GET"));
+        var error = JsonConvert.DeserializeObject<BaseError>(response.Body);
+
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("Mock exception", error!.ErrorMessage);
+    }
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
+    {
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+
+        var response = await _functions.Create{{ r }}(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"));
+        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+
+        Assert.Equal(201, response.StatusCode);
+        Assert.Equal(ItemId, responseDto!.Id);
+        Assert.Equal("mock{{ r }}", responseDto.Name);
+    }
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Create{{ r }}(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"));
+        var error = JsonConvert.DeserializeObject<BaseError>(response.Body);
+
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("Mock exception", error!.ErrorMessage);
+    }
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+    [Fact]
+    public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
+    {
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+
+        var response = await _functions.Update{{ r }}(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath()));
+        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("mockUpdated{{ r }}", responseDto!.Name);
+    }
+
+    [Fact]
+    public async Task Update{{ r }}_ReturnsError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Update{{ r }}(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath()));
+        var error = JsonConvert.DeserializeObject<BaseError>(response.Body);
+
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("Mock exception", error!.ErrorMessage);
+    }
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+    [Fact]
+    public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
+    {
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+
+        var response = await _functions.Replace{{ r }}(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath()));
+        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("mockReplaced{{ r }}", responseDto!.Name);
+    }
+
+    [Fact]
+    public async Task Replace{{ r }}_ReturnsError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Replace{{ r }}(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath()));
+        var error = JsonConvert.DeserializeObject<BaseError>(response.Body);
+
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("Mock exception", error!.ErrorMessage);
+    }
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+    [Fact]
+    public async Task Delete{{ r }}_ReturnsOk_When{{ r }}IsDeleted()
+    {
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var response = await _functions.Delete{{ r }}(Mocks.CreateApiGatewayRequest("DELETE", IdPath()));
+        var result = JsonConvert.DeserializeObject<DeleteOkObjectResult>(response.Body);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal($"{{ r }} with id {ItemId} was deleted successfully.", result!.Message);
+    }
+
+    [Fact]
+    public async Task Delete{{ r }}_ReturnsError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Delete{{ r }}(Mocks.CreateApiGatewayRequest("DELETE", IdPath()));
+        var error = JsonConvert.DeserializeObject<BaseError>(response.Body);
+
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("Mock exception", error!.ErrorMessage);
+    }
+{%- endif %}
+}
+{% endfor %}

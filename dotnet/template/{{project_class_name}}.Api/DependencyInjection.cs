@@ -72,7 +72,7 @@ public static class DependencyInjection
         services.AddSingleton<I{{ r }}Controller>(provider =>
         {
             var firestoreDb = provider.GetRequiredService<FirestoreDb>();
-            string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION_{{ resource.container | to_camel }}") ?? "{{ resource.container }}";
+            string collectionName = configuration.GetValue<string>("FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}") ?? "{{ resource.container }}";
             var context = new FirestoreContext<Entities.{{ r }}>(firestoreDb, collectionName);
             var repository = new {{ r }}Repository(context);
             return new {{ r }}Controller(new {{ r }}Service(repository));

@@ -1,3 +1,8 @@
+using Amazon.Lambda.Core;
+using Amazon.Lambda.Serialization.SystemTextJson;
+
+[assembly: LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]
+
 namespace {{project_class_name}}.Api.Functions;
 
 using System;

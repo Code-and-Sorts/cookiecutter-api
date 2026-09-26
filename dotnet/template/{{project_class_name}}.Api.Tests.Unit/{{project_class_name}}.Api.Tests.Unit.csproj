@@ -1,13 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
 {%- if cloud_service == 'Azure Function App' %}
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" />
-    <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
-    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
     <PackageReference Include="Amazon.Lambda.Core" Version="2.8.1" />

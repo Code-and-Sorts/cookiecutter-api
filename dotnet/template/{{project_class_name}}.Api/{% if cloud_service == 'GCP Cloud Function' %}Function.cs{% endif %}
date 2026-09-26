@@ -46,8 +46,7 @@ public class Function : IHttpFunction
         try
         {
             var path = request.Path.Value ?? string.Empty;
-            var trimmedPath = path.TrimEnd('/');
-            if (request.Method == "GET" && (trimmedPath == "/health" || trimmedPath.EndsWith("/health")))
+            if (request.Method == "GET" && path.TrimEnd('/') == "/health")
             {
                 await WriteJsonResponse(response, 200, new { status = "ok" }, ct);
                 return;

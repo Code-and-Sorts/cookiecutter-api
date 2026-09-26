@@ -1,3 +1,5 @@
+{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
+{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -7,7 +9,9 @@ using System.Threading.Tasks;
 using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
+{%- if uses_body %}
 using {{project_class_name}}.Api.Requests;
+{%- endif %}
 using {{project_class_name}}.Api.Services;
 using NSubstitute;
 using Xunit;
