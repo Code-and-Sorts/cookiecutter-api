@@ -13,8 +13,6 @@ on:
       - go/**
       - .github/workflows/build-go-pipeline.yaml
       - .github/actions/setup-copier-template/**
-    branches:
-      - main
 
 jobs:
   build-go:
