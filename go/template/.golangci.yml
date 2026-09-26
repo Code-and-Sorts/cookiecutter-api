@@ -9,5 +9,9 @@ linters:
   disable:
     - errcheck
 
+formatters:
+  enable:
+    - gofmt
+
 run:
   timeout: 5m

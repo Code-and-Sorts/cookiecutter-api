@@ -7,8 +7,8 @@
     "AzureWebJobsStorage": "",
     "Cosmos_Db_Uri": "{{ '{{Cosmos_Db_Uri}}' }}",
     "Cosmos_Db_Key": "{{ '{{Cosmos_Db_Key}}' }}",
-    "Cosmos_Db_Database_Name": "{{ '{{Cosmos_Db_Database_Name}}' }}",
-    "Cosmos_Db_Container_Name": "{{ '{{Cosmos_Db_Container_Name}}' }}"
+    "Cosmos_Db_Database_Name": "{{ '{{Cosmos_Db_Database_Name}}' }}"{% for container in resources | map(attribute='container') | unique %},
+    "Container_Name_{{ container | replace('-', '_') }}": "{{ container }}"{% endfor %}
   }
 }
 {%- endif %}

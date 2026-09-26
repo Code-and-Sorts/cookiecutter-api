@@ -5,13 +5,21 @@
     "dateExported": "2024-08-10T22:26:59.376Z",
     "version": "1.2",
     "variables": [
+{%- for resource in resources %}
         {
-            "name": "itemId",
+            "name": "{{ resource.name | to_lower_camel }}Id",
             "value": ""
         },
+{%- endfor %}
         {
             "name": "baseUrl",
+{%- if cloud_service == 'Azure Function App' %}
             "value": "http://localhost:7071"
+{%- elif cloud_service == 'GCP Cloud Function' %}
+            "value": "http://localhost:8080"
+{%- else %}
+            "value": "http://127.0.0.1:3000"
+{%- endif %}
         }
     ],
     "ref": "nW-55ooxl117SeBjI11ySYJwUP4IXtpUAhEiaQcH23Xw-me2NnVtfHEfBCVxY_Qb"
