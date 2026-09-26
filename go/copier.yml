@@ -70,3 +70,75 @@ project_class_name:
   type: str
   when: false
   default: "{{ project_name | to_camel }}"
+
+# ---- REST resources ----
+# A list of resources to generate. Each resource gets its own URL endpoint, a
+# storage container (resources sharing a container id share storage), and a
+# chosen subset of operations. The default is a single resource matching the
+# project name with today's CRUD behaviour, so answering only project_name
+# reproduces the original single-resource project.
+resources:
+  type: yaml
+  multiline: true
+  help: >-
+    Resources to generate. Each item: name (PascalCase), endpoint (kebab-case URL
+    segment), container (storage id; equal ids share storage), operations (subset of
+    list, get_by_id, create, update, replace, delete). The endpoint "health" and the
+    names Health, BaseEntity, BaseError, NotFoundError and ValidationError are reserved.
+  default: |
+    - name: "{{ project_class_name }}"
+      endpoint: "{{ project_endpoint }}"
+      container: "{{ project_endpoint }}"
+      operations: ["list", "get_by_id", "create", "update", "delete"]
+  validator: >-
+    {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
+    {%- set reserved_names = ["Health", "BaseEntity", "BaseError", "NotFoundError", "ValidationError"] -%}
+    {%- set reserved_endpoints = ["health"] -%}
+    {%- set ns = namespace(err="", eps=[], names=[], lnames=[], containers=[], clash="") -%}
+    {%- if resources | length < 1 -%}
+    {%- set ns.err = "At least one resource is required." -%}
+    {%- else -%}
+    {%- for r in resources -%}
+    {%- if not ns.err -%}
+    {%- set ns.clash = "" -%}
+    {%- for other in ns.containers if other != r.container | string and ((other | lower | replace('-', '_')) == (r.container | string | lower | replace('-', '_')) or (other | to_camel) == (r.container | string | to_camel)) -%}
+    {%- set ns.clash = other -%}
+    {%- endfor -%}
+    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
+    {%- elif r.name in reserved_names -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
+    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
+    {%- elif r.endpoint in reserved_endpoints -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
+    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
+    {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
+    {%- elif ns.clash -%}
+    {%- set ns.err = "Containers '" ~ ns.clash ~ "' and '" ~ r.container ~ "' map to the same setting name. Use one id for shared storage or ids that differ beyond case, '-' and '_'." -%}
+    {%- elif (r.operations | default([]) | length) < 1 -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' must enable at least one operation." -%}
+    {%- elif r.operations | reject('in', valid_ops) | list | length > 0 -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' has an invalid operation. Allowed: " ~ (valid_ops | join(', ')) ~ "." -%}
+    {%- elif r.operations | unique | list | length != r.operations | length -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' lists an operation more than once." -%}
+    {%- elif r.endpoint in ns.eps -%}
+    {%- set ns.err = "Duplicate endpoint '" ~ r.endpoint ~ "'." -%}
+    {%- elif r.name in ns.names -%}
+    {%- set ns.err = "Duplicate resource name '" ~ r.name ~ "'." -%}
+    {%- elif r.name | lower in ns.lnames -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' collides with another resource name when case is ignored." -%}
+    {%- endif -%}
+    {%- set ns.eps = ns.eps + [r.endpoint] -%}
+    {%- set ns.names = ns.names + [r.name] -%}
+    {%- set ns.lnames = ns.lnames + [r.name | string | lower] -%}
+    {%- set ns.containers = ns.containers + [r.container | string] -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- for a in resources if not ns.err -%}
+    {%- for b in resources if not ns.err and b.name in [a.name ~ 'Dto', a.name ~ 'List', 'Create' ~ a.name ~ 'Request', 'Update' ~ a.name ~ 'Request', 'Replace' ~ a.name ~ 'Request'] -%}
+    {%- set ns.err = "Resource name '" ~ b.name ~ "' collides with an identifier generated for resource '" ~ a.name ~ "'." -%}
+    {%- endfor -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {{ ns.err }}
