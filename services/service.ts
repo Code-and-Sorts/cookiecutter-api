@@ -1,0 +1,41 @@
+import {
+    KittenClawsRepository,
+} from '@repositories';
+import {
+    KittenClaws,
+    KittenClawsResponse,
+    KittenClawsResponseSchema,
+    KittenClawsEntitySchema,
+    KittenClawsUpdate,
+} from '@models';
+
+export class KittenClawsService {
+  private _repo: KittenClawsRepository;
+
+  constructor(repo: KittenClawsRepository) {
+    this._repo = repo;
+  }
+
+  create = async (item: KittenClaws): Promise<KittenClawsResponse> => {
+    const newItem = KittenClawsEntitySchema.parse(item);
+    const createdItem: KittenClawsResponse = await this._repo.create(newItem);
+    return KittenClawsResponseSchema.parse(createdItem);
+  };
+
+  get = async (id: string): Promise<KittenClawsResponse> => {
+    const item = await this._repo.get(id);
+    return KittenClawsResponseSchema.parse(item);
+  };
+
+  list = async (limit?: number): Promise<KittenClawsResponse[]> => {
+    const items = await this._repo.list(limit);
+    return items.map((item) => KittenClawsResponseSchema.parse(item));
+  };
+
+  update = async (item: KittenClawsUpdate): Promise<KittenClawsResponse> => {
+    const updatedItem = await this._repo.update({ ...item, updatedTimestamp: new Date().toISOString() });
+    return KittenClawsResponseSchema.parse(updatedItem);
+  };
+
+  delete = async (id: string): Promise<void> => this._repo.delete(id);
+}
