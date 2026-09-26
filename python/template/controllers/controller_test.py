@@ -114,5 +114,31 @@ def describe_{{ slug }}_controller():
             asyncio.run(controller.get_list(mock_request))
             mock_service.get_list.assert_called_once_with(5)
 {%- endif %}
+{%- for op in ["update", "replace"] if op in resource.operations %}
+
+    def describe_{{ op }}():
+        def test_path_id_overrides_body_id(controller, mock_service):
+{%- if cloud_service == 'Azure Function App' %}
+            mock_request = MagicMock(spec=HttpRequest)
+            mock_request.route_params = {'item_id': 'ac1df01c-7ece-4a20-ab60-179829dad8f5'}
+            mock_request.get_json.return_value = {'id': 'de6cbc87-5969-458c-8444-3512a82250bc', 'name': 'mockName'}
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+            mock_request = MagicMock()
+            mock_request.path = '/{{ resource.endpoint }}/ac1df01c-7ece-4a20-ab60-179829dad8f5'
+            mock_request.get_json.return_value = {'id': 'de6cbc87-5969-458c-8444-3512a82250bc', 'name': 'mockName'}
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+            mock_request = {
+                "pathParameters": {"item_id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"},
+                "body": '{"id": "de6cbc87-5969-458c-8444-3512a82250bc", "name": "mockName"}'
+            }
+{%- endif %}
+            asyncio.run(controller.{{ op }}(mock_request))
+
+            item = mock_service.{{ op }}.call_args.args[0]
+            assert item.id == 'ac1df01c-7ece-4a20-ab60-179829dad8f5'
+            assert item.name == 'mockName'
+{%- endfor %}
 
 {% endfor %}

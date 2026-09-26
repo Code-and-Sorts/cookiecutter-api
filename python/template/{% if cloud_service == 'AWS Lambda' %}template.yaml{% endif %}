@@ -27,6 +27,11 @@ Resources:
             TableName: !Ref {{ container | to_camel }}Table
 {%- endfor %}
       Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
 {%- for resource in resources %}
 {%- set cn = resource.name | to_camel %}
 {%- if "list" in resource.operations %}

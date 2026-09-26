@@ -133,8 +133,7 @@ class {{ resource.name }}Controller:
     async def update(self, req: func.HttpRequest) -> {{ resource.name }}Response:
         item_id: str = req.route_params.get('item_id')
         item_data: dict = req.get_json()
-        item = {{ resource.name }}(**item_data)
-        item.id = item_id
+        item = {{ resource.name }}(**{**item_data, "id": item_id})
         return await self.service.update(item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
@@ -143,8 +142,7 @@ class {{ resource.name }}Controller:
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
         item_data: dict = request.get_json()
-        item = {{ resource.name }}(**item_data)
-        item.id = item_id
+        item = {{ resource.name }}(**{**item_data, "id": item_id})
         return await self.service.update(item)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -152,8 +150,7 @@ class {{ resource.name }}Controller:
     async def update(self, event: dict) -> {{ resource.name }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
         item_data: dict = self._parse_body(event)
-        item = {{ resource.name }}(**item_data)
-        item.id = item_id
+        item = {{ resource.name }}(**{**item_data, "id": item_id})
         return await self.service.update(item)
 {%- endif %}
 {%- endif %}
@@ -163,8 +160,7 @@ class {{ resource.name }}Controller:
     async def replace(self, req: func.HttpRequest) -> {{ resource.name }}Response:
         item_id: str = req.route_params.get('item_id')
         item_data: dict = req.get_json()
-        item = {{ resource.name }}(**item_data)
-        item.id = item_id
+        item = {{ resource.name }}(**{**item_data, "id": item_id})
         return await self.service.replace(item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
@@ -173,8 +169,7 @@ class {{ resource.name }}Controller:
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
         item_data: dict = request.get_json()
-        item = {{ resource.name }}(**item_data)
-        item.id = item_id
+        item = {{ resource.name }}(**{**item_data, "id": item_id})
         return await self.service.replace(item)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -182,8 +177,7 @@ class {{ resource.name }}Controller:
     async def replace(self, event: dict) -> {{ resource.name }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
         item_data: dict = self._parse_body(event)
-        item = {{ resource.name }}(**item_data)
-        item.id = item_id
+        item = {{ resource.name }}(**{**item_data, "id": item_id})
         return await self.service.replace(item)
 {%- endif %}
 {%- endif %}

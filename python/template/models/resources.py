@@ -17,8 +17,8 @@ class {{ resource.name }}IdValidation(BaseModel):
 class {{ resource.name }}(Base{{ resource.name }}):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     isDeleted: bool = Field(default=False)
-    createdDate: str = Field(default_factory=lambda: generate_utc_timestamp())
-    updatedDate: str = generate_utc_timestamp()
+    createdDate: str = Field(default_factory=generate_utc_timestamp)
+    updatedDate: str = Field(default_factory=generate_utc_timestamp)
 
 class {{ resource.name }}Response(Base{{ resource.name }}):
     id: str
