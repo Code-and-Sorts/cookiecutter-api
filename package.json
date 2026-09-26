@@ -1,0 +1,39 @@
+{
+  "name": "kitties",
+  "version": "1.0.0",
+  "description": "Kitties got claws...beware",
+  "packageManager": "yarn@4.18.1",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc && tsc-alias",
+    "start": "npx functions-framework --target=api --source=dist/",
+    "test:unit": "yarn jest --verbose --coverage",
+    "lint": "eslint .",
+    "format": "eslint --fix . && prettier --write .",
+    "audit": "yarn npm audit --severity moderate"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^9.2.0",
+    "@google-cloud/functions-framework": "^5.0.5",
+    "dotenv": "^18.0.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.13.6",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.5.2",
+    "prettier": "^3.9.9",
+    "ts-jest": "^29.4.13",
+    "tsc-alias": "^1.9.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1"
+  },
+  "author": "Sir Meowsalots",
+  "license": "ISC"
+}
