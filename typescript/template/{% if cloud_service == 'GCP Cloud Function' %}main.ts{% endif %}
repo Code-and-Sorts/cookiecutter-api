@@ -3,7 +3,7 @@ import {
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Controller,
 {%- endfor %}
-} from '@config/inversity.config';
+} from '@config/container';
 import {
 {%- for resource in resources %}
   {{ resource.name }},
@@ -19,13 +19,13 @@ const notAllowed = (res: ff.Response) => jsonResponse(res, 405, { error: 'Method
 
 ff.http('api', async (req: ff.Request, res: ff.Response) => {
   const cleanPath = req.path.replace(/\/+$/, '');
-  if (cleanPath.endsWith('/health')) {
-    return jsonResponse(res, 200, { status: 'ok' });
-  }
-
   const segments = cleanPath.split('/').filter(Boolean);
   const endpoint = segments[0];
   const id = segments[1];
+
+  if (endpoint === 'health' && !id) {
+    return jsonResponse(res, 200, { status: 'ok' });
+  }
 
   try {
     switch (endpoint) {
@@ -56,14 +56,14 @@ ff.http('api', async (req: ff.Request, res: ff.Response) => {
           }
           case 'PATCH': {
 {%- if "update" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.update({ id, ...(req.body as {{ resource.name }}) }));
+            return jsonResponse(res, 200, await {{ c }}Controller.update({ ...(req.body as {{ resource.name }}), id }));
 {%- else %}
             return notAllowed(res);
 {%- endif %}
           }
           case 'PUT': {
 {%- if "replace" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.replace({ id, ...(req.body as {{ resource.name }}) }));
+            return jsonResponse(res, 200, await {{ c }}Controller.replace({ ...(req.body as {{ resource.name }}), id }));
 {%- else %}
             return notAllowed(res);
 {%- endif %}

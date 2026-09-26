@@ -3,7 +3,7 @@ import {
 {%- for resource in resources %}
     {{ resource.name | to_lower_camel }}Controller,
 {%- endfor %}
-} from '@config/inversity.config';
+} from '@config/container';
 import {
 {%- for resource in resources %}
     {{ resource.name }},
@@ -88,7 +88,7 @@ app.http('update{{ resource.name }}', {
         context.log(`Update {{ resource.endpoint }}: '${request.url}'`);
         try {
             const item = await request.json() as {{ resource.name }};
-            const result = await {{ c }}Controller.update({ id: request.params.id, ...item });
+            const result = await {{ c }}Controller.update({ ...item, id: request.params.id });
             return jsonResponse(200, result);
         } catch (error) {
             return detectError(error);
@@ -106,7 +106,7 @@ app.http('replace{{ resource.name }}', {
         context.log(`Replace {{ resource.endpoint }}: '${request.url}'`);
         try {
             const item = await request.json() as {{ resource.name }};
-            const result = await {{ c }}Controller.replace({ id: request.params.id, ...item });
+            const result = await {{ c }}Controller.replace({ ...item, id: request.params.id });
             return jsonResponse(200, result);
         } catch (error) {
             return detectError(error);

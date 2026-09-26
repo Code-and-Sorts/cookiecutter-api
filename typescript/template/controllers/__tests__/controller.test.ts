@@ -29,7 +29,6 @@ import {
 } from '@models';
 import { SchemaValidator } from '@services';
 import { ValidationError } from '@errors';
-import { injectable } from 'inversify';
 {% for resource in resources %}
 {%- set r = resource.name %}
 describe('{{ r }}Controller', () => {
@@ -40,7 +39,6 @@ describe('{{ r }}Controller', () => {
     const mockReplace = jest.fn();
     const mockDelete = jest.fn();
 
-    @injectable()
     class Mock{{ r }}Service {
         get = mockGet;
         list = mockList;
@@ -149,6 +147,11 @@ describe('{{ r }}Controller', () => {
             expect(mockUpdate).toHaveBeenCalledTimes(1);
         });
 
+        it('should throw validation error when the id is missing', async () => {
+            await expect(mockController.update({ name: 'mock{{ r }}' })).rejects.toThrow('Missing item id.');
+            expect(mockUpdate).not.toHaveBeenCalled();
+        });
+
         it('should successfully validate a valid ID', async () => {
             const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPutRequest);
             await mockController.update(mockPutRequest);
@@ -175,6 +178,11 @@ describe('{{ r }}Controller', () => {
         it('should successfully call service', async () => {
             await mockController.replace(mockPutRequest);
             expect(mockReplace).toHaveBeenCalledTimes(1);
+        });
+
+        it('should throw validation error when the id is missing', async () => {
+            await expect(mockController.replace({ name: 'mock{{ r }}' })).rejects.toThrow('Missing item id.');
+            expect(mockReplace).not.toHaveBeenCalled();
         });
 
         it('should successfully validate the request', async () => {

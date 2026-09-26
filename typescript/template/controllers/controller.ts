@@ -1,5 +1,3 @@
-import { inject, injectable } from 'inversify';
-import 'reflect-metadata';
 import {
 {%- for resource in resources %}
     {{ resource.name }}Service,
@@ -29,15 +27,11 @@ const coerceLimit = (raw?: string | number): number => {
 };
 {% for resource in resources %}
 {%- set r = resource.name %}
-@injectable()
 export class {{ r }}Controller {
   private _service: {{ r }}Service;
   private _validator: SchemaValidator;
 
-  constructor(
-    @inject({{ r }}Service) service: {{ r }}Service,
-    @inject(SchemaValidator) validator: SchemaValidator
-  ) {
+  constructor(service: {{ r }}Service, validator: SchemaValidator) {
     this._service = service;
     this._validator = validator;
   }
@@ -64,7 +58,7 @@ export class {{ r }}Controller {
 
   update = async (itemRequest: Partial<{{ r }}Update>): Promise<{{ r }}> => {
     if (!itemRequest.id) {
-      new ValidationError('Missing item id.')
+      throw new ValidationError('Missing item id.');
     }
     this._validator.validate(itemRequest.id, GuidSchema);
     const item = this._validator.validate(itemRequest, {{ r }}UpdateSchema);
@@ -75,7 +69,7 @@ export class {{ r }}Controller {
 
   replace = async (itemRequest: Partial<{{ r }}Update>): Promise<{{ r }}> => {
     if (!itemRequest.id) {
-      new ValidationError('Missing item id.')
+      throw new ValidationError('Missing item id.');
     }
     this._validator.validate(itemRequest.id, GuidSchema);
     const item = this._validator.validate(itemRequest, {{ r }}UpdateSchema);

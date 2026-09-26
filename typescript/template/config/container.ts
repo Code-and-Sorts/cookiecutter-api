@@ -1,4 +1,3 @@
-import "reflect-metadata";
 {% if cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from '@azure/cosmos';
 {%- endif %}

@@ -10,7 +10,6 @@ process.env.FIRESTORE_DATABASE = '(default)';
 process.env.AWS_REGION = 'us-east-1';
 {%- endif %}
 
-import { injectable } from 'inversify';
 import {
 {%- for resource in resources %}
     {{ resource.name }}Service,
@@ -26,6 +25,7 @@ import {
     {{ resource.name }}EntitySchema,
 {%- endfor %}
 } from '@models';
+import { NotFoundError } from '@errors';
 {% for resource in resources %}
 {%- set r = resource.name %}
 describe('{{ r }}Service', () => {
@@ -36,7 +36,6 @@ describe('{{ r }}Service', () => {
     const mockReplace = jest.fn();
     const mockDelete = jest.fn();
 
-    @injectable()
     class Mock{{ r }}Repository {
         get = mockGet;
         list = mockList;
@@ -47,6 +46,7 @@ describe('{{ r }}Service', () => {
     }
 
     beforeEach(() => {
+        jest.restoreAllMocks();
         jest.resetAllMocks();
     });
 
@@ -150,12 +150,35 @@ describe('{{ r }}Service', () => {
 
     describe('replace', () => {
         it('should successfully call repository', async () => {
+            mockGet.mockResolvedValue(mockRepositoryResponse[0]);
             const repository = jest.spyOn(mockRepository, 'replace').mockReturnValue(Promise.resolve(mockRepositoryUpdateResponse));
-            jest.spyOn({{ r }}EntitySchema, 'parse').mockReturnValue(mockRepositoryUpdateResponse);
             const result = await mockService.replace(mockUpdateRequest);
+            expect(mockGet).toHaveBeenCalledWith(mockId);
             expect(mockReplace).toHaveBeenCalledTimes(1);
             expect(result).toEqual(mockUpdateResponse);
             expect(repository).toHaveBeenCalledTimes(1);
+        });
+
+        it('should preserve createdBy and createdTimestamp and refresh updatedTimestamp', async () => {
+            mockGet.mockResolvedValue(mockRepositoryResponse[0]);
+            mockReplace.mockImplementation(async (entity) => entity);
+            await mockService.replace(mockUpdateRequest);
+            const written = mockReplace.mock.calls[0][0];
+            expect(written).toEqual(expect.objectContaining({
+                id: mockId,
+                name: 'mock{{ r }}1-updated',
+                isDeleted: false,
+                createdBy: 'mockUser',
+                createdTimestamp: '2024-03-24T00:00:00.000Z',
+            }));
+            expect(written.updatedBy).toBeUndefined();
+            expect(Date.parse(written.updatedTimestamp)).toBeGreaterThan(Date.parse('2024-03-24T00:00:00.000Z'));
+        });
+
+        it('should not write when the record is missing or soft-deleted', async () => {
+            mockGet.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
+            await expect(mockService.replace(mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
+            expect(mockReplace).not.toHaveBeenCalled();
         });
     });
 {%- endif %}

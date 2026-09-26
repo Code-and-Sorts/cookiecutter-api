@@ -11,6 +11,9 @@
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
   "main": "dist/lambda.js",
+  "files": [
+    "dist"
+  ],
 {%- endif %}
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
@@ -42,8 +45,6 @@
     "@aws-sdk/lib-dynamodb": "^3.700.0",
 {%- endif %}
     "dotenv": "^17.0.0",
-    "inversify": "^6.1.4",
-    "reflect-metadata": "^0.2.2",
     "uuid": "^11.0.3",
     "zod": "^3.23.8"
   },

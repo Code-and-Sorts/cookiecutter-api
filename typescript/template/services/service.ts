@@ -1,4 +1,3 @@
-import { inject, injectable } from 'inversify';
 import {
 {%- for resource in resources %}
     {{ resource.name }}Repository,
@@ -10,15 +9,15 @@ import {
     {{ resource.name }}Response,
     {{ resource.name }}ResponseSchema,
     {{ resource.name }}EntitySchema,
+    {{ resource.name }}Update,
 {%- endfor %}
 } from '@models';
 {% for resource in resources %}
 {%- set r = resource.name %}
-@injectable()
 export class {{ r }}Service {
   private _repo: {{ r }}Repository;
 
-  constructor(@inject({{ r }}Repository) repo: {{ r }}Repository) {
+  constructor(repo: {{ r }}Repository) {
     this._repo = repo;
   }
 {%- if "create" in resource.operations %}
@@ -52,8 +51,16 @@ export class {{ r }}Service {
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
-  replace = async (item: Partial<{{ r }}Response>): Promise<{{ r }}Response> => {
-    const entity = {{ r }}EntitySchema.parse(item);
+  replace = async (item: {{ r }}Update): Promise<{{ r }}Response> => {
+    const existing = await this._repo.get(item.id);
+    const entity = {{ r }}EntitySchema.parse({
+      ...item,
+      id: existing.id,
+      isDeleted: false,
+      createdTimestamp: existing.createdTimestamp,
+      createdBy: existing.createdBy,
+      updatedTimestamp: new Date().toISOString(),
+    });
     const replacedItem = await this._repo.replace(entity);
     return {{ r }}ResponseSchema.parse(replacedItem);
   };

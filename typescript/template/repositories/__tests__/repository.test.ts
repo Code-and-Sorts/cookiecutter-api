@@ -1,4 +1,3 @@
-import "reflect-metadata";
 {% if cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from "@azure/cosmos";
 {%- endif %}
@@ -13,11 +12,9 @@ import {
     {{ resource.name }}Repository,
 {%- endfor %}
 } from "@repositories";
-import { injectable } from "inversify";
 
 let mockResult;
 {% if cloud_service == 'Azure Function App' %}
-@injectable()
 class MockCosmosClient {
     public database = jest.fn().mockImplementation(() => ({
         container: jest.fn(() => mockResult),
@@ -25,13 +22,11 @@ class MockCosmosClient {
 }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-@injectable()
 class MockFirestore {
     public collection = jest.fn().mockImplementation(() => mockResult);
 }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-@injectable()
 class MockDynamoDBDocumentClient {
     public send = jest.fn().mockImplementation(() => mockResult);
 }

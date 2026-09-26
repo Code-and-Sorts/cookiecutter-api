@@ -3,7 +3,7 @@ import {
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Controller,
 {%- endfor %}
-} from '@config/inversity.config';
+} from '@config/container';
 import {
 {%- for resource in resources %}
   {{ resource.name }},
@@ -47,7 +47,7 @@ const handle{{ resource.name }} = async (event: APIGatewayProxyEvent, id?: strin
     case 'PATCH': {
 {%- if "update" in resource.operations %}
       const item: {{ resource.name }} = JSON.parse(event.body || '{}');
-      return jsonResponse(200, await {{ c }}Controller.update({ id, ...item }));
+      return jsonResponse(200, await {{ c }}Controller.update({ ...item, id }));
 {%- else %}
       return notAllowed();
 {%- endif %}
@@ -55,7 +55,7 @@ const handle{{ resource.name }} = async (event: APIGatewayProxyEvent, id?: strin
     case 'PUT': {
 {%- if "replace" in resource.operations %}
       const item: {{ resource.name }} = JSON.parse(event.body || '{}');
-      return jsonResponse(200, await {{ c }}Controller.replace({ id, ...item }));
+      return jsonResponse(200, await {{ c }}Controller.replace({ ...item, id }));
 {%- else %}
       return notAllowed();
 {%- endif %}
@@ -78,12 +78,13 @@ const handle{{ resource.name }} = async (event: APIGatewayProxyEvent, id?: strin
 {% endfor %}
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const routePath = (event.resource || event.path || '').replace(/\/+$/, '');
-  if (event.httpMethod === 'GET' && routePath.endsWith('/health')) {
+  const segments = routePath.split('/').filter(Boolean);
+  const endpoint = segments[0];
+  const id = event.pathParameters?.id;
+
+  if (event.httpMethod === 'GET' && endpoint === 'health' && segments.length === 1) {
     return jsonResponse(200, { status: 'ok' });
   }
-
-  const endpoint = routePath.split('/').filter(Boolean)[0];
-  const id = event.pathParameters?.id;
 
   try {
     switch (endpoint) {

@@ -1,4 +1,3 @@
-import 'reflect-metadata';
 import { BaseRepository } from '@repositories';
 {% if cloud_service == 'Azure Function App' -%}
 import { Container } from '@azure/cosmos';

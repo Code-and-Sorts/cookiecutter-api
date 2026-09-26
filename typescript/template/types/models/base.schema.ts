@@ -8,8 +8,8 @@ export const BaseIdentifier = z.object({
 export const BaseSchema = BaseIdentifier.merge(
     z.object({
         isDeleted: z.boolean().default(false),
-        createdTimestamp: z.string().default(new Date().toISOString()),
-        updatedTimestamp: z.string().default(new Date().toISOString()),
+        createdTimestamp: z.string().default(() => new Date().toISOString()),
+        updatedTimestamp: z.string().default(() => new Date().toISOString()),
         createdBy: z.string().optional(),
         updatedBy: z.string().optional(),
     }),
