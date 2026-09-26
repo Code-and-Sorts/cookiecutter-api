@@ -139,7 +139,7 @@ Resources that use the same container share its records: there is no type discri
 
 ## Prerequisites
 
-- Dotnet 8.x
+- Dotnet 10.x
 {%- if cloud_service == 'Azure Function App' %}
 
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
@@ -233,7 +233,7 @@ Resources that use the same container share its records: there is no type discri
 5. Deploy
 
     ```console
-    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet8 --trigger-http --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
+    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
     ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}

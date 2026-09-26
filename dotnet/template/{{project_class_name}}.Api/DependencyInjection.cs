@@ -85,7 +85,7 @@ public static class DependencyInjection
 {%- if cloud_service == 'AWS Lambda' %}
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
-        services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
+        services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient());
 {%- for resource in resources %}
 {%- set r = resource.name %}
 

@@ -5,12 +5,16 @@ namespace {{project_class_name}}.Api.Tests.Unit;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.DynamoDBv2;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
+using {{project_class_name}}.Api;
 using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Functions;
 using {{project_class_name}}.Api.Interfaces;
@@ -35,6 +39,41 @@ public class HealthFunctionTest
 
         Assert.Equal(200, response.StatusCode);
         Assert.Contains("ok", response.Body);
+    }
+}
+
+public class LambdaDeploymentTest
+{
+    [Fact]
+    public void TemplateHandlers_PointAtGeneratedLambdaHandlers()
+    {
+        var handlers = File.ReadLines("template.yaml")
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("Handler: "))
+            .Select(line => line["Handler: ".Length..].Split("::"))
+            .ToList();
+
+        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + 1 }}, handlers.Count);
+        foreach (var handler in handlers)
+        {
+            Assert.Equal(typeof(ItemFunctions).Assembly.GetName().Name, handler[0]);
+            var handlerType = typeof(ItemFunctions).Assembly.GetType(handler[1]);
+            Assert.NotNull(handlerType);
+            Assert.NotNull(handlerType.GetConstructor(Type.EmptyTypes));
+            Assert.NotNull(handlerType.GetMethod(handler[2]));
+        }
+    }
+
+    [Fact]
+    public void Startup_ResolvesItemFunctions()
+    {
+        var services = new ServiceCollection();
+        new Startup().ConfigureServices(services);
+        services.AddSingleton(Substitute.For<IAmazonDynamoDB>());
+        services.AddSingleton<ItemFunctions>();
+        using var provider = services.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetRequiredService<ItemFunctions>());
     }
 }
 {% for resource in resources %}

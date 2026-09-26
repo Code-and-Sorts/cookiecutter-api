@@ -1,13 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: {{project_description}}
-
 Globals:
   Function:
     Timeout: 30
-    Runtime: dotnet8
+    Runtime: dotnet10
     MemorySize: 256
-
 Resources:
 {%- for resource in resources %}
 {%- set cn = resource.name %}
@@ -17,7 +15,7 @@ Resources:
   Get{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Get{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Get{{ cn }}_Generated::Get{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -36,7 +34,7 @@ Resources:
   Get{{ cn }}ListFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Get{{ cn }}List
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Get{{ cn }}List_Generated::Get{{ cn }}List
       CodeUri: ./
       Environment:
         Variables:
@@ -55,7 +53,7 @@ Resources:
   Create{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Create{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Create{{ cn }}_Generated::Create{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -74,7 +72,7 @@ Resources:
   Update{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Update{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Update{{ cn }}_Generated::Update{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -93,7 +91,7 @@ Resources:
   Replace{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Replace{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Replace{{ cn }}_Generated::Replace{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -112,7 +110,7 @@ Resources:
   Delete{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Delete{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Delete{{ cn }}_Generated::Delete{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -128,11 +126,10 @@ Resources:
             Method: DELETE
 {%- endif %}
 {%- endfor %}
-
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions::Health
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Health_Generated::Health
       CodeUri: ./
       Events:
         Health:
@@ -140,7 +137,7 @@ Resources:
           Properties:
             Path: /api/health
             Method: GET
-{% for container in resources | map(attribute='container') | unique %}
+{%- for container in resources | map(attribute='container') | unique %}
   {{ container | to_camel }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -152,7 +149,7 @@ Resources:
         - AttributeName: id
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
-{% endfor %}
+{%- endfor %}
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL

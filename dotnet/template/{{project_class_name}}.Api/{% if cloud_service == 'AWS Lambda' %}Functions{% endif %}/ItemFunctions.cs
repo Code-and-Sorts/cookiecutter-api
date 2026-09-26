@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Amazon.Lambda.Annotations;
 using Amazon.Lambda.APIGatewayEvents;
 using Microsoft.Extensions.Logging;
 using {{project_class_name}}.Api.Interfaces;
@@ -33,10 +34,12 @@ public class ItemFunctions(
 
     private static Stream BodyStream(APIGatewayProxyRequest request) => new MemoryStream(Encoding.UTF8.GetBytes(request.Body ?? string.Empty));
 
+    [LambdaFunction(ResourceName = "HealthFunction")]
     public APIGatewayProxyResponse Health(APIGatewayProxyRequest request) => ResponseHelper.Ok(new { status = "ok" });
 {% for resource in resources %}
 {%- if "get_by_id" in resource.operations %}
 
+    [LambdaFunction(ResourceName = "Get{{ resource.name }}Function")]
     public async Task<APIGatewayProxyResponse> Get{{ resource.name }}(APIGatewayProxyRequest request)
     {
         try
@@ -53,6 +56,7 @@ public class ItemFunctions(
 {%- endif %}
 {%- if "list" in resource.operations %}
 
+    [LambdaFunction(ResourceName = "Get{{ resource.name }}ListFunction")]
     public async Task<APIGatewayProxyResponse> Get{{ resource.name }}List(APIGatewayProxyRequest request)
     {
         try
@@ -68,6 +72,7 @@ public class ItemFunctions(
 {%- endif %}
 {%- if "create" in resource.operations %}
 
+    [LambdaFunction(ResourceName = "Create{{ resource.name }}Function")]
     public async Task<APIGatewayProxyResponse> Create{{ resource.name }}(APIGatewayProxyRequest request)
     {
         try
@@ -83,6 +88,7 @@ public class ItemFunctions(
 {%- endif %}
 {%- if "update" in resource.operations %}
 
+    [LambdaFunction(ResourceName = "Update{{ resource.name }}Function")]
     public async Task<APIGatewayProxyResponse> Update{{ resource.name }}(APIGatewayProxyRequest request)
     {
         try
@@ -99,6 +105,7 @@ public class ItemFunctions(
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
+    [LambdaFunction(ResourceName = "Replace{{ resource.name }}Function")]
     public async Task<APIGatewayProxyResponse> Replace{{ resource.name }}(APIGatewayProxyRequest request)
     {
         try
@@ -115,6 +122,7 @@ public class ItemFunctions(
 {%- endif %}
 {%- if "delete" in resource.operations %}
 
+    [LambdaFunction(ResourceName = "Delete{{ resource.name }}Function")]
     public async Task<APIGatewayProxyResponse> Delete{{ resource.name }}(APIGatewayProxyRequest request)
     {
         try

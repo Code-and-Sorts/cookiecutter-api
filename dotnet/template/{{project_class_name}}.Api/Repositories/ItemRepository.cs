@@ -285,7 +285,7 @@ public class {{ r }}Repository : I{{ r }}Repository
         {
             Id = item.TryGetValue("id", out var id) ? id.S : string.Empty,
             Name = item.TryGetValue("name", out var name) ? name.S : string.Empty,
-            IsDeleted = item.TryGetValue("isDeleted", out var isDeleted) && isDeleted.BOOL,
+            IsDeleted = item.TryGetValue("isDeleted", out var isDeleted) && isDeleted.BOOL == true,
             CreatedTimestamp = item.TryGetValue("createdTimestamp", out var ct) ? DateTime.Parse(ct.S) : DateTime.UtcNow,
             UpdatedTimestamp = item.TryGetValue("updatedTimestamp", out var ut) ? DateTime.Parse(ut.S) : DateTime.UtcNow,
             CreatedBy = item.TryGetValue("createdBy", out var cb) ? cb.S : string.Empty,
@@ -350,8 +350,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             };
 
             var response = await _dynamoClient.ScanAsync(request, ct);
-            results.AddRange(response.Items.Select(FromAttributeMap));
-            lastEvaluatedKey = response.LastEvaluatedKey.Count > 0 ? response.LastEvaluatedKey : null;
+            results.AddRange((response.Items ?? []).Select(FromAttributeMap));
+            lastEvaluatedKey = response.LastEvaluatedKey is { Count: > 0 } ? response.LastEvaluatedKey : null;
         } while (lastEvaluatedKey != null && results.Count < DefaultListLimit);
 
         return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto

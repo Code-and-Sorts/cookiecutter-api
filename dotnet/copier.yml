@@ -96,9 +96,9 @@ resources:
       "Buffer", "CancellationToken", "Console", "Convert", "DateTime", "Delegate", "Enum",
       "Enumerable", "Environment", "Exception", "GC", "Guid", "Half", "Index", "Int128",
       "Interlocked", "KeyValuePair", "Lock", "Math", "Monitor", "Mutex", "Nullable", "Object",
-      "Parallel", "Queryable", "Random", "Range", "Semaphore", "String", "Substitute", "Task",
-      "Thread", "TimeProvider", "Timeout", "Timer", "Tuple", "Type", "Uri", "ValueTask",
-      "Version", "Volatile"] -%}
+      "Parallel", "Queryable", "Random", "Range", "Record", "Semaphore", "String", "Substitute",
+      "Task", "TestContext", "Thread", "TimeProvider", "Timeout", "Timer", "Tuple", "Type", "Uri",
+      "ValueTask", "Version", "Volatile"] -%}
     {%- if cloud_service == "Azure Function App" -%}
     {%- set reserved_names = reserved_names + ["Container", "Database", "PartitionKey", "User"] -%}
     {%- elif cloud_service == "GCP Cloud Function" -%}
@@ -107,6 +107,8 @@ resources:
     {%- set ns = namespace(err="", eps=[], names=[], containers=[]) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
+    {%- elif cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 59 > 127 -%}
+    {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the health handler string would exceed the 127-character limit." -%}
     {%- else -%}
     {%- for r in resources -%}
     {%- if not ns.err -%}
@@ -138,6 +140,12 @@ resources:
     {%- set container = r.container | string -%}
     {%- for other in ns.containers if other != container and ((other | upper | replace('-', '_')) == (container | upper | replace('-', '_')) or (other | to_camel) == (container | to_camel)) -%}
     {%- set ns.err = "Containers '" ~ other ~ "' and '" ~ container ~ "' map to the same setting and resource names; use the same id to share storage or clearly different ids." -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- if not ns.err and cloud_service == "AWS Lambda" -%}
+    {%- set method_prefix_length = {"list": 7, "get_by_id": 3, "create": 6, "update": 6, "replace": 7, "delete": 6} -%}
+    {%- for op in r.operations if 2 * (project_class_name | length) + 47 + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is too long for project '" ~ project_class_name ~ "': its AWS Lambda handler strings would exceed the 127-character limit. Shorten the resource or project name." -%}
     {%- endfor -%}
     {%- endif -%}
     {%- set ns.eps = ns.eps + [r.endpoint] -%}

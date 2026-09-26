@@ -37,7 +37,7 @@ public class {{ r }}ServiceTest
         _{{ r | to_lower_camel }}RepositoryMock.GetAsync(itemId, Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.GetAsync(itemId);
+        var result = await _{{ r | to_lower_camel }}Service.GetAsync(itemId, TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -55,7 +55,7 @@ public class {{ r }}ServiceTest
         _{{ r | to_lower_camel }}RepositoryMock.GetListAsync(Arg.Any<CancellationToken>())
             .Returns(expectedItemList);
 
-        var result = await _{{ r | to_lower_camel }}Service.GetListAsync();
+        var result = await _{{ r | to_lower_camel }}Service.GetListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItemList, result);
     }
@@ -71,7 +71,7 @@ public class {{ r }}ServiceTest
         _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest);
+        var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest, TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -87,7 +87,7 @@ public class {{ r }}ServiceTest
         _{{ r | to_lower_camel }}RepositoryMock.UpdateAsync(Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.UpdateAsync(updateRequest);
+        var result = await _{{ r | to_lower_camel }}Service.UpdateAsync(updateRequest, TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -103,7 +103,7 @@ public class {{ r }}ServiceTest
         _{{ r | to_lower_camel }}RepositoryMock.ReplaceAsync(Arg.Any<{{ r }}>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.ReplaceAsync(replaceRequest);
+        var result = await _{{ r | to_lower_camel }}Service.ReplaceAsync(replaceRequest, TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -117,7 +117,7 @@ public class {{ r }}ServiceTest
         _{{ r | to_lower_camel }}RepositoryMock.DeleteAsync(itemId, Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
-        await _{{ r | to_lower_camel }}Service.DeleteAsync(itemId);
+        await _{{ r | to_lower_camel }}Service.DeleteAsync(itemId, TestContext.Current.CancellationToken);
 
         await _{{ r | to_lower_camel }}RepositoryMock.Received(1).DeleteAsync(itemId, Arg.Any<CancellationToken>());
     }

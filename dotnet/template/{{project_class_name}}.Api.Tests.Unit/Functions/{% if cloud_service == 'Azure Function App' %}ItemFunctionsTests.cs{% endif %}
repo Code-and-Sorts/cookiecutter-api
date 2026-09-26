@@ -32,7 +32,7 @@ public class HealthFunctionTest
 {%- endfor %}
             Substitute.For<ILogger<ItemFunctions>>());
 
-        var result = await functions.Health(Mocks.CreateHttpRequestData());
+        var result = await functions.Health(Mocks.CreateHttpRequestData(), TestContext.Current.CancellationToken);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, okResult.StatusCode);
@@ -67,7 +67,7 @@ public class {{ r }}FunctionsTest
         var dto = new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" };
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(dto);
 
-        var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId);
+        var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId, TestContext.Current.CancellationToken);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, okResult.StatusCode);
@@ -79,7 +79,7 @@ public class {{ r }}FunctionsTest
     {
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId);
+        var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId, TestContext.Current.CancellationToken);
 
         var errorResult = Assert.IsType<HttpResponseInit>(result);
         var error = Assert.IsType<BaseError>(errorResult.Value);
@@ -99,7 +99,7 @@ public class {{ r }}FunctionsTest
         };
         _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>()).Returns(dtos);
 
-        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"));
+        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, okResult.StatusCode);
@@ -111,7 +111,7 @@ public class {{ r }}FunctionsTest
     {
         _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"));
+        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
 
         var errorResult = Assert.IsType<HttpResponseInit>(result);
         var error = Assert.IsType<BaseError>(errorResult.Value);
@@ -128,7 +128,7 @@ public class {{ r }}FunctionsTest
         var dto = new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" };
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
 
-        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"));
+        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"), TestContext.Current.CancellationToken);
 
         var createdResult = Assert.IsType<CreatedResult>(result);
         var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(JsonConvert.SerializeObject(createdResult.Value));
@@ -144,7 +144,7 @@ public class {{ r }}FunctionsTest
         var request = new Create{{ r }}Request { Name = "mock{{ r }}" };
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"));
+        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"), TestContext.Current.CancellationToken);
 
         var errorResult = Assert.IsType<HttpResponseInit>(result);
         var error = Assert.IsType<BaseError>(errorResult.Value);
@@ -161,7 +161,7 @@ public class {{ r }}FunctionsTest
         var dto = new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" };
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
 
-        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId);
+        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, okResult.StatusCode);
@@ -174,7 +174,7 @@ public class {{ r }}FunctionsTest
         var request = new Update{{ r }}Request { Name = "mockUpdated{{ r }}" };
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId);
+        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
         var errorResult = Assert.IsType<HttpResponseInit>(result);
         var error = Assert.IsType<BaseError>(errorResult.Value);
@@ -191,7 +191,7 @@ public class {{ r }}FunctionsTest
         var dto = new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" };
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
 
-        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId);
+        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(200, okResult.StatusCode);
@@ -204,7 +204,7 @@ public class {{ r }}FunctionsTest
         var request = new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" };
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId);
+        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
         var errorResult = Assert.IsType<HttpResponseInit>(result);
         var error = Assert.IsType<BaseError>(errorResult.Value);
@@ -219,7 +219,7 @@ public class {{ r }}FunctionsTest
     {
         _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId);
+        var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         var message = Assert.IsType<DeleteOkObjectResult>(okResult.Value);
@@ -232,7 +232,7 @@ public class {{ r }}FunctionsTest
     {
         _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId);
+        var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
 
         var errorResult = Assert.IsType<HttpResponseInit>(result);
         var error = Assert.IsType<BaseError>(errorResult.Value);

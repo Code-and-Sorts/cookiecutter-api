@@ -49,7 +49,7 @@ public class {{ r }}ControllerTest
         var expectedItem = new {{ r }}Dto { Id = id };
         _mock{{ r }}Service.GetAsync(id, Arg.Any<CancellationToken>()).Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Controller.GetAsync(id);
+        var result = await _{{ r | to_lower_camel }}Controller.GetAsync(id, TestContext.Current.CancellationToken);
 
         await _mock{{ r }}Service.Received(1).GetAsync(id, Arg.Any<CancellationToken>());
     }
@@ -62,7 +62,7 @@ public class {{ r }}ControllerTest
         var expectedItemList = new List<{{ r }}Dto> { new {{ r }}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" }, new {{ r }}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0" } };
         _mock{{ r }}Service.GetListAsync(Arg.Any<CancellationToken>()).Returns(expectedItemList);
 
-        await _{{ r | to_lower_camel }}Controller.GetListAsync();
+        await _{{ r | to_lower_camel }}Controller.GetListAsync(TestContext.Current.CancellationToken);
 
         await _mock{{ r }}Service.Received(1).GetListAsync(Arg.Any<CancellationToken>());
     }
@@ -81,7 +81,7 @@ public class {{ r }}ControllerTest
 
         var stream = CreateMemoryStream(createRequest);
 
-        var result = await _{{ r | to_lower_camel }}Controller.CreateAsync(stream);
+        var result = await _{{ r | to_lower_camel }}Controller.CreateAsync(stream, TestContext.Current.CancellationToken);
 
         await _mock{{ r }}Service.Received(1).CreateAsync(
             Arg.Is<Create{{ r }}Request>(req => req.Name == createRequest.Name), Arg.Any<CancellationToken>());
@@ -102,7 +102,7 @@ public class {{ r }}ControllerTest
             .Returns(expectedItem);
 
         var stream = CreateMemoryStream(updateRequest);
-        var result = await _{{ r | to_lower_camel }}Controller.UpdateAsync(itemId, stream);
+        var result = await _{{ r | to_lower_camel }}Controller.UpdateAsync(itemId, stream, TestContext.Current.CancellationToken);
 
         await _mock{{ r }}Service.Received(1).UpdateAsync(
             Arg.Is<Update{{ r }}Request>(req => req.Name == updateRequest.Name), Arg.Any<CancellationToken>());
@@ -123,7 +123,7 @@ public class {{ r }}ControllerTest
             .Returns(expectedItem);
 
         var stream = CreateMemoryStream(replaceRequest);
-        var result = await _{{ r | to_lower_camel }}Controller.ReplaceAsync(itemId, stream);
+        var result = await _{{ r | to_lower_camel }}Controller.ReplaceAsync(itemId, stream, TestContext.Current.CancellationToken);
 
         await _mock{{ r }}Service.Received(1).ReplaceAsync(
             Arg.Is<Replace{{ r }}Request>(req => req.Name == replaceRequest.Name), Arg.Any<CancellationToken>());
@@ -138,7 +138,7 @@ public class {{ r }}ControllerTest
         var id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
         _mock{{ r }}Service.DeleteAsync(id, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await _{{ r | to_lower_camel }}Controller.DeleteAsync(id);
+        await _{{ r | to_lower_camel }}Controller.DeleteAsync(id, TestContext.Current.CancellationToken);
 
         await _mock{{ r }}Service.Received(1).DeleteAsync(id, Arg.Any<CancellationToken>());
     }

@@ -41,7 +41,7 @@ public class {{ r }}RepositoryTest
         _mockContainer.ReadItemAsync<{{ r }}>(Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(response);
 
-        var result = await _repository.GetAsync("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", CancellationToken.None);
+        var result = await _repository.GetAsync("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -66,7 +66,7 @@ public class {{ r }}RepositoryTest
         _mockContainer.GetItemQueryIterator<{{ r }}>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100")
             .Returns(feedIterator);
 
-        var result = await _repository.GetListAsync(CancellationToken.None);
+        var result = await _repository.GetListAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Count());
@@ -83,7 +83,7 @@ public class {{ r }}RepositoryTest
         _mockContainer.CreateItemAsync(Arg.Any<{{ r }}>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(response);
 
-        var result = await _repository.CreateAsync(item, CancellationToken.None);
+        var result = await _repository.CreateAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -104,7 +104,7 @@ public class {{ r }}RepositoryTest
         _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(replaceResponse);
 
-        var result = await _repository.UpdateAsync(item, CancellationToken.None);
+        var result = await _repository.UpdateAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -125,7 +125,7 @@ public class {{ r }}RepositoryTest
         _mockContainer.ReplaceItemAsync(Arg.Any<{{ r }}>(), Arg.Any<string>(), Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
                         .Returns(replaceResponse);
 
-        var result = await _repository.ReplaceAsync(item, CancellationToken.None);
+        var result = await _repository.ReplaceAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -153,7 +153,7 @@ public class {{ r }}RepositoryTest
             Arg.Any<CancellationToken>())
             .Returns(mockResponse);
 
-        await _repository.DeleteAsync(id, CancellationToken.None);
+        await _repository.DeleteAsync(id, TestContext.Current.CancellationToken);
 
         await _mockContainer.Received(1).ReplaceItemAsync(
             Arg.Is<{{ r }}>(k => k.IsDeleted == true),
@@ -180,7 +180,7 @@ public class {{ r }}RepositoryTest
         var item = new {{ r }} { Id = id, Name = "mock{{ r }}" };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(item);
 
-        var result = await _repository.GetAsync(id, CancellationToken.None);
+        var result = await _repository.GetAsync(id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
@@ -193,7 +193,7 @@ public class {{ r }}RepositoryTest
         var id = "non-existent-id";
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(({{ r }}?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync(id, CancellationToken.None));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync(id, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public class {{ r }}RepositoryTest
         };
         _mockContext.GetListAsync("isDeleted", false, Arg.Any<CancellationToken>()).Returns(itemList);
 
-        var result = await _repository.GetListAsync(CancellationToken.None);
+        var result = await _repository.GetListAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Count());
@@ -219,7 +219,7 @@ public class {{ r }}RepositoryTest
     {
         var item = new {{ r }} { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}" };
 
-        var result = await _repository.CreateAsync(item, CancellationToken.None);
+        var result = await _repository.CreateAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -235,7 +235,7 @@ public class {{ r }}RepositoryTest
         var currentItem = new {{ r }} { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(currentItem);
 
-        var result = await _repository.UpdateAsync(item, CancellationToken.None);
+        var result = await _repository.UpdateAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
@@ -251,7 +251,7 @@ public class {{ r }}RepositoryTest
         var currentItem = new {{ r }} { Id = id, Name = "mock{{ r }}Old", CreatedBy = "User2", CreatedTimestamp = DateTime.UtcNow };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(currentItem);
 
-        var result = await _repository.ReplaceAsync(item, CancellationToken.None);
+        var result = await _repository.ReplaceAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
@@ -266,7 +266,7 @@ public class {{ r }}RepositoryTest
         var existingItem = new {{ r }} { Id = id, Name = "mock{{ r }}", IsDeleted = false };
         _mockContext.GetAsync(id, Arg.Any<CancellationToken>()).Returns(existingItem);
 
-        await _repository.DeleteAsync(id, CancellationToken.None);
+        await _repository.DeleteAsync(id, TestContext.Current.CancellationToken);
 
         await _mockContext.Received(1).SetAsync(
             id,
@@ -324,7 +324,7 @@ public class {{ r }}RepositoryTest
         _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(response);
 
-        var result = await _repository.GetAsync(id, CancellationToken.None);
+        var result = await _repository.GetAsync(id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
@@ -358,18 +358,37 @@ public class {{ r }}RepositoryTest
                     { "createdBy", new AttributeValue { S = "testUser" } },
                     { "updatedBy", new AttributeValue { S = "testUser" } },
                 }
-            },
-            LastEvaluatedKey = new Dictionary<string, AttributeValue>()
+            }
         };
         _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
             .Returns(response);
 
-        var result = await _repository.GetListAsync(CancellationToken.None);
+        var result = await _repository.GetListAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Count());
         Assert.Contains(result, res => res.Id == "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c" && res.Name == "mock{{ r }}1");
         Assert.Contains(result, res => res.Id == "5615ff05-3032-4459-88ad-b6a4c3e51ca0" && res.Name == "mock{{ r }}2");
+    }
+
+    [Fact]
+    public async Task GetListAsync_ShouldReturnEmptyWhenScanReturnsNoItems()
+    {
+        _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanResponse());
+
+        var result = await _repository.GetListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldThrowWhenItemIsMissing()
+    {
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GetItemResponse());
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _repository.GetAsync("non-existent-id", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -379,7 +398,7 @@ public class {{ r }}RepositoryTest
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        var result = await _repository.CreateAsync(item, CancellationToken.None);
+        var result = await _repository.CreateAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -408,7 +427,7 @@ public class {{ r }}RepositoryTest
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        var result = await _repository.UpdateAsync(item, CancellationToken.None);
+        var result = await _repository.UpdateAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -437,7 +456,7 @@ public class {{ r }}RepositoryTest
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        var result = await _repository.ReplaceAsync(item, CancellationToken.None);
+        var result = await _repository.ReplaceAsync(item, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal("0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", result.Id);
@@ -466,7 +485,7 @@ public class {{ r }}RepositoryTest
         _mockDynamoClient.PutItemAsync(Arg.Any<PutItemRequest>(), Arg.Any<CancellationToken>())
             .Returns(new PutItemResponse());
 
-        await _repository.DeleteAsync(id, CancellationToken.None);
+        await _repository.DeleteAsync(id, TestContext.Current.CancellationToken);
 
         await _mockDynamoClient.Received(1).PutItemAsync(
             Arg.Is<PutItemRequest>(req => req.Item["isDeleted"].BOOL == true),
