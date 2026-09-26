@@ -10,6 +10,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
+using Google.Api.Gax;
 using Google.Cloud.Firestore;
 using Microsoft.Extensions.Configuration;
 {%- endif %}
@@ -64,7 +65,7 @@ public static class DependencyInjection
         }
 
         services.AddSingleton(provider =>
-            new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build()
+            new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId, EmulatorDetection = EmulatorDetection.EmulatorOrProduction }.Build()
         );
 {%- for resource in resources %}
 {%- set r = resource.name %}

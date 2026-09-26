@@ -148,7 +148,7 @@ Resources that use the same container share its records: there is no type discri
 
 - [Dotnet](https://dotnet.microsoft.com/en-us/download): Dotnet SDK and CLI
 
-- Azure Account: An active Azure subscription for deploying the Function App.
+- Azure Account: An active Azure subscription for deploying the Function App. On Linux, .NET 10 apps must run on the [Flex Consumption](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan) plan (or Premium/Dedicated); the Linux Consumption plan does not support .NET 10.
 
 - Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
 {%- endif %}
@@ -220,7 +220,7 @@ Resources that use the same container share its records: there is no type discri
     make install
     ```
 
-    To be able to run the project locally, set `GCP_PROJECT_ID` (and the optional variables listed under [Storage containers](#storage-containers)) in your environment.
+    To be able to run the project locally, set `GCP_PROJECT_ID` (and the optional variables listed under [Storage containers](#storage-containers)) in your environment, and either sign in with `gcloud auth application-default login` or point `FIRESTORE_EMULATOR_HOST` at a running [Firestore emulator](https://cloud.google.com/firestore/docs/emulator).
 
 4. Run the API Locally
 

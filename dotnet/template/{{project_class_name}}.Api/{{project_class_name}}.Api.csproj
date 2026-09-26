@@ -6,7 +6,7 @@
     <OutputType>Exe</OutputType>
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
     <AWSSuppressLambdaAnnotationsTelemetry>true</AWSSuppressLambdaAnnotationsTelemetry>
