@@ -1,0 +1,18 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_src_path: ./dotnet
+author: Sir Meowsalots
+cloud_service: GCP Cloud Function
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: kitties
+    endpoint: kitties
+    name: KittenClaws
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - delete
+
