@@ -32,21 +32,54 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         node-version:
-          - "20.x"
-          - "22.x"
+          - "24.x"
+        fixture:
+          - single
+        include:
+          - os: ubuntu-latest
+            template-type: typescript
+            cloud-service: "Azure Function App"
+            node-version: "24.x"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: typescript
+            cloud-service: "GCP Cloud Function"
+            node-version: "24.x"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: typescript
+            cloud-service: "AWS Lambda"
+            node-version: "24.x"
+            fixture: multi
+          - os: ubuntu-latest
+            template-type: typescript
+            cloud-service: "Azure Function App"
+            node-version: "24.x"
+            fixture: edge
+          - os: ubuntu-latest
+            template-type: typescript
+            cloud-service: "GCP Cloud Function"
+            node-version: "24.x"
+            fixture: edge
+          - os: ubuntu-latest
+            template-type: typescript
+            cloud-service: "AWS Lambda"
+            node-version: "24.x"
+            fixture: edge
       fail-fast: false
     steps:
       - name: Check out
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Copier Template
         uses: ./.github/actions/setup-copier-template
         with:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
+          resources-fixture: ${{ matrix.fixture }}
 
       - name: Setup Node ${{ matrix.node-version }} Environment
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -81,7 +114,7 @@ jobs:
             status=$?
             set -e
             {
-              echo "### TypeScript dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo "### TypeScript dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }})"
               echo ""
               echo '```'
               cat audit.log
