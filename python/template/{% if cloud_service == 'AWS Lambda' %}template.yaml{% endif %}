@@ -5,7 +5,7 @@ Description: {{ project_description }}
 Globals:
   Function:
     Timeout: 30
-    Runtime: python3.13
+    Runtime: python3.14
 
 Resources:
   {{ project_class_name }}Function:

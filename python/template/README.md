@@ -91,7 +91,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 ## Prerequisites
 
-- Python 3.13 or 3.14
+- Python 3.14
 
 {% if cloud_service == 'Azure Function App' -%}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
@@ -100,7 +100,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - [Poetry](https://python-poetry.org/): For dependency management and virtual environment setup.
 
-- Azure Account: An active Azure subscription for deploying the Function App.
+- Azure Account: An active Azure subscription for deploying the Function App. Python 3.14 apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
 
 - Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
 {%- endif %}
@@ -243,7 +243,7 @@ Settings are read from environment variables (case-insensitive).
 {%- for op in resource.operations %}
 {%- set fn = op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
     gcloud functions deploy {{ fn }} \
-      --runtime python313 \
+      --runtime python314 \
       --trigger-http \
       --allow-unauthenticated \
       --entry-point {{ fn }} \

@@ -91,7 +91,7 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Health", "List", "Optional", "BaseModel", "Field", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set reserved_names = ["Health", "List", "Optional", "BaseModel", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
     {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[]) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
