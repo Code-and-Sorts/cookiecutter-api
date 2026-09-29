@@ -1,3 +1,4 @@
+from functools import cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,5 +76,8 @@ class Settings(BaseSettings):
 {%- endif %}
 
 
+@cache
 def get_settings() -> Settings:
+    """Load the settings once, on first use, so importing the app never needs
+    them (unit tests, and function indexing, run without the environment)."""
     return Settings()

@@ -1,0 +1,179 @@
+{%- set routes = [('list', 'get_list', 'GET', False, 200), ('get_by_id', 'get_by_id', 'GET', True, 200), ('create', 'create', 'POST', False, 201), ('update', 'update', 'PATCH', True, 200), ('replace', 'replace', 'PUT', True, 200), ('delete', 'delete', 'DELETE', True, 200)] -%}
+"""Unit tests for the ``api`` function in main.py: routing, status codes and
+JSON responses. The database is replaced by mock controllers."""
+import asyncio
+import json
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
+import flask
+import pytest
+import main
+import blueprints
+from blueprints import database
+from controllers import ({% for resource in resources %}{{ resource.name }}Controller{% if not loop.last %}, {% endif %}{% endfor %})
+
+_ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
+_BODY = b'{"name": "mockName"}'
+_ITEM = {"id": _ID, "name": "mockName"}
+_app = flask.Flask(__name__)
+
+
+def _call(method, path, data=None):
+    with _app.test_request_context(path, method=method, data=data):
+        body, status, headers = main.api(flask.request)
+    return status, headers["Content-Type"], json.loads(body)
+
+
+def _run_with(controller):
+    """Stand-in for database.run that runs the operation against ``controller``."""
+    return lambda container_id, build_controller, operation: asyncio.run(operation(controller))
+
+
+def _run_offline(container_id, build_controller, operation):
+    """Stand-in for database.run that uses the real controller over a mock collection."""
+    return asyncio.run(operation(build_controller(MagicMock())))
+
+
+# (module, HTTP method, path, request body, controller method, expected args, status)
+_ROUTES = [
+{%- for resource in resources %}
+{%- set slug = resource.name | to_snake %}
+{%- for op, fn, method, with_id, status in routes if op in resource.operations %}
+{%- set args = (['_ID'] if with_id else []) + (['"5"'] if op == 'list' else []) + (['_BODY'] if op in ['create', 'update', 'replace'] else []) %}
+    (blueprints.{{ slug }}, "{{ method }}", {% if with_id %}f"/{{ resource.endpoint }}/{_ID}"{% else %}"/{{ resource.endpoint }}{% if op == 'list' %}?limit=5{% endif %}"{% endif %}, {% if op in ['create', 'update', 'replace'] %}_BODY{% else %}None{% endif %},
+     "{{ fn }}", ({{ args | join(', ') }},), {{ status }}),
+{%- endfor %}
+{%- endfor %}
+]
+
+# Known paths with a method no route accepts
+_NOT_ALLOWED = [
+{%- if health_endpoint %}
+    ("POST", "/{{ health_endpoint }}"),
+{%- endif %}
+{%- for resource in resources %}
+{%- if ('list' in resource.operations) or ('create' in resource.operations) %}
+    ("DELETE", "/{{ resource.endpoint }}"),
+{%- endif %}
+{%- if resource.operations | reject('in', ['list', 'create']) | list %}
+    ("POST", f"/{{ resource.endpoint }}/{_ID}"),
+{%- endif %}
+{%- endfor %}
+]
+
+# Item routes, called with an id that is not a UUID
+_ITEM_ROUTES = [
+{%- for resource in resources %}
+{%- for op, fn, method, with_id, status in routes if op in resource.operations and with_id %}
+    (blueprints.{{ resource.name | to_snake }}, "{{ method }}", "/{{ resource.endpoint }}", "{{ resource.name }}"),
+{%- endfor %}
+{%- endfor %}
+]
+
+# Routes that take a JSON body
+_BODY_ROUTES = [
+{%- for resource in resources %}
+{%- for op, fn, method, with_id, status in routes if op in resource.operations and op in ['create', 'update', 'replace'] %}
+    (blueprints.{{ resource.name | to_snake }}, "{{ method }}", {% if with_id %}f"/{{ resource.endpoint }}/{_ID}"{% else %}"/{{ resource.endpoint }}"{% endif %}),
+{%- endfor %}
+{%- endfor %}
+]
+
+
+def describe_api():
+    @pytest.mark.parametrize("module, method, path, data, action, args, status", _ROUTES)
+    def test_routes_to_controller(module, method, path, data, action, args, status):
+        controller = AsyncMock()
+        payload = [_ITEM] if action == "get_list" else _ITEM
+        getattr(controller, action).return_value = payload
+        with patch.object(module, "run", side_effect=_run_with(controller)):
+            response = _call(method, path, data)
+
+        assert response == (status, "application/json", payload)
+        getattr(controller, action).assert_awaited_once_with(*args)
+{%- if health_endpoint %}
+
+    def test_health():
+        assert _call("GET", "/{{ health_endpoint }}") == (200, "application/json", {"status": "ok"})
+
+    def test_health_is_exact_path_match():
+        assert _call("GET", "/{{ health_endpoint }}/x")[0] == 404
+        assert _call("GET", "/x{{ health_endpoint }}")[0] == 404
+{%- endif %}
+
+    @pytest.mark.parametrize("path", ["/", "/__unknown__", f"/__unknown__/{_ID}", f"/{{ resources[0].endpoint }}/{_ID}/extra"])
+    def test_unknown_path_is_not_found(path):
+        assert _call("GET", path) == (404, "application/json", {"errorMessage": "Not found."})
+
+    @pytest.mark.parametrize("method, path", _NOT_ALLOWED)
+    def test_disabled_method_is_not_allowed(method, path):
+        assert _call(method, path) == (405, "application/json", {"errorMessage": "Method not allowed."})
+
+    @pytest.mark.parametrize("module, method, path, name", _ITEM_ROUTES)
+    def test_non_uuid_id_is_not_found(module, method, path, name):
+        with patch.object(module, "run", side_effect=_run_offline):
+            response = _call(method, path + "/not-a-uuid", _BODY)
+
+        assert response == (404, "application/json", {"errorMessage": f"{name} with id not-a-uuid was not found."})
+
+    @pytest.mark.parametrize("module, method, path", _BODY_ROUTES)
+    @pytest.mark.parametrize("data", [
+        b"{not json",
+        b"[]",
+        b'{"name": 42}',
+        b'{"name": "mockName", "id": "' + _ID.encode() + b'"}',
+        b'{"name": "mockName", "unknown": 1}',
+    ])
+    def test_invalid_body_is_bad_request(module, method, path, data):
+        with patch.object(module, "run", side_effect=_run_offline):
+            status, content_type, body = _call(method, path, data)
+
+        assert (status, content_type) == (400, "application/json")
+        assert set(body) == {"errorMessage"}
+
+    def test_unexpected_error_is_logged_and_hidden(caplog):
+        module, method, path, data, *_ = _ROUTES[0]
+        with patch.object(module, "run", side_effect=RuntimeError("secret detail")):
+            with caplog.at_level(logging.ERROR):
+                response = _call(method, path, data)
+
+        assert response == (500, "application/json", {"errorMessage": "An unexpected error occurred."})
+        assert "secret detail" in caplog.text
+
+
+def describe_build_controller():
+{%- for resource in resources %}
+    def test_builds_{{ resource.name | to_snake }}_controller():
+        assert isinstance(blueprints.{{ resource.name | to_snake }}._build_controller(MagicMock()), {{ resource.name }}Controller)
+{% endfor %}
+
+def describe_database_run():
+    @pytest.fixture(autouse=True)
+    def settings():
+        settings = MagicMock(gcp_project_id="project", firestore_database="(default)")
+        settings.collections = {"container": "collection-name"}
+        with patch.object(database, "get_settings", return_value=settings), \
+                patch.object(database, "_client", None):
+            yield settings
+
+    def test_reuses_one_client_on_one_event_loop():
+        with patch.object(database.firestore, "AsyncClient") as client_class:
+            async def operation(controller):
+                return controller, asyncio.get_running_loop()
+
+            first = database.run("container", lambda collection: ("controller", collection), operation)
+            second = database.run("container", lambda collection: ("controller", collection), operation)
+
+        client_class.assert_called_once_with(project="project", database="(default)")
+        client_class.return_value.collection.assert_called_with("collection-name")
+        assert first[0] == ("controller", client_class.return_value.collection.return_value)
+        assert first[1] is second[1]
+        assert first[1].is_running()
+
+    def test_propagates_errors():
+        async def operation(controller):
+            raise RuntimeError("boom")
+
+        with patch.object(database.firestore, "AsyncClient"):
+            with pytest.raises(RuntimeError, match="boom"):
+                database.run("container", lambda collection: collection, operation)

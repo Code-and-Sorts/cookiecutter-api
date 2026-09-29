@@ -1,33 +1,23 @@
-"""
-Main entry point for GCP Cloud Functions.
-Each function is exported individually for GCP deployment.
-"""
-{% set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
-import functions_framework
-{%- if health_endpoint %}
-from blueprints.health import health
-{%- endif %}
-{%- for resource in resources %}
-{%- set slug = resource.name | to_snake %}
-from blueprints.{{ slug }} import (
-{%- for op in resource.operations %}
-    {{ op_fn[op] }}_{{ slug }},
-{%- endfor %}
-)
-{%- endfor %}
+"""Entry point for GCP Cloud Run functions.
 
-# Export functions for GCP Cloud Functions
-# These can be deployed individually as separate cloud functions
-__all__ = [
-{%- for resource in resources %}
-{%- set slug = resource.name | to_snake %}
-{%- for op in resource.operations %}
-    '{{ op_fn[op] }}_{{ slug }}',
-{%- endfor %}
-{%- endfor %}
-{%- if health_endpoint %}
-    # Deploy as a function named "{{ health_endpoint }}" (--entry-point health)
-    # so the health check is served at /{{ health_endpoint }}.
-    'health',
-{%- endif %}
-]
+One HTTP function, ``api``, serves every route: it matches the request's path
+and method against each endpoint's route table in blueprints/.
+
+    Local:  poetry run functions-framework --target=api --port=8080
+    Deploy: gcloud functions deploy <name> --entry-point api --trigger-http ...
+"""
+import functions_framework
+from flask import Request
+from blueprints import ROUTES
+from utils import detect_error, response_generator
+from utils.routing import resolve
+
+
+@functions_framework.http
+def api(request: Request):
+    try:
+        handler, item_id = resolve(ROUTES, request.method, request.path)
+        status_code, payload = handler(request, item_id)
+        return response_generator(payload, status_code)
+    except Exception as error:
+        return detect_error(error)

@@ -10,6 +10,10 @@ Globals:
 Resources:
   {{ project_class_name }}Function:
     Type: AWS::Serverless::Function
+    # `sam build` runs the Makefile's build-{{ project_class_name }}Function target, which
+    # packages the Poetry main dependencies (from poetry.lock) with the code.
+    Metadata:
+      BuildMethod: makefile
     Properties:
       Handler: lambda_app.lambda_handler
       CodeUri: .
@@ -47,7 +51,7 @@ Resources:
         Get{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: get
 {%- endif %}
 {%- if "create" in resource.operations %}
@@ -61,21 +65,21 @@ Resources:
         Update{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: patch
 {%- endif %}
 {%- if "replace" in resource.operations %}
         Replace{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: put
 {%- endif %}
 {%- if "delete" in resource.operations %}
         Delete{{ cn }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: delete
 {%- endif %}
 {%- endfor %}

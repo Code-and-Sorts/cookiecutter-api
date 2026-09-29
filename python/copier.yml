@@ -108,14 +108,27 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
     {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
-    {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[]) -%}
+    {#- Every resource defines these module-level Python names (see models/, controllers/,
+        services/ and repositories/); the resource name itself is included so that, for
+        example, Cat and BaseCat or Cat and CatResponse are rejected before they can collide. -#}
+    {%- set generated_prefixes = ["Base"] -%}
+    {%- set generated_suffixes = ["Controller", "Repository", "Response", "Service", "Update"] -%}
+    {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[], idents={}, own=[], clash="") -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
     {%- else -%}
     {%- for r in resources -%}
     {%- if not ns.err -%}
+    {%- set rname = r.name | default('') | string -%}
+    {%- set ns.own = [rname] -%}
+    {%- for p in generated_prefixes -%}{%- set ns.own = ns.own + [p ~ rname] -%}{%- endfor -%}
+    {%- for s in generated_suffixes -%}{%- set ns.own = ns.own + [rname ~ s] -%}{%- endfor -%}
+    {%- set ns.clash = "" -%}
+    {%- for i in ns.own if not ns.clash and i in ns.idents -%}
+    {%- set ns.clash = i -%}
+    {%- endfor -%}
     {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
@@ -134,6 +147,8 @@ resources:
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif (r.name | to_snake) in python_keywords -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
+    {%- elif ns.clash and ns.idents[ns.clash] != r.name -%}
+    {%- set ns.err = "Resource names '" ~ ns.idents[ns.clash] ~ "' and '" ~ r.name ~ "' both generate the Python name '" ~ ns.clash ~ "' (generated names add the prefix " ~ (generated_prefixes | join(', ')) ~ " or a suffix: " ~ (generated_suffixes | join(', ')) ~ "). Rename one of them." -%}
     {%- elif r.endpoint in ns.eps -%}
     {%- set ns.err = "Duplicate endpoint '" ~ r.endpoint ~ "'." -%}
     {%- elif r.name in ns.names -%}
@@ -146,6 +161,9 @@ resources:
     {%- set ns.eps = ns.eps + [r.endpoint] -%}
     {%- set ns.names = ns.names + [r.name] -%}
     {%- set ns.name_keys = ns.name_keys + [r.name | lower, r.name | to_snake, r.name | to_lower_camel] -%}
+    {%- for i in ns.own if i not in ns.idents -%}
+    {%- set ns.idents = dict(ns.idents, **{i: r.name}) -%}
+    {%- endfor -%}
     {%- set ns.containers = ns.containers + [r.container] -%}
     {%- set ns.container_keys = ns.container_keys + [r.container | lower | replace('-', '_')] -%}
     {%- endif -%}

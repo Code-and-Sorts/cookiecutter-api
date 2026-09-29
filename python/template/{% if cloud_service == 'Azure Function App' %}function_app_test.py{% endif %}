@@ -1,0 +1,144 @@
+{%- set routes = [('list', 'get_list', 'GET', False, 200), ('get_by_id', 'get_by_id', 'GET', True, 200), ('create', 'create', 'POST', False, 201), ('update', 'update', 'PATCH', True, 200), ('replace', 'replace', 'PUT', True, 200), ('delete', 'delete', 'DELETE', True, 200)] -%}
+"""Unit tests for the functions function_app.py registers: routes, auth
+levels, status codes and JSON responses. Cosmos DB is replaced by mocks."""
+import asyncio
+import json
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
+import azure.functions as func
+import pytest
+from function_app import app
+from blueprints import database
+import blueprints
+from controllers import ({% for resource in resources %}{{ resource.name }}Controller{% if not loop.last %}, {% endif %}{% endfor %})
+
+_ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
+_BODY = b'{"name": "mockName"}'
+_ITEM = {"id": _ID, "name": "mockName"}
+_FUNCTIONS = {function.get_function_name(): function for function in app.get_functions()}
+
+
+def _request(method, route, item_id=None, body=b"", params=None):
+    return func.HttpRequest(
+        method=method,
+        url="/api/" + route.replace("{id}", item_id or ""),
+        body=body,
+        params=params or {},
+        route_params={"id": item_id} if item_id is not None else {},
+    )
+
+
+def _call(function_name, request):
+    response = asyncio.run(_FUNCTIONS[function_name].get_user_function()(request))
+    return response.status_code, response.mimetype, json.loads(response.get_body())
+
+
+# (module, function name, HTTP method, route, item id, body, query, controller method, expected args, status)
+_ROUTES = [
+{%- for resource in resources %}
+{%- set slug = resource.name | to_snake %}
+{%- for op, fn, method, with_id, status in routes if op in resource.operations %}
+{%- set args = (['_ID'] if with_id else []) + (['"5"'] if op == 'list' else []) + (['_BODY'] if op in ['create', 'update', 'replace'] else []) %}
+    (blueprints.{{ slug }}, "{{ fn }}_{{ slug }}", "{{ method }}", "{{ resource.endpoint }}{% if with_id %}/{id}{% endif %}", {% if with_id %}_ID{% else %}None{% endif %},
+     {% if op in ['create', 'update', 'replace'] %}_BODY{% else %}b""{% endif %}, {% if op == 'list' %}{"limit": "5"}{% else %}None{% endif %}, "{{ fn }}", ({{ args | join(', ') }},), {{ status }}),
+{%- endfor %}
+{%- endfor %}
+]
+_ITEM_ROUTES = [route for route in _ROUTES if route[4] is not None]
+_BODY_ROUTES = [route for route in _ROUTES if route[5]]
+
+
+def describe_function_app():
+    @pytest.mark.parametrize("module, name, method, route, item_id, body, query, action, args, status", _ROUTES)
+    def test_registers_function_level_route(module, name, method, route, item_id, body, query, action, args, status):
+        trigger = _FUNCTIONS[name].get_trigger()
+        assert trigger.route == route
+        assert [str(m) for m in trigger.methods] == [method]
+        assert trigger.auth_level == func.AuthLevel.FUNCTION
+{%- if health_endpoint %}
+
+    def test_health_is_anonymous():
+        trigger = _FUNCTIONS["health"].get_trigger()
+        assert trigger.route == "{{ health_endpoint }}"
+        assert trigger.auth_level == func.AuthLevel.ANONYMOUS
+{%- endif %}
+
+    def test_registers_only_the_enabled_operations():
+        assert set(_FUNCTIONS) == {route[1] for route in _ROUTES}{% if health_endpoint %} | {"health"}{% endif %}
+
+    @pytest.mark.parametrize("module, name, method, route, item_id, body, query, action, args, status", _ROUTES)
+    def test_routes_to_controller(module, name, method, route, item_id, body, query, action, args, status):
+        controller = AsyncMock()
+        payload = [_ITEM] if action == "get_list" else _ITEM
+        getattr(controller, action).return_value = payload
+        with patch.object(database, "get_container", AsyncMock()), \
+                patch.object(module, "_build_controller", return_value=controller):
+            response = _call(name, _request(method, route, item_id, body, query))
+
+        assert response == (status, "application/json", payload)
+        getattr(controller, action).assert_awaited_once_with(*args)
+
+    @pytest.mark.parametrize("module, name, method, route, item_id, body, query, action, args, status", _ITEM_ROUTES)
+    def test_non_uuid_id_is_not_found(module, name, method, route, item_id, body, query, action, args, status):
+        with patch.object(database, "get_container", AsyncMock(return_value=MagicMock())):
+            response = _call(name, _request(method, route, "not-a-uuid", _BODY))
+
+        assert response[:2] == (404, "application/json")
+        assert response[2]["errorMessage"].endswith(" with id not-a-uuid was not found.")
+
+    @pytest.mark.parametrize("module, name, method, route, item_id, body, query, action, args, status", _BODY_ROUTES)
+    @pytest.mark.parametrize("data", [
+        b"{not json",
+        b"[]",
+        b'{"name": 42}',
+        b'{"name": "mockName", "id": "' + _ID.encode() + b'"}',
+        b'{"name": "mockName", "unknown": 1}',
+        b"",
+    ])
+    def test_invalid_body_is_bad_request(module, name, method, route, item_id, body, query, action, args, status, data):
+        with patch.object(database, "get_container", AsyncMock(return_value=MagicMock())):
+            status_code, content_type, response = _call(name, _request(method, route, item_id, data))
+
+        assert (status_code, content_type) == (400, "application/json")
+        assert set(response) == {"errorMessage"}
+
+    def test_unexpected_error_is_logged_and_hidden(caplog):
+        _, name, method, route, item_id, body, query, *_ = _ROUTES[0]
+        with patch.object(database, "get_container", AsyncMock(side_effect=ModuleNotFoundError("No module named 'aiohttp'"))):
+            with caplog.at_level(logging.ERROR):
+                response = _call(name, _request(method, route, item_id, body, query))
+
+        assert response == (500, "application/json", {"errorMessage": "An unexpected error occurred."})
+        assert "aiohttp" in caplog.text
+
+
+def describe_build_controller():
+{%- for resource in resources %}
+    def test_builds_{{ resource.name | to_snake }}_controller():
+        assert isinstance(blueprints.{{ resource.name | to_snake }}._build_controller(MagicMock()), {{ resource.name }}Controller)
+{% endfor %}
+
+def describe_get_container():
+    @pytest.fixture(autouse=True)
+    def settings():
+        settings = MagicMock(cosmos_db_uri="https://cosmos", cosmos_db_key="key", cosmos_db_database_name="db")
+        settings.container_names = {"container": "container-name"}
+        with patch.object(database, "get_settings", return_value=settings), \
+                patch.object(database, "_client", None):
+            yield settings
+
+    def test_opens_one_client_and_reuses_it():
+        with patch.object(database, "CosmosClient") as client_class:
+            client_class.return_value.__aenter__ = AsyncMock()
+
+            async def get_twice():
+                return await database.get_container("container"), await database.get_container("container")
+
+            first, second = asyncio.run(get_twice())
+
+        client_class.assert_called_once_with("https://cosmos", "key")
+        client_class.return_value.__aenter__.assert_awaited_once()
+        client = client_class.return_value
+        client.get_database_client.assert_called_with("db")
+        client.get_database_client.return_value.get_container_client.assert_called_with("container-name")
+        assert first is second

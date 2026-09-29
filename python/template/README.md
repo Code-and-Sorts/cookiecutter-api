@@ -8,39 +8,30 @@
 This project is a Python-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
-This project is a Python-based REST API built using [Google Cloud Functions](https://cloud.google.com/functions/docs). The API leverages GCP's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
+This project is a Python-based REST API built using [Google Cloud Functions](https://cloud.google.com/functions/docs). The API leverages GCP's serverless architecture, allowing you to deploy and scale it effortlessly in the cloud. A single HTTP-triggered function serves every endpoint of the API.
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
 This project is a Python-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with API Gateway. The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered Lambda functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 
-{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} %}
 {%- set containers = resources | map(attribute='container') | unique | list %}
-{%- if cloud_service == 'Azure Function App' %}
-{%- set prefix = '/api/' %}
-{%- elif cloud_service == 'AWS Lambda' %}
-{%- set prefix = '/' %}
-{%- endif %}
+{%- set prefix = '/api/' if cloud_service == 'Azure Function App' else '/' %}
 The REST API exposes the following resources and operations:
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-Each operation is deployed as its own Cloud Run function, so every path starts with the function name (for example `https://REGION-PROJECT_ID.cloudfunctions.net/<function>`, or `http://localhost:8080/<function>` locally).
+A single HTTP Cloud Run function with the entry point `api` (in `main.py`) serves every route below, routing each request by its path and method to the matching resource module in `blueprints/`. Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally).
 {%- endif %}
 {% for resource in resources %}
 - **{{ resource.name }}** (container: `{{ resource.container }}`)
 {%- for op in resource.operations %}
 {%- set method = {'list': 'GET', 'get_by_id': 'GET', 'create': 'POST', 'update': 'PATCH', 'replace': 'PUT', 'delete': 'DELETE'}[op] %}
 {%- set with_id = op not in ['list', 'create'] %}
-{%- set label = {'list': 'list', 'get_by_id': 'get by ID', 'create': 'create', 'update': 'partial update', 'replace': 'full replace', 'delete': 'soft delete'}[op] %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-  - `{{ method }} /{{ op_fn[op] }}_{{ resource.name | to_snake }}{% if with_id %}/{item_id}{% endif %}` — {{ label }}
-{%- else %}
-  - `{{ method }} {{ prefix }}{{ resource.endpoint }}{% if with_id %}/{item_id}{% endif %}` — {{ label }}
-{%- endif %}
+{%- set label = {'list': 'list (`?limit=` caps the page size)', 'get_by_id': 'get by ID', 'create': 'create', 'update': 'partial update', 'replace': 'full replace', 'delete': 'soft delete'}[op] %}
+  - `{{ method }} {{ prefix }}{{ resource.endpoint }}{% if with_id %}/{id}{% endif %}` — {{ label }}
 {%- endfor %}
 {%- endfor %}{%- if health_endpoint %}
 
-A health check is available at `{% if cloud_service == 'GCP Cloud Function' %}GET /{{ health_endpoint }}{% else %}GET {{ prefix }}{{ health_endpoint }}{% endif %}`.
+A health check is available at `GET {{ prefix }}{{ health_endpoint }}` and answers `{"status": "ok"}`.
 {%- endif %}
 {%- for container in containers %}
 {%- set sharing = resources | selectattr('container', 'equalto', container) | map(attribute='name') | list %}
@@ -49,6 +40,38 @@ A health check is available at `{% if cloud_service == 'GCP Cloud Function' %}GE
 > **Shared container:** {{ sharing[:-1] | join(", ") }} and {{ sharing[-1] }} read and write the `{{ container }}` container. There is no type discriminator, so they share the same records: an item created through one resource is visible, and can be changed or deleted, through the others.
 {%- endif %}
 {%- endfor %}
+
+## Requests and responses
+
+Every response, including errors, is JSON with `Content-Type: application/json`.
+
+| Request | Status | Body |
+| --- | --- | --- |
+| create | 201 | the item |
+| get, update, replace | 200 | the item |
+| list | 200 | an array of items (`[]` when empty) |
+| delete | 200 | `{"message": "<Name> with id <id> was deleted successfully."}` |
+| invalid body | 400 | `{"errorMessage": "..."}` |
+| unknown id, deleted item, or an id that is not a UUID | 404 | `{"errorMessage": "<Name> with id <id> was not found."}` |
+{%- if cloud_service == 'Azure Function App' %}
+| unexpected error | 500 | `{"errorMessage": "An unexpected error occurred."}` |
+{%- else %}
+| unknown path | 404 | `{"errorMessage": "Not found."}` |
+| known path, method not enabled | 405 | `{"errorMessage": "Method not allowed."}` |
+| unexpected error | 500 | `{"errorMessage": "An unexpected error occurred."}` |
+{%- endif %}
+
+An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be a JSON object: create (POST) and replace (PUT) require `name` as a non-empty string, update (PATCH) accepts any subset of the fields, and any other field, including `id`, `isDeleted` and the timestamps, is rejected with a 400. Ids are always generated by the server. Unexpected errors are logged with their stack trace and never returned to the client.
+{%- if cloud_service == 'Azure Function App' %}
+
+Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the health check is anonymous. For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+
+API Gateway only forwards the routes declared in `template.yaml`: for any other path or method it answers `403 {"message": "Missing Authentication Token"}` itself, without invoking the function. The function's own 404 and 405 answers apply when it is invoked some other way.
+{%- endif %}
+
+Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Update and replace keep the creation fields; delete sets `isDeleted` and refreshes `updatedTimestamp`.
 
 {% if cloud_service == 'Azure Function App' -%}
 Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
@@ -219,50 +242,31 @@ Settings are read from environment variables (case-insensitive).
 
 5. Run the API Locally
 
-    Each operation deploys as its own function. Run a specific one locally using Functions Framework:
-
     ```console
-{%- for resource in resources %}
-{%- for op in resource.operations %}
-    poetry run functions-framework --target={{ op_fn[op] }}_{{ resource.name | to_snake }} --source=main.py --port=8080
-{%- endfor %}
-{%- endfor %}
-{%- if health_endpoint %}
-    poetry run functions-framework --target=health --source=main.py --port=8080
-{%- endif %}
+    make run
     ```
+
+    This serves the `api` function with the Functions Framework (`poetry run functions-framework --target=api --source=main.py --port=8080`), so every route is available under `http://localhost:8080`. To use the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator), also set `FIRESTORE_EMULATOR_HOST` (for example `localhost:8085`).
 
 6. Deploy to GCP
 
-    Cloud Run functions install dependencies from a `requirements.txt`. Export one from Poetry first (this needs the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin):
+    Cloud Run functions install dependencies from a `requirements.txt`. Export one from Poetry first (the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin is declared in `pyproject.toml`, so Poetry installs it on first use):
 
     ```console
-    poetry export --without dev --output requirements.txt
+    poetry export --only main --output requirements.txt
     ```
 
-    Then deploy each function:
+    Then deploy the single `api` entry point:
 
     ```console
-{%- for resource in resources %}
-{%- for op in resource.operations %}
-{%- set fn = op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
-    gcloud functions deploy {{ fn }} \
+    gcloud functions deploy {{ project_endpoint }} \
+      --gen2 \
       --runtime python314 \
       --trigger-http \
       --allow-unauthenticated \
-      --entry-point {{ fn }} \
+      --entry-point api \
       --source . \
-      --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}={{ resource.container }}
-{%- endfor %}
-{%- endfor %}
-{%- if health_endpoint %}
-    gcloud functions deploy {{ health_endpoint }} \
-      --runtime python314 \
-      --trigger-http \
-      --allow-unauthenticated \
-      --entry-point health \
-      --source .
-{%- endif %}
+      --set-env-vars GCP_PROJECT_ID=your-project-id{% for container in containers %},FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}={{ container }}{% endfor %}
     ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
@@ -306,6 +310,8 @@ Settings are read from environment variables (case-insensitive).
     sam build
     sam deploy --guided
     ```
+
+    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `poetry.lock` (run `make install` first), installs them as Linux x86_64 wheels for Python 3.14 with `python3 -m pip` (override with `make PYTHON=...`), and copies every project module except the tests. It needs `make`, Poetry and `python3` with pip, but not Docker.
 {%- endif %}
 
 ## Development Workflow
@@ -345,11 +351,11 @@ This is also run automatically in CI on every PR and push to main.
 Each resource gets its own module in every layer, named after the resource. Every module has a matching `*_test.py` unit test file next to it.
 
 {%- set db = {'Azure Function App': 'Cosmos DB', 'GCP Cloud Function': 'Firestore', 'AWS Lambda': 'DynamoDB'}[cloud_service] %}
-{%- set fn = {'Azure Function App': 'Function App functions', 'GCP Cloud Function': 'Cloud Functions', 'AWS Lambda': 'Lambda handlers and route table'}[cloud_service] %}
+{%- set fn = {'Azure Function App': 'Function App functions', 'GCP Cloud Function': 'route handlers', 'AWS Lambda': 'route handlers'}[cloud_service] %}
 
 ```text
 {{ "%-34s" | format("├── .thunderclient") }}- Thunder Client collection
-{{ "%-34s" | format("├── blueprints") }}- Cloud entry functions
+{{ "%-34s" | format("├── blueprints") }}- Cloud entry points, one module per endpoint
 {{ "%-34s" | format("│   ├── database.py") }}- {{ db }} client wiring shared by every resource
 {%- if health_endpoint %}
 {{ "%-34s" | format("│   ├── health.py") }}- Health check at `{{ health_endpoint }}`
@@ -358,12 +364,13 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ ".py") }}- {{ resource.name }} {{ fn }}
 {%- endfor %}
 {{ "%-34s" | format("├── config") }}- Settings loaded from environment variables
-{{ "%-34s" | format("├── controllers") }}- Request parsing and validation
+{{ "%-34s" | format("├── controllers") }}- Request validation (cloud-agnostic)
 {{ "%-34s" | format("│   ├── pagination.py") }}- Shared list `limit` handling
+{{ "%-34s" | format("│   ├── validation.py") }}- Shared body and id validation
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_controller.py") }}- {{ resource.name }}Controller
 {%- endfor %}
-{{ "%-34s" | format("├── errors") }}- Custom errors
+{{ "%-34s" | format("├── errors") }}- Expected errors and their status codes
 {{ "%-34s" | format("├── models") }}- Pydantic models
 {{ "%-34s" | format("│   ├── base.py") }}- Shared model helpers
 {%- for resource in resources %}
@@ -378,18 +385,21 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
 {%- endfor %}
-{{ "%-34s" | format("├── utils") }}- Error detect & response generator utilities
+{{ "%-34s" | format("├── utils") }}- JSON responses, error handling{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
 {%- if health_endpoint %}
 {{ "%-34s" | format("├── health_test.py") }}- Health check unit tests
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
-{{ "%-34s" | format("└── function_app.py") }}- Function App entry point, registers each blueprint
+{{ "%-34s" | format("├── function_app.py") }}- Function App entry point, registers each blueprint
+{{ "%-34s" | format("└── function_app_test.py") }}- Route, auth level and response tests
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-{{ "%-34s" | format("└── main.py") }}- Cloud Functions entry point, exports each function
+{{ "%-34s" | format("├── main.py") }}- The `api` function, routes every request
+{{ "%-34s" | format("└── main_test.py") }}- Routing and response tests
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-{{ "%-34s" | format("├── lambda_app.py") }}- Lambda entry point, routes each endpoint
+{{ "%-34s" | format("├── lambda_app.py") }}- Lambda entry point, routes every request
+{{ "%-34s" | format("├── lambda_app_test.py") }}- Routing and response tests
 {{ "%-34s" | format("└── template.yaml") }}- AWS SAM template for deployment
 {%- endif %}
 ```

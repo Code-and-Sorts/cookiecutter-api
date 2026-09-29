@@ -1,17 +1,21 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set models = [] -%}
+{%- if ('create' in ops) or ('replace' in ops) %}{% set _ = models.append('Base' ~ r) %}{% endif -%}
+{%- if 'update' in ops %}{% set _ = models.append(r ~ 'Update') %}{% endif -%}
+{%- set _ = models.append(r ~ 'Response') -%}
 {% if 'list' in ops -%}
 from typing import List
 {% endif -%}
-from models import Base{{ r }}, {{ r }}, {{ r }}Response
+from models import {{ models | join(', ') }}
 from .base_repository import {% if 'list' in ops %}DEFAULT_LIST_LIMIT, {% endif %}BaseRepository
 
 
-class {{ r }}Repository(BaseRepository[{{ r }}, {{ r }}Response]):
+class {{ r }}Repository(BaseRepository[{{ r }}Response]):
     """Exposes only the operations the {{ r }} resource supports."""
 
+    resource_name = "{{ r }}"
     response_model = {{ r }}Response
-    base_model = Base{{ r }}
 {%- if "get_by_id" in ops %}
 
     async def get_by_id(self, item_id: str) -> {{ r }}Response:
@@ -24,21 +28,21 @@ class {{ r }}Repository(BaseRepository[{{ r }}, {{ r }}Response]):
 {%- endif %}
 {%- if "create" in ops %}
 
-    async def create(self, item: {{ r }}) -> {{ r }}Response:
-        return await self._create(item)
+    async def create(self, item: Base{{ r }}) -> {{ r }}Response:
+        return await self._create(item.model_dump())
 {%- endif %}
 {%- if "update" in ops %}
 
-    async def update(self, item: {{ r }}) -> {{ r }}Response:
-        return await self._update(item)
+    async def update(self, item_id: str, changes: {{ r }}Update) -> {{ r }}Response:
+        return await self._update(item_id, changes.model_dump(exclude_unset=True))
 {%- endif %}
 {%- if "replace" in ops %}
 
-    async def replace(self, item: {{ r }}) -> {{ r }}Response:
-        return await self._replace(item)
+    async def replace(self, item_id: str, item: Base{{ r }}) -> {{ r }}Response:
+        return await self._replace(item_id, item.model_dump())
 {%- endif %}
 {%- if "delete" in ops %}
 
-    async def delete(self, item_id: str):
+    async def delete(self, item_id: str) -> None:
         await self._delete(item_id)
 {%- endif %}

@@ -1,0 +1,42 @@
+"""Matches a request's method and path to a route handler."""
+{%- if cloud_service == 'AWS Lambda' %}
+import base64
+import binascii
+{%- endif %}
+from collections.abc import Callable
+from errors import MethodNotAllowedError, NotFoundError{% if cloud_service == 'AWS Lambda' %}, ValidationError{% endif %}
+
+# One resource's routes: (HTTP method, path has an item id) -> handler.
+type Routes = dict[tuple[str, bool], Callable]
+
+
+def resolve(table: dict[str, Routes], method: str, path: str) -> tuple[Callable, str | None]:
+    """Return the handler for ``method`` on ``path`` and the item id segment, if any.
+
+    ``table`` maps each endpoint (the first path segment) to its routes. A path
+    is ``/<endpoint>`` or ``/<endpoint>/<id>``; trailing slashes are ignored.
+    Raises ``NotFoundError`` (404) when no route has this path and
+    ``MethodNotAllowedError`` (405) when the path exists but not for ``method``.
+    """
+    segments = path.strip("/").split("/")
+    routes = table.get(segments[0]) if len(segments) <= 2 else None
+    has_id = len(segments) == 2
+    if not routes or not any(route_has_id == has_id for _, route_has_id in routes):
+        raise NotFoundError()
+    handler = routes.get((method.upper(), has_id))
+    if handler is None:
+        raise MethodNotAllowedError()
+    return handler, segments[1] if has_id else None
+{%- if cloud_service == 'AWS Lambda' %}
+
+
+def event_body(event: dict) -> bytes | str | None:
+    """The raw request body of an API Gateway proxy event."""
+    body = event.get("body")
+    if body and event.get("isBase64Encoded"):
+        try:
+            return base64.b64decode(body, validate=True)
+        except binascii.Error:
+            raise ValidationError("Request body must be valid JSON.") from None
+    return body
+{%- endif %}

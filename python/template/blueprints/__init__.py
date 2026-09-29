@@ -1,60 +1,48 @@
-{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
 {%- if cloud_service == 'Azure Function App' -%}
-# Each module owns one Blueprint; function_app.py registers every one.
+# Each module owns one Blueprint (``bp``); function_app.py registers every one.
+from . import (
 {%- if health_endpoint %}
-from .health import bp as health_bp
+    health,
 {%- endif %}
 {%- for resource in resources %}
-from .{{ resource.name | to_snake }} import bp as {{ resource.name | to_snake }}_bp
+    {{ resource.name | to_snake }},
 {%- endfor %}
+)
 
-__all__ = [
+BLUEPRINTS = [
 {%- if health_endpoint %}
-    "health_bp",
+    health.bp,
 {%- endif %}
 {%- for resource in resources %}
-    "{{ resource.name | to_snake }}_bp",
+    {{ resource.name | to_snake }}.bp,
 {%- endfor %}
 ]
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' -%}
-# Each module holds one resource's Cloud Functions; main.py exports every one.
-{%- if health_endpoint %}
-from .health import health
-{%- endif %}
-{%- for resource in resources %}
-{%- set slug = resource.name | to_snake %}
-from .{{ slug }} import {% for op in resource.operations %}{{ op_fn[op] }}_{{ slug }}{% if not loop.last %}, {% endif %}{% endfor %}
-{%- endfor %}
 
-__all__ = [
+__all__ = ["BLUEPRINTS"]
+{%- else -%}
+# Each module holds one endpoint's route table; {% if cloud_service == 'GCP Cloud Function' %}main.py{% else %}lambda_app.py{% endif %} dispatches every
+# request through ROUTES.
+from . import (
 {%- if health_endpoint %}
-    "health",
+    health,
 {%- endif %}
 {%- for resource in resources %}
-{%- set slug = resource.name | to_snake %}
-{%- for op in resource.operations %}
-    "{{ op_fn[op] }}_{{ slug }}",
+    {{ resource.name | to_snake }},
 {%- endfor %}
-{%- endfor %}
-]
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' -%}
-# Each module holds one resource's handlers and route table; lambda_app.py
-# maps each endpoint to its route table.
-{%- if health_endpoint %}
-from .health import health
-{%- endif %}
-{%- for resource in resources %}
-from .{{ resource.name | to_snake }} import ROUTES as {{ resource.name | to_snake }}_routes
-{%- endfor %}
+)
 
-__all__ = [
+# endpoint (first path segment) -> (HTTP method, path has an item id) -> handler
+ROUTES = {
+    module.ENDPOINT: module.ROUTES
+    for module in (
 {%- if health_endpoint %}
-    "health",
+        health,
 {%- endif %}
 {%- for resource in resources %}
-    "{{ resource.name | to_snake }}_routes",
+        {{ resource.name | to_snake }},
 {%- endfor %}
-]
+    )
+}
+
+__all__ = ["ROUTES"]
 {%- endif %}

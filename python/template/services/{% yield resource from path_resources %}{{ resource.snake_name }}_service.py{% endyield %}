@@ -1,13 +1,15 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set returns_item = ('get_by_id' in ops) or ('list' in ops) or ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
+{%- set models = [] -%}
+{%- if ('create' in ops) or ('replace' in ops) %}{% set _ = models.append('Base' ~ r) %}{% endif -%}
+{%- if 'update' in ops %}{% set _ = models.append(r ~ 'Update') %}{% endif -%}
+{%- if ops | reject('equalto', 'delete') | list %}{% set _ = models.append(r ~ 'Response') %}{% endif -%}
 {% if 'list' in ops -%}
 from typing import List
 {% endif -%}
 from repositories import {% if 'list' in ops %}DEFAULT_LIST_LIMIT, {% endif %}{{ r }}Repository
-{%- if returns_item %}
-from models import {% if uses_body %}{{ r }}, {% endif %}{{ r }}Response
+{%- if models %}
+from models import {{ models | join(', ') }}
 {%- endif %}
 
 
@@ -26,21 +28,21 @@ class {{ r }}Service:
 {%- endif %}
 {%- if "create" in ops %}
 
-    async def create(self, item: {{ r }}) -> {{ r }}Response:
+    async def create(self, item: Base{{ r }}) -> {{ r }}Response:
         return await self.repository.create(item)
 {%- endif %}
 {%- if "update" in ops %}
 
-    async def update(self, item: {{ r }}) -> {{ r }}Response:
-        return await self.repository.update(item)
+    async def update(self, item_id: str, changes: {{ r }}Update) -> {{ r }}Response:
+        return await self.repository.update(item_id, changes)
 {%- endif %}
 {%- if "replace" in ops %}
 
-    async def replace(self, item: {{ r }}) -> {{ r }}Response:
-        return await self.repository.replace(item)
+    async def replace(self, item_id: str, item: Base{{ r }}) -> {{ r }}Response:
+        return await self.repository.replace(item_id, item)
 {%- endif %}
 {%- if "delete" in ops %}
 
-    async def soft_delete(self, item_id: str):
+    async def soft_delete(self, item_id: str) -> None:
         await self.repository.delete(item_id)
 {%- endif %}

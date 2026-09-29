@@ -1,22 +1,10 @@
-"""Unit tests for blueprints/health.py.
-
-The module is loaded straight from its file so the test does not import the
-blueprints package, whose resource modules need database settings.
-"""
-import importlib.util
+"""Unit tests for blueprints/health.py."""
 import json
-from pathlib import Path
 {%- if cloud_service == 'Azure Function App' %}
 import asyncio
-
 import azure.functions as func
 {%- endif %}
-
-_spec = importlib.util.spec_from_file_location(
-    "health", Path(__file__).parent / "blueprints" / "health.py"
-)
-health = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(health)
+from blueprints import health
 
 
 def describe_health():
@@ -24,13 +12,12 @@ def describe_health():
         assert health.ENDPOINT == "{{ health_endpoint }}"
 {%- if cloud_service == 'Azure Function App' %}
 
-    def test_route_uses_endpoint():
-        functions = health.bp._function_builders
-        assert len(functions) == 1
-        fn = functions[0]._function
-        trigger = fn.get_trigger()
+    def test_route_is_anonymous_get():
+        (builder,) = health.bp._function_builders
+        trigger = builder._function.get_trigger()
         assert trigger.route == "{{ health_endpoint }}"
         assert [str(m) for m in trigger.methods] == ["GET"]
+        assert trigger.auth_level == func.AuthLevel.ANONYMOUS
 
     def test_returns_ok():
         fn = health.bp._function_builders[0]._function.get_user_function()
@@ -39,20 +26,13 @@ def describe_health():
         assert response.status_code == 200
         assert response.mimetype == "application/json"
         assert json.loads(response.get_body()) == {"status": "ok"}
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
+{%- else %}
 
     def test_returns_ok():
-        body, status, headers = health.health(None)
+        status, body = health.health(None, None)
         assert status == 200
-        assert headers == {"Content-Type": "application/json"}
-        assert json.loads(body) == {"status": "ok"}
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
+        assert json.dumps(body) == '{"status": "ok"}'
 
-    def test_returns_ok():
-        response = health.health({"httpMethod": "GET", "resource": "/{{ health_endpoint }}"})
-        assert response["statusCode"] == 200
-        assert response["headers"] == {"Content-Type": "application/json"}
-        assert json.loads(response["body"]) == {"status": "ok"}
+    def test_route_table_is_get_only():
+        assert health.ROUTES == {("GET", False): health.health}
 {%- endif %}

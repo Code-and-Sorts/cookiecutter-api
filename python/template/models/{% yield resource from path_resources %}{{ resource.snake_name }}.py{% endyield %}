@@ -1,25 +1,36 @@
-import uuid
-from pydantic import BaseModel, Field
-from typing import Optional
-from uuid import UUID
-from .base import generate_utc_timestamp
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Base{{ resource.name }}(BaseModel):
-    name: str
-    type: Optional[str] = None
+    """The client-editable {{ resource.name }} fields: the create (POST) and replace (PUT) body.
+
+    Unknown fields, including ``id`` and the stored system fields, are rejected,
+    and values are never coerced: ``name`` must be a non-empty JSON string.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    name: str = Field(min_length=1)
 
 
-class {{ resource.name }}IdValidation(BaseModel):
-    id: UUID
+class {{ resource.name }}Update(BaseModel):
+    """The PATCH body: any subset of the client-editable {{ resource.name }} fields.
+
+    Defaults are not validated, so an absent ``name`` stays unset while an
+    explicit ``null`` is rejected like any other non-string value.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    name: str = Field(default=None, min_length=1)
 
 
-class {{ resource.name }}(Base{{ resource.name }}):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    isDeleted: bool = Field(default=False)
-    createdDate: str = Field(default_factory=generate_utc_timestamp)
-    updatedDate: str = Field(default_factory=generate_utc_timestamp)
+class {{ resource.name }}Response(BaseModel):
+    """A {{ resource.name }} as returned to clients: exactly ``id`` and ``name``.
 
+    Stored records carry more fields (``isDeleted``, timestamps, and the
+    database's own metadata); they are dropped here.
+    """
 
-class {{ resource.name }}Response(Base{{ resource.name }}):
     id: str
+    name: str

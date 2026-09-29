@@ -1,8 +1,7 @@
-{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
 {%- set methods = {'list': 'GET', 'get_by_id': 'GET', 'create': 'POST', 'update': 'PATCH', 'replace': 'PUT', 'delete': 'DELETE'} -%}
 {%- set labels = {'list': 'List', 'get_by_id': 'Get by ID', 'create': 'Create', 'update': 'Update', 'replace': 'Replace', 'delete': 'Delete'} -%}
 {%- set statuses = {'list': '200', 'get_by_id': '200', 'create': '201', 'update': '200', 'replace': '200', 'delete': '200'} -%}
-{%- set bodies = {'create': '{\\n  \\"name\\": \\"Item1\\",\\n  \\"type\\": \\"item\\"\\n}', 'update': '{\\n  \\"name\\": \\"Item1-Update\\"\\n}', 'replace': '{\\n  \\"name\\": \\"Item1-Replace\\",\\n  \\"type\\": \\"item\\"\\n}'} -%}
+{%- set bodies = {'create': '{\\n  \\"name\\": \\"Item1\\"\\n}', 'update': '{\\n  \\"name\\": \\"Item1-Update\\"\\n}', 'replace': '{\\n  \\"name\\": \\"Item1-Replace\\"\\n}'} -%}
 {%- set ns = namespace(sort=0) -%}
 {
     "clientName": "Thunder Client",
@@ -46,8 +45,6 @@
 {%- set ns.sort = ns.sort + 10000 %}
 {%- if cloud_service == 'Azure Function App' %}
 {%- set path = '/api/' ~ resource.endpoint %}
-{%- elif cloud_service == 'GCP Cloud Function' %}
-{%- set path = '/' ~ op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
 {%- else %}
 {%- set path = '/' ~ resource.endpoint %}
 {%- endif %}

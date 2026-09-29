@@ -1,45 +1,20 @@
 """
 Main entry point for AWS Lambda.
-Routes API Gateway events to the appropriate handler.
+Routes API Gateway proxy events to each endpoint's route table in blueprints/.
 """
-from blueprints import (
-{%- if health_endpoint %}
-    health,
-{%- endif %}
-{%- for resource in resources %}
-    {{ resource.name | to_snake }}_routes,
-{%- endfor %}
-)
-{%- if health_endpoint %}
-from blueprints.health import ENDPOINT as HEALTH_ENDPOINT
-{%- endif %}
-from utils.detect_error import generate_error_response
-
-# endpoint -> that resource's (method, has item id) -> handler table
-ROUTES = {
-{%- for resource in resources %}
-    "{{ resource.endpoint }}": {{ resource.name | to_snake }}_routes,
-{%- endfor %}
-}
+from blueprints import ROUTES
+from utils import detect_error, response_generator
+from utils.routing import resolve
 
 
 def lambda_handler(event, context):
-    http_method = event.get("httpMethod", "")
-    resource = event.get("resource", "")
-    segments = [s for s in resource.strip("/").split("/") if s]
-    endpoint = segments[0] if segments else ""
-    needs_id = "{item_id}" in resource
-{%- if health_endpoint %}
-
-    if http_method == "GET" and segments == [HEALTH_ENDPOINT]:
-        return health(event)
-{%- endif %}
-
-    handler = ROUTES.get(endpoint, {}).get((http_method, needs_id))
-    if handler is None:
-        return generate_error_response(
-            message="Not Found",
-            type="NotFoundError",
-            status_code=404
-        )
-    return handler(event)
+    try:
+        # "resource" is the matched API Gateway route, e.g. /cats/{id}; the item
+        # id itself arrives in pathParameters.
+        route = event.get("resource") or event.get("path") or ""
+        handler, path_id = resolve(ROUTES, event.get("httpMethod", ""), route)
+        item_id = (event.get("pathParameters") or {}).get("id", path_id)
+        status_code, payload = handler(event, item_id)
+        return response_generator(payload, status_code)
+    except Exception as error:
+        return detect_error(error)

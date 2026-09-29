@@ -163,3 +163,9 @@ cython_debug/
 
 # function apps
 local.settings.json
+
+# Poetry project plugins (tool.poetry.requires-plugins)
+.poetry/
+
+# AWS SAM build output
+.aws-sam/

@@ -1,23 +1,35 @@
 class BaseError(Exception):
-    def __init__(self, message: str):
-        self.status_code: int = 500
-        self.type: str = "UnknownError"
-        super().__init__(message)
+    """An expected failure, answered with ``status_code`` and its message as
+    ``{"errorMessage": ...}``. Anything else is an unexpected 500."""
 
-class NotFoundError(BaseError):
-    def __init__(self, message: str = "Item Not Found."):
-        super().__init__(message)
-        self.status_code = 404
-        self.type = "NotFoundError"
+    status_code: int = 500
+    default_message: str = "An unexpected error occurred."
+
+    def __init__(self, message: str | None = None):
+        super().__init__(message or self.default_message)
+
 
 class ValidationError(BaseError):
-    def __init__(self, message: str = "Validation Error."):
-        super().__init__(message)
-        self.status_code = 422
-        self.type = "ValidationError"
+    """The request is malformed: invalid JSON, not an object, or fields that are
+    unknown, missing or of the wrong type."""
 
-class ProxyError(BaseError):
-    def __init__(self, message: str = "Proxy Error."):
-        super().__init__(message)
-        self.status_code = 502
-        self.type = "ProxyError"
+    status_code = 400
+    default_message = "The request is invalid."
+
+
+class NotFoundError(BaseError):
+    """No route matches the path, or the requested item does not exist."""
+
+    status_code = 404
+    default_message = "Not found."
+
+    @classmethod
+    def for_item(cls, resource: str, item_id: str | None) -> "NotFoundError":
+        return cls(f"{resource} with id {item_id} was not found.")
+
+
+class MethodNotAllowedError(BaseError):
+    """The path exists but does not accept the request's HTTP method."""
+
+    status_code = 405
+    default_message = "Method not allowed."

@@ -1,11 +1,12 @@
-{% if cloud_service == 'Azure Function App' -%}
+import uuid
+{%- if cloud_service == 'Azure Function App' %}
 from azure.cosmos.aio import ContainerProxy
-from azure.cosmos.exceptions import CosmosAccessConditionFailedError
+from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosResourceNotFoundError
 {%- endif %}
-{% if cloud_service == 'GCP Cloud Function' -%}
-from google.cloud.firestore import AsyncCollectionReference
+{%- if cloud_service == 'GCP Cloud Function' %}
+from google.cloud.firestore import AsyncCollectionReference, FieldFilter
 {%- endif %}
-{% if cloud_service == 'AWS Lambda' -%}
+{%- if cloud_service == 'AWS Lambda' %}
 import aioboto3
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
@@ -18,34 +19,26 @@ from errors import NotFoundError
 # Default cap on the number of items returned by list endpoints to avoid
 # unbounded reads. Callers may request a smaller page via the `limit` argument.
 DEFAULT_LIST_LIMIT = 100
-{% if cloud_service == 'Azure Function App' %}
 
-class Database:
-    def __init__(
-            self,
-            endpoint: str,
-            key: str,
-            name: str,
-            container_name: str
-        ):
-            self._endpoint = endpoint
-            self._key = key
-            self.name = name
-            self.container_name = container_name
-{%- endif %}
+# Stored fields that describe the record's creation: update and replace keep them.
+_CREATION_FIELDS = ("createdTimestamp", "createdBy")
 
 
-class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
+class BaseRepository[ResponseT: BaseModel]:
     """Storage operations shared by every resource repository.
 
     The operations are protected: each resource repository exposes publicly
     only the operations its resource supports, delegating to these methods.
-    Subclasses set ``response_model`` (returned to callers) and ``base_model``
-    (the client-editable fields that ``_update`` and ``_replace`` may change).
+    Subclasses set ``resource_name`` (used in not-found messages) and
+    ``response_model`` (what callers get back).
+
+    A stored record holds the client fields plus ``id``, ``isDeleted``,
+    ``createdTimestamp`` and ``updatedTimestamp`` (ISO-8601 UTC with
+    milliseconds), and ``createdBy``/``updatedBy`` only when they are set.
     """
 
+    resource_name: ClassVar[str]
     response_model: ClassVar[type[BaseModel]]
-    base_model: ClassVar[type[BaseModel]]
 {%- if cloud_service == 'Azure Function App' %}
 
     def __init__(self, container_client: ContainerProxy):
@@ -64,6 +57,9 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         self.region = region
 {%- endif %}
 
+    def _not_found(self, item_id: str) -> NotFoundError:
+        return NotFoundError.for_item(self.resource_name, item_id)
+
     async def _get_stored(self, item_id: str) -> dict:
 {%- if cloud_service == 'Azure Function App' %}
         query = "SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false"
@@ -76,16 +72,16 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         ):
             return item
 
-        raise NotFoundError()
+        raise self._not_found(item_id)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         doc = await self.collection.document(item_id).get()
         if not doc.exists:
-            raise NotFoundError()
+            raise self._not_found(item_id)
 
         data = doc.to_dict()
         if data.get('isDeleted', False):
-            raise NotFoundError()
+            raise self._not_found(item_id)
 
         return data
 {%- endif %}
@@ -96,17 +92,32 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         item = response.get("Item")
 
         if not item or item.get("isDeleted", False):
-            raise NotFoundError()
+            raise self._not_found(item_id)
 
         return item
+{%- endif %}
+
+    async def _write(self, record: dict) -> None:
+        """Store ``record`` under its id, replacing any existing record."""
+{%- if cloud_service == 'Azure Function App' %}
+        await self.container_client.upsert_item(record)
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+        await self.collection.document(record["id"]).set(record)
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            table = await dynamodb.Table(self.table_name)
+            await table.put_item(Item=record)
 {%- endif %}
 
     async def _get_by_id(self, item_id: str) -> ResponseT:
         return self.response_model.model_validate(await self._get_stored(item_id))
 
     async def _get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[ResponseT]:
+        limit = int(limit)
 {%- if cloud_service == 'Azure Function App' %}
-        query = f"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {int(limit)}"
+        query = f"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {limit}"
         items = [
             self.response_model.model_validate(item)
             async for item in self.container_client.query_items(query=query)
@@ -114,143 +125,98 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         return items
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        query = self.collection.where('isDeleted', '==', False).limit(int(limit))
+        query = self.collection.where(filter=FieldFilter("isDeleted", "==", False)).limit(limit)
         items = []
         async for doc in query.stream():
-            data = doc.to_dict()
-            items.append(self.response_model.model_validate(data))
+            items.append(self.response_model.model_validate(doc.to_dict()))
         return items
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+        # A scan's Limit counts items read before the filter applies, so keep
+        # reading pages until enough undeleted items are found.
         items = []
         filter_exp = Attr("isDeleted").eq(False) | Attr("isDeleted").not_exists()
         async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
             table = await dynamodb.Table(self.table_name)
-            response = await table.scan(FilterExpression=filter_exp, Limit=int(limit))
+            response = await table.scan(FilterExpression=filter_exp, Limit=limit)
             items.extend(response.get("Items", []))
 
             while "LastEvaluatedKey" in response and len(items) < limit:
                 response = await table.scan(
                     FilterExpression=filter_exp,
-                    Limit=int(limit),
+                    Limit=limit,
                     ExclusiveStartKey=response["LastEvaluatedKey"]
                 )
                 items.extend(response.get("Items", []))
 
-        items = items[:limit]
-        return [self.response_model.model_validate(item) for item in items]
+        return [self.response_model.model_validate(item) for item in items[:limit]]
 {%- endif %}
 
-    async def _create(self, item: ItemT) -> ResponseT:
+    async def _create(self, fields: dict) -> ResponseT:
+        """Store a new record with a server-generated id."""
         now = generate_utc_timestamp()
-        item_dict = {
-            **item.model_dump(exclude_none=True),
+        record = {
+            "id": str(uuid.uuid4()),
+            **fields,
             "isDeleted": False,
-            "createdDate": now,
-            "updatedDate": now,
+            "createdTimestamp": now,
+            "updatedTimestamp": now,
         }
-{%- if cloud_service == 'Azure Function App' %}
-        created_item = await self.container_client.create_item(item_dict)
+        await self._write(record)
+        return self.response_model.model_validate(record)
 
-        return self.response_model.model_validate(created_item)
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-        doc_ref = self.collection.document(item.id)
-        await doc_ref.set(item_dict)
-
-        return self.response_model.model_validate(item_dict)
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
-            table = await dynamodb.Table(self.table_name)
-            await table.put_item(Item=item_dict)
-
-        return self.response_model.model_validate(item_dict)
-{%- endif %}
-
-    async def _update(self, item: ItemT) -> ResponseT:
-        stored_item = await self._get_stored(item.id)
-        changes = item.model_dump(include=set(self.base_model.model_fields), exclude_unset=True)
-        patched_item = {
-            **stored_item,
+    async def _update(self, item_id: str, changes: dict) -> ResponseT:
+        """Merge ``changes`` into the stored record."""
+        stored = await self._get_stored(item_id)
+        record = {
+            **stored,
             **changes,
-            "id": item.id,
-            "updatedDate": generate_utc_timestamp(),
+            "id": item_id,
+            "updatedTimestamp": generate_utc_timestamp(),
         }
-{%- if cloud_service == 'Azure Function App' %}
-        updated_item = await self.container_client.upsert_item(patched_item)
+        await self._write(record)
+        return self.response_model.model_validate(record)
 
-        return self.response_model.model_validate(updated_item)
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-        doc_ref = self.collection.document(item.id)
-        await doc_ref.set(patched_item)
-
-        return self.response_model.model_validate(patched_item)
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
-            table = await dynamodb.Table(self.table_name)
-            await table.put_item(Item=patched_item)
-
-        return self.response_model.model_validate(patched_item)
-{%- endif %}
-
-    async def _replace(self, item: ItemT) -> ResponseT:
-        stored_item = await self._get_stored(item.id)
+    async def _replace(self, item_id: str, fields: dict) -> ResponseT:
+        """Replace the stored record's client fields, keeping its creation fields."""
+        stored = await self._get_stored(item_id)
         now = generate_utc_timestamp()
-        replacement = {
-            **item.model_dump(include=set(self.base_model.model_fields), exclude_none=True),
-            "id": item.id,
+        record = {
+            "id": item_id,
+            **fields,
             "isDeleted": False,
-            "createdDate": stored_item.get("createdDate", now),
-            "updatedDate": now,
+            "createdTimestamp": now,
+            **{field: stored[field] for field in _CREATION_FIELDS if stored.get(field)},
+            "updatedTimestamp": now,
         }
+        await self._write(record)
+        return self.response_model.model_validate(record)
+
+    async def _delete(self, item_id: str) -> None:
+        """Soft delete: flag the record as deleted and refresh ``updatedTimestamp``."""
 {%- if cloud_service == 'Azure Function App' %}
-        replaced_item = await self.container_client.upsert_item(replacement)
-
-        return self.response_model.model_validate(replaced_item)
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-        doc_ref = self.collection.document(item.id)
-        await doc_ref.set(replacement)
-
-        return self.response_model.model_validate(replacement)
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
-            table = await dynamodb.Table(self.table_name)
-            await table.put_item(Item=replacement)
-
-        return self.response_model.model_validate(replacement)
-{%- endif %}
-
-    async def _delete(self, item_id: str):
-{%- if cloud_service == 'Azure Function App' %}
-        filter = "from c WHERE c.isDeleted = false"
         operations: list[dict] = [
-            { 'op': 'replace', 'path': '/isDeleted', 'value': True },
-            { 'op': 'set', 'path': '/updatedDate', 'value': generate_utc_timestamp() }
+            { 'op': 'set', 'path': '/isDeleted', 'value': True },
+            { 'op': 'set', 'path': '/updatedTimestamp', 'value': generate_utc_timestamp() }
         ]
         try:
             await self.container_client.patch_item(
                 item=item_id,
                 partition_key=item_id,
                 patch_operations=operations,
-                filter_predicate=filter
+                filter_predicate="from c WHERE c.isDeleted = false"
             )
-        except Exception as error:
-            if isinstance(error, CosmosAccessConditionFailedError):
-                raise NotFoundError()
+        except (CosmosAccessConditionFailedError, CosmosResourceNotFoundError):
+            raise self._not_found(item_id) from None
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item_id)
         doc = await doc_ref.get()
 
         if not doc.exists or doc.to_dict().get('isDeleted', False):
-            raise NotFoundError()
+            raise self._not_found(item_id)
 
-        await doc_ref.update({'isDeleted': True, 'updatedDate': generate_utc_timestamp()})
+        await doc_ref.update({'isDeleted': True, 'updatedTimestamp': generate_utc_timestamp()})
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         try:
@@ -258,12 +224,12 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
                 table = await dynamodb.Table(self.table_name)
                 await table.update_item(
                     Key={"id": item_id},
-                    UpdateExpression="SET isDeleted = :val, updatedDate = :updated",
+                    UpdateExpression="SET isDeleted = :val, updatedTimestamp = :updated",
                     ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
                     ExpressionAttributeValues={":val": True, ":false": False, ":updated": generate_utc_timestamp()}
                 )
         except ClientError as error:
             if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
-                raise NotFoundError()
+                raise self._not_found(item_id) from None
             raise
 {%- endif %}
