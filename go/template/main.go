@@ -70,7 +70,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/health", handlers.HandleHealth())
+{%- if health_endpoint %}
+	mux.HandleFunc("GET /api/{{ health_endpoint }}", handlers.HandleHealth())
+{%- endif %}
 {%- for resource in resources %}
 	handlers.Register{{ resource.name }}Routes(mux, c.{{ resource.name }})
 {%- endfor %}
@@ -183,9 +185,11 @@ func main() {
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	log.Printf("Received %s request for %s", request.HTTPMethod, request.Resource)
 
-	if request.HTTPMethod == "GET" && (strings.HasSuffix(strings.TrimRight(request.Path, "/"), "/health") || strings.HasSuffix(strings.TrimRight(request.Resource, "/"), "/health")) {
+{%- if health_endpoint %}
+	if request.HTTPMethod == "GET" && (strings.HasSuffix(strings.TrimRight(request.Path, "/"), "/{{ health_endpoint }}") || strings.HasSuffix(strings.TrimRight(request.Resource, "/"), "/{{ health_endpoint }}")) {
 		return handlers.HandleHealth()
 	}
+{%- endif %}
 
 	trimmed := strings.Trim(request.Resource, "/")
 	endpoint := trimmed

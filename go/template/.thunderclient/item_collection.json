@@ -80,6 +80,28 @@
         }
 {%- endfor %}
 {%- endfor %}
+{%- if health_endpoint %},
+        {
+            "_id": "health",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Health Check",
+            "url": "{{ '{{baseUrl}}' ~ route_prefix ~ '/' ~ health_endpoint }}",
+            "method": "GET",
+            "sortNum": {{ ns.sort + 10000 }},
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        }
+{%- endif %}
     ],
     "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
 }

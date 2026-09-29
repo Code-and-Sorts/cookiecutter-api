@@ -74,12 +74,14 @@ Resources:
             Method: delete
 {%- endif %}
 {%- endfor %}
+{%- if health_endpoint %}
         # Health check: handlers/health_handler.go
         Health:
           Type: Api
           Properties:
-            Path: /health
+            Path: /{{ health_endpoint }}
             Method: get
+{%- endif %}
 {% for container in resources | map(attribute='container') | unique %}
   {{ container | to_camel }}Table:
     Type: AWS::DynamoDB::Table

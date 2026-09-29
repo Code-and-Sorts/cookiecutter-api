@@ -38,7 +38,10 @@ The REST API exposes the following resources and operations:
 {%- endif %}
 {%- endfor %}
 
-A health check is served at `GET {{ route_prefix }}/health`.
+{%- if health_endpoint %}
+
+A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}`.
+{%- endif %}
 
 ### Storage containers
 
@@ -275,14 +278,15 @@ package.
 │   ├── pagination.go
 │   └── schemas.go                 # embeds the request schemas
 ├── handlers
+{%- set handlers_last = health_endpoint or cloud_service == 'AWS Lambda' %}
 {%- for resource in resources %}
-│   ├── {{ resource.name | to_snake }}_handler.go
+│   {{ '└──' if loop.last and not handlers_last else '├──' }} {{ resource.name | to_snake }}_handler.go
 {%- endfor %}
+{%- if health_endpoint %}
+│   {{ '├──' if cloud_service == 'AWS Lambda' else '└──' }} health_handler.go
+{%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-│   ├── health_handler.go
 │   └── lambda.go                  # API Gateway response helpers
-{%- else %}
-│   └── health_handler.go
 {%- endif %}
 ├── services
 {%- for resource in resources %}
@@ -306,7 +310,9 @@ package.
 {%- for resource in resources %}
 ├── {{ resource.name | to_lower_camel }}Api/function.json
 {%- endfor %}
+{%- if health_endpoint %}
 ├── healthApi/function.json
+{%- endif %}
 ├── host.json
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
