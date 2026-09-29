@@ -140,3 +140,15 @@ resources:
     {%- endfor -%}
     {%- endif -%}
     {{ ns.err }}
+
+# ---- Path-safe resource names (never prompted) ----
+# Git for Windows refuses to check out paths containing "|", so per-resource
+# template paths can't apply Jinja filters. They yield from this copy of
+# `resources` instead, which adds the file-name stems each path needs.
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {{ dict(r, snake_name=(r.name | to_snake), lower_camel_name=(r.name | to_lower_camel)) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

@@ -55,9 +55,11 @@ The default is a single resource derived from the project name with `list`, `get
   `CatRepository`; in .NET the stored entity is `CatEntity`) and its own file in every
   layer: entry point/handlers, controller, service, repository, models and tests. A
   per-resource file is a single template whose path uses Copier's `yield` tag, for
-  example `controllers/{% yield resource from resources %}{{ resource.name | to_lower_camel }}.controller.ts{% endyield %}`;
+  example `controllers/{% yield resource from path_resources %}{{ resource.lower_camel_name }}.controller.ts{% endyield %}`;
   Copier renders it once per resource with `resource` in context (`resources` is still the
-  full list). Only one `yield` is allowed per path segment and none inside file contents,
+  full list). Git for Windows cannot check out a path containing `|`, so paths never use
+  Jinja filters: `path_resources` (a derived `when: false` copy of `resources`) adds the
+  `snake_name` and `lower_camel_name` stems. Only one `yield` is allowed per path segment and none inside file contents,
   so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
   still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
 - Controllers, services and routes expose only the resource's `operations` (`update` is
