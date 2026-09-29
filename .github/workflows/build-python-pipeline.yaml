@@ -33,36 +33,16 @@ jobs:
           - "3.14"
         fixture:
           - single
-        include:
-          - os: ubuntu-latest
-            template-type: python
-            cloud-service: "Azure Function App"
-            python-version: "3.14"
+          - multi
+          - edge
+        exclude:
+          - os: macos-latest
             fixture: multi
-          - os: ubuntu-latest
-            template-type: python
-            cloud-service: "GCP Cloud Function"
-            python-version: "3.14"
-            fixture: multi
-          - os: ubuntu-latest
-            template-type: python
-            cloud-service: "AWS Lambda"
-            python-version: "3.14"
-            fixture: multi
-          - os: ubuntu-latest
-            template-type: python
-            cloud-service: "Azure Function App"
-            python-version: "3.14"
+          - os: macos-latest
             fixture: edge
-          - os: ubuntu-latest
-            template-type: python
-            cloud-service: "GCP Cloud Function"
-            python-version: "3.14"
-            fixture: edge
-          - os: ubuntu-latest
-            template-type: python
-            cloud-service: "AWS Lambda"
-            python-version: "3.14"
+          - os: windows-latest
+            fixture: multi
+          - os: windows-latest
             fixture: edge
       fail-fast: false
     steps:
