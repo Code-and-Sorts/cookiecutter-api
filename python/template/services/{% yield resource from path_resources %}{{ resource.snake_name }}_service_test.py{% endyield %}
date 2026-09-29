@@ -18,11 +18,21 @@ def describe_{{ slug }}_service():
     @pytest.fixture
     def mock_repository():
         mock = AsyncMock({{ r }}Repository)
+{%- if "get_by_id" in resource.operations %}
         mock.get_by_id.return_value = _responses[0]
+{%- endif %}
+{%- if "list" in resource.operations %}
         mock.get_list.return_value = _responses
+{%- endif %}
+{%- if "create" in resource.operations %}
         mock.create.return_value = _responses[0]
+{%- endif %}
+{%- if "update" in resource.operations %}
         mock.update.return_value = _update_response
+{%- endif %}
+{%- if "replace" in resource.operations %}
         mock.replace.return_value = _update_response
+{%- endif %}
         return mock
 
     @pytest.fixture

@@ -1,7 +1,44 @@
-from models import Base{{ resource.name }}, {{ resource.name }}, {{ resource.name }}Response
-from .base_repository import BaseRepository
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{% if 'list' in ops -%}
+from typing import List
+{% endif -%}
+from models import Base{{ r }}, {{ r }}, {{ r }}Response
+from .base_repository import {% if 'list' in ops %}DEFAULT_LIST_LIMIT, {% endif %}BaseRepository
 
 
-class {{ resource.name }}Repository(BaseRepository[{{ resource.name }}, {{ resource.name }}Response]):
-    response_model = {{ resource.name }}Response
-    base_model = Base{{ resource.name }}
+class {{ r }}Repository(BaseRepository[{{ r }}, {{ r }}Response]):
+    """Exposes only the operations the {{ r }} resource supports."""
+
+    response_model = {{ r }}Response
+    base_model = Base{{ r }}
+{%- if "get_by_id" in ops %}
+
+    async def get_by_id(self, item_id: str) -> {{ r }}Response:
+        return await self._get_by_id(item_id)
+{%- endif %}
+{%- if "list" in ops %}
+
+    async def get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[{{ r }}Response]:
+        return await self._get_list(limit)
+{%- endif %}
+{%- if "create" in ops %}
+
+    async def create(self, item: {{ r }}) -> {{ r }}Response:
+        return await self._create(item)
+{%- endif %}
+{%- if "update" in ops %}
+
+    async def update(self, item: {{ r }}) -> {{ r }}Response:
+        return await self._update(item)
+{%- endif %}
+{%- if "replace" in ops %}
+
+    async def replace(self, item: {{ r }}) -> {{ r }}Response:
+        return await self._replace(item)
+{%- endif %}
+{%- if "delete" in ops %}
+
+    async def delete(self, item_id: str):
+        await self._delete(item_id)
+{%- endif %}

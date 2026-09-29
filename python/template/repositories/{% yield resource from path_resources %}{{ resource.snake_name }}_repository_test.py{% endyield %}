@@ -1,7 +1,12 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set method_names = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
+{%- set hidden = [] -%}
+{%- for op, method in method_names.items() if op not in ops -%}{% set _ = hidden.append(method) %}{%- endfor -%}
+{%- set uses_item = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from models import Base{{ r }}, {{ r }}, {{ r }}Response
+from models import Base{{ r }}, {% if uses_item %}{{ r }}, {% endif %}{{ r }}Response
 from repositories import BaseRepository, {{ r }}Repository
 
 _ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
@@ -15,6 +20,10 @@ _stored_item = {
     "createdDate": "2024-08-10T20:41:30Z",
     "updatedDate": "2024-08-10T20:41:30Z"
 }
+_response = {{ r }}Response(id=_ID, name="mockName1", type="mockType1")
+{%- if uses_item %}
+_item = {{ r }}(id=_ID, name="mockName1", type="mockType1")
+{%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
 
@@ -30,23 +39,46 @@ def _make_session(table_mock):
 {%- endif %}
 
 
+def _repository() -> {{ r }}Repository:
+{%- if cloud_service == 'AWS Lambda' %}
+    return {{ r }}Repository(MagicMock(), "{{ resource.container }}", "us-east-1")
+{%- else %}
+    return {{ r }}Repository(MagicMock())
+{%- endif %}
+
+
 def describe_{{ r | to_snake }}_repository():
     def test_extends_base_repository_with_{{ r | to_snake }}_models():
         assert issubclass({{ r }}Repository, BaseRepository)
         assert {{ r }}Repository.response_model is {{ r }}Response
         assert {{ r }}Repository.base_model is Base{{ r }}
+{%- if hidden %}
+
+    def test_exposes_only_{{ r | to_snake }}_operations():
+        for method in {{ hidden }}:
+            assert not hasattr({{ r }}Repository, method)
+{%- endif %}
+{%- if "get_by_id" in ops %}
 
     def test_get_by_id_returns_{{ r | to_snake }}_response():
-{%- if cloud_service == 'AWS Lambda' %}
-        repository = {{ r }}Repository(MagicMock(), "{{ resource.container }}", "us-east-1")
-{%- else %}
-        repository = {{ r }}Repository(MagicMock())
-{%- endif %}
+        repository = _repository()
         with patch.object(repository, "_get_stored", AsyncMock(return_value=_stored_item)):
             result = asyncio.run(repository.get_by_id(_ID))
 
         assert isinstance(result, {{ r }}Response)
-        assert result == {{ r }}Response(id=_ID, name="mockName1", type="mockType1")
+        assert result == _response
+{%- endif %}
+{%- if "list" in ops %}
+
+    def test_get_list_delegates_to_base():
+        repository = _repository()
+        with patch.object(repository, "_get_list", AsyncMock(return_value=[_response])) as base:
+            result = asyncio.run(repository.get_list(25))
+
+        base.assert_awaited_once_with(25)
+        assert result == [_response]
+{%- endif %}
+{%- if "create" in ops %}
 
     def test_create_stores_{{ r | to_snake }}():
 {%- if cloud_service == 'Azure Function App' %}
@@ -65,7 +97,7 @@ def describe_{{ r | to_snake }}_repository():
         repository = {{ r }}Repository(_make_session(table), "{{ resource.container }}", "us-east-1")
 {%- endif %}
         with patch(_TIMESTAMP, return_value=_NOW):
-            result = asyncio.run(repository.create({{ r }}(id=_ID, name="mockName1", type="mockType1")))
+            result = asyncio.run(repository.create(_item))
 
         expected = {**_stored_item, "createdDate": _NOW, "updatedDate": _NOW}
 {%- if cloud_service == 'Azure Function App' %}
@@ -78,4 +110,24 @@ def describe_{{ r | to_snake }}_repository():
 {%- if cloud_service == 'AWS Lambda' %}
         table.put_item.assert_called_once_with(Item=expected)
 {%- endif %}
-        assert result == {{ r }}Response(id=_ID, name="mockName1", type="mockType1")
+        assert result == _response
+{%- endif %}
+{%- for op in ['update', 'replace'] if op in ops %}
+
+    def test_{{ op }}_delegates_to_base():
+        repository = _repository()
+        with patch.object(repository, "_{{ op }}", AsyncMock(return_value=_response)) as base:
+            result = asyncio.run(repository.{{ op }}(_item))
+
+        base.assert_awaited_once_with(_item)
+        assert result == _response
+{%- endfor %}
+{%- if "delete" in ops %}
+
+    def test_delete_delegates_to_base():
+        repository = _repository()
+        with patch.object(repository, "_delete", AsyncMock()) as base:
+            asyncio.run(repository.delete(_ID))
+
+        base.assert_awaited_once_with(_ID)
+{%- endif %}

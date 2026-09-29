@@ -111,7 +111,7 @@ def describe_base_repository():
         def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator(mock_query)
             repository = _ItemRepository(mock_cosmos_client)
-            result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+            result = asyncio.run(repository._get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
             mock_cosmos_client.query_items.assert_called_once_with(
                 query="SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false",
                 parameters=[{"name": "@id", "value": "ac1df01c-7ece-4a20-ab60-179829dad8f5"}]
@@ -122,13 +122,13 @@ def describe_base_repository():
             mock_cosmos_client.query_items.return_value = _AsyncIterator([])
             repository = _ItemRepository(mock_cosmos_client)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+                asyncio.run(repository._get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
         def test_successfully_call(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator(mock_query)
             repository = _ItemRepository(mock_cosmos_client)
-            result = asyncio.run(repository.get_list())
+            result = asyncio.run(repository._get_list())
             mock_cosmos_client.query_items.assert_called_once_with(
                 query="SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100"
             )
@@ -137,7 +137,7 @@ def describe_base_repository():
         def test_successfully_call_empty_result(mock_cosmos_client):
             mock_cosmos_client.query_items.return_value = _AsyncIterator([])
             repository = _ItemRepository(mock_cosmos_client)
-            result = asyncio.run(repository.get_list())
+            result = asyncio.run(repository._get_list())
             assert result == []
 
     def describe_create():
@@ -146,7 +146,7 @@ def describe_base_repository():
             repository = _ItemRepository(mock_cosmos_client)
             mock_item = _Item(**mock_query[0])
             with patch(_TIMESTAMP, return_value="2024-08-10T20:41:30Z"):
-                result = asyncio.run(repository.create(item=mock_item))
+                result = asyncio.run(repository._create(item=mock_item))
             mock_cosmos_client.create_item.assert_called_once_with(mock_query[0])
             assert result == _responses[0]
 
@@ -156,7 +156,7 @@ def describe_base_repository():
             mock_cosmos_client.upsert_item.side_effect = lambda item: item
             repository = _ItemRepository(mock_cosmos_client)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.update(item=_Item(id=_ID, name='mockName1-Update')))
+                result = asyncio.run(repository._update(item=_Item(id=_ID, name='mockName1-Update')))
             mock_cosmos_client.upsert_item.assert_called_once_with(
                 {**_stored_item, "name": "mockName1-Update", "updatedDate": _NOW}
             )
@@ -166,7 +166,7 @@ def describe_base_repository():
             mock_cosmos_client.query_items.return_value = _AsyncIterator([])
             repository = _ItemRepository(mock_cosmos_client)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.update(item=_Item(id=_ID, name='mockName1-Update')))
+                asyncio.run(repository._update(item=_Item(id=_ID, name='mockName1-Update')))
             mock_cosmos_client.upsert_item.assert_not_called()
 
     def describe_replace():
@@ -175,7 +175,7 @@ def describe_base_repository():
             mock_cosmos_client.upsert_item.side_effect = lambda item: item
             repository = _ItemRepository(mock_cosmos_client)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.replace(item=_Item(**_replacement)))
+                result = asyncio.run(repository._replace(item=_Item(**_replacement)))
             mock_cosmos_client.upsert_item.assert_called_once_with(_expected_replacement)
             assert result == _ItemResponse(id=_ID, name='mockName1-Replace')
 
@@ -183,7 +183,7 @@ def describe_base_repository():
             mock_cosmos_client.query_items.return_value = _AsyncIterator([])
             repository = _ItemRepository(mock_cosmos_client)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.replace(item=_Item(**_replacement)))
+                asyncio.run(repository._replace(item=_Item(**_replacement)))
             mock_cosmos_client.upsert_item.assert_not_called()
 
     def describe_delete():
@@ -191,7 +191,7 @@ def describe_base_repository():
             mock_cosmos_client.patch_item.return_value = mock_query[0]
             repository = _ItemRepository(mock_cosmos_client)
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+                asyncio.run(repository._delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
             mock_cosmos_client.patch_item.assert_called_once_with(
                 item='ac1df01c-7ece-4a20-ab60-179829dad8f5',
                 partition_key='ac1df01c-7ece-4a20-ab60-179829dad8f5',
@@ -222,7 +222,7 @@ def describe_base_repository():
             mock_firestore_collection.document.return_value = mock_doc_ref
 
             repository = _ItemRepository(mock_firestore_collection)
-            result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+            result = asyncio.run(repository._get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             assert result == _responses[0]
@@ -236,7 +236,7 @@ def describe_base_repository():
 
             repository = _ItemRepository(mock_firestore_collection)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+                asyncio.run(repository._get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
         def test_successfully_call(mock_firestore_collection):
@@ -259,7 +259,7 @@ def describe_base_repository():
             mock_firestore_collection.where.return_value = mock_query
 
             repository = _ItemRepository(mock_firestore_collection)
-            result = asyncio.run(repository.get_list())
+            result = asyncio.run(repository._get_list())
 
             mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
             mock_query.limit.assert_called_once_with(100)
@@ -272,7 +272,7 @@ def describe_base_repository():
             mock_firestore_collection.where.return_value = mock_query
 
             repository = _ItemRepository(mock_firestore_collection)
-            result = asyncio.run(repository.get_list())
+            result = asyncio.run(repository._get_list())
 
             mock_firestore_collection.where.assert_called_once_with('isDeleted', '==', False)
             assert result == []
@@ -299,7 +299,7 @@ def describe_base_repository():
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
             )
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.create(item=mock_item))
+                result = asyncio.run(repository._create(item=mock_item))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             mock_doc_ref.set.assert_called_once_with({
@@ -318,7 +318,7 @@ def describe_base_repository():
 
             repository = _ItemRepository(mock_firestore_collection)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.update(item=_Item(id=_ID, name='mockName1-Update')))
+                result = asyncio.run(repository._update(item=_Item(id=_ID, name='mockName1-Update')))
 
             mock_doc_ref.set.assert_called_once_with(
                 {**_stored_item, "name": "mockName1-Update", "updatedDate": _NOW}
@@ -330,7 +330,7 @@ def describe_base_repository():
 
             repository = _ItemRepository(mock_firestore_collection)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.update(item=_Item(id=_ID, name='mockName1-Update')))
+                asyncio.run(repository._update(item=_Item(id=_ID, name='mockName1-Update')))
             mock_doc_ref.set.assert_not_called()
 
     def describe_replace():
@@ -339,7 +339,7 @@ def describe_base_repository():
 
             repository = _ItemRepository(mock_firestore_collection)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.replace(item=_Item(**_replacement)))
+                result = asyncio.run(repository._replace(item=_Item(**_replacement)))
 
             mock_doc_ref.set.assert_called_once_with(_expected_replacement)
             assert result == _ItemResponse(id=_ID, name='mockName1-Replace')
@@ -349,7 +349,7 @@ def describe_base_repository():
 
             repository = _ItemRepository(mock_firestore_collection)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.replace(item=_Item(**_replacement)))
+                asyncio.run(repository._replace(item=_Item(**_replacement)))
             mock_doc_ref.set.assert_not_called()
 
     def describe_delete():
@@ -361,7 +361,7 @@ def describe_base_repository():
 
             repository = _ItemRepository(mock_firestore_collection)
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+                asyncio.run(repository._delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_firestore_collection.document.assert_called_once_with('ac1df01c-7ece-4a20-ab60-179829dad8f5')
             mock_doc_ref.update.assert_called_once_with({'isDeleted': True, 'updatedDate': _NOW})
@@ -404,7 +404,7 @@ def describe_base_repository():
             }
 
             repository = _repository(mock_dynamodb_table)
-            result = asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+            result = asyncio.run(repository._get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_dynamodb_table.get_item.assert_called_once_with(Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"})
             assert result == _responses[0]
@@ -414,7 +414,7 @@ def describe_base_repository():
 
             repository = _repository(mock_dynamodb_table)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+                asyncio.run(repository._get_by_id(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
     def describe_get_list():
         def test_successfully_call(mock_dynamodb_table):
@@ -436,7 +436,7 @@ def describe_base_repository():
             }
 
             repository = _repository(mock_dynamodb_table)
-            result = asyncio.run(repository.get_list())
+            result = asyncio.run(repository._get_list())
 
             mock_dynamodb_table.scan.assert_called_once()
             assert result == _responses
@@ -445,7 +445,7 @@ def describe_base_repository():
             mock_dynamodb_table.scan.return_value = {"Items": []}
 
             repository = _repository(mock_dynamodb_table)
-            result = asyncio.run(repository.get_list())
+            result = asyncio.run(repository._get_list())
 
             mock_dynamodb_table.scan.assert_called_once()
             assert result == []
@@ -459,7 +459,7 @@ def describe_base_repository():
                 id='ac1df01c-7ece-4a20-ab60-179829dad8f5'
             )
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.create(item=mock_item))
+                result = asyncio.run(repository._create(item=mock_item))
 
             mock_dynamodb_table.put_item.assert_called_once_with(Item={
                 "id": _ID,
@@ -477,7 +477,7 @@ def describe_base_repository():
 
             repository = _repository(mock_dynamodb_table)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.update(item=_Item(id=_ID, name='mockName1-Update')))
+                result = asyncio.run(repository._update(item=_Item(id=_ID, name='mockName1-Update')))
 
             mock_dynamodb_table.put_item.assert_called_once_with(
                 Item={**_stored_item, "name": "mockName1-Update", "updatedDate": _NOW}
@@ -489,7 +489,7 @@ def describe_base_repository():
 
             repository = _repository(mock_dynamodb_table)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.update(item=_Item(id=_ID, name='mockName1-Update')))
+                asyncio.run(repository._update(item=_Item(id=_ID, name='mockName1-Update')))
             mock_dynamodb_table.put_item.assert_not_called()
 
     def describe_replace():
@@ -498,7 +498,7 @@ def describe_base_repository():
 
             repository = _repository(mock_dynamodb_table)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository.replace(item=_Item(**_replacement)))
+                result = asyncio.run(repository._replace(item=_Item(**_replacement)))
 
             mock_dynamodb_table.put_item.assert_called_once_with(Item=_expected_replacement)
             assert result == _ItemResponse(id=_ID, name='mockName1-Replace')
@@ -508,14 +508,14 @@ def describe_base_repository():
 
             repository = _repository(mock_dynamodb_table)
             with pytest.raises(NotFoundError):
-                asyncio.run(repository.replace(item=_Item(**_replacement)))
+                asyncio.run(repository._replace(item=_Item(**_replacement)))
             mock_dynamodb_table.put_item.assert_not_called()
 
     def describe_delete():
         def test_successfully_call(mock_dynamodb_table):
             repository = _repository(mock_dynamodb_table)
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository.delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
+                asyncio.run(repository._delete(item_id='ac1df01c-7ece-4a20-ab60-179829dad8f5'))
 
             mock_dynamodb_table.update_item.assert_called_once_with(
                 Key={"id": "ac1df01c-7ece-4a20-ab60-179829dad8f5"},

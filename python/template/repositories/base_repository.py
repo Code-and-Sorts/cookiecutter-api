@@ -38,8 +38,10 @@ class Database:
 class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
     """Storage operations shared by every resource repository.
 
+    The operations are protected: each resource repository exposes publicly
+    only the operations its resource supports, delegating to these methods.
     Subclasses set ``response_model`` (returned to callers) and ``base_model``
-    (the client-editable fields that ``update`` and ``replace`` may change).
+    (the client-editable fields that ``_update`` and ``_replace`` may change).
     """
 
     response_model: ClassVar[type[BaseModel]]
@@ -99,10 +101,10 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         return item
 {%- endif %}
 
-    async def get_by_id(self, item_id: str) -> ResponseT:
+    async def _get_by_id(self, item_id: str) -> ResponseT:
         return self.response_model.model_validate(await self._get_stored(item_id))
 
-    async def get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[ResponseT]:
+    async def _get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[ResponseT]:
 {%- if cloud_service == 'Azure Function App' %}
         query = f"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {int(limit)}"
         items = [
@@ -139,7 +141,7 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         return [self.response_model.model_validate(item) for item in items]
 {%- endif %}
 
-    async def create(self, item: ItemT) -> ResponseT:
+    async def _create(self, item: ItemT) -> ResponseT:
         now = generate_utc_timestamp()
         item_dict = {
             **item.model_dump(exclude_none=True),
@@ -166,7 +168,7 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         return self.response_model.model_validate(item_dict)
 {%- endif %}
 
-    async def update(self, item: ItemT) -> ResponseT:
+    async def _update(self, item: ItemT) -> ResponseT:
         stored_item = await self._get_stored(item.id)
         changes = item.model_dump(include=set(self.base_model.model_fields), exclude_unset=True)
         patched_item = {
@@ -194,7 +196,7 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         return self.response_model.model_validate(patched_item)
 {%- endif %}
 
-    async def replace(self, item: ItemT) -> ResponseT:
+    async def _replace(self, item: ItemT) -> ResponseT:
         stored_item = await self._get_stored(item.id)
         now = generate_utc_timestamp()
         replacement = {
@@ -223,7 +225,7 @@ class BaseRepository[ItemT: BaseModel, ResponseT: BaseModel]:
         return self.response_model.model_validate(replacement)
 {%- endif %}
 
-    async def delete(self, item_id: str):
+    async def _delete(self, item_id: str):
 {%- if cloud_service == 'Azure Function App' %}
         filter = "from c WHERE c.isDeleted = false"
         operations: list[dict] = [
