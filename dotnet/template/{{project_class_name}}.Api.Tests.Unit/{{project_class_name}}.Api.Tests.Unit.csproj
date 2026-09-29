@@ -15,7 +15,7 @@
     <PackageReference Include="Amazon.Lambda.TestUtilities" Version="3.0.1" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.513.4" />
 {%- endif %}
-    <PackageReference Include="coverlet.collector" Version="6.0.4">
+    <PackageReference Include="coverlet.collector" Version="10.0.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
