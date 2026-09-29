@@ -1,9 +1,9 @@
 {%- set col_id = '17bc9346-e6fe-4e42-8430-7ad3bb80da7b' -%}
-{%- macro request(n, name, url, method, status, body='', capture='') -%}
+{%- macro request(n, name, url, method, status, body='', capture='', folder='') -%}
         {
             "_id": "00000000-0000-4000-8000-{{ '%012d' % n }}",
             "colId": "{{ col_id }}",
-            "containerId": "",
+            "containerId": "{{ folder }}",
             "name": "{{ name }}",
             "url": "{{ url }}",
             "method": "{{ method }}",
@@ -42,7 +42,17 @@
     "collectionId": "{{ col_id }}",
     "dateExported": "2024-08-10T22:25:59.850Z",
     "version": "1.2",
-    "folders": [],
+    "folders": [
+{%- for resource in resources %}
+        {
+            "_id": "00000000-0000-4000-9000-{{ '%012d' % loop.index }}",
+            "name": "{{ resource.name }}",
+            "containerId": "",
+            "created": "2024-08-10T20:25:19.095Z",
+            "sortNum": {{ loop.index * 10000 }}
+        }{{ "," if not loop.last }}
+{%- endfor %}
+    ],
     "requests": [
 {{ request(1, 'Health', '{{baseUrl}}/health', 'GET', 200) }}
 {%- set ns = namespace(n=1) %}
@@ -50,29 +60,30 @@
 {%- set url = '{{baseUrl}}/' ~ resource.endpoint %}
 {%- set item_url = url ~ '/{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
 {%- set id_var = (resource.name | to_lower_camel) ~ 'Id' %}
+{%- set folder = "00000000-0000-4000-9000-" ~ ('%012d' % loop.index) %}
 {%- if "create" in resource.operations %}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'Create ' ~ resource.name, url, 'POST', 201, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1\\"\\n}', id_var) }}
+{{ request(ns.n, 'Create ' ~ resource.name, url, 'POST', 201, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1\\"\\n}', id_var, folder) }}
 {%- endif %}
 {%- if "list" in resource.operations %}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'List ' ~ resource.name, url, 'GET', 200) }}
+{{ request(ns.n, 'List ' ~ resource.name, url, 'GET', 200, folder=folder) }}
 {%- endif %}
 {%- if "get_by_id" in resource.operations %}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'Get ' ~ resource.name ~ ' by ID', item_url, 'GET', 200) }}
+{{ request(ns.n, 'Get ' ~ resource.name ~ ' by ID', item_url, 'GET', 200, folder=folder) }}
 {%- endif %}
 {%- if "update" in resource.operations %}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'Update ' ~ resource.name, item_url, 'PATCH', 200, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1-Update\\"\\n}') }}
+{{ request(ns.n, 'Update ' ~ resource.name, item_url, 'PATCH', 200, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1-Update\\"\\n}', folder=folder) }}
 {%- endif %}
 {%- if "replace" in resource.operations %}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'Replace ' ~ resource.name, item_url, 'PUT', 200, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1-Replace\\"\\n}') }}
+{{ request(ns.n, 'Replace ' ~ resource.name, item_url, 'PUT', 200, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1-Replace\\"\\n}', folder=folder) }}
 {%- endif %}
 {%- if "delete" in resource.operations %}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'Delete ' ~ resource.name, item_url, 'DELETE', 200) }}
+{{ request(ns.n, 'Delete ' ~ resource.name, item_url, 'DELETE', 200, folder=folder) }}
 {%- endif %}
 {%- endfor %}
     ],

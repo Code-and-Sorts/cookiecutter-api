@@ -1,3 +1,5 @@
+{%- set r = resource.name -%}
+{%- set key = resource.container | upper | replace('-', '_') -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
 {% if cloud_service == 'Azure Function App' -%}
@@ -9,16 +11,9 @@ import { Firestore } from '@google-cloud/firestore';
 {%- if cloud_service == 'AWS Lambda' %}
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 {%- endif %}
-import {
-    env,
-{%- for resource in resources %}
-    {{ resource.name }}Record,
-{%- endfor %}
-} from '@models';
+import { env, {{ r }}Record } from '@models';
 import { BaseRepository{% if cloud_service == 'AWS Lambda' %}, DocumentClient{% endif %} } from './base.repository';
-{% for resource in resources %}
-{%- set r = resource.name %}
-{%- set key = resource.container | upper | replace('-', '_') %}
+
 @injectable()
 export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 {%- if cloud_service == 'Azure Function App' %}
@@ -44,4 +39,3 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
   replace = async (item: {{ r }}Record): Promise<{{ r }}Record> => this.replaceRecord(item);
   delete = async (id: string): Promise<void> => this.deleteRecord(id);
 }
-{% endfor %}

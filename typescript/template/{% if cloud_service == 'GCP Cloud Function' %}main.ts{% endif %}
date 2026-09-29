@@ -1,21 +1,11 @@
 import * as ff from '@google-cloud/functions-framework';
 import {
+  jsonResponse,
 {%- for resource in resources %}
-  {{ resource.name | to_lower_camel }}Controller,
+  {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
-} from '@config/container';
-import {
-{%- for resource in resources %}
-  {{ resource.name }},
-{%- endfor %}
-} from '@models';
+} from '@routes';
 import { detectError } from '@utils';
-
-const jsonResponse = (res: ff.Response, status: number, body: unknown): void => {
-  res.status(status).json(body);
-};
-
-const notAllowed = (res: ff.Response) => jsonResponse(res, 405, { error: 'Method not allowed.' });
 
 ff.http('api', async (req: ff.Request, res: ff.Response) => {
   const cleanPath = req.path.replace(/\/+$/, '');
@@ -30,57 +20,8 @@ ff.http('api', async (req: ff.Request, res: ff.Response) => {
   try {
     switch (endpoint) {
 {%- for resource in resources %}
-{%- set c = resource.name | to_lower_camel %}
-      case '{{ resource.endpoint }}': {
-        switch (req.method) {
-          case 'GET': {
-            if (id) {
-{%- if "get_by_id" in resource.operations %}
-              return jsonResponse(res, 200, await {{ c }}Controller.get(id));
-{%- else %}
-              return notAllowed(res);
-{%- endif %}
-            }
-{%- if "list" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.list(req.query.limit as string | undefined));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'POST': {
-{%- if "create" in resource.operations %}
-            return jsonResponse(res, 201, await {{ c }}Controller.post(req.body as {{ resource.name }}));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'PATCH': {
-{%- if "update" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.update({ ...(req.body as {{ resource.name }}), id }));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'PUT': {
-{%- if "replace" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.replace({ ...(req.body as {{ resource.name }}), id }));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'DELETE': {
-{%- if "delete" in resource.operations %}
-            if (!id) return jsonResponse(res, 400, { error: 'Missing item ID.' });
-            await {{ c }}Controller.delete(id);
-            return jsonResponse(res, 200, { message: `{{ resource.endpoint }} with ID ${id} deleted.` });
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          default:
-            return notAllowed(res);
-        }
-      }
+      case '{{ resource.endpoint }}':
+        return await {{ resource.name | to_lower_camel }}Routes(req, res, id);
 {%- endfor %}
       default:
         return jsonResponse(res, 404, { error: 'Not found.' });

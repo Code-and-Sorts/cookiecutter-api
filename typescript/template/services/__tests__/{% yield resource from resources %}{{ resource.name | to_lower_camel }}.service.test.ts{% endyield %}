@@ -1,24 +1,12 @@
+{%- set r = resource.name -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import {
-{%- for resource in resources %}
-    {{ resource.name }}Service,
-{%- endfor %}
-} from '@services';
-import {
-{%- for resource in resources %}
-    {{ resource.name }}Repository,
-{%- endfor %}
-} from '@repositories';
-import {
-{%- for resource in resources %}
-    {{ resource.name }}EntitySchema,
-{%- endfor %}
-} from '@models';
+import { {{ r }}Service } from '@services';
+import { {{ r }}Repository } from '@repositories';
+import { {{ r }}EntitySchema } from '@models';
 import { NotFoundError } from '@errors';
 
 type MockFn = (...args: any[]) => any;
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 describe('{{ r }}Service', () => {
     const mockGet = jest.fn<MockFn>();
     const mockList = jest.fn<MockFn>();
@@ -201,4 +189,3 @@ describe('{{ r }}Service', () => {
     });
 {%- endif %}
 });
-{% endfor %}

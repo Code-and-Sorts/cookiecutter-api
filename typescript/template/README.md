@@ -19,11 +19,11 @@
 ## Overview
 
 {% if cloud_service == 'Azure Function App' -%}
-This project is a TypeScript Node.js REST API built on [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/) (programming model v4) and backed by [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/). Each enabled operation is registered as its own HTTP-triggered function.
+This project is a TypeScript Node.js REST API built on [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/) (programming model v4) and backed by [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/). Each enabled operation is registered as its own HTTP-triggered function, with one file per resource under `functions/`.
 {%- elif cloud_service == 'GCP Cloud Function' -%}
-This project is a TypeScript Node.js REST API built on [Cloud Run functions](https://cloud.google.com/functions/docs) with the [Functions Framework](https://github.com/GoogleCloudPlatform/functions-framework-nodejs) and backed by [Firestore](https://cloud.google.com/firestore/docs). A single HTTP function named `api` routes every request to the matching resource.
+This project is a TypeScript Node.js REST API built on [Cloud Run functions](https://cloud.google.com/functions/docs) with the [Functions Framework](https://github.com/GoogleCloudPlatform/functions-framework-nodejs) and backed by [Firestore](https://cloud.google.com/firestore/docs). A single HTTP function named `api` passes every request to the matching resource's handler in `routes/`.
 {%- else -%}
-This project is a TypeScript Node.js REST API built on [AWS Lambda](https://docs.aws.amazon.com/lambda/) behind Amazon API Gateway and backed by [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/). A single Lambda handler routes every request to the matching resource, and `template.yaml` is an [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) template for local runs and deployment.
+This project is a TypeScript Node.js REST API built on [AWS Lambda](https://docs.aws.amazon.com/lambda/) behind Amazon API Gateway and backed by [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/). A single Lambda handler passes every request to the matching resource's handler in `routes/`, and `template.yaml` is an [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) template for local runs and deployment.
 {%- endif %}
 
 The API follows a controller → service → repository layout wired together by an [Inversify](https://inversify.io/) container in `config/container.ts`, validates input with [Zod](https://zod.dev/), and soft-deletes records by setting `isDeleted`. The project is an ES module (`"type": "module"`).
@@ -226,26 +226,58 @@ yarn audit       # yarn npm audit --severity moderate
 
 ## Repository structure
 
+Each resource gets its own file in every layer, named after the resource in lowerCamelCase{% if resources | length > 1 %} (for example `{{ resources[0].name | to_lower_camel }}.controller.ts`){% endif %}. Each layer's `index.ts` re-exports them.
+
 ```text
-├── .thunderclient     - Thunder Client collection
-├── config             - Wiring of repositories, services and controllers
-├── controllers        - Request validation
+├── .thunderclient                  - Thunder Client collection, one folder per resource
+├── config
+│   └── container.ts                - Wiring of repositories, services and controllers
+├── controllers                     - Request validation
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.controller.ts
+{%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
-├── functions          - Azure Functions HTTP triggers
+├── functions                       - Azure Functions HTTP triggers
+│   ├── health.ts
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.ts
+{%- endfor %}
 {%- endif %}
-├── repositories       - {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} access
-├── services           - Business logic
-├── types              - Zod models, environment schema and errors
-├── utils              - Error to HTTP response mapping
+├── repositories                    - {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} access
+│   ├── base.repository.ts
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.repository.ts
+{%- endfor %}
+{%- if cloud_service != 'Azure Function App' %}
+├── routes                          - Per-resource HTTP method routing
+│   ├── response.ts
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.routes.ts
+{%- endfor %}
+{%- endif %}
+├── services                        - Business logic
+│   ├── schemaValidator.service.ts
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.service.ts
+{%- endfor %}
+├── types
+│   ├── errors                      - Error types
+│   └── models                      - Zod models and environment schema
+{%- for resource in resources %}
+│       {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.schema.ts
+{%- endfor %}
+├── utils                           - Error to HTTP response mapping, list limits
 {%- if cloud_service == 'GCP Cloud Function' %}
-├── main.ts            - Functions Framework entry point
+├── main.ts                         - Functions Framework entry point
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-├── lambda.ts          - Lambda handler
-├── template.yaml      - AWS SAM template
+├── lambda.ts                       - Lambda handler
+├── template.yaml                   - AWS SAM template
 {%- endif %}
-└── package.json       - Scripts and dependencies
+└── package.json                    - Scripts and dependencies
 ```
+
+Unit tests sit in a `__tests__` directory next to the code they cover, one file per resource (for example `controllers/__tests__/{{ resources[0].name | to_lower_camel }}.controller.test.ts`).
 
 ## License
 

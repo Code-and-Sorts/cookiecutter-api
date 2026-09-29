@@ -1,34 +1,30 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
+import { {{ r }}Service, SchemaValidator } from '@services';
 import {
-{%- for resource in resources %}
-    {{ resource.name }}Service,
-{%- endfor %}
-} from '@services';
-import {
-{%- for resource in resources %}
-    {{ resource.name }},
-    {{ resource.name }}RequestSchema,
-    {{ resource.name }}Update,
-    {{ resource.name }}UpdateSchema,
-{%- endfor %}
+{%- if ops | reject('equalto', 'delete') | list %}
+    {{ r }},
+{%- endif %}
+{%- if "create" in ops %}
+    {{ r }}RequestSchema,
+{%- endif %}
+{%- if "update" in ops or "replace" in ops %}
+    {{ r }}Update,
+    {{ r }}UpdateSchema,
+{%- endif %}
+{%- if ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list %}
     GuidSchema,
+{%- endif %}
 } from '@models';
+{%- if "update" in ops or "replace" in ops %}
 import { ValidationError } from '@errors';
-import { SchemaValidator } from '@services';
+{%- endif %}
+{%- if "list" in ops %}
+import { coerceLimit } from '@utils';
+{%- endif %}
 
-const DEFAULT_LIST_LIMIT = 100;
-const MAX_LIST_LIMIT = 1000;
-
-const coerceLimit = (raw?: string | number): number => {
-  const parsed = typeof raw === 'number' ? raw : parseInt(raw ?? '', 10);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return DEFAULT_LIST_LIMIT;
-  }
-  return Math.min(parsed, MAX_LIST_LIMIT);
-};
-{% for resource in resources %}
-{%- set r = resource.name %}
 @injectable()
 export class {{ r }}Controller {
   private _service: {{ r }}Service;
@@ -90,4 +86,3 @@ export class {{ r }}Controller {
   };
 {%- endif %}
 }
-{% endfor %}

@@ -1,21 +1,15 @@
+{%- set r = resource.name -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
+import { {{ r }}Repository } from '@repositories';
 import {
-{%- for resource in resources %}
-    {{ resource.name }}Repository,
-{%- endfor %}
-} from '@repositories';
-import {
-{%- for resource in resources %}
-    {{ resource.name }},
-    {{ resource.name }}Response,
-    {{ resource.name }}ResponseSchema,
-    {{ resource.name }}EntitySchema,
-    {{ resource.name }}Update,
-{%- endfor %}
+    {{ r }},
+    {{ r }}Response,
+    {{ r }}ResponseSchema,
+    {{ r }}EntitySchema,
+    {{ r }}Update,
 } from '@models';
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 @injectable()
 export class {{ r }}Service {
   private _repo: {{ r }}Repository;
@@ -73,4 +67,3 @@ export class {{ r }}Service {
   delete = async (id: string): Promise<void> => this._repo.delete(id);
 {%- endif %}
 }
-{% endfor %}

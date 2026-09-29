@@ -1,27 +1,12 @@
+{%- set r = resource.name -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import {
-{%- for resource in resources %}
-    {{ resource.name }}Controller,
-{%- endfor %}
-} from '@controllers';
-import {
-{%- for resource in resources %}
-    {{ resource.name }}Service,
-{%- endfor %}
-} from '@services';
-import {
-{%- for resource in resources %}
-    {{ resource.name }}RequestSchema,
-    {{ resource.name }}UpdateSchema,
-{%- endfor %}
-    GuidSchema,
-} from '@models';
-import { SchemaValidator } from '@services';
+import { {{ r }}Controller } from '@controllers';
+import { {{ r }}Service, SchemaValidator } from '@services';
+import { {{ r }}RequestSchema, {{ r }}UpdateSchema, GuidSchema } from '@models';
 import { ValidationError } from '@errors';
 
 type MockFn = (...args: any[]) => any;
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 describe('{{ r }}Controller', () => {
     const mockGet = jest.fn<MockFn>();
     const mockList = jest.fn<MockFn>();
@@ -213,4 +198,3 @@ describe('{{ r }}Controller', () => {
     });
 {%- endif %}
 });
-{% endfor %}

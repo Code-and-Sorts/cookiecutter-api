@@ -93,11 +93,11 @@ Cloud-specific code is handled through:
 To add a new cloud provider to an existing language template:
 
 1. **Update `copier.yml`** — Add the new option to the `cloud_service` question's `choices`
-2. **Create the entry point** — Add the cloud-specific function entry point file(s), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
+2. **Create the entry point** — Add the cloud-specific function entry point file(s) and any per-resource handlers (TypeScript `functions/` or `routes/`, Python `blueprints/`, .NET `Functions/` or `Handlers/`, Go `handlers/`), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
 3. **Add Jinja2 conditionals** to these files:
    - `package.json` / `pyproject.toml` / `.csproj` / `go.mod` — Cloud-specific dependencies
    - `repositories/base.repository` — Database client implementation
-   - `repositories/{project}.repository` — DI binding for the database client
+   - the per-resource repository files (e.g. `repositories/cat.repository.ts`) — DI binding for the database client
    - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
 4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds

@@ -1,3 +1,7 @@
+# Per-resource files are generated with the `yield` tag in path names, which
+# needs a recent Copier; the template tracks the latest Copier release.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
@@ -91,7 +95,7 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Base", "BaseIdentifier", "BaseItem", "Guid", "Partial", "Promise", "SchemaValidator", "ValidationError"] -%}
+    {%- set reserved_names = ["Base", "BaseEnv", "BaseIdentifier", "BaseItem", "Env", "Guid", "Partial", "Promise", "SchemaValidator", "ValidationError"] -%}
     {%- if cloud_service == "Azure Function App" -%}
     {%- set reserved_names = reserved_names + ["HttpRequest", "HttpResponseInit", "InvocationContext"] -%}
     {%- elif cloud_service == "AWS Lambda" -%}
@@ -118,7 +122,7 @@ resources:
     {%- elif r.name == "Health" -%}
     {%- set ns.err = "Resource name 'Health' is reserved." -%}
     {%- elif r.name in reserved_names -%}
-    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved because it collides with a generated or imported TypeScript identifier. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved because it collides with a generated or imported TypeScript identifier or a shared file name. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
     {%- elif r.endpoint == "health" -%}

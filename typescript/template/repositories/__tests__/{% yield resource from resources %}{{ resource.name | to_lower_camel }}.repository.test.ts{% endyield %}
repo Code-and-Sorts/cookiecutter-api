@@ -1,3 +1,4 @@
+{%- set r = resource.name -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 {% if cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from "@azure/cosmos";
@@ -8,11 +9,7 @@ import { Firestore } from "@google-cloud/firestore";
 {%- if cloud_service == 'AWS Lambda' %}
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 {%- endif %}
-import {
-{%- for resource in resources %}
-    {{ resource.name }}Repository,
-{%- endfor %}
-} from "@repositories";
+import { {{ r }}Repository } from "@repositories";
 
 type MockFn = (...args: any[]) => any;
 
@@ -34,8 +31,7 @@ class MockDynamoDBDocumentClient {
     public send = jest.fn<MockFn>().mockImplementation(() => mockResult);
 }
 {%- endif %}
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 describe('{{ r }}Repository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
@@ -138,4 +134,3 @@ describe('{{ r }}Repository', () => {
         });
     });
 });
-{% endfor %}
