@@ -13,12 +13,46 @@ This project is a Go-based REST API built using [Google Cloud Functions](https:/
 This project is a Go-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with [API Gateway](https://docs.aws.amazon.com/apigateway/). The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) framework is used for local development and deployment.
 {%- endif %}
 
-The REST API has the following endpoints:
-- GET (by ID)
-- GET (list)
-- POST
-- PATCH
-- DELETE (soft-delete)
+{%- set route_prefix = '' if cloud_service == 'AWS Lambda' else '/api' %}
+{%- set containers = resources | map(attribute='container') | unique | list %}
+The REST API exposes the following resources and operations:
+{% for resource in resources %}
+- **`{{ route_prefix }}/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
+{%- if "list" in resource.operations %}
+  - `GET {{ route_prefix }}/{{ resource.endpoint }}` — list
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+  - `GET {{ route_prefix }}/{{ resource.endpoint }}/{id}` — get by ID
+{%- endif %}
+{%- if "create" in resource.operations %}
+  - `POST {{ route_prefix }}/{{ resource.endpoint }}` — create
+{%- endif %}
+{%- if "update" in resource.operations %}
+  - `PATCH {{ route_prefix }}/{{ resource.endpoint }}/{id}` — partial update
+{%- endif %}
+{%- if "replace" in resource.operations %}
+  - `PUT {{ route_prefix }}/{{ resource.endpoint }}/{id}` — full replace
+{%- endif %}
+{%- if "delete" in resource.operations %}
+  - `DELETE {{ route_prefix }}/{{ resource.endpoint }}/{id}` — soft delete
+{%- endif %}
+{%- endfor %}
+
+A health check is served at `GET {{ route_prefix }}/health`.
+
+### Storage containers
+
+Each container is configured by its own setting. When the setting is unset, the container id is used as the {% if cloud_service == 'Azure Function App' %}Cosmos DB container{% elif cloud_service == 'GCP Cloud Function' %}Firestore collection{% else %}DynamoDB table{% endif %} name.
+
+| Container | Resources | Setting |
+|---|---|---|
+{%- for container in containers %}
+| `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} | `{% if cloud_service == 'Azure Function App' %}CosmosDbContainerName_{{ container | to_camel }}{% elif cloud_service == 'GCP Cloud Function' %}FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}{% else %}DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}{% endif %}` |
+{%- endfor %}
+
+Resources that share a container share its records: there is no type discriminator, so every resource mapped to a container reads, lists, updates and deletes all records in it. Give resources separate containers unless they are meant to operate on the same data.
+
+> **Setting renames:** each container now has its own setting. {% if cloud_service == 'Azure Function App' %}`CosmosDbContainerName` is replaced by `CosmosDbContainerName_<Container>`{% elif cloud_service == 'GCP Cloud Function' %}`FIRESTORE_COLLECTION` is replaced by `FIRESTORE_COLLECTION_<CONTAINER>`{% else %}`DYNAMODB_TABLE_NAME` is replaced by `DYNAMODB_TABLE_NAME_<CONTAINER>`{% endif %}; the single-container setting is no longer read.
 
 Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ensuring a streamlined and consistent environment for managing Go packages and their dependencies.
 
@@ -53,7 +87,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
 ## Prerequisites
 
-- Go 1.22+
+- Go 1.27+
 {% if cloud_service == 'Azure Function App' %}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 
@@ -137,7 +171,9 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
     - `GCP_PROJECT_ID`: Your GCP project ID
     - `FIRESTORE_DATABASE`: Firestore database name (defaults to "(default)")
-    - `FIRESTORE_COLLECTION`: Firestore collection name
+{%- for container in containers %}
+    - `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}`: Firestore collection for the `{{ container }}` container (defaults to `{{ container }}`)
+{%- endfor %}
 
 5. Run the API Locally
 
@@ -154,9 +190,10 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     ```console
     gcloud run deploy {{project_endpoint}}-api \
       --source . \
+      --base-image go127 \
       --region us-central1 \
       --allow-unauthenticated \
-      --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION={{project_endpoint}}
+      --set-env-vars GCP_PROJECT_ID=your-project-id{% for container in containers %},FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}={{ container }}{% endfor %}
     ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -231,11 +268,8 @@ This is also run automatically in CI on every PR and push to main.
     ├── models
     ├── utils
 {%- if cloud_service == 'Azure Function App' %}
-    ├── get{{ project_class_name }}
-    ├── get{{ project_class_name }}s
-    ├── create{{ project_class_name }}
-    ├── update{{ project_class_name }}
-    └── delete{{ project_class_name }}
+    ├── httpApi
+    └── main.go
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
     └── main.go

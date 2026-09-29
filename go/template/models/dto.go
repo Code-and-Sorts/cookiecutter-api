@@ -1,6 +1,7 @@
 package models
-
-type {{project_class_name}}Dto struct {
+{% for resource in resources %}
+type {{ resource.name }}Dto struct {
 	Id   string `json:"id"`
 	Name string `json:"name"`
 }
+{% endfor %}

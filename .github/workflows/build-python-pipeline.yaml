@@ -13,8 +13,6 @@ on:
       - python/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
-    branches:
-      - main
 
 jobs:
   build-python:

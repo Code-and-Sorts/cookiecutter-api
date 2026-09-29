@@ -13,8 +13,6 @@ on:
       - typescript/**
       - .github/workflows/build-typescript-pipeline.yaml
       - .github/actions/setup-copier-template/**
-    branches:
-      - main
 
 jobs:
   build-typescript:

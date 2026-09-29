@@ -1,0 +1,21 @@
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+  - name: "Dog"
+    endpoint: "dogs"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "replace", "delete"]
+  - name: "Hippopotamus"
+    endpoint: "hippos"
+    container: "zoo-records"
+    operations: ["list"]
+  - name: "Owl"
+    endpoint: "owls"
+    container: "birds"
+    operations: ["delete"]
+  - name: "Order"
+    endpoint: "orders"
+    container: "orders"
+    operations: ["list", "get_by_id", "create", "update", "replace", "delete"]
