@@ -1,27 +1,15 @@
-{% if cloud_service == 'Azure Function App' -%}
-from .repository import (
+from .base_repository import BaseRepository, DEFAULT_LIST_LIMIT{% if cloud_service == 'Azure Function App' %}, Database{% endif %}
 {%- for resource in resources %}
-    {{ resource.name }}Repository,
+from .{{ resource.name | to_snake }}_repository import {{ resource.name }}Repository
 {%- endfor %}
-    Database,
-)
 
 __all__ = [
-{%- for resource in resources %}
-    "{{ resource.name }}Repository",
-{%- endfor %}
+    "BaseRepository",
+    "DEFAULT_LIST_LIMIT",
+{%- if cloud_service == 'Azure Function App' %}
     "Database",
-]
-{%- else -%}
-from .repository import (
-{%- for resource in resources %}
-    {{ resource.name }}Repository,
-{%- endfor %}
-)
-
-__all__ = [
+{%- endif %}
 {%- for resource in resources %}
     "{{ resource.name }}Repository",
 {%- endfor %}
 ]
-{%- endif %}

@@ -1,3 +1,8 @@
+# The {% yield %} path tag, which renders one file per resource (for example
+# controllers/cat_controller.py and controllers/dog_controller.py), needs a
+# recent Copier; we track the latest release.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
@@ -91,7 +96,8 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Health", "List", "Optional", "BaseModel", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
     {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[]) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
@@ -114,6 +120,8 @@ resources:
     {%- set ns.err = "Resource endpoint 'health' is reserved for the health check." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
+    {%- elif (r.name | to_snake) in python_keywords -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
     {%- elif r.endpoint in ns.eps -%}
     {%- set ns.err = "Duplicate endpoint '" ~ r.endpoint ~ "'." -%}
     {%- elif r.name in ns.names -%}

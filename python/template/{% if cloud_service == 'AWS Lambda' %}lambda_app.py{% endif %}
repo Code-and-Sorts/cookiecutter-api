@@ -2,8 +2,20 @@
 Main entry point for AWS Lambda.
 Routes API Gateway events to the appropriate handler.
 """
-from blueprints.api import ROUTES, health
+from blueprints import (
+    health,
+{%- for resource in resources %}
+    {{ resource.name | to_snake }}_routes,
+{%- endfor %}
+)
 from utils.detect_error import generate_error_response
+
+# endpoint -> that resource's (method, has item id) -> handler table
+ROUTES = {
+{%- for resource in resources %}
+    "{{ resource.endpoint }}": {{ resource.name | to_snake }}_routes,
+{%- endfor %}
+}
 
 
 def lambda_handler(event, context):

@@ -1,0 +1,25 @@
+import uuid
+from pydantic import BaseModel, Field
+from typing import Optional
+from uuid import UUID
+from .base import generate_utc_timestamp
+
+
+class Base{{ resource.name }}(BaseModel):
+    name: str
+    type: Optional[str] = None
+
+
+class {{ resource.name }}IdValidation(BaseModel):
+    id: UUID
+
+
+class {{ resource.name }}(Base{{ resource.name }}):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    isDeleted: bool = Field(default=False)
+    createdDate: str = Field(default_factory=generate_utc_timestamp)
+    updatedDate: str = Field(default_factory=generate_utc_timestamp)
+
+
+class {{ resource.name }}Response(Base{{ resource.name }}):
+    id: str

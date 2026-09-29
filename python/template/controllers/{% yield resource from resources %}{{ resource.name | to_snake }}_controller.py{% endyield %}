@@ -1,187 +1,166 @@
-{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
-{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
-from typing import {% if 'list' in used_ops %}List, {% endif %}Optional
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
+{%- set returns_item = uses_body or ('get_by_id' in ops) or ('list' in ops) -%}
+{% if 'list' in ops -%}
+from typing import List
+{% endif -%}
 {% if cloud_service == 'Azure Function App' -%}
 import azure.functions as func
-{%- endif %}
+{% endif -%}
 {% if cloud_service == 'GCP Cloud Function' -%}
 from flask import Request
-{%- endif %}
+{% endif -%}
 {% if cloud_service == 'AWS Lambda' and uses_body -%}
+import base64
 import json
 from errors import ValidationError
+{% endif -%}
+{% if returns_item -%}
+from models import {{ r }}Response{% if uses_body %}, {{ r }}{% endif %}{% if 'get_by_id' in ops %}, {{ r }}IdValidation{% endif %}
+{% endif -%}
+from services import {{ r }}Service
+{%- if 'list' in ops %}
+from .pagination import coerce_limit
 {%- endif %}
-from services import (
-{%- for resource in resources %}
-    {{ resource.name }}Service,
-{%- endfor %}
-)
-from repositories.repository import DEFAULT_LIST_LIMIT
-from models import (
-{%- for resource in resources %}
-{%- if ('get_by_id' in resource.operations) or ('list' in resource.operations) or ('create' in resource.operations) or ('update' in resource.operations) or ('replace' in resource.operations) %}
-    {{ resource.name }}Response,
-{%- endif %}
-{%- if ('create' in resource.operations) or ('update' in resource.operations) or ('replace' in resource.operations) %}
-    {{ resource.name }},
-{%- endif %}
-{%- if 'get_by_id' in resource.operations %}
-    {{ resource.name }}IdValidation,
-{%- endif %}
-{%- endfor %}
-)
-
-MAX_LIST_LIMIT = 1000
 
 
-def _coerce_limit(raw: Optional[str]) -> int:
-    try:
-        limit = int(raw)
-    except (TypeError, ValueError):
-        return DEFAULT_LIST_LIMIT
-    if limit < 1:
-        return DEFAULT_LIST_LIMIT
-    return min(limit, MAX_LIST_LIMIT)
-
-{% for resource in resources %}
-{%- set uses_body_r = ('create' in resource.operations) or ('update' in resource.operations) or ('replace' in resource.operations) %}
-class {{ resource.name }}Controller:
-    def __init__(self, service: {{ resource.name }}Service):
+class {{ r }}Controller:
+    def __init__(self, service: {{ r }}Service):
         self.service = service
-{%- if cloud_service == 'AWS Lambda' and uses_body_r %}
+{%- if cloud_service == 'AWS Lambda' and uses_body %}
 
     def _parse_body(self, event: dict) -> dict:
         try:
             body = event.get("body") or "{}"
             if event.get("isBase64Encoded"):
-                import base64
                 body = base64.b64decode(body).decode("utf-8")
             return json.loads(body)
         except (json.JSONDecodeError, Exception):
             raise ValidationError("Invalid JSON in request body.")
 {%- endif %}
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
-    async def get_by_id(self, req: func.HttpRequest) -> {{ resource.name }}Response:
+    async def get_by_id(self, req: func.HttpRequest) -> {{ r }}Response:
         item_id: str = req.route_params.get('item_id')
-        {{ resource.name }}IdValidation(id=item_id)
+        {{ r }}IdValidation(id=item_id)
         return await self.service.get_by_id(item_id)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-    async def get_by_id(self, request: Request) -> {{ resource.name }}Response:
+    async def get_by_id(self, request: Request) -> {{ r }}Response:
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
-        {{ resource.name }}IdValidation(id=item_id)
+        {{ r }}IdValidation(id=item_id)
         return await self.service.get_by_id(item_id)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-    async def get_by_id(self, event: dict) -> {{ resource.name }}Response:
+    async def get_by_id(self, event: dict) -> {{ r }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
-        {{ resource.name }}IdValidation(id=item_id)
+        {{ r }}IdValidation(id=item_id)
         return await self.service.get_by_id(item_id)
 {%- endif %}
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
-    async def get_list(self, req: func.HttpRequest) -> List[{{ resource.name }}Response]:
-        limit = _coerce_limit(req.params.get('limit'))
+    async def get_list(self, req: func.HttpRequest) -> List[{{ r }}Response]:
+        limit = coerce_limit(req.params.get('limit'))
         return await self.service.get_list(limit)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-    async def get_list(self, request: Request) -> List[{{ resource.name }}Response]:
-        limit = _coerce_limit(request.args.get('limit'))
+    async def get_list(self, request: Request) -> List[{{ r }}Response]:
+        limit = coerce_limit(request.args.get('limit'))
         return await self.service.get_list(limit)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-    async def get_list(self, event: dict) -> List[{{ resource.name }}Response]:
-        limit = _coerce_limit((event.get("queryStringParameters") or {}).get("limit"))
+    async def get_list(self, event: dict) -> List[{{ r }}Response]:
+        limit = coerce_limit((event.get("queryStringParameters") or {}).get("limit"))
         return await self.service.get_list(limit)
 {%- endif %}
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
-    async def create(self, req: func.HttpRequest) -> {{ resource.name }}Response:
+    async def create(self, req: func.HttpRequest) -> {{ r }}Response:
         item_json: dict = req.get_json()
-        item = {{ resource.name }}(**item_json)
+        item = {{ r }}(**item_json)
         return await self.service.create(item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-    async def create(self, request: Request) -> {{ resource.name }}Response:
+    async def create(self, request: Request) -> {{ r }}Response:
         item_json: dict = request.get_json()
-        item = {{ resource.name }}(**item_json)
+        item = {{ r }}(**item_json)
         return await self.service.create(item)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-    async def create(self, event: dict) -> {{ resource.name }}Response:
+    async def create(self, event: dict) -> {{ r }}Response:
         item_json: dict = self._parse_body(event)
-        item = {{ resource.name }}(**item_json)
+        item = {{ r }}(**item_json)
         return await self.service.create(item)
 {%- endif %}
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
-    async def update(self, req: func.HttpRequest) -> {{ resource.name }}Response:
+    async def update(self, req: func.HttpRequest) -> {{ r }}Response:
         item_id: str = req.route_params.get('item_id')
         item_data: dict = req.get_json()
-        item = {{ resource.name }}(**{**item_data, "id": item_id})
+        item = {{ r }}(**{**item_data, "id": item_id})
         return await self.service.update(item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-    async def update(self, request: Request) -> {{ resource.name }}Response:
+    async def update(self, request: Request) -> {{ r }}Response:
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
         item_data: dict = request.get_json()
-        item = {{ resource.name }}(**{**item_data, "id": item_id})
+        item = {{ r }}(**{**item_data, "id": item_id})
         return await self.service.update(item)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-    async def update(self, event: dict) -> {{ resource.name }}Response:
+    async def update(self, event: dict) -> {{ r }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
         item_data: dict = self._parse_body(event)
-        item = {{ resource.name }}(**{**item_data, "id": item_id})
+        item = {{ r }}(**{**item_data, "id": item_id})
         return await self.service.update(item)
 {%- endif %}
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
-    async def replace(self, req: func.HttpRequest) -> {{ resource.name }}Response:
+    async def replace(self, req: func.HttpRequest) -> {{ r }}Response:
         item_id: str = req.route_params.get('item_id')
         item_data: dict = req.get_json()
-        item = {{ resource.name }}(**{**item_data, "id": item_id})
+        item = {{ r }}(**{**item_data, "id": item_id})
         return await self.service.replace(item)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-    async def replace(self, request: Request) -> {{ resource.name }}Response:
+    async def replace(self, request: Request) -> {{ r }}Response:
         path_parts = request.path.strip('/').split('/')
         item_id: str = path_parts[-1] if len(path_parts) > 0 else None
         item_data: dict = request.get_json()
-        item = {{ resource.name }}(**{**item_data, "id": item_id})
+        item = {{ r }}(**{**item_data, "id": item_id})
         return await self.service.replace(item)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-    async def replace(self, event: dict) -> {{ resource.name }}Response:
+    async def replace(self, event: dict) -> {{ r }}Response:
         item_id: str = (event.get("pathParameters") or {}).get("item_id")
         item_data: dict = self._parse_body(event)
-        item = {{ resource.name }}(**{**item_data, "id": item_id})
+        item = {{ r }}(**{**item_data, "id": item_id})
         return await self.service.replace(item)
 {%- endif %}
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
     async def soft_delete(self, req: func.HttpRequest) -> None:
@@ -202,5 +181,3 @@ class {{ resource.name }}Controller:
         await self.service.soft_delete(item_id)
 {%- endif %}
 {%- endif %}
-
-{% endfor %}

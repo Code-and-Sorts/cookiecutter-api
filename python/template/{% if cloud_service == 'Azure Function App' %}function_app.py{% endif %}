@@ -1,6 +1,14 @@
 import azure.functions as func
-from blueprints import bp
+from blueprints import (
+    health_bp,
+{%- for resource in resources %}
+    {{ resource.name | to_snake }}_bp,
+{%- endfor %}
+)
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
-app.register_functions(bp)
+app.register_functions(health_bp)
+{%- for resource in resources %}
+app.register_functions({{ resource.name | to_snake }}_bp)
+{%- endfor %}

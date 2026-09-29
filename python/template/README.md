@@ -330,50 +330,52 @@ This is also run automatically in CI on every PR and push to main.
 
 ## Repository structure
 
-{% if cloud_service == 'Azure Function App' -%}
+Each resource gets its own module in every layer, named after the resource. Every module has a matching `*_test.py` unit test file next to it.
+
+{%- set db = {'Azure Function App': 'Cosmos DB', 'GCP Cloud Function': 'Firestore', 'AWS Lambda': 'DynamoDB'}[cloud_service] %}
+{%- set fn = {'Azure Function App': 'Function App functions', 'GCP Cloud Function': 'Cloud Functions', 'AWS Lambda': 'Lambda handlers and route table'}[cloud_service] %}
+
 ```text
-├── cookiecutter-template-python
-│   ├── .thunderclient     - Thunderclient collection
-│   ├── blueprints         - Function App methods
-│   ├── controllers        - Controllers
-│   ├── errors             - Custom errors
-│   ├── models             - Pydantic models
-│   ├── repositories       - Cosmos DB repository
-│   ├── services           - Services
-│   └── utils              - Error detect & response generator utilities
-│
-└── function_app.py        - Function App entry method
-```
+{{ "%-34s" | format("├── .thunderclient") }}- Thunder Client collection
+{{ "%-34s" | format("├── blueprints") }}- Cloud entry functions
+{{ "%-34s" | format("│   ├── database.py") }}- {{ db }} client wiring shared by every resource
+{{ "%-34s" | format("│   ├── health.py") }}- Health check
+{%- for resource in resources %}
+{{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ ".py") }}- {{ resource.name }} {{ fn }}
+{%- endfor %}
+{{ "%-34s" | format("├── config") }}- Settings loaded from environment variables
+{{ "%-34s" | format("├── controllers") }}- Request parsing and validation
+{{ "%-34s" | format("│   ├── pagination.py") }}- Shared list `limit` handling
+{%- for resource in resources %}
+{{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_controller.py") }}- {{ resource.name }}Controller
+{%- endfor %}
+{{ "%-34s" | format("├── errors") }}- Custom errors
+{{ "%-34s" | format("├── models") }}- Pydantic models
+{{ "%-34s" | format("│   ├── base.py") }}- Shared model helpers
+{%- for resource in resources %}
+{{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ ".py") }}- {{ resource.name }} models
+{%- endfor %}
+{{ "%-34s" | format("├── repositories") }}- {{ db }} repositories
+{{ "%-34s" | format("│   ├── base_repository.py") }}- {{ db }} operations shared by every resource
+{%- for resource in resources %}
+{{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_repository.py") }}- {{ resource.name }}Repository
+{%- endfor %}
+{{ "%-34s" | format("├── services") }}- Business logic
+{%- for resource in resources %}
+{{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
+{%- endfor %}
+{{ "%-34s" | format("├── utils") }}- Error detect & response generator utilities
+{%- if cloud_service == 'Azure Function App' %}
+{{ "%-34s" | format("└── function_app.py") }}- Function App entry point, registers each blueprint
 {%- endif %}
-{% if cloud_service == 'GCP Cloud Function' -%}
-```text
-├── cookiecutter-template-python
-│   ├── blueprints         - Cloud Function methods
-│   ├── controllers        - Controllers
-│   ├── errors             - Custom errors
-│   ├── models             - Pydantic models
-│   ├── repositories       - Firestore repository
-│   ├── services           - Services
-│   └── utils              - Error detect & response generator utilities
-│
-└── main.py                - Cloud Functions entry point
-```
+{%- if cloud_service == 'GCP Cloud Function' %}
+{{ "%-34s" | format("└── main.py") }}- Cloud Functions entry point, exports each function
 {%- endif %}
-{% if cloud_service == 'AWS Lambda' -%}
-```text
-├── cookiecutter-template-python
-│   ├── blueprints         - Lambda handler methods
-│   ├── controllers        - Controllers
-│   ├── errors             - Custom errors
-│   ├── models             - Pydantic models
-│   ├── repositories       - DynamoDB repository
-│   ├── services           - Services
-│   └── utils              - Error detect & response generator utilities
-│
-├── lambda_app.py          - Lambda entry point with API Gateway routing
-└── template.yaml          - AWS SAM template for deployment
-```
+{%- if cloud_service == 'AWS Lambda' %}
+{{ "%-34s" | format("├── lambda_app.py") }}- Lambda entry point, routes each endpoint
+{{ "%-34s" | format("└── template.yaml") }}- AWS SAM template for deployment
 {%- endif %}
+```
 
 ## License
 

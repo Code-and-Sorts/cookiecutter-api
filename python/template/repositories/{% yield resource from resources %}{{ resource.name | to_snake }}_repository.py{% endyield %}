@@ -1,0 +1,7 @@
+from models import Base{{ resource.name }}, {{ resource.name }}, {{ resource.name }}Response
+from .base_repository import BaseRepository
+
+
+class {{ resource.name }}Repository(BaseRepository[{{ resource.name }}, {{ resource.name }}Response]):
+    response_model = {{ resource.name }}Response
+    base_model = Base{{ resource.name }}

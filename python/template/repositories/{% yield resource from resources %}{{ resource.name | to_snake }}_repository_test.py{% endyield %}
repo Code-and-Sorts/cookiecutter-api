@@ -1,0 +1,81 @@
+{%- set r = resource.name -%}
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+from models import Base{{ r }}, {{ r }}, {{ r }}Response
+from repositories import BaseRepository, {{ r }}Repository
+
+_ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
+_NOW = "2026-01-01T00:00:00Z"
+_TIMESTAMP = "repositories.base_repository.generate_utc_timestamp"
+_stored_item = {
+    "id": _ID,
+    "name": "mockName1",
+    "type": "mockType1",
+    "isDeleted": False,
+    "createdDate": "2024-08-10T20:41:30Z",
+    "updatedDate": "2024-08-10T20:41:30Z"
+}
+{%- if cloud_service == 'AWS Lambda' %}
+
+
+def _make_session(table_mock):
+    session = MagicMock()
+    dynamodb = MagicMock()
+    dynamodb.Table = AsyncMock(return_value=table_mock)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=dynamodb)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    session.resource = MagicMock(return_value=cm)
+    return session
+{%- endif %}
+
+
+def describe_{{ r | to_snake }}_repository():
+    def test_extends_base_repository_with_{{ r | to_snake }}_models():
+        assert issubclass({{ r }}Repository, BaseRepository)
+        assert {{ r }}Repository.response_model is {{ r }}Response
+        assert {{ r }}Repository.base_model is Base{{ r }}
+
+    def test_get_by_id_returns_{{ r | to_snake }}_response():
+{%- if cloud_service == 'AWS Lambda' %}
+        repository = {{ r }}Repository(MagicMock(), "{{ resource.container }}", "us-east-1")
+{%- else %}
+        repository = {{ r }}Repository(MagicMock())
+{%- endif %}
+        with patch.object(repository, "_get_stored", AsyncMock(return_value=_stored_item)):
+            result = asyncio.run(repository.get_by_id(_ID))
+
+        assert isinstance(result, {{ r }}Response)
+        assert result == {{ r }}Response(id=_ID, name="mockName1", type="mockType1")
+
+    def test_create_stores_{{ r | to_snake }}():
+{%- if cloud_service == 'Azure Function App' %}
+        container_client = MagicMock()
+        container_client.create_item = AsyncMock(side_effect=lambda item: item)
+        repository = {{ r }}Repository(container_client)
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+        collection = MagicMock()
+        collection.document.return_value.set = AsyncMock()
+        repository = {{ r }}Repository(collection)
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+        table = MagicMock()
+        table.put_item = AsyncMock()
+        repository = {{ r }}Repository(_make_session(table), "{{ resource.container }}", "us-east-1")
+{%- endif %}
+        with patch(_TIMESTAMP, return_value=_NOW):
+            result = asyncio.run(repository.create({{ r }}(id=_ID, name="mockName1", type="mockType1")))
+
+        expected = {**_stored_item, "createdDate": _NOW, "updatedDate": _NOW}
+{%- if cloud_service == 'Azure Function App' %}
+        container_client.create_item.assert_called_once_with(expected)
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+        collection.document.assert_called_once_with(_ID)
+        collection.document.return_value.set.assert_called_once_with(expected)
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+        table.put_item.assert_called_once_with(Item=expected)
+{%- endif %}
+        assert result == {{ r }}Response(id=_ID, name="mockName1", type="mockType1")
