@@ -1,14 +1,12 @@
-using Amazon.Lambda.Core;
-using Amazon.Lambda.Serialization.SystemTextJson;
-
-[assembly: LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]
-
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Functions;
 
 using System;
-using System.Collections.Generic;
+{% if uses_body -%}
 using System.IO;
 using System.Text;
+{% endif -%}
 using System.Threading.Tasks;
 using Amazon.Lambda.Annotations;
 using Amazon.Lambda.APIGatewayEvents;
@@ -16,127 +14,113 @@ using Microsoft.Extensions.Logging;
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Utils;
 
-public class DeleteOkObjectResult
+public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Functions> logger)
 {
-    public required string Message { get; set; }
-}
-
-public class ItemFunctions(
-{%- for resource in resources %}
-    I{{ resource.name }}Controller {{ resource.name | to_lower_camel }}Controller,
-{%- endfor %}
-    ILogger<ItemFunctions> logger)
-{
-{%- for resource in resources %}
-    private readonly I{{ resource.name }}Controller _{{ resource.name | to_lower_camel }}Controller = {{ resource.name | to_lower_camel }}Controller;
-{%- endfor %}
-    private readonly ILogger<ItemFunctions> _logger = logger;
+    private readonly I{{ r }}Controller _controller = controller;
+    private readonly ILogger<{{ r }}Functions> _logger = logger;
+{%- if uses_body %}
 
     private static Stream BodyStream(APIGatewayProxyRequest request) => new MemoryStream(Encoding.UTF8.GetBytes(request.Body ?? string.Empty));
-
-    [LambdaFunction(ResourceName = "HealthFunction")]
-    public APIGatewayProxyResponse Health(APIGatewayProxyRequest request) => ResponseHelper.Ok(new { status = "ok" });
-{% for resource in resources %}
+{%- endif %}
 {%- if "get_by_id" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Get{{ resource.name }}Function")]
-    public async Task<APIGatewayProxyResponse> Get{{ resource.name }}(APIGatewayProxyRequest request)
+    [LambdaFunction(ResourceName = "Get{{ r }}Function")]
+    public async Task<APIGatewayProxyResponse> Get{{ r }}(APIGatewayProxyRequest request)
     {
         try
         {
             var id = request.PathParameters["id"];
-            return ResponseHelper.Ok(await _{{ resource.name | to_lower_camel }}Controller.GetAsync(id));
+            return ResponseHelper.Ok(await _controller.GetAsync(id));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof(ItemFunctions), nameof(Get{{ resource.name }}));
+            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Get{{ r }}));
             return ErrorDetector.DetectError(ex);
         }
     }
 {%- endif %}
 {%- if "list" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Get{{ resource.name }}ListFunction")]
-    public async Task<APIGatewayProxyResponse> Get{{ resource.name }}List(APIGatewayProxyRequest request)
+    [LambdaFunction(ResourceName = "Get{{ r }}ListFunction")]
+    public async Task<APIGatewayProxyResponse> Get{{ r }}List(APIGatewayProxyRequest request)
     {
         try
         {
-            return ResponseHelper.Ok(await _{{ resource.name | to_lower_camel }}Controller.GetListAsync());
+            return ResponseHelper.Ok(await _controller.GetListAsync());
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof(ItemFunctions), nameof(Get{{ resource.name }}List));
+            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Get{{ r }}List));
             return ErrorDetector.DetectError(ex);
         }
     }
 {%- endif %}
 {%- if "create" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Create{{ resource.name }}Function")]
-    public async Task<APIGatewayProxyResponse> Create{{ resource.name }}(APIGatewayProxyRequest request)
+    [LambdaFunction(ResourceName = "Create{{ r }}Function")]
+    public async Task<APIGatewayProxyResponse> Create{{ r }}(APIGatewayProxyRequest request)
     {
         try
         {
-            return ResponseHelper.Created(await _{{ resource.name | to_lower_camel }}Controller.CreateAsync(BodyStream(request)));
+            return ResponseHelper.Created(await _controller.CreateAsync(BodyStream(request)));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof(ItemFunctions), nameof(Create{{ resource.name }}));
+            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Create{{ r }}));
             return ErrorDetector.DetectError(ex);
         }
     }
 {%- endif %}
 {%- if "update" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Update{{ resource.name }}Function")]
-    public async Task<APIGatewayProxyResponse> Update{{ resource.name }}(APIGatewayProxyRequest request)
+    [LambdaFunction(ResourceName = "Update{{ r }}Function")]
+    public async Task<APIGatewayProxyResponse> Update{{ r }}(APIGatewayProxyRequest request)
     {
         try
         {
             var id = request.PathParameters["id"];
-            return ResponseHelper.Ok(await _{{ resource.name | to_lower_camel }}Controller.UpdateAsync(id, BodyStream(request)));
+            return ResponseHelper.Ok(await _controller.UpdateAsync(id, BodyStream(request)));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof(ItemFunctions), nameof(Update{{ resource.name }}));
+            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Update{{ r }}));
             return ErrorDetector.DetectError(ex);
         }
     }
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Replace{{ resource.name }}Function")]
-    public async Task<APIGatewayProxyResponse> Replace{{ resource.name }}(APIGatewayProxyRequest request)
+    [LambdaFunction(ResourceName = "Replace{{ r }}Function")]
+    public async Task<APIGatewayProxyResponse> Replace{{ r }}(APIGatewayProxyRequest request)
     {
         try
         {
             var id = request.PathParameters["id"];
-            return ResponseHelper.Ok(await _{{ resource.name | to_lower_camel }}Controller.ReplaceAsync(id, BodyStream(request)));
+            return ResponseHelper.Ok(await _controller.ReplaceAsync(id, BodyStream(request)));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof(ItemFunctions), nameof(Replace{{ resource.name }}));
+            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Replace{{ r }}));
             return ErrorDetector.DetectError(ex);
         }
     }
 {%- endif %}
 {%- if "delete" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Delete{{ resource.name }}Function")]
-    public async Task<APIGatewayProxyResponse> Delete{{ resource.name }}(APIGatewayProxyRequest request)
+    [LambdaFunction(ResourceName = "Delete{{ r }}Function")]
+    public async Task<APIGatewayProxyResponse> Delete{{ r }}(APIGatewayProxyRequest request)
     {
         try
         {
             var id = request.PathParameters["id"];
-            await _{{ resource.name | to_lower_camel }}Controller.DeleteAsync(id);
-            return ResponseHelper.Ok(new DeleteOkObjectResult { Message = $"{{ resource.name }} with id {id} was deleted successfully." });
+            await _controller.DeleteAsync(id);
+            return ResponseHelper.Ok(new DeleteOkObjectResult { Message = $"{{ r }} with id {id} was deleted successfully." });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof(ItemFunctions), nameof(Delete{{ resource.name }}));
+            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Delete{{ r }}));
             return ErrorDetector.DetectError(ex);
         }
     }
 {%- endif %}
-{%- endfor %}
 }

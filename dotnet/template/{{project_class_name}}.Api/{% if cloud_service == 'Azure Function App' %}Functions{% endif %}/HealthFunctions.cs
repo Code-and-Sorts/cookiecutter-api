@@ -1,0 +1,17 @@
+namespace {{project_class_name}}.Api.Functions;
+
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+
+public class HealthFunctions
+{
+    [Function("Health")]
+    public Task<IActionResult> Health(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health")] HttpRequestData req, CancellationToken ct = default)
+    {
+        return Task.FromResult<IActionResult>(new OkObjectResult(new { status = "ok" }));
+    }
+}

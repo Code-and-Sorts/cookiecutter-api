@@ -1,0 +1,71 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set id_methods = [('update', 'PATCH'), ('replace', 'PUT'), ('delete', 'DELETE')] | selectattr(0, 'in', ops) | map(attribute=1) | list -%}
+namespace {{project_class_name}}.Api.Handlers;
+
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
+
+public class {{ r }}Handler(I{{ r }}Controller controller) : IResourceHandler
+{
+    private readonly I{{ r }}Controller _controller = controller;
+
+    public string Endpoint => "{{ resource.endpoint }}";
+
+    public async Task HandleAsync(HttpContext context, string? id)
+    {
+        var request = context.Request;
+        var response = context.Response;
+        var ct = context.RequestAborted;
+
+        switch (request.Method, id)
+        {
+{%- if "get_by_id" in ops %}
+            case ("GET", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.GetAsync(itemId, ct), ct);
+                return;
+{%- endif %}
+{%- if "list" in ops %}
+            case ("GET", null):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.GetListAsync(ct), ct);
+                return;
+{%- endif %}
+{%- if "create" in ops %}
+            case ("POST", null):
+                await response.WriteJsonAsync(StatusCodes.Status201Created, await _controller.CreateAsync(request.Body, ct), ct);
+                return;
+            case ("POST", _):
+                await response.WriteJsonAsync(StatusCodes.Status400BadRequest, new { error = "POST does not accept an item ID." }, ct);
+                return;
+{%- endif %}
+{%- if "update" in ops %}
+            case ("PATCH", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.UpdateAsync(itemId, request.Body, ct), ct);
+                return;
+{%- endif %}
+{%- if "replace" in ops %}
+            case ("PUT", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.ReplaceAsync(itemId, request.Body, ct), ct);
+                return;
+{%- endif %}
+{%- if "delete" in ops %}
+            case ("DELETE", string itemId):
+                await _controller.DeleteAsync(itemId, ct);
+                await response.WriteJsonAsync(StatusCodes.Status200OK, new { message = $"{{ r }} with id {itemId} was deleted successfully." }, ct);
+                return;
+{%- endif %}
+{%- for method in id_methods %}
+            case ("{{ method }}", null):
+{%- endfor %}
+{%- if id_methods %}
+                await response.WriteJsonAsync(StatusCodes.Status400BadRequest, new { error = "Missing item ID." }, ct);
+                return;
+{%- endif %}
+            default:
+                await response.WriteJsonAsync(StatusCodes.Status405MethodNotAllowed, new { error = "Method not allowed." }, ct);
+                return;
+        }
+    }
+}

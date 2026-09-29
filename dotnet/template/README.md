@@ -306,6 +306,8 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 │   ├── Controllers
 {%- if cloud_service != 'GCP Cloud Function' %}
 │   ├── Functions
+{%- else %}
+│   ├── Handlers
 {%- endif %}
 │   ├── Interfaces
 │   ├── Models
@@ -321,11 +323,17 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 └── {{ project_class_name }}.Api.Tests.Unit
     ├── Controllers
     ├── Functions
+{%- if cloud_service == 'GCP Cloud Function' %}
+    ├── Handlers
+{%- endif %}
     ├── Repositories
     ├── Services
     ├── Utils
     └── tests
 ```
+
+Each resource has its own file in every layer, named after the resource: for example `{{ resources[0].name }}Controller.cs`, `{{ resources[0].name }}Service.cs`, `{{ resources[0].name }}Repository.cs`, `{{ resources[0].name }}{% if cloud_service == 'GCP Cloud Function' %}Handler{% else %}Functions{% endif %}.cs` and their `I{{ resources[0].name }}…` interfaces, DTO, entity, request and validation models, and unit tests.
+{%- if cloud_service == 'GCP Cloud Function' %} `Function.cs` routes each request to the handler whose endpoint matches the first path segment.{% endif %}
 
 ## License
 

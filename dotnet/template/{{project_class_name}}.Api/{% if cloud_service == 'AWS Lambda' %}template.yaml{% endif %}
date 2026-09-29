@@ -15,7 +15,7 @@ Resources:
   Get{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Get{{ cn }}_Generated::Get{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Get{{ cn }}_Generated::Get{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -34,7 +34,7 @@ Resources:
   Get{{ cn }}ListFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Get{{ cn }}List_Generated::Get{{ cn }}List
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Get{{ cn }}List_Generated::Get{{ cn }}List
       CodeUri: ./
       Environment:
         Variables:
@@ -53,7 +53,7 @@ Resources:
   Create{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Create{{ cn }}_Generated::Create{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Create{{ cn }}_Generated::Create{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -72,7 +72,7 @@ Resources:
   Update{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Update{{ cn }}_Generated::Update{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Update{{ cn }}_Generated::Update{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -91,7 +91,7 @@ Resources:
   Replace{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Replace{{ cn }}_Generated::Replace{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Replace{{ cn }}_Generated::Replace{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -110,7 +110,7 @@ Resources:
   Delete{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Delete{{ cn }}_Generated::Delete{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Delete{{ cn }}_Generated::Delete{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -129,7 +129,7 @@ Resources:
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Health_Generated::Health
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.HealthFunctions_Health_Generated::Health
       CodeUri: ./
       Events:
         Health:

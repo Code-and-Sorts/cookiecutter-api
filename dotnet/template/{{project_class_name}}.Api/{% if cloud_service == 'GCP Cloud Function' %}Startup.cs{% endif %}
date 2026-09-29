@@ -15,5 +15,6 @@ public class Startup : FunctionsStartup
         var configuration = context.Configuration;
         services.AddApplication();
         services.AddPersistence(configuration);
+        services.AddHandlers();
     }
 }

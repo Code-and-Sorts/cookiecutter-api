@@ -1,5 +1,5 @@
-{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
-{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -15,14 +15,13 @@ using {{project_class_name}}.Api.Requests;
 using {{project_class_name}}.Api.Services;
 using NSubstitute;
 using Xunit;
-{% for resource in resources %}
-{%- set r = resource.name %}
-public class {{ r }}ServiceTest
+
+public class {{ r }}ServiceTests
 {
     private readonly I{{ r }}Repository _{{ r | to_lower_camel }}RepositoryMock;
     private readonly {{ r }}Service _{{ r | to_lower_camel }}Service;
 
-    public {{ r }}ServiceTest()
+    public {{ r }}ServiceTests()
     {
         _{{ r | to_lower_camel }}RepositoryMock = Substitute.For<I{{ r }}Repository>();
         _{{ r | to_lower_camel }}Service = new {{ r }}Service(_{{ r | to_lower_camel }}RepositoryMock);
@@ -123,4 +122,3 @@ public class {{ r }}ServiceTest
     }
 {%- endif %}
 }
-{% endfor %}

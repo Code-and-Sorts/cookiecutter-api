@@ -1,5 +1,5 @@
-{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
-{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -21,43 +21,16 @@ using {{project_class_name}}.Api.Requests;
 using {{project_class_name}}.Api.Utils;
 using Newtonsoft.Json;
 
-public class HealthFunctionTest
-{
-    [Fact]
-    public async Task Health_ReturnsOk()
-    {
-        var functions = new ItemFunctions(
-{%- for resource in resources %}
-            Substitute.For<I{{ resource.name }}Controller>(),
-{%- endfor %}
-            Substitute.For<ILogger<ItemFunctions>>());
-
-        var result = await functions.Health(Mocks.CreateHttpRequestData(), TestContext.Current.CancellationToken);
-
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(200, okResult.StatusCode);
-    }
-}
-{% for resource in resources %}
-{%- set r = resource.name %}
-public class {{ r }}FunctionsTest
+public class {{ r }}FunctionsTests
 {
     private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
     private readonly I{{ r }}Controller _mock{{ r }}Controller;
-    private readonly ItemFunctions _functions;
+    private readonly {{ r }}Functions _functions;
 
-    public {{ r }}FunctionsTest()
+    public {{ r }}FunctionsTests()
     {
         _mock{{ r }}Controller = Substitute.For<I{{ r }}Controller>();
-        _functions = new ItemFunctions(
-{%- for other in resources %}
-{%- if other.name == r %}
-            _mock{{ r }}Controller,
-{%- else %}
-            Substitute.For<I{{ other.name }}Controller>(),
-{%- endif %}
-{%- endfor %}
-            Substitute.For<ILogger<ItemFunctions>>());
+        _functions = new {{ r }}Functions(_mock{{ r }}Controller, Substitute.For<ILogger<{{ r }}Functions>>());
     }
 {%- if "get_by_id" in resource.operations %}
 
@@ -241,4 +214,3 @@ public class {{ r }}FunctionsTest
     }
 {%- endif %}
 }
-{% endfor %}

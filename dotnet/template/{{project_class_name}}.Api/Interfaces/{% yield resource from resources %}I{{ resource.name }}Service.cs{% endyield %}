@@ -1,30 +1,36 @@
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Interfaces;
 
+{% if "list" in resource.operations -%}
 using System.Collections.Generic;
+{% endif -%}
 using System.Threading;
 using System.Threading.Tasks;
+{% if resource.operations != ["delete"] -%}
 using {{project_class_name}}.Api.Dtos;
+{% endif -%}
+{% if uses_body -%}
 using {{project_class_name}}.Api.Requests;
-{% for resource in resources %}
-public interface I{{ resource.name }}Service
+{% endif %}
+public interface I{{ r }}Service
 {
 {%- if "get_by_id" in resource.operations %}
-    Task<{{ resource.name }}Dto> GetAsync(string id, CancellationToken ct = default);
+    Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default);
 {%- endif %}
 {%- if "list" in resource.operations %}
-    Task<IEnumerable<{{ resource.name }}Dto>> GetListAsync(CancellationToken ct = default);
+    Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default);
 {%- endif %}
 {%- if "create" in resource.operations %}
-    Task<{{ resource.name }}Dto> CreateAsync(Create{{ resource.name }}Request item, CancellationToken ct = default);
+    Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default);
 {%- endif %}
 {%- if "update" in resource.operations %}
-    Task<{{ resource.name }}Dto> UpdateAsync(Update{{ resource.name }}Request item, CancellationToken ct = default);
+    Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, CancellationToken ct = default);
 {%- endif %}
 {%- if "replace" in resource.operations %}
-    Task<{{ resource.name }}Dto> ReplaceAsync(Replace{{ resource.name }}Request item, CancellationToken ct = default);
+    Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, CancellationToken ct = default);
 {%- endif %}
 {%- if "delete" in resource.operations %}
     Task DeleteAsync(string id, CancellationToken ct = default);
 {%- endif %}
 }
-{% endfor %}

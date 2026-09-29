@@ -4,8 +4,7 @@ using Newtonsoft.Json;
 {%- if cloud_service == 'GCP Cloud Function' %}
 using Google.Cloud.Firestore;
 {%- endif %}
-{% for resource in resources %}
-{%- if cloud_service == 'GCP Cloud Function' %}
+{% if cloud_service == 'GCP Cloud Function' %}
 [FirestoreData]
 {%- endif %}
 public class {{ resource.name }}Entity : BaseEntity
@@ -16,4 +15,3 @@ public class {{ resource.name }}Entity : BaseEntity
 {%- endif %}
     public string Name { get; set; } = default!;
 }
-{% endfor %}

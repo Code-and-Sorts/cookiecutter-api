@@ -1,27 +1,27 @@
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Controllers;
 
+{% if "list" in resource.operations -%}
 using System.Collections.Generic;
+{% endif -%}
+{% if uses_body -%}
 using System.IO;
+{% endif -%}
 using System.Threading;
 using System.Threading.Tasks;
+{% if uses_body -%}
 using FluentValidation;
+{% endif -%}
+{% if resource.operations != ["delete"] -%}
 using {{project_class_name}}.Api.Dtos;
+{% endif -%}
 using {{project_class_name}}.Api.Interfaces;
+{% if uses_body -%}
 using {{project_class_name}}.Api.Requests;
+using {{project_class_name}}.Api.Utils;
 using {{project_class_name}}.Api.Validation;
-using Newtonsoft.Json;
-
-file static class RequestBody
-{
-    public static async Task<T> DeserializeAsync<T>(Stream body)
-    {
-        using var reader = new StreamReader(body);
-        var bodyString = await reader.ReadToEndAsync();
-        return JsonConvert.DeserializeObject<T>(bodyString) ?? throw new JsonSerializationException("Deserialization returned null.");
-    }
-}
-{% for resource in resources %}
-{%- set r = resource.name %}
+{% endif %}
 public class {{ r }}Controller : I{{ r }}Controller
 {
     private readonly I{{ r }}Service _service;
@@ -72,4 +72,3 @@ public class {{ r }}Controller : I{{ r }}Controller
     public async Task DeleteAsync(string id, CancellationToken ct = default) => await _service.DeleteAsync(id, ct);
 {%- endif %}
 }
-{% endfor %}

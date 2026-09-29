@@ -1,5 +1,5 @@
-{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
-{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System.Collections.Generic;
@@ -15,15 +15,13 @@ using {{project_class_name}}.Api.Requests;
 using Newtonsoft.Json;
 using NSubstitute;
 using Xunit;
-{% for resource in resources %}
-{%- set r = resource.name %}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations %}
-public class {{ r }}ControllerTest
+
+public class {{ r }}ControllerTests
 {
     private readonly I{{ r }}Service _mock{{ r }}Service;
     private readonly {{ r }}Controller _{{ r | to_lower_camel }}Controller;
 
-    public {{ r }}ControllerTest()
+    public {{ r }}ControllerTests()
     {
         _mock{{ r }}Service = Substitute.For<I{{ r }}Service>();
         _{{ r | to_lower_camel }}Controller = new {{ r }}Controller(_mock{{ r }}Service);
@@ -144,4 +142,3 @@ public class {{ r }}ControllerTest
     }
 {%- endif %}
 }
-{% endfor %}

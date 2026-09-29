@@ -1,3 +1,4 @@
+{%- set r = resource.name %}
 {%- if cloud_service in ['Azure Function App', 'GCP Cloud Function'] %}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
@@ -16,15 +17,14 @@ using {{project_class_name}}.Api.Interfaces;
 {%- endif %}
 using NSubstitute;
 using Xunit;
-{% for resource in resources %}
-{%- set r = resource.name %}
-public class {{ r }}RepositoryTest
+
+public class {{ r }}RepositoryTests
 {
 {%- if cloud_service == 'Azure Function App' %}
     private readonly Container _mockContainer;
     private readonly {{ r }}Repository _repository;
 
-    public {{ r }}RepositoryTest()
+    public {{ r }}RepositoryTests()
     {
         var mockCosmosClient = Substitute.For<CosmosClient>();
         _mockContainer = Substitute.For<Container>();
@@ -167,7 +167,7 @@ public class {{ r }}RepositoryTest
     private readonly IFirestoreContext<{{ r }}Entity> _mockContext;
     private readonly {{ r }}Repository _repository;
 
-    public {{ r }}RepositoryTest()
+    public {{ r }}RepositoryTests()
     {
         _mockContext = Substitute.For<IFirestoreContext<{{ r }}Entity>>();
         _repository = new {{ r }}Repository(_mockContext);
@@ -275,7 +275,6 @@ public class {{ r }}RepositoryTest
     }
 {%- endif %}
 }
-{% endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 namespace {{project_class_name}}.Api.Tests.Unit;
@@ -291,14 +290,13 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using NSubstitute;
 using Xunit;
-{% for resource in resources %}
-{%- set r = resource.name %}
-public class {{ r }}RepositoryTest
+
+public class {{ r }}RepositoryTests
 {
     private readonly IAmazonDynamoDB _mockDynamoClient;
     private readonly {{ r }}Repository _repository;
 
-    public {{ r }}RepositoryTest()
+    public {{ r }}RepositoryTests()
     {
         _mockDynamoClient = Substitute.For<IAmazonDynamoDB>();
         _repository = new {{ r }}Repository(_mockDynamoClient, "mockTableName");
@@ -492,5 +490,4 @@ public class {{ r }}RepositoryTest
             Arg.Any<CancellationToken>());
     }
 }
-{% endfor %}
 {%- endif %}

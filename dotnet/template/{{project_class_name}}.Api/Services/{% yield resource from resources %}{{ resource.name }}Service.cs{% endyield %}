@@ -1,15 +1,25 @@
+{%- set r = resource.name -%}
+{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Services;
 
+{% if "create" in resource.operations -%}
 using System;
+{% endif -%}
+{% if "list" in resource.operations -%}
 using System.Collections.Generic;
+{% endif -%}
 using System.Threading;
 using System.Threading.Tasks;
+{% if resource.operations != ["delete"] -%}
 using {{project_class_name}}.Api.Dtos;
+{% endif -%}
+{% if uses_body -%}
 using {{project_class_name}}.Api.Entities;
+{% endif -%}
 using {{project_class_name}}.Api.Interfaces;
+{% if uses_body -%}
 using {{project_class_name}}.Api.Requests;
-{% for resource in resources %}
-{%- set r = resource.name %}
+{% endif %}
 public class {{ r }}Service : I{{ r }}Service
 {
     private readonly I{{ r }}Repository _repository;
@@ -71,4 +81,3 @@ public class {{ r }}Service : I{{ r }}Service
     public async Task DeleteAsync(string id, CancellationToken ct = default) => await _repository.DeleteAsync(id, ct);
 {%- endif %}
 }
-{% endfor %}

@@ -2,6 +2,9 @@ namespace {{project_class_name}}.Api;
 
 using System;
 using {{project_class_name}}.Api.Controllers;
+{%- if cloud_service == 'GCP Cloud Function' %}
+using {{project_class_name}}.Api.Handlers;
+{%- endif %}
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Repositories;
 using {{project_class_name}}.Api.Services;
@@ -25,8 +28,20 @@ public static class DependencyInjection
     {
         return services;
     }
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+    public static IServiceCollection AddHandlers(this IServiceCollection services)
+    {
+{%- for resource in resources %}
+        services.AddSingleton<IResourceHandler, {{ resource.name }}Handler>();
+{%- endfor %}
+
+        return services;
+    }
+{%- endif %}
 
 {%- if cloud_service == 'Azure Function App' %}
+
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         string cosmosConnectionString = configuration.GetConnectionString("CosmosDb") ?? string.Empty;
@@ -54,6 +69,7 @@ public static class DependencyInjection
     }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
+
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         string projectId = configuration.GetValue<string>("GCP_PROJECT_ID") ?? string.Empty;
@@ -84,6 +100,7 @@ public static class DependencyInjection
     }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
         services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient());

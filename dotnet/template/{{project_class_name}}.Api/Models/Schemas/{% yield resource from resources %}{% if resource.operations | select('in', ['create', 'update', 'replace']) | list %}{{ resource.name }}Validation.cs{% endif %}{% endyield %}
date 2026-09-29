@@ -1,0 +1,16 @@
+{%- set r = resource.name -%}
+{%- set request_ops = [('create', 'Create'), ('update', 'Update'), ('replace', 'Replace')] | selectattr(0, 'in', resource.operations) | list -%}
+namespace {{project_class_name}}.Api.Validation;
+
+using FluentValidation;
+using {{project_class_name}}.Api.Requests;
+{%- for op, prefix in request_ops %}
+
+public class {{ prefix }}{{ r }}RequestValidator : AbstractValidator<{{ prefix }}{{ r }}Request>
+{
+    public {{ prefix }}{{ r }}RequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required.");
+    }
+}
+{%- endfor %}

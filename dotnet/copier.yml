@@ -1,3 +1,7 @@
+# Per-resource files use the `yield` tag in their paths, which needs a recent
+# Copier; we track the latest release.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
@@ -94,11 +98,13 @@ resources:
     {%- set reserved_names = ["Health", "Base"] -%}
     {%- if cloud_service == "AWS Lambda" -%}
     {%- set reserved_names = reserved_names + ["Type", "HashCode"] -%}
+    {%- elif cloud_service == "GCP Cloud Function" -%}
+    {%- set reserved_names = reserved_names + ["IResource"] -%}
     {%- endif -%}
     {%- set ns = namespace(err="", eps=[], names=[], containers=[]) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
-    {%- elif cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 59 > 127 -%}
+    {%- elif cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 61 > 127 -%}
     {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the health handler string would exceed the 127-character limit." -%}
     {%- else -%}
     {%- for r in resources -%}
@@ -137,7 +143,7 @@ resources:
     {%- endif -%}
     {%- if not ns.err and cloud_service == "AWS Lambda" -%}
     {%- set method_prefix_length = {"list": 7, "get_by_id": 3, "create": 6, "update": 6, "replace": 7, "delete": 6} -%}
-    {%- for op in r.operations if 2 * (project_class_name | length) + 47 + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
+    {%- for op in r.operations if 2 * (project_class_name | length) + 43 + (r.name | length) + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is too long for project '" ~ project_class_name ~ "': its AWS Lambda handler strings would exceed the 127-character limit. Shorten the resource or project name." -%}
     {%- endfor -%}
     {%- endif -%}

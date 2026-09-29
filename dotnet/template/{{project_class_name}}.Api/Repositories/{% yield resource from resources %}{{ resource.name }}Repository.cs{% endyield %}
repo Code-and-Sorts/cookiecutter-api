@@ -1,3 +1,4 @@
+{%- set r = resource.name %}
 {%- if cloud_service in ['Azure Function App', 'GCP Cloud Function'] %}
 namespace {{project_class_name}}.Api.Repositories;
 
@@ -12,8 +13,7 @@ using {{project_class_name}}.Api.Interfaces;
 {%- if cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Cosmos;
 {%- endif %}
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 public class {{ r }}Repository : I{{ r }}Repository
 {
 {%- if cloud_service == 'Azure Function App' %}
@@ -235,7 +235,6 @@ public class {{ r }}Repository : I{{ r }}Repository
     }
 {%- endif %}
 }
-{% endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 namespace {{project_class_name}}.Api.Repositories;
@@ -250,8 +249,7 @@ using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 public class {{ r }}Repository : I{{ r }}Repository
 {
     // Default cap on list reads to avoid unbounded scans.
@@ -440,5 +438,4 @@ public class {{ r }}Repository : I{{ r }}Repository
         }, ct);
     }
 }
-{% endfor %}
 {%- endif %}

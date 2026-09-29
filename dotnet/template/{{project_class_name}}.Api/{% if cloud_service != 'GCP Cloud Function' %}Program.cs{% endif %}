@@ -16,6 +16,11 @@ builder.Services.AddPersistence(builder.Configuration);
 builder.Build().Run();
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+using Amazon.Lambda.Core;
+using Amazon.Lambda.Serialization.SystemTextJson;
+
+[assembly: LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]
+
 namespace {{project_class_name}}.Api;
 
 using Amazon.Lambda.Annotations;
