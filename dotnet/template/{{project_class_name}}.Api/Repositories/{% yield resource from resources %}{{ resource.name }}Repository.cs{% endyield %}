@@ -1,13 +1,25 @@
 {%- set r = resource.name %}
+{%- set ops = resource.operations %}
+{%- set has_list = "list" in ops %}
+{%- set writes_body = "update" in ops or "replace" in ops %}
+{%- set reads_item = "get_by_id" in ops or writes_body or "delete" in ops %}
+{%- set returns_dto = ops | reject("equalto", "delete") | list | length > 0 %}
 {%- if cloud_service in ['Azure Function App', 'GCP Cloud Function'] %}
 namespace {{project_class_name}}.Api.Repositories;
-
+{% if writes_body %}
 using System;
+{%- endif %}
+{%- if has_list or (cloud_service == 'GCP Cloud Function' and reads_item) %}
 using System.Collections.Generic;
+{%- endif %}
+{%- if has_list %}
 using System.Linq;
+{%- endif %}
 using System.Threading;
 using System.Threading.Tasks;
+{%- if returns_dto %}
 using {{project_class_name}}.Api.Dtos;
+{%- endif %}
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 {%- if cloud_service == 'Azure Function App' %}
@@ -17,14 +29,17 @@ using Microsoft.Azure.Cosmos;
 public class {{ r }}Repository : I{{ r }}Repository
 {
 {%- if cloud_service == 'Azure Function App' %}
+{%- if has_list %}
     // Default cap on list reads to avoid unbounded queries.
     private const int DefaultListLimit = 100;
+{%- endif %}
     private readonly Container _container;
 
     public {{ r }}Repository(CosmosClient cosmosClient, string databaseName, string containerName)
     {
         _container = cosmosClient.GetContainer(databaseName, containerName);
     }
+{%- if reads_item %}
 
     private async Task<{{ r }}Entity> GetItemAsync(string id, CancellationToken ct)
     {
@@ -37,6 +52,8 @@ public class {{ r }}Repository : I{{ r }}Repository
         }
         return item;
     }
+{%- endif %}
+{%- if "get_by_id" in ops %}
 
     public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
     {
@@ -48,6 +65,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         };
     }
+{%- endif %}
+{%- if has_list %}
 
     public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
     {
@@ -66,6 +85,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         });
     }
+{%- endif %}
+{%- if "create" in ops %}
 
     public async Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -77,6 +98,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = created.Name,
         };
     }
+{%- endif %}
+{%- if "update" in ops %}
 
     public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -98,6 +121,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = updated.Name,
         };
     }
+{%- endif %}
+{%- if "replace" in ops %}
 
     public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -119,6 +144,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = replaced.Name,
         };
     }
+{%- endif %}
+{%- if "delete" in ops %}
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
@@ -127,15 +154,19 @@ public class {{ r }}Repository : I{{ r }}Repository
         await _container.ReplaceItemAsync<{{ r }}Entity>(item, item.Id, new PartitionKey(item.Id), null, ct);
     }
 {%- endif %}
+{%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
+{%- if has_list %}
     // Default cap on list reads to avoid unbounded queries.
     private const int DefaultListLimit = 100;
+{%- endif %}
     private readonly IFirestoreContext<{{ r }}Entity> _context;
 
     public {{ r }}Repository(IFirestoreContext<{{ r }}Entity> context)
     {
         _context = context;
     }
+{%- if reads_item %}
 
     private async Task<{{ r }}Entity> GetItemAsync(string id, CancellationToken ct)
     {
@@ -148,6 +179,8 @@ public class {{ r }}Repository : I{{ r }}Repository
 
         return item;
     }
+{%- endif %}
+{%- if "get_by_id" in ops %}
 
     public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
     {
@@ -159,6 +192,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         };
     }
+{%- endif %}
+{%- if has_list %}
 
     public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
     {
@@ -170,6 +205,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         });
     }
+{%- endif %}
+{%- if "create" in ops %}
 
     public async Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -181,6 +218,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         };
     }
+{%- endif %}
+{%- if "update" in ops %}
 
     public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -203,6 +242,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = updateItem.Name,
         };
     }
+{%- endif %}
+{%- if "replace" in ops %}
 
     public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -225,6 +266,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = replaceItem.Name,
         };
     }
+{%- endif %}
+{%- if "delete" in ops %}
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
@@ -234,17 +277,24 @@ public class {{ r }}Repository : I{{ r }}Repository
         await _context.SetAsync(item.Id, item, ct);
     }
 {%- endif %}
+{%- endif %}
 }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+{%- set writes_item = "create" in ops or writes_body or "delete" in ops %}
 namespace {{project_class_name}}.Api.Repositories;
-
+{% if reads_item or has_list %}
 using System;
+{%- endif %}
 using System.Collections.Generic;
+{%- if has_list %}
 using System.Linq;
+{%- endif %}
 using System.Threading;
 using System.Threading.Tasks;
+{%- if returns_dto %}
 using {{project_class_name}}.Api.Dtos;
+{%- endif %}
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 using Amazon.DynamoDBv2;
@@ -252,8 +302,10 @@ using Amazon.DynamoDBv2.Model;
 
 public class {{ r }}Repository : I{{ r }}Repository
 {
+{%- if has_list %}
     // Default cap on list reads to avoid unbounded scans.
     private const int DefaultListLimit = 100;
+{%- endif %}
     private readonly IAmazonDynamoDB _dynamoClient;
     private readonly string _tableName;
 
@@ -262,6 +314,7 @@ public class {{ r }}Repository : I{{ r }}Repository
         _dynamoClient = dynamoClient;
         _tableName = tableName;
     }
+{%- if writes_item %}
 
     private static Dictionary<string, AttributeValue> ToAttributeMap({{ r }}Entity entity)
     {
@@ -276,6 +329,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             { "updatedBy", new AttributeValue { S = entity.UpdatedBy ?? string.Empty } },
         };
     }
+{%- endif %}
+{%- if reads_item or has_list %}
 
     private static {{ r }}Entity FromAttributeMap(Dictionary<string, AttributeValue> item)
     {
@@ -290,6 +345,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             UpdatedBy = item.TryGetValue("updatedBy", out var ub) ? ub.S : string.Empty,
         };
     }
+{%- endif %}
+{%- if reads_item %}
 
     private async Task<{{ r }}Entity> GetItemAsync(string id, CancellationToken ct)
     {
@@ -316,6 +373,8 @@ public class {{ r }}Repository : I{{ r }}Repository
 
         return entity;
     }
+{%- endif %}
+{%- if "get_by_id" in ops %}
 
     public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
     {
@@ -327,6 +386,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         };
     }
+{%- endif %}
+{%- if has_list %}
 
     public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
     {
@@ -358,6 +419,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         });
     }
+{%- endif %}
+{%- if "create" in ops %}
 
     public async Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -373,6 +436,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = item.Name,
         };
     }
+{%- endif %}
+{%- if "update" in ops %}
 
     public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -399,6 +464,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = updateItem.Name,
         };
     }
+{%- endif %}
+{%- if "replace" in ops %}
 
     public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
     {
@@ -425,6 +492,8 @@ public class {{ r }}Repository : I{{ r }}Repository
             Name = replaceItem.Name,
         };
     }
+{%- endif %}
+{%- if "delete" in ops %}
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
@@ -437,5 +506,6 @@ public class {{ r }}Repository : I{{ r }}Repository
             Item = ToAttributeMap(item)
         }, ct);
     }
+{%- endif %}
 }
 {%- endif %}

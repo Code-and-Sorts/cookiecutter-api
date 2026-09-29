@@ -1,23 +1,51 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set uses_entity = "create" in ops or "update" in ops or "replace" in ops -%}
+{%- set uses_dto = uses_entity or "get_by_id" in ops or "list" in ops -%}
 namespace {{project_class_name}}.Api.Interfaces;
-
+{% if "list" in ops %}
 using System.Collections.Generic;
+{%- endif %}
 using System.Threading;
 using System.Threading.Tasks;
+{%- if uses_dto %}
 using {{project_class_name}}.Api.Dtos;
+{%- endif %}
+{%- if uses_entity %}
 using {{project_class_name}}.Api.Entities;
+{%- endif %}
 
 public interface I{{ r }}Repository
 {
+{%- set ns = namespace(first=true) %}
+{%- if "get_by_id" in ops %}
+{%- if not ns.first %}
+{% endif %}{% set ns.first = false %}
     Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default);
-
+{%- endif %}
+{%- if "list" in ops %}
+{%- if not ns.first %}
+{% endif %}{% set ns.first = false %}
     Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default);
-
+{%- endif %}
+{%- if "create" in ops %}
+{%- if not ns.first %}
+{% endif %}{% set ns.first = false %}
     Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default);
-
+{%- endif %}
+{%- if "update" in ops %}
+{%- if not ns.first %}
+{% endif %}{% set ns.first = false %}
     Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default);
-
+{%- endif %}
+{%- if "replace" in ops %}
+{%- if not ns.first %}
+{% endif %}{% set ns.first = false %}
     Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default);
-
+{%- endif %}
+{%- if "delete" in ops %}
+{%- if not ns.first %}
+{% endif %}{% set ns.first = false %}
     Task DeleteAsync(string id, CancellationToken ct = default);
+{%- endif %}
 }
