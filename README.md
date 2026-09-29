@@ -20,7 +20,7 @@ A [Copier](https://github.com/copier-org/copier) template for generating REST AP
 
 ## Usage
 
-Install Copier (and the Jinja extensions the templates use) with pip or pipx:
+Install Copier 9.5 or newer (and the Jinja extensions the templates use) with pip or pipx:
 
 ```console
 # pipx is strongly recommended.
@@ -73,6 +73,10 @@ copier copy --data-file resources.yml ./cookiecutter-api/{LANGUAGE_OPTION} ./my-
 container, collection or table. Resources that share a `container` share their records.
 `operations` is any subset of `list`, `get_by_id`, `create`, `update` (PATCH), `replace`
 (PUT) and `delete`; only those routes are generated.
+
+Each resource gets its own files in every layer, for example `CatController.cs` and
+`DogController.cs` in .NET, or `controllers/cat.controller.ts` and
+`controllers/dog.controller.ts` in TypeScript.
 
 ## Supported Templates
 

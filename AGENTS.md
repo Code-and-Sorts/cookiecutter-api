@@ -52,9 +52,14 @@ The default is a single resource derived from the project name with `list`, `get
 `create`, `update` and `delete`.
 
 - Each resource gets its own named types (for example `CatController`, `CatService`,
-  `CatRepository`; in .NET the stored entity is `CatEntity`). Copier cannot fan a list out
-  into separate files, so the per-resource classes for a layer live in one file inside a
-  `{% for resource in resources %}` loop.
+  `CatRepository`; in .NET the stored entity is `CatEntity`) and its own file in every
+  layer: entry point/handlers, controller, service, repository, models and tests. A
+  per-resource file is a single template whose path uses Copier's `yield` tag, for
+  example `controllers/{% yield resource from resources %}{{ resource.name | to_lower_camel }}.controller.ts{% endyield %}`;
+  Copier renders it once per resource with `resource` in context (`resources` is still the
+  full list). Only one `yield` is allowed per path segment and none inside file contents,
+  so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
+  still loop over `resources`. This needs Copier 9.5+ (`_min_copier_version`).
 - Controllers, services and routes expose only the resource's `operations` (`update` is
   PATCH, `replace` is PUT). Repositories always implement all six operations.
 - Resources with the same `container` share one store and see each other's records; there
@@ -102,7 +107,7 @@ To add a new cloud provider to an existing language template:
 ## Adding a New Language
 
 1. Create a new top-level directory (e.g., `java/`)
-2. Add `copier.yml` with the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
+2. Add `copier.yml` with `_min_copier_version: "9.5.0"`, the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
 3. Put the template project under `template/`
 4. Add input validation as a `validator:` on the prompted `project_name` and `resources` questions (Copier only runs validators for prompted questions, not for `when: false` derived values)
 5. Use conditional file/directory names if supporting multiple cloud providers
@@ -156,7 +161,7 @@ To verify changes locally, generate a template and test it:
 
 ```bash
 # Install dependencies
-pip install copier jinja2-strcase jinja2-time
+pip install 'copier>=9.5' jinja2-strcase jinja2-time
 
 # Generate a project
 copier copy --defaults --trust \
