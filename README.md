@@ -20,7 +20,7 @@ A [Copier](https://github.com/copier-org/copier) template for generating REST AP
 
 ## Usage
 
-Install Copier 9.5 or newer (and the Jinja extensions the templates use) with pip or pipx:
+Install Copier 9.18.2 or newer (and the Jinja extensions the templates use) with pip or pipx:
 
 ```console
 # pipx is strongly recommended.

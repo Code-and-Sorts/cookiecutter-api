@@ -30,7 +30,7 @@ runs:
         python-version: 3.14
 
     - name: Install Copier
-      run: pip install 'copier>=9.5'
+      run: pip install 'copier>=9.18.2'
       shell: bash
 
     - name: Install Copier Extensions

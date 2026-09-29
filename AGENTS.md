@@ -59,7 +59,7 @@ The default is a single resource derived from the project name with `list`, `get
   Copier renders it once per resource with `resource` in context (`resources` is still the
   full list). Only one `yield` is allowed per path segment and none inside file contents,
   so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
-  still loop over `resources`. This needs Copier 9.5+ (`_min_copier_version`).
+  still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
 - Controllers, services and routes expose only the resource's `operations` (`update` is
   PATCH, `replace` is PUT). Repositories always implement all six operations.
 - Resources with the same `container` share one store and see each other's records; there
@@ -161,7 +161,7 @@ To verify changes locally, generate a template and test it:
 
 ```bash
 # Install dependencies
-pip install 'copier>=9.5' jinja2-strcase jinja2-time
+pip install 'copier>=9.18.2' jinja2-strcase jinja2-time
 
 # Generate a project
 copier copy --defaults --trust \
