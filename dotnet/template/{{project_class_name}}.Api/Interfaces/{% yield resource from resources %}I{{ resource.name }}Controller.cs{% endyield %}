@@ -19,7 +19,7 @@ public interface I{{ r }}Controller
     Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default);
 {%- endif %}
 {%- if "list" in resource.operations %}
-    Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default);
+    Task<IEnumerable<{{ r }}Dto>> GetListAsync(string? limit = null, CancellationToken ct = default);
 {%- endif %}
 {%- if "create" in resource.operations %}
     Task<{{ r }}Dto> CreateAsync(Stream item, CancellationToken ct = default);

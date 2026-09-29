@@ -26,7 +26,7 @@ public interface I{{ r }}Repository
 {%- if "list" in ops %}
 {%- if not ns.first %}
 {% endif %}{% set ns.first = false %}
-    Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default);
+    Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default);
 {%- endif %}
 {%- if "create" in ops %}
 {%- if not ns.first %}

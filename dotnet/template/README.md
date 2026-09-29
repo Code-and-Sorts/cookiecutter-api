@@ -1,4 +1,4 @@
-{%- set prefix = '' if cloud_service == 'GCP Cloud Function' else '/api' -%}
+{%- set prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set containers = resources | map(attribute='container') | unique | list -%}
 # {{ project_class_name }} API
 
@@ -54,10 +54,45 @@ Paths are relative to the function URL (`http://localhost:8080` when running loc
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-Paths are relative to the API Gateway stage URL (`https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://localhost:3000` with `sam local start-api`).
+Paths are relative to the API Gateway stage URL (`https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://localhost:3000` with `sam local start-api`). Routes have no `/api` prefix; the path parameter is `{id}`.
 {%- endif %}
 
 Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring a streamlined and consistent environment for managing Dotnet packages and their dependencies.
+
+## API behaviour
+
+Every response body is JSON (`Content-Type: application/json`), including errors.
+
+| Case | Status | Body |
+|---|---|---|
+| create | 201 | the item |
+| get, update, replace | 200 | the item |
+| list | 200 | JSON array of items (`[]` when empty) |
+| delete | 200 | `{"message": "<Name> with id <id> was deleted successfully."}` |
+{%- if health_endpoint %}
+| health | 200 | `{"status": "ok"}` |
+{%- endif %}
+| invalid request body | 400 | `{"errorMessage": "<what is wrong>"}` |
+| id not found, soft-deleted or not a UUID | 404 | `{"errorMessage": "<Name> with id <id> was not found."}` |
+{%- if cloud_service == 'GCP Cloud Function' %}
+| unknown path | 404 | `{"errorMessage": "Not found."}` |
+| known path, method not enabled | 405 | `{"errorMessage": "Method not allowed."}` |
+{%- endif %}
+| anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` (the exception is logged with its stack trace) |
+
+An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be a JSON object: `name` is required on create (`POST`) and replace (`PUT`) and optional on update (`PATCH`), and when present it must be a non-empty JSON string (numbers and booleans are not converted). Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with `400`, so clients can never set ids or system fields.
+
+List endpoints accept `?limit=<n>` (default `100`, at most `1000`); a missing or invalid value uses the default and a larger value is capped.
+{%- if cloud_service == 'Azure Function App' %}
+
+Requests that never reach the app are answered by the Azure Functions host: an unknown path, or a method a function is not registered for, returns `404` with an empty body.
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+
+Requests that never reach the app are answered by API Gateway: an unmapped path or method returns `403` with `{"message": "Missing Authentication Token"}`.
+{%- endif %}
+
+Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with millisecond precision, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when they are set. Updates and replacements keep `createdTimestamp` and `createdBy` and refresh `updatedTimestamp`; delete is a soft delete that sets `isDeleted` to `true`.
 
 ## Storage containers
 {%- if cloud_service == 'Azure Function App' %}
@@ -71,6 +106,8 @@ Each resource reads and writes the Cosmos DB container configured for its `conta
 {%- endfor %}
 
 The Cosmos DB connection string is read from `ConnectionStrings:CosmosDb` and the database name from `CosmosDbDatabaseName`. Containers must use `/id` as their partition key.
+
+`CosmosDbConnectionMode` selects the Cosmos DB connection mode: `Direct` (the default when the setting is missing, and the best choice in Azure) or `Gateway`. `local.settings.json` sets it to `Gateway` because the [Linux Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) only supports Gateway mode.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
@@ -237,6 +274,8 @@ Resources that use the same container share its records: there is no type discri
     ```console
     gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
     ```
+
+    The whole API is one HTTP function. The .NET Functions Framework names the entry point by its type, so `--entry-point` is the `{{ project_class_name }}.Api.Function` class, which routes every request by its path.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 

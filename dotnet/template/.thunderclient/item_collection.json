@@ -1,4 +1,4 @@
-{%- set prefix = '' if cloud_service == 'GCP Cloud Function' else '/api' -%}
+{%- set prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set op_order = ['list', 'get_by_id', 'create', 'update', 'replace', 'delete'] -%}
 {%- set ns = namespace(requests=[]) -%}
 {%- for resource in resources -%}
@@ -75,13 +75,13 @@
 {%- if op == 'create' %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1\",\n  \"createdBy\": \"thunderclient\",\n  \"updatedBy\": \"thunderclient\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1\"\n}",
                 "form": []
             },
 {%- elif op in ['update', 'replace'] %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1-{{ 'Update' if op == 'update' else 'Replace' }}\",\n  \"updatedBy\": \"thunderclient\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1-{{ 'Update' if op == 'update' else 'Replace' }}\"\n}",
                 "form": []
             },
 {%- endif %}

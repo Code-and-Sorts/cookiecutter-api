@@ -22,7 +22,7 @@ public class HealthHandlerTests
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Contains("ok", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal("{\"status\":\"ok\"}", Mocks.ReadResponseBody(httpContext));
     }
 
     [Fact]
@@ -33,6 +33,7 @@ public class HealthHandlerTests
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(405, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Method not allowed.\"}", Mocks.ReadResponseBody(httpContext));
     }
 
     [Fact]
@@ -43,5 +44,6 @@ public class HealthHandlerTests
         await _handler.HandleAsync(httpContext, "extra");
 
         Assert.Equal(404, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Not found.\"}", Mocks.ReadResponseBody(httpContext));
     }
 }

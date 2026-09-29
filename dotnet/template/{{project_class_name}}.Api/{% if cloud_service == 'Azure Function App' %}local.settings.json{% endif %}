@@ -3,7 +3,8 @@
     "Values": {
         "AzureWebJobsStorage": "UseDevelopmentStorage=true",
         "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-        "CosmosDbDatabaseName": "{{ '{{CosmosDbDatabaseName}}' }}"{% for container in resources | map(attribute='container') | unique %},
+        "CosmosDbDatabaseName": "{{ '{{CosmosDbDatabaseName}}' }}",
+        "CosmosDbConnectionMode": "Gateway"{% for container in resources | map(attribute='container') | unique %},
         "CosmosDbContainerName_{{ container | to_camel }}": "{{ container }}"{% endfor %}
     },
     "ConnectionStrings": {

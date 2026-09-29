@@ -2,26 +2,24 @@
 {%- set request_ops = [('create', 'Create'), ('update', 'Update'), ('replace', 'Replace')] | selectattr(0, 'in', resource.operations) | list -%}
 namespace {{project_class_name}}.Api.Requests;
 
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
+
+// Request bodies accept only the properties marked with [JsonPropertyName]; any other
+// field (including id, isDeleted, timestamps, createdBy and updatedBy) is rejected with
+// 400 by RequestBody, so clients can never set ids or system fields.
 {%- for op, prefix in request_ops %}
 
 public class {{ prefix }}{{ r }}Request
 {
-{%- if op == 'create' %}
-    [JsonProperty("name")]
-    public string Name { get; set; } = default!;
-
-    [JsonProperty("createdBy")]
-    public string CreatedBy { get; set; } = default!;
-{%- else %}
+{%- if op != 'create' %}
     [JsonIgnore]
     public string Id { get; set; } = default!;
-
-    [JsonProperty("name")]
+{% endif %}
+    [JsonPropertyName("name")]
+{%- if op == 'update' %}
+    public string? Name { get; set; }
+{%- else %}
     public string Name { get; set; } = default!;
 {%- endif %}
-
-    [JsonProperty("updatedBy")]
-    public string UpdatedBy { get; set; } = default!;
 }
 {%- endfor %}

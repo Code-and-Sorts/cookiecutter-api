@@ -4,15 +4,135 @@
 {%- set writes_body = "update" in ops or "replace" in ops %}
 {%- set reads_item = "get_by_id" in ops or writes_body or "delete" in ops %}
 {%- set returns_dto = ops | reject("equalto", "delete") | list | length > 0 %}
-{%- if cloud_service in ['Azure Function App', 'GCP Cloud Function'] %}
+{%- if cloud_service == 'Azure Function App' -%}
 namespace {{project_class_name}}.Api.Repositories;
-{% if writes_body %}
-using System;
-{%- endif %}
-{%- if has_list or (cloud_service == 'GCP Cloud Function' and reads_item) %}
+{% if has_list %}
 using System.Collections.Generic;
+using System.Linq;
+{%- endif %}
+{%- if reads_item %}
+using System.Net;
+{%- endif %}
+using System.Threading;
+using System.Threading.Tasks;
+{%- if returns_dto %}
+using {{project_class_name}}.Api.Dtos;
+{%- endif %}
+using {{project_class_name}}.Api.Entities;
+using {{project_class_name}}.Api.Interfaces;
+{%- if reads_item %}
+using {{project_class_name}}.Api.Utils;
+{%- endif %}
+using Microsoft.Azure.Cosmos;
+
+public class {{ r }}Repository : I{{ r }}Repository
+{
+{%- if reads_item %}
+    private const string ResourceName = "{{ r }}";
+{%- endif %}
+    private readonly Container _container;
+
+    public {{ r }}Repository(CosmosClient cosmosClient, string databaseName, string containerName)
+    {
+        _container = cosmosClient.GetContainer(databaseName, containerName);
+    }
+{%- if returns_dto %}
+
+    private static {{ r }}Dto ToDto({{ r }}Entity item) => new() { Id = item.Id, Name = item.Name };
+{%- endif %}
+{%- if reads_item %}
+
+    private async Task<{{ r }}Entity> GetItemAsync(string id, CancellationToken ct)
+    {
+        {{ r }}Entity? item;
+        try
+        {
+            var response = await _container.ReadItemAsync<{{ r }}Entity>(id, new PartitionKey(id), null, ct);
+            item = response.Resource;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new NotFoundException(ResourceName, id);
+        }
+
+        if (item == null || item.IsDeleted)
+        {
+            throw new NotFoundException(ResourceName, id);
+        }
+        return item;
+    }
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => ToDto(await GetItemAsync(id, ct));
 {%- endif %}
 {%- if has_list %}
+
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default)
+    {
+        // limit is an int parsed and clamped by the controller, so it is safe to inline.
+        using var query = _container.GetItemQueryIterator<{{ r }}Entity>($"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {limit}");
+        var results = new List<{{ r }}Entity>();
+
+        while (query.HasMoreResults && results.Count < limit)
+        {
+            var response = await query.ReadNextAsync(ct);
+            results.AddRange(response.Resource);
+        }
+
+        return results.Take(limit).Select(ToDto).ToList();
+    }
+{%- endif %}
+{%- if "create" in ops %}
+
+    public async Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default)
+    {
+        await _container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
+        return ToDto(item);
+    }
+{%- endif %}
+{%- if "update" in ops %}
+
+    public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
+    {
+        // Keep id, createdTimestamp and createdBy from the stored record.
+        var currentItem = await GetItemAsync(item.Id, ct);
+        currentItem.Name = item.Name ?? currentItem.Name;
+        currentItem.UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy;
+        currentItem.UpdatedTimestamp = Timestamps.Now();
+        await _container.ReplaceItemAsync(currentItem, currentItem.Id, new PartitionKey(currentItem.Id), null, ct);
+        return ToDto(currentItem);
+    }
+{%- endif %}
+{%- if "replace" in ops %}
+
+    public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
+    {
+        // Keep id, createdTimestamp and createdBy from the stored record.
+        var currentItem = await GetItemAsync(item.Id, ct);
+        currentItem.Name = item.Name;
+        currentItem.UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy;
+        currentItem.UpdatedTimestamp = Timestamps.Now();
+        await _container.ReplaceItemAsync(currentItem, currentItem.Id, new PartitionKey(currentItem.Id), null, ct);
+        return ToDto(currentItem);
+    }
+{%- endif %}
+{%- if "delete" in ops %}
+
+    public async Task DeleteAsync(string id, CancellationToken ct = default)
+    {
+        var item = await GetItemAsync(id, ct);
+        item.IsDeleted = true;
+        item.UpdatedTimestamp = Timestamps.Now();
+        await _container.ReplaceItemAsync(item, item.Id, new PartitionKey(item.Id), null, ct);
+    }
+{%- endif %}
+}
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' -%}
+namespace {{project_class_name}}.Api.Repositories;
+{% if has_list %}
+using System.Collections.Generic;
 using System.Linq;
 {%- endif %}
 using System.Threading;
@@ -22,143 +142,14 @@ using {{project_class_name}}.Api.Dtos;
 {%- endif %}
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
-{%- if cloud_service == 'Azure Function App' %}
-using Microsoft.Azure.Cosmos;
+{%- if reads_item %}
+using {{project_class_name}}.Api.Utils;
 {%- endif %}
 
 public class {{ r }}Repository : I{{ r }}Repository
 {
-{%- if cloud_service == 'Azure Function App' %}
-{%- if has_list %}
-    // Default cap on list reads to avoid unbounded queries.
-    private const int DefaultListLimit = 100;
-{%- endif %}
-    private readonly Container _container;
-
-    public {{ r }}Repository(CosmosClient cosmosClient, string databaseName, string containerName)
-    {
-        _container = cosmosClient.GetContainer(databaseName, containerName);
-    }
 {%- if reads_item %}
-
-    private async Task<{{ r }}Entity> GetItemAsync(string id, CancellationToken ct)
-    {
-        var response = await _container.ReadItemAsync<{{ r }}Entity>(id, new PartitionKey(id), null, ct);
-        var item = response.Resource;
-
-        if (item.IsDeleted)
-        {
-            throw new CosmosException("Item not found", System.Net.HttpStatusCode.NotFound, 0, string.Empty, 0);
-        }
-        return item;
-    }
-{%- endif %}
-{%- if "get_by_id" in ops %}
-
-    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
-    {
-        var item = await GetItemAsync(id, ct);
-
-        return new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        };
-    }
-{%- endif %}
-{%- if has_list %}
-
-    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
-    {
-        var query = _container.GetItemQueryIterator<{{ r }}Entity>($"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {DefaultListLimit}");
-        var results = new List<{{ r }}Entity>();
-
-        while (query.HasMoreResults && results.Count < DefaultListLimit)
-        {
-            var response = await query.ReadNextAsync(ct);
-            results.AddRange(response.Resource);
-        }
-
-        return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        });
-    }
-{%- endif %}
-{%- if "create" in ops %}
-
-    public async Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default)
-    {
-        var response = await _container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
-        var created = response.Resource;
-        return new {{ r }}Dto
-        {
-            Id = created.Id,
-            Name = created.Name,
-        };
-    }
-{%- endif %}
-{%- if "update" in ops %}
-
-    public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
-    {
-        var currentItem = await GetItemAsync(item.Id, ct);
-        var updateItem = new {{ r }}Entity
-        {
-            Id = currentItem.Id,
-            Name = item.Name ?? currentItem.Name,
-            CreatedBy = currentItem.CreatedBy,
-            CreatedTimestamp = currentItem.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy,
-            UpdatedTimestamp = DateTime.UtcNow,
-        };
-        var response = await _container.ReplaceItemAsync<{{ r }}Entity>(updateItem, updateItem.Id, new PartitionKey(updateItem.Id), null, ct);
-        var updated = response.Resource;
-        return new {{ r }}Dto
-        {
-            Id = updated.Id,
-            Name = updated.Name,
-        };
-    }
-{%- endif %}
-{%- if "replace" in ops %}
-
-    public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
-    {
-        var currentItem = await GetItemAsync(item.Id, ct);
-        var replaceItem = new {{ r }}Entity
-        {
-            Id = currentItem.Id,
-            Name = item.Name,
-            CreatedBy = currentItem.CreatedBy,
-            CreatedTimestamp = currentItem.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy,
-            UpdatedTimestamp = DateTime.UtcNow,
-        };
-        var response = await _container.ReplaceItemAsync<{{ r }}Entity>(replaceItem, replaceItem.Id, new PartitionKey(replaceItem.Id), null, ct);
-        var replaced = response.Resource;
-        return new {{ r }}Dto
-        {
-            Id = replaced.Id,
-            Name = replaced.Name,
-        };
-    }
-{%- endif %}
-{%- if "delete" in ops %}
-
-    public async Task DeleteAsync(string id, CancellationToken ct = default)
-    {
-        var item = await GetItemAsync(id, ct);
-        item.IsDeleted = true;
-        await _container.ReplaceItemAsync<{{ r }}Entity>(item, item.Id, new PartitionKey(item.Id), null, ct);
-    }
-{%- endif %}
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-{%- if has_list %}
-    // Default cap on list reads to avoid unbounded queries.
-    private const int DefaultListLimit = 100;
+    private const string ResourceName = "{{ r }}";
 {%- endif %}
     private readonly IFirestoreContext<{{ r }}Entity> _context;
 
@@ -166,6 +157,10 @@ public class {{ r }}Repository : I{{ r }}Repository
     {
         _context = context;
     }
+{%- if returns_dto %}
+
+    private static {{ r }}Dto ToDto({{ r }}Entity item) => new() { Id = item.Id, Name = item.Name };
+{%- endif %}
 {%- if reads_item %}
 
     private async Task<{{ r }}Entity> GetItemAsync(string id, CancellationToken ct)
@@ -174,7 +169,7 @@ public class {{ r }}Repository : I{{ r }}Repository
 
         if (item == null || item.IsDeleted)
         {
-            throw new KeyNotFoundException($"Item with id {id} not found.");
+            throw new NotFoundException(ResourceName, id);
         }
 
         return item;
@@ -182,28 +177,15 @@ public class {{ r }}Repository : I{{ r }}Repository
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
-    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
-    {
-        var item = await GetItemAsync(id, ct);
-
-        return new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        };
-    }
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => ToDto(await GetItemAsync(id, ct));
 {%- endif %}
 {%- if has_list %}
 
-    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default)
     {
-        var results = await _context.GetListAsync("isDeleted", false, ct);
+        var results = await _context.GetListAsync("isDeleted", false, limit, ct);
 
-        return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        });
+        return results.Take(limit).Select(ToDto).ToList();
     }
 {%- endif %}
 {%- if "create" in ops %}
@@ -212,59 +194,37 @@ public class {{ r }}Repository : I{{ r }}Repository
     {
         await _context.SetAsync(item.Id, item, ct);
 
-        return new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        };
+        return ToDto(item);
     }
 {%- endif %}
 {%- if "update" in ops %}
 
     public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
+        // Keep id, createdTimestamp and createdBy from the stored record.
         var currentItem = await GetItemAsync(item.Id, ct);
-        var updateItem = new {{ r }}Entity
-        {
-            Id = currentItem.Id,
-            Name = item.Name ?? currentItem.Name,
-            CreatedBy = currentItem.CreatedBy,
-            CreatedTimestamp = currentItem.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy,
-            UpdatedTimestamp = DateTime.UtcNow,
-        };
+        currentItem.Name = item.Name ?? currentItem.Name;
+        currentItem.UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy;
+        currentItem.UpdatedTimestamp = Timestamps.Now();
 
-        await _context.SetAsync(updateItem.Id, updateItem, ct);
+        await _context.SetAsync(currentItem.Id, currentItem, ct);
 
-        return new {{ r }}Dto
-        {
-            Id = updateItem.Id,
-            Name = updateItem.Name,
-        };
+        return ToDto(currentItem);
     }
 {%- endif %}
 {%- if "replace" in ops %}
 
     public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
     {
+        // Keep id, createdTimestamp and createdBy from the stored record.
         var currentItem = await GetItemAsync(item.Id, ct);
-        var replaceItem = new {{ r }}Entity
-        {
-            Id = currentItem.Id,
-            Name = item.Name,
-            CreatedBy = currentItem.CreatedBy,
-            CreatedTimestamp = currentItem.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy,
-            UpdatedTimestamp = DateTime.UtcNow,
-        };
+        currentItem.Name = item.Name;
+        currentItem.UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy;
+        currentItem.UpdatedTimestamp = Timestamps.Now();
 
-        await _context.SetAsync(replaceItem.Id, replaceItem, ct);
+        await _context.SetAsync(currentItem.Id, currentItem, ct);
 
-        return new {{ r }}Dto
-        {
-            Id = replaceItem.Id,
-            Name = replaceItem.Name,
-        };
+        return ToDto(currentItem);
     }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -273,19 +233,17 @@ public class {{ r }}Repository : I{{ r }}Repository
     {
         var item = await GetItemAsync(id, ct);
         item.IsDeleted = true;
+        item.UpdatedTimestamp = Timestamps.Now();
 
         await _context.SetAsync(item.Id, item, ct);
     }
 {%- endif %}
-{%- endif %}
 }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-{%- set writes_item = "create" in ops or writes_body or "delete" in ops %}
+{%- set writes_item = "create" in ops or writes_body or "delete" in ops -%}
 namespace {{project_class_name}}.Api.Repositories;
-{% if reads_item or has_list %}
-using System;
-{%- endif %}
+
 using System.Collections.Generic;
 {%- if has_list %}
 using System.Linq;
@@ -297,14 +255,16 @@ using {{project_class_name}}.Api.Dtos;
 {%- endif %}
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
+{%- if reads_item %}
+using {{project_class_name}}.Api.Utils;
+{%- endif %}
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 
 public class {{ r }}Repository : I{{ r }}Repository
 {
-{%- if has_list %}
-    // Default cap on list reads to avoid unbounded scans.
-    private const int DefaultListLimit = 100;
+{%- if reads_item %}
+    private const string ResourceName = "{{ r }}";
 {%- endif %}
     private readonly IAmazonDynamoDB _dynamoClient;
     private readonly string _tableName;
@@ -314,20 +274,32 @@ public class {{ r }}Repository : I{{ r }}Repository
         _dynamoClient = dynamoClient;
         _tableName = tableName;
     }
+{%- if returns_dto %}
+
+    private static {{ r }}Dto ToDto({{ r }}Entity item) => new() { Id = item.Id, Name = item.Name };
+{%- endif %}
 {%- if writes_item %}
 
     private static Dictionary<string, AttributeValue> ToAttributeMap({{ r }}Entity entity)
     {
-        return new Dictionary<string, AttributeValue>
+        var item = new Dictionary<string, AttributeValue>
         {
             { "id", new AttributeValue { S = entity.Id } },
             { "name", new AttributeValue { S = entity.Name } },
             { "isDeleted", new AttributeValue { BOOL = entity.IsDeleted } },
-            { "createdTimestamp", new AttributeValue { S = entity.CreatedTimestamp.ToString("o") } },
-            { "updatedTimestamp", new AttributeValue { S = entity.UpdatedTimestamp.ToString("o") } },
-            { "createdBy", new AttributeValue { S = entity.CreatedBy ?? string.Empty } },
-            { "updatedBy", new AttributeValue { S = entity.UpdatedBy ?? string.Empty } },
+            { "createdTimestamp", new AttributeValue { S = entity.CreatedTimestamp } },
+            { "updatedTimestamp", new AttributeValue { S = entity.UpdatedTimestamp } },
         };
+        // createdBy and updatedBy are only stored when set.
+        if (entity.CreatedBy != null)
+        {
+            item["createdBy"] = new AttributeValue { S = entity.CreatedBy };
+        }
+        if (entity.UpdatedBy != null)
+        {
+            item["updatedBy"] = new AttributeValue { S = entity.UpdatedBy };
+        }
+        return item;
     }
 {%- endif %}
 {%- if reads_item or has_list %}
@@ -339,10 +311,10 @@ public class {{ r }}Repository : I{{ r }}Repository
             Id = item.TryGetValue("id", out var id) ? id.S : string.Empty,
             Name = item.TryGetValue("name", out var name) ? name.S : string.Empty,
             IsDeleted = item.TryGetValue("isDeleted", out var isDeleted) && isDeleted.BOOL == true,
-            CreatedTimestamp = item.TryGetValue("createdTimestamp", out var ct) ? DateTime.Parse(ct.S) : DateTime.UtcNow,
-            UpdatedTimestamp = item.TryGetValue("updatedTimestamp", out var ut) ? DateTime.Parse(ut.S) : DateTime.UtcNow,
-            CreatedBy = item.TryGetValue("createdBy", out var cb) ? cb.S : string.Empty,
-            UpdatedBy = item.TryGetValue("updatedBy", out var ub) ? ub.S : string.Empty,
+            CreatedTimestamp = item.TryGetValue("createdTimestamp", out var createdTimestamp) ? createdTimestamp.S : string.Empty,
+            UpdatedTimestamp = item.TryGetValue("updatedTimestamp", out var updatedTimestamp) ? updatedTimestamp.S : string.Empty,
+            CreatedBy = item.TryGetValue("createdBy", out var createdBy) ? createdBy.S : null,
+            UpdatedBy = item.TryGetValue("updatedBy", out var updatedBy) ? updatedBy.S : null,
         };
     }
 {%- endif %}
@@ -361,39 +333,43 @@ public class {{ r }}Repository : I{{ r }}Repository
 
         if (response.Item == null || response.Item.Count == 0)
         {
-            throw new KeyNotFoundException($"Item with id {id} not found.");
+            throw new NotFoundException(ResourceName, id);
         }
 
         var entity = FromAttributeMap(response.Item);
 
         if (entity.IsDeleted)
         {
-            throw new KeyNotFoundException($"Item with id {id} not found.");
+            throw new NotFoundException(ResourceName, id);
         }
 
         return entity;
     }
 {%- endif %}
+{%- if writes_item %}
+
+    private async Task PutAsync({{ r }}Entity entity, CancellationToken ct)
+    {
+        await _dynamoClient.PutItemAsync(new PutItemRequest
+        {
+            TableName = _tableName,
+            Item = ToAttributeMap(entity)
+        }, ct);
+    }
+{%- endif %}
 {%- if "get_by_id" in ops %}
 
-    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default)
-    {
-        var item = await GetItemAsync(id, ct);
-
-        return new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        };
-    }
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => ToDto(await GetItemAsync(id, ct));
 {%- endif %}
 {%- if has_list %}
 
-    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default)
     {
         var results = new List<{{ r }}Entity>();
         Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
+        // A scan's Limit counts the items read before the isDeleted filter, so keep
+        // reading pages until `limit` live items are found or the table is exhausted.
         do
         {
             var request = new ScanRequest
@@ -405,92 +381,54 @@ public class {{ r }}Repository : I{{ r }}Repository
                     { ":isDeleted", new AttributeValue { BOOL = false } }
                 },
                 ExclusiveStartKey = lastEvaluatedKey,
-                Limit = DefaultListLimit
+                Limit = limit
             };
 
             var response = await _dynamoClient.ScanAsync(request, ct);
             results.AddRange((response.Items ?? []).Select(FromAttributeMap));
             lastEvaluatedKey = response.LastEvaluatedKey is { Count: > 0 } ? response.LastEvaluatedKey : null;
-        } while (lastEvaluatedKey != null && results.Count < DefaultListLimit);
+        } while (lastEvaluatedKey != null && results.Count < limit);
 
-        return results.Take(DefaultListLimit).Select(item => new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        });
+        return results.Take(limit).Select(ToDto).ToList();
     }
 {%- endif %}
 {%- if "create" in ops %}
 
     public async Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
-        await _dynamoClient.PutItemAsync(new PutItemRequest
-        {
-            TableName = _tableName,
-            Item = ToAttributeMap(item)
-        }, ct);
+        await PutAsync(item, ct);
 
-        return new {{ r }}Dto
-        {
-            Id = item.Id,
-            Name = item.Name,
-        };
+        return ToDto(item);
     }
 {%- endif %}
 {%- if "update" in ops %}
 
     public async Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default)
     {
+        // Keep id, createdTimestamp and createdBy from the stored record.
         var currentItem = await GetItemAsync(item.Id, ct);
-        var updateItem = new {{ r }}Entity
-        {
-            Id = currentItem.Id,
-            Name = item.Name ?? currentItem.Name,
-            CreatedBy = currentItem.CreatedBy,
-            CreatedTimestamp = currentItem.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy,
-            UpdatedTimestamp = DateTime.UtcNow,
-        };
+        currentItem.Name = item.Name ?? currentItem.Name;
+        currentItem.UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy;
+        currentItem.UpdatedTimestamp = Timestamps.Now();
 
-        await _dynamoClient.PutItemAsync(new PutItemRequest
-        {
-            TableName = _tableName,
-            Item = ToAttributeMap(updateItem)
-        }, ct);
+        await PutAsync(currentItem, ct);
 
-        return new {{ r }}Dto
-        {
-            Id = updateItem.Id,
-            Name = updateItem.Name,
-        };
+        return ToDto(currentItem);
     }
 {%- endif %}
 {%- if "replace" in ops %}
 
     public async Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default)
     {
+        // Keep id, createdTimestamp and createdBy from the stored record.
         var currentItem = await GetItemAsync(item.Id, ct);
-        var replaceItem = new {{ r }}Entity
-        {
-            Id = currentItem.Id,
-            Name = item.Name,
-            CreatedBy = currentItem.CreatedBy,
-            CreatedTimestamp = currentItem.CreatedTimestamp,
-            UpdatedBy = item.UpdatedBy,
-            UpdatedTimestamp = DateTime.UtcNow,
-        };
+        currentItem.Name = item.Name;
+        currentItem.UpdatedBy = item.UpdatedBy ?? currentItem.UpdatedBy;
+        currentItem.UpdatedTimestamp = Timestamps.Now();
 
-        await _dynamoClient.PutItemAsync(new PutItemRequest
-        {
-            TableName = _tableName,
-            Item = ToAttributeMap(replaceItem)
-        }, ct);
+        await PutAsync(currentItem, ct);
 
-        return new {{ r }}Dto
-        {
-            Id = replaceItem.Id,
-            Name = replaceItem.Name,
-        };
+        return ToDto(currentItem);
     }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -499,12 +437,9 @@ public class {{ r }}Repository : I{{ r }}Repository
     {
         var item = await GetItemAsync(id, ct);
         item.IsDeleted = true;
+        item.UpdatedTimestamp = Timestamps.Now();
 
-        await _dynamoClient.PutItemAsync(new PutItemRequest
-        {
-            TableName = _tableName,
-            Item = ToAttributeMap(item)
-        }, ct);
+        await PutAsync(item, ct);
     }
 {%- endif %}
 }

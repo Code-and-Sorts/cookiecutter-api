@@ -4,6 +4,9 @@ namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
 using System.Collections.Generic;
+{%- if "create" in resource.operations %}
+using System.Text.RegularExpressions;
+{%- endif %}
 using System.Threading;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Dtos;
@@ -51,10 +54,10 @@ public class {{ r }}ServiceTests
             new {{ r }}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}1" },
             new {{ r }}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }
         };
-        _{{ r | to_lower_camel }}RepositoryMock.GetListAsync(Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.GetListAsync(25, Arg.Any<CancellationToken>())
             .Returns(expectedItemList);
 
-        var result = await _{{ r | to_lower_camel }}Service.GetListAsync(TestContext.Current.CancellationToken);
+        var result = await _{{ r | to_lower_camel }}Service.GetListAsync(25, TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItemList, result);
     }
@@ -73,7 +76,19 @@ public class {{ r }}ServiceTests
         var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest, TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
+        await _{{ r | to_lower_camel }}RepositoryMock.Received(1).CreateAsync(
+            Arg.Is<{{ r }}Entity>(entity => IsNewEntity(entity, createRequest.Name)),
+            Arg.Any<CancellationToken>());
     }
+
+    private static bool IsNewEntity({{ r }}Entity entity, string name) =>
+        Guid.TryParseExact(entity.Id, "D", out _)
+        && entity.Name == name
+        && !entity.IsDeleted
+        && Regex.IsMatch(entity.CreatedTimestamp, @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        && entity.UpdatedTimestamp == entity.CreatedTimestamp
+        && entity.CreatedBy == null
+        && entity.UpdatedBy == null;
 {%- endif %}
 {%- if "update" in resource.operations %}
 

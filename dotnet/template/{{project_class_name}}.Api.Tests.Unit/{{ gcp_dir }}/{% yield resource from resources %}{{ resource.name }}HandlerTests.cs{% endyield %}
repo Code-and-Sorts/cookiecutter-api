@@ -1,6 +1,8 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set uses_body = "create" in ops or "update" in ops or "replace" in ops -%}
+{%- set has_collection = "list" in ops or "create" in ops -%}
+{%- set has_item = "get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops -%}
 {%- set op_requests = [
     ('list', 'GET', False),
     ('get_by_id', 'GET', True),
@@ -52,7 +54,7 @@ public class {{ r }}HandlerTests
 {%- if "get_by_id" in ops %}
 
     [Fact]
-    public async Task HandleAsync_Get{{ r }}_ReturnsOk()
+    public async Task HandleAsync_Get{{ r }}_ReturnsCamelCaseItem()
     {
         var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>())
@@ -61,16 +63,17 @@ public class {{ r }}HandlerTests
         await _handler.HandleAsync(httpContext, ItemId);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
-        await _mock{{ r }}Controller.Received(1).GetAsync(ItemId, Arg.Any<CancellationToken>());
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
     }
 {%- endif %}
 {%- if "list" in ops %}
 
     [Fact]
-    public async Task HandleAsync_Get{{ r }}List_ReturnsOk()
+    public async Task HandleAsync_Get{{ r }}List_ReturnsItemsAndPassesLimit()
     {
-        var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}");
-        _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>())
+        var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}", query: "?limit=2");
+        _mock{{ r }}Controller.GetListAsync("2", Arg.Any<CancellationToken>())
             .Returns(new List<{{ r }}Dto>
             {
                 new() { Id = ItemId, Name = "mock{{ r }}1" },
@@ -80,7 +83,19 @@ public class {{ r }}HandlerTests
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
-        await _mock{{ r }}Controller.Received(1).GetListAsync(Arg.Any<CancellationToken>());
+        Assert.Equal($"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }},{{ '{{' }}\"id\":\"5615ff05-3032-4459-88ad-b6a4c3e51ca0\",\"name\":\"mock{{ r }}2\"{{ '}}' }}]", Mocks.ReadResponseBody(httpContext));
+    }
+
+    [Fact]
+    public async Task HandleAsync_Get{{ r }}List_ReturnsEmptyArray()
+    {
+        var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}");
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new List<{{ r }}Dto>());
+
+        await _handler.HandleAsync(httpContext, null);
+
+        Assert.Equal(200, httpContext.Response.StatusCode);
+        Assert.Equal("[]", Mocks.ReadResponseBody(httpContext));
     }
 {%- endif %}
 {%- if "create" in ops %}
@@ -95,19 +110,22 @@ public class {{ r }}HandlerTests
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(201, httpContext.Response.StatusCode);
-        await _mock{{ r }}Controller.Received(1).CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
     }
+{%- if has_item %}
 
     [Fact]
-    public async Task HandleAsync_Create{{ r }}_ReturnsBadRequest_WhenIdIsGiven()
+    public async Task HandleAsync_PostWithId_ReturnsMethodNotAllowed()
     {
         var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST", "/{{ resource.endpoint }}/" + ItemId);
 
         await _handler.HandleAsync(httpContext, ItemId);
 
-        Assert.Equal(400, httpContext.Response.StatusCode);
+        Assert.Equal(405, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Method not allowed.\"}", Mocks.ReadResponseBody(httpContext));
         await _mock{{ r }}Controller.DidNotReceiveWithAnyArgs().CreateAsync(default!, default);
     }
+{%- endif %}
 {%- endif %}
 {%- if "update" in ops %}
 
@@ -142,7 +160,7 @@ public class {{ r }}HandlerTests
 {%- if "delete" in ops %}
 
     [Fact]
-    public async Task HandleAsync_Delete{{ r }}_ReturnsOk()
+    public async Task HandleAsync_Delete{{ r }}_ReturnsDeleteMessage()
     {
         var httpContext = Mocks.CreateHttpContext("DELETE", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -150,31 +168,24 @@ public class {{ r }}HandlerTests
         await _handler.HandleAsync(httpContext, ItemId);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Contains("{{ r }} with id " + ItemId + " was deleted successfully.", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal($"{{ '{{' }}\"message\":\"{{ r }} with id {ItemId} was deleted successfully.\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
     }
 {%- endif %}
-{%- for op, method, with_id in op_requests if with_id and op != 'get_by_id' and op in ops %}
-
-    [Fact]
-    public async Task HandleAsync_{{ method | capitalize }}_ReturnsBadRequest_WhenIdIsMissing()
-    {
-        var httpContext = Mocks.CreateHttpContext("{{ method }}", "/{{ resource.endpoint }}");
-
-        await _handler.HandleAsync(httpContext, null);
-
-        Assert.Equal(400, httpContext.Response.StatusCode);
-    }
-{%- endfor %}
 {%- for op, method, with_id in op_requests if op not in ops %}
 
     [Fact]
-    public async Task HandleAsync_{{ method | capitalize }}{{ "ById" if with_id else "" }}_ReturnsMethodNotAllowed_WhenDisabled()
+    public async Task HandleAsync_{{ method | capitalize }}{{ "ById" if with_id else "" }}_Returns{{ "MethodNotAllowed" if (has_item if with_id else has_collection) else "NotFound" }}_WhenDisabled()
     {
         var httpContext = Mocks.CreateHttpContext("{{ method }}", "/{{ resource.endpoint }}{{ '/" + ItemId' if with_id else '"' }});
 
         await _handler.HandleAsync(httpContext, {{ "ItemId" if with_id else "null" }});
-
+{% if (has_item if with_id else has_collection) %}
         Assert.Equal(405, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Method not allowed.\"}", Mocks.ReadResponseBody(httpContext));
+{%- else %}
+        Assert.Equal(404, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Not found.\"}", Mocks.ReadResponseBody(httpContext));
+{%- endif %}
     }
 {%- endfor %}
 
@@ -183,7 +194,7 @@ public class {{ r }}HandlerTests
     {
 {%- if first_op[0] == 'list' %}
         var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}");
-        _mock{{ r }}Controller.GetListAsync(Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 {%- elif first_op[0] == 'get_by_id' %}
         var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));

@@ -32,6 +32,20 @@ public class LambdaDeploymentTests
         }
     }
 
+    [Fact]
+    public void TemplatePaths_HaveNoPrefixAndUseIdParameter()
+    {
+        var paths = File.ReadLines("template.yaml")
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("Path: "))
+            .Select(line => line["Path: ".Length..])
+            .ToList();
+
+        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + (1 if health_endpoint else 0) }}, paths.Count);
+        Assert.All(paths, path => Assert.DoesNotContain("/api/", path));
+        Assert.Contains("/{{ resources[0].endpoint }}{{ '/{id}' if (resources[0].operations | reject('in', ['list', 'create']) | list) else '' }}", paths);
+    }
+
     [Theory]
 {%- if health_endpoint %}
     [InlineData(typeof(HealthFunctions))]

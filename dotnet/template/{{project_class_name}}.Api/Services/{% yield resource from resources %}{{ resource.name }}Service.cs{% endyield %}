@@ -19,6 +19,9 @@ using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 {% if uses_body -%}
 using {{project_class_name}}.Api.Requests;
+{% endif -%}
+{% if "create" in resource.operations -%}
+using {{project_class_name}}.Api.Utils;
 {% endif %}
 public class {{ r }}Service : I{{ r }}Service
 {
@@ -34,18 +37,19 @@ public class {{ r }}Service : I{{ r }}Service
 {%- endif %}
 {%- if "list" in resource.operations %}
 
-    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(CancellationToken ct = default) => await _repository.GetListAsync(ct);
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default) => await _repository.GetListAsync(limit, ct);
 {%- endif %}
 {%- if "create" in resource.operations %}
 
     public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default)
     {
+        var now = Timestamps.Now();
         var new{{ r }} = new {{ r }}Entity
         {
             Id = Guid.NewGuid().ToString(),
             Name = item.Name,
-            CreatedBy = item.CreatedBy,
-            UpdatedBy = item.UpdatedBy,
+            CreatedTimestamp = now,
+            UpdatedTimestamp = now,
         };
         return await _repository.CreateAsync(new{{ r }}, ct);
     }
@@ -57,8 +61,8 @@ public class {{ r }}Service : I{{ r }}Service
         var updated{{ r }} = new {{ r }}Entity
         {
             Id = item.Id,
-            Name = item.Name,
-            UpdatedBy = item.UpdatedBy,
+            // A null name (not sent in the PATCH body) keeps the stored name.
+            Name = item.Name!,
         };
         return await _repository.UpdateAsync(updated{{ r }}, ct);
     }
@@ -71,7 +75,6 @@ public class {{ r }}Service : I{{ r }}Service
         {
             Id = item.Id,
             Name = item.Name,
-            UpdatedBy = item.UpdatedBy,
         };
         return await _repository.ReplaceAsync(replaced{{ r }}, ct);
     }

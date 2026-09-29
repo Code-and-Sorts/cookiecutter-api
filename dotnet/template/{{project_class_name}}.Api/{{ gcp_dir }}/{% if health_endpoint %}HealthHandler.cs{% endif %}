@@ -20,10 +20,11 @@ public class HealthHandler : IResourceHandler
                 await response.WriteJsonAsync(StatusCodes.Status200OK, new { status = "ok" }, ct);
                 return;
             case (_, null):
-                await response.WriteJsonAsync(StatusCodes.Status405MethodNotAllowed, new { error = "Method not allowed." }, ct);
+                await response.WriteErrorAsync(StatusCodes.Status405MethodNotAllowed, "Method not allowed.", ct);
                 return;
             default:
-                await response.WriteJsonAsync(StatusCodes.Status404NotFound, new { error = "Not found." }, ct);
+                // The health check matches its exact path only.
+                await response.WriteErrorAsync(StatusCodes.Status404NotFound, "Not found.", ct);
                 return;
         }
     }

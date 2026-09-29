@@ -14,4 +14,13 @@ public class {{ resource.name }}Entity : BaseEntity
     [FirestoreProperty("name")]
 {%- endif %}
     public string Name { get; set; } = default!;
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+    public override Dictionary<string, object> ToDocument()
+    {
+        var document = base.ToDocument();
+        document["name"] = Name;
+        return document;
+    }
+{%- endif %}
 }

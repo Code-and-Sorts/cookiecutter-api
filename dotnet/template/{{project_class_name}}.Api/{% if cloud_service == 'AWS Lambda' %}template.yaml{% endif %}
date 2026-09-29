@@ -27,7 +27,7 @@ Resources:
         GetById:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: GET
 {%- endif %}
 {%- if "list" in resource.operations %}
@@ -46,7 +46,7 @@ Resources:
         GetList:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}
+            Path: /{{ resource.endpoint }}
             Method: GET
 {%- endif %}
 {%- if "create" in resource.operations %}
@@ -65,7 +65,7 @@ Resources:
         Create:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}
+            Path: /{{ resource.endpoint }}
             Method: POST
 {%- endif %}
 {%- if "update" in resource.operations %}
@@ -84,7 +84,7 @@ Resources:
         Update:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: PATCH
 {%- endif %}
 {%- if "replace" in resource.operations %}
@@ -103,7 +103,7 @@ Resources:
         Replace:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: PUT
 {%- endif %}
 {%- if "delete" in resource.operations %}
@@ -122,7 +122,7 @@ Resources:
         Delete:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: DELETE
 {%- endif %}
 {%- endfor %}
@@ -136,7 +136,7 @@ Resources:
         Health:
           Type: Api
           Properties:
-            Path: /api/{{ health_endpoint }}
+            Path: /{{ health_endpoint }}
             Method: GET
 {%- endif %}
 {%- for container in resources | map(attribute='container') | unique %}
@@ -155,7 +155,7 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
 {%- for container in resources | map(attribute='container') | unique %}
   {{ container | to_camel }}TableName:
     Description: DynamoDB table name for the {{ container }} container

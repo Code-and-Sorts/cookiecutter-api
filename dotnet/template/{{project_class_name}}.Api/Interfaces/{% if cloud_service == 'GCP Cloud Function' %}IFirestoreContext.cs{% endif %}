@@ -3,12 +3,13 @@ namespace {{project_class_name}}.Api.Interfaces;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using {{project_class_name}}.Api.Entities;
 
-public interface IFirestoreContext<T> where T : class
+public interface IFirestoreContext<T> where T : BaseEntity
 {
     Task<T?> GetAsync(string id, CancellationToken ct = default);
 
-    Task<IReadOnlyList<T>> GetListAsync(string field, object value, CancellationToken ct = default);
+    Task<IReadOnlyList<T>> GetListAsync(string field, object value, int limit, CancellationToken ct = default);
 
     Task SetAsync(string id, T item, CancellationToken ct = default);
 }

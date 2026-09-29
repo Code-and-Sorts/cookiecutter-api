@@ -10,27 +10,35 @@ using Xunit;
 using {{project_class_name}}.Api;
 using {{project_class_name}}.Api.Handlers;
 using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
 
 public class FunctionTests
 {
     private readonly IResourceHandler _mockHandler;
+    private readonly RecordingLogger<Function> _logger = new();
     private readonly Function _function;
 
     public FunctionTests()
     {
         _mockHandler = Substitute.For<IResourceHandler>();
         _mockHandler.Endpoint.Returns("things");
-        _function = new Function([_mockHandler], Substitute.For<ILogger<Function>>());
+        _function = new Function([_mockHandler], _logger);
     }
 
-    [Fact]
-    public async Task HandleAsync_UnknownEndpoint_ReturnsNotFound()
+    [Theory]
+    [InlineData("/unknown-endpoint")]
+    [InlineData("/")]
+    [InlineData("/things/0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c/extra")]
+    [InlineData("/prefix/things")]
+    public async Task HandleAsync_UnknownPath_ReturnsNotFound(string path)
     {
-        var httpContext = Mocks.CreateHttpContext("GET", "/unknown-endpoint");
+        var httpContext = Mocks.CreateHttpContext("GET", path);
 
         await _function.HandleAsync(httpContext);
 
         Assert.Equal(404, httpContext.Response.StatusCode);
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal("{\"errorMessage\":\"Not found.\"}", Mocks.ReadResponseBody(httpContext));
         await _mockHandler.DidNotReceiveWithAnyArgs().HandleAsync(default!, default);
     }
 
@@ -55,7 +63,7 @@ public class FunctionTests
     }
 
     [Fact]
-    public async Task HandleAsync_ReturnsErrorResult_WhenHandlerThrows()
+    public async Task HandleAsync_ReturnsGenericErrorAndLogs_WhenHandlerThrows()
     {
         var httpContext = Mocks.CreateHttpContext("GET", "/things");
         _mockHandler.HandleAsync(Arg.Any<HttpContext>(), Arg.Any<string?>()).Throws(new Exception("Mock exception"));
@@ -63,12 +71,45 @@ public class FunctionTests
         await _function.HandleAsync(httpContext);
 
         Assert.Equal(500, httpContext.Response.StatusCode);
-        Assert.Contains("Mock exception", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal("{\"errorMessage\":\"An unexpected error occurred.\"}", Mocks.ReadResponseBody(httpContext));
+        var entry = Assert.Single(_logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Equal("Mock exception", entry.Exception?.Message);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsBadRequestWithoutLogging_WhenBodyIsMalformed()
+    {
+        var httpContext = Mocks.CreateHttpContext("POST", "/things", body: "{not json");
+        _mockHandler.HandleAsync(Arg.Any<HttpContext>(), Arg.Any<string?>()).Throws(new BadRequestException("Request body must be valid JSON."));
+
+        await _function.HandleAsync(httpContext);
+
+        Assert.Equal(400, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Request body must be valid JSON.\"}", Mocks.ReadResponseBody(httpContext));
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsNotFoundWithoutLogging_WhenItemIsMissing()
+    {
+        var httpContext = Mocks.CreateHttpContext("GET", "/things/abc");
+        _mockHandler.HandleAsync(Arg.Any<HttpContext>(), Arg.Any<string?>()).Throws(new NotFoundException("Thing", "abc"));
+
+        await _function.HandleAsync(httpContext);
+
+        Assert.Equal(404, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Thing with id abc was not found.\"}", Mocks.ReadResponseBody(httpContext));
+        Assert.Empty(_logger.Entries);
     }
 
     [Theory]
 {%- for resource in resources %}
+{%- if "list" in resource.operations or "create" in resource.operations %}
     [InlineData("/{{ resource.endpoint }}")]
+{%- else %}
+    [InlineData("/{{ resource.endpoint }}/0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c")]
+{%- endif %}
 {%- endfor %}
 {%- if health_endpoint %}
     [InlineData("/{{ health_endpoint }}")]
@@ -83,11 +124,12 @@ public class FunctionTests
 {%- if health_endpoint %}
             new HealthHandler(),
 {%- endif %}
-        ], Substitute.For<ILogger<Function>>());
+        ], _logger);
         var httpContext = Mocks.CreateHttpContext("OPTIONS", path);
 
         await function.HandleAsync(httpContext);
 
         Assert.Equal(405, httpContext.Response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Method not allowed.\"}", Mocks.ReadResponseBody(httpContext));
     }
 }

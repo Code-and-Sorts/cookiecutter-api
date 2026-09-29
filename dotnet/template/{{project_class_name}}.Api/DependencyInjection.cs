@@ -55,7 +55,15 @@ public static class DependencyInjection
             throw new InvalidOperationException("CosmosDb configuration is missing or incomplete.");
         }
 
-        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString));
+        // Direct mode (the SDK default) suits Azure; the Linux Cosmos DB emulator only
+        // supports Gateway mode, so local.settings.json sets CosmosDbConnectionMode=Gateway.
+        string connectionModeSetting = configuration.GetValue<string>("CosmosDbConnectionMode") ?? nameof(ConnectionMode.Direct);
+        if (!Enum.TryParse(connectionModeSetting, ignoreCase: true, out ConnectionMode connectionMode) || !Enum.IsDefined(connectionMode))
+        {
+            throw new InvalidOperationException($"CosmosDbConnectionMode '{connectionModeSetting}' is not valid. Use Direct or Gateway.");
+        }
+
+        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString, new CosmosClientOptions { ConnectionMode = connectionMode }));
 {%- for resource in resources %}
 {%- set r = resource.name %}
 

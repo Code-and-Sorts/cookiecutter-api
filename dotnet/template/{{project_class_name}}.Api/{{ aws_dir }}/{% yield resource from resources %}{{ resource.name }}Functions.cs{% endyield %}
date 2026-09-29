@@ -34,8 +34,7 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Get{{ r }}));
-            return ErrorDetector.DetectError(ex);
+            return ErrorDetector.DetectError(ex, _logger);
         }
     }
 {%- endif %}
@@ -46,12 +45,13 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
-            return ResponseHelper.Ok(await _controller.GetListAsync());
+            string? limit = null;
+            request.QueryStringParameters?.TryGetValue("limit", out limit);
+            return ResponseHelper.Ok(await _controller.GetListAsync(limit));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Get{{ r }}List));
-            return ErrorDetector.DetectError(ex);
+            return ErrorDetector.DetectError(ex, _logger);
         }
     }
 {%- endif %}
@@ -66,8 +66,7 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Create{{ r }}));
-            return ErrorDetector.DetectError(ex);
+            return ErrorDetector.DetectError(ex, _logger);
         }
     }
 {%- endif %}
@@ -83,8 +82,7 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Update{{ r }}));
-            return ErrorDetector.DetectError(ex);
+            return ErrorDetector.DetectError(ex, _logger);
         }
     }
 {%- endif %}
@@ -100,8 +98,7 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Replace{{ r }}));
-            return ErrorDetector.DetectError(ex);
+            return ErrorDetector.DetectError(ex, _logger);
         }
     }
 {%- endif %}
@@ -118,8 +115,7 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception in {ClassName} -> {MethodName}.", nameof({{ r }}Functions), nameof(Delete{{ r }}));
-            return ErrorDetector.DetectError(ex);
+            return ErrorDetector.DetectError(ex, _logger);
         }
     }
 {%- endif %}

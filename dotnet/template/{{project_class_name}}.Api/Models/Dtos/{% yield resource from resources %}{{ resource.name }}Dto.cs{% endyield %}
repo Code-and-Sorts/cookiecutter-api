@@ -1,10 +1,13 @@
 namespace {{project_class_name}}.Api.Dtos;
 
+using System.Text.Json.Serialization;
+
+// The item body returned to clients: exactly {"id", "name"}.
 public class {{ resource.name }}Dto
 {
+    [JsonPropertyName("id")]
     public string Id { get; set; } = default!;
 
+    [JsonPropertyName("name")]
     public string Name { get; set; } = default!;
-
-    public string UpdatedBy { get; set; } = default!;
 }

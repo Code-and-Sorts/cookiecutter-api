@@ -1,20 +1,25 @@
-{%- if cloud_service in ['Azure Function App', 'GCP Cloud Function'] %}
 namespace {{project_class_name}}.Api.Utils;
 
 using System;
+{%- if cloud_service == 'AWS Lambda' %}
 using System.Collections.Generic;
+{%- endif %}
+using System.Linq;
+using System.Text.Json.Serialization;
+{%- if cloud_service == 'AWS Lambda' %}
+using Amazon.Lambda.APIGatewayEvents;
+{%- else %}
 using Microsoft.AspNetCore.Mvc;
-{%- if cloud_service == 'Azure Function App' %}
-using Microsoft.Azure.Cosmos;
 {%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-using Grpc.Core;
-{%- endif %}
+using Microsoft.Extensions.Logging;
+using FluentValidation;
 
 public class BaseError
 {
+    [JsonPropertyName("errorMessage")]
     public required string ErrorMessage { get; set; }
 }
+{%- if cloud_service != 'AWS Lambda' %}
 
 public class HttpResponseInit : ObjectResult
 {
@@ -24,119 +29,60 @@ public class HttpResponseInit : ObjectResult
         base.StatusCode = statusCode;
     }
 }
+{%- endif %}
 
 public static class ErrorDetector
 {
-    public static HttpResponseInit DetectError<T>(T error)
-    {
-{%- if cloud_service == 'Azure Function App' %}
-        if (error is CosmosException cosmosError)
-        {
-            var statusCode = (int)cosmosError.StatusCode;
-            return new HttpResponseInit(new BaseError() { ErrorMessage = cosmosError.Message }, statusCode);
-        }
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-        if (error is RpcException rpcError)
-        {
-            var statusCode = rpcError.StatusCode switch
-            {
-                StatusCode.NotFound => 404,
-                StatusCode.AlreadyExists => 409,
-                StatusCode.InvalidArgument => 400,
-                StatusCode.PermissionDenied => 403,
-                StatusCode.Unauthenticated => 401,
-                _ => 500,
-            };
-            return new HttpResponseInit(new BaseError() { ErrorMessage = rpcError.Message }, statusCode);
-        }
-        if (error is KeyNotFoundException keyNotFoundError)
-        {
-            return new HttpResponseInit(new BaseError() { ErrorMessage = keyNotFoundError.Message }, 404);
-        }
-{%- endif %}
-        if (error is Exception baseError)
-        {
-            return new HttpResponseInit(new BaseError() { ErrorMessage = baseError.Message });
-        }
+    public const string UnexpectedErrorMessage = "An unexpected error occurred.";
 
-        return new HttpResponseInit(new BaseError() { ErrorMessage = "Unknown error occurred." });
+    /// <summary>
+    /// Maps an exception to its status code and <see cref="BaseError"/> body. Expected
+    /// client errors (invalid request, item not found) keep their message and are not
+    /// logged; anything else is logged with its stack trace and answered with a generic
+    /// 500 so that no exception text or SDK diagnostics reach the client.
+    /// </summary>
+    public static (int StatusCode, BaseError Body) Classify(Exception error, ILogger logger)
+    {
+        switch (error)
+        {
+            case ApiException apiError:
+                return (apiError.StatusCode, new BaseError { ErrorMessage = apiError.Message });
+            case ValidationException validationError:
+                var messages = validationError.Errors.Select(failure => failure.ErrorMessage).Distinct();
+                return (400, new BaseError { ErrorMessage = string.Join(" ", messages) });
+            default:
+                logger.LogError(error, "Unexpected error while handling the request.");
+                return (500, new BaseError { ErrorMessage = UnexpectedErrorMessage });
+        }
     }
-}
-{%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-namespace {{project_class_name}}.Api.Utils;
 
-using System;
-using System.Collections.Generic;
-using Amazon.DynamoDBv2.Model;
-using Amazon.Lambda.APIGatewayEvents;
-using Newtonsoft.Json;
-
-public class BaseError
-{
-    public required string ErrorMessage { get; set; }
-}
-
-public static class ErrorDetector
-{
-    public static APIGatewayProxyResponse DetectError<T>(T error)
+    public static APIGatewayProxyResponse DetectError(Exception error, ILogger logger)
     {
-        var headers = new Dictionary<string, string> { { "Content-Type", "application/json" } };
-
-        if (error is ResourceNotFoundException notFoundError)
-        {
-            return new APIGatewayProxyResponse
-            {
-                StatusCode = 404,
-                Headers = headers,
-                Body = JsonConvert.SerializeObject(new BaseError { ErrorMessage = notFoundError.Message })
-            };
-        }
-        if (error is KeyNotFoundException keyNotFoundError)
-        {
-            return new APIGatewayProxyResponse
-            {
-                StatusCode = 404,
-                Headers = headers,
-                Body = JsonConvert.SerializeObject(new BaseError { ErrorMessage = keyNotFoundError.Message })
-            };
-        }
-        if (error is Exception baseError)
-        {
-            return new APIGatewayProxyResponse
-            {
-                StatusCode = 500,
-                Headers = headers,
-                Body = JsonConvert.SerializeObject(new BaseError { ErrorMessage = baseError.Message })
-            };
-        }
-
-        return new APIGatewayProxyResponse
-        {
-            StatusCode = 500,
-            Headers = headers,
-            Body = JsonConvert.SerializeObject(new BaseError { ErrorMessage = "Unknown error occurred." })
-        };
+        var (statusCode, body) = Classify(error, logger);
+        return ResponseHelper.WithStatus(statusCode, body);
     }
 }
 
 public static class ResponseHelper
 {
-    private static readonly Dictionary<string, string> JsonHeaders = new() { { "Content-Type", "application/json" } };
+    public static APIGatewayProxyResponse Ok(object body) => WithStatus(200, body);
 
-    public static APIGatewayProxyResponse Ok(object body) => new()
-    {
-        StatusCode = 200,
-        Headers = JsonHeaders,
-        Body = JsonConvert.SerializeObject(body)
-    };
+    public static APIGatewayProxyResponse Created(object body) => WithStatus(201, body);
 
-    public static APIGatewayProxyResponse Created(object body) => new()
+    public static APIGatewayProxyResponse WithStatus(int statusCode, object body) => new()
     {
-        StatusCode = 201,
-        Headers = JsonHeaders,
-        Body = JsonConvert.SerializeObject(body)
+        StatusCode = statusCode,
+        Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } },
+        Body = Json.Serialize(body),
     };
+}
+{%- else %}
+
+    public static HttpResponseInit DetectError(Exception error, ILogger logger)
+    {
+        var (statusCode, body) = Classify(error, logger);
+        return new HttpResponseInit(body, statusCode);
+    }
 }
 {%- endif %}
