@@ -30,20 +30,34 @@ jobs:
           - "GCP Cloud Function"
           - "AWS Lambda"
         dotnet-version:
-          - "8.x"
+          - "10.x"
+        fixture:
+          - single
+          - multi
+          - edge
+        exclude:
+          - os: macos-latest
+            fixture: multi
+          - os: macos-latest
+            fixture: edge
+          - os: windows-latest
+            fixture: multi
+          - os: windows-latest
+            fixture: edge
       fail-fast: false
     steps:
       - name: Check out
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Copier Template
         uses: ./.github/actions/setup-copier-template
         with:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
+          resources-fixture: ${{ matrix.fixture }}
 
       - name: Setup dotnet ${{ matrix.dotnet-version }}
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
@@ -71,7 +85,7 @@ jobs:
             status=$?
             set -e
             {
-              echo "### .NET dependency vulnerability scan (${{ matrix.cloud-service }})"
+              echo "### .NET dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }} resources)"
               echo ""
               echo '```'
               cat audit.log

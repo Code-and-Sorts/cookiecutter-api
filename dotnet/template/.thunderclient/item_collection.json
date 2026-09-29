@@ -1,3 +1,11 @@
+{%- set prefix = '' if cloud_service == 'GCP Cloud Function' else '/api' -%}
+{%- set op_order = ['list', 'get_by_id', 'create', 'update', 'replace', 'delete'] -%}
+{%- set ns = namespace(requests=[]) -%}
+{%- for resource in resources -%}
+{%- for op in op_order if op in resource.operations -%}
+{%- set ns.requests = ns.requests + [(resource, op)] -%}
+{%- endfor -%}
+{%- endfor -%}
 {
     "clientName": "Thunder Client",
     "collectionName": "{{ project_class_name }} Requests",
@@ -7,15 +15,15 @@
     "folders": [],
     "requests": [
         {
-            "_id": "a26e1715-1b03-4e9a-855a-1694f972b6da",
+            "_id": "health-check",
             "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
             "containerId": "",
-            "name": "Get {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}",
+            "name": "Health",
+            "url": "{{ '{{baseUrl}}' }}{{ prefix }}/health",
             "method": "GET",
             "sortNum": 10000,
             "created": "2024-08-10T20:25:19.095Z",
-            "modified": "2024-08-10T20:42:18.713Z",
+            "modified": "2024-08-10T20:25:19.095Z",
             "headers": [],
             "tests": [
                 {
@@ -25,103 +33,72 @@
                     "value": "200"
                 }
             ]
-        },
+        }{% if ns.requests %},{% endif %}
+{%- for resource, op in ns.requests %}
+{%- set collection_url = '{{baseUrl}}' ~ prefix ~ '/' ~ resource.endpoint %}
+{%- set item_url = collection_url ~ '/{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
         {
-            "_id": "c9e0f3f9-2f59-4adc-97af-a1b63c03db81",
+            "_id": "{{ resource.endpoint }}-{{ op | replace('_', '-') }}",
             "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
             "containerId": "",
-            "name": "Get {{ project_class_name }} by ID",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
+{%- if op == 'list' %}
+            "name": "Get {{ resource.name }} list",
+            "url": "{{ collection_url }}",
             "method": "GET",
-            "sortNum": 20000,
+{%- elif op == 'get_by_id' %}
+            "name": "Get {{ resource.name }} by ID",
+            "url": "{{ item_url }}",
+            "method": "GET",
+{%- elif op == 'create' %}
+            "name": "Create {{ resource.name }}",
+            "url": "{{ collection_url }}",
+            "method": "POST",
+{%- elif op == 'update' %}
+            "name": "Update {{ resource.name }}",
+            "url": "{{ item_url }}",
+            "method": "PATCH",
+{%- elif op == 'replace' %}
+            "name": "Replace {{ resource.name }}",
+            "url": "{{ item_url }}",
+            "method": "PUT",
+{%- else %}
+            "name": "Delete {{ resource.name }}",
+            "url": "{{ item_url }}",
+            "method": "DELETE",
+{%- endif %}
+            "sortNum": {{ (loop.index + 1) * 10000 }},
             "created": "2024-08-10T20:26:15.998Z",
             "modified": "2024-08-10T20:42:41.531Z",
             "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "0f157099-1bbf-49ed-b06d-c089c868b488",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Create {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}",
-            "method": "POST",
-            "sortNum": 30000,
-            "created": "2024-08-10T20:26:20.281Z",
-            "modified": "2024-08-10T21:37:03.009Z",
-            "headers": [],
+{%- if op == 'create' %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"Item1\",\n  \"type\": \"item\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1\",\n  \"createdBy\": \"thunderclient\",\n  \"updatedBy\": \"thunderclient\"\n}",
                 "form": []
             },
+{%- elif op in ['update', 'replace'] %}
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1-{{ 'Update' if op == 'update' else 'Replace' }}\",\n  \"updatedBy\": \"thunderclient\"\n}",
+                "form": []
+            },
+{%- endif %}
             "tests": [
                 {
                     "type": "res-code",
                     "custom": "",
                     "action": "equal",
-                    "value": "201"
-                },
+                    "value": "{{ '201' if op == 'create' else '200' }}"
+                }{% if op == 'create' %},
                 {
                     "type": "set-env-var",
                     "custom": "json.id",
                     "action": "setto",
-                    "value": "{{ '{{itemId}}' }}"
-                }
+                    "value": "{{ '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' }}"
+                }{% endif %}
             ]
-        },
-        {
-            "_id": "6f0060e6-1215-46cf-9fcf-58978b949064",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Update {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "PATCH",
-            "sortNum": 40000,
-            "created": "2024-08-10T20:26:22.436Z",
-            "modified": "2024-08-10T20:41:19.211Z",
-            "headers": [],
-            "body": {
-                "type": "json",
-                "raw": "{\n  \"name\": \"Item1-Update\"\n}",
-                "form": []
-            },
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "55de1112-4666-402b-8831-58937afbe355",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Delete {{ project_class_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "DELETE",
-            "sortNum": 50000,
-            "created": "2024-08-10T20:26:54.814Z",
-            "modified": "2024-08-10T20:41:58.983Z",
-            "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        }
+        }{% if not loop.last %},{% endif %}
+{%- endfor %}
     ],
     "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
 }

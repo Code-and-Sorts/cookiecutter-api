@@ -5,13 +5,15 @@
     "dateExported": "2024-08-10T22:26:59.376Z",
     "version": "1.2",
     "variables": [
+{%- for resource in resources %}
         {
-            "name": "itemId",
+            "name": "{{ resource.name | to_lower_camel }}Id",
             "value": ""
         },
+{%- endfor %}
         {
             "name": "baseUrl",
-            "value": "http://localhost:7071"
+            "value": "http://localhost:{% if cloud_service == 'Azure Function App' %}7071{% elif cloud_service == 'AWS Lambda' %}3000{% else %}8080{% endif %}"
         }
     ],
     "ref": "nW-55ooxl117SeBjI11ySYJwUP4IXtpUAhEiaQcH23Xw-me2NnVtfHEfBCVxY_Qb"

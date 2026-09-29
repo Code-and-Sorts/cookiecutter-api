@@ -18,13 +18,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithException_ReturnsHttpResponseInitWithErrorMessage()
     {
-        // Arrange
         var exception = new Exception("Mock exception");
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<HttpResponseInit>(result);
         Assert.Equal(500, result.StatusCode);
         var baseError = Assert.IsType<BaseError>(result.Value);
@@ -35,7 +32,6 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithCosmosException_ReturnsHttpResponseInitWithErrorMessage()
     {
-        // Arrange
         var exception = new CosmosException(
             "Mock Cosmos DB exception",
             HttpStatusCode.BadRequest,
@@ -44,10 +40,8 @@ public class ErrorDetectorTest
             0
         );
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<HttpResponseInit>(result);
         Assert.Equal(400, result.StatusCode);
         var baseError = Assert.IsType<BaseError>(result.Value);
@@ -59,13 +53,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithRpcException_ReturnsHttpResponseInitWithErrorMessage()
     {
-        // Arrange
         var exception = new RpcException(new Status(StatusCode.NotFound, "Mock Firestore exception"));
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<HttpResponseInit>(result);
         Assert.Equal(404, result.StatusCode);
         var baseError = Assert.IsType<BaseError>(result.Value);
@@ -75,13 +66,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithKeyNotFoundException_ReturnsHttpResponseInitWith404()
     {
-        // Arrange
         var exception = new KeyNotFoundException("Item not found");
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<HttpResponseInit>(result);
         Assert.Equal(404, result.StatusCode);
         var baseError = Assert.IsType<BaseError>(result.Value);
@@ -92,13 +80,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithNonException_ReturnsHttpResponseInitWithUnknownErrorMessage()
     {
-        // Arrange
         var error = "Mock some error";
 
-        // Act
         var result = ErrorDetector.DetectError(error);
 
-        // Assert
         Assert.IsType<HttpResponseInit>(result);
         Assert.Equal(500, result.StatusCode);
         var baseError = Assert.IsType<BaseError>(result.Value);
@@ -122,13 +107,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithException_ReturnsApiGatewayResponseWithErrorMessage()
     {
-        // Arrange
         var exception = new Exception("Mock exception");
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<APIGatewayProxyResponse>(result);
         Assert.Equal(500, result.StatusCode);
         var baseError = JsonConvert.DeserializeObject<BaseError>(result.Body);
@@ -138,13 +120,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithKeyNotFoundException_ReturnsNotFoundResponse()
     {
-        // Arrange
         var exception = new KeyNotFoundException("Item not found");
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<APIGatewayProxyResponse>(result);
         Assert.Equal(404, result.StatusCode);
         var baseError = JsonConvert.DeserializeObject<BaseError>(result.Body);
@@ -154,13 +133,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithResourceNotFoundException_ReturnsNotFoundResponse()
     {
-        // Arrange
         var exception = new ResourceNotFoundException("DynamoDB resource not found");
 
-        // Act
         var result = ErrorDetector.DetectError(exception);
 
-        // Assert
         Assert.IsType<APIGatewayProxyResponse>(result);
         Assert.Equal(404, result.StatusCode);
         var baseError = JsonConvert.DeserializeObject<BaseError>(result.Body);
@@ -170,13 +146,10 @@ public class ErrorDetectorTest
     [Fact]
     public void DetectError_WithNonException_ReturnsApiGatewayResponseWithUnknownErrorMessage()
     {
-        // Arrange
         var error = "Mock some error";
 
-        // Act
         var result = ErrorDetector.DetectError(error);
 
-        // Assert
         Assert.IsType<APIGatewayProxyResponse>(result);
         Assert.Equal(500, result.StatusCode);
         var baseError = JsonConvert.DeserializeObject<BaseError>(result.Body);
