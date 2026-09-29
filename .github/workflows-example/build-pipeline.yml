@@ -1,0 +1,56 @@
+name: Go API Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-go:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        go-version:
+          - "1.27"
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+        shell: bash
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: make build
+
+      - name: Run lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+
+      - name: Test unit tests
+        run: make test-unit
+
+      - name: Run dependency vulnerability scan
+        continue-on-error: true
+        run: make audit
+
