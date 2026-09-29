@@ -1,3 +1,4 @@
+{%- set r = resource.name -%}
 package services
 
 import (
@@ -9,8 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
-{% for resource in resources %}
-{%- set r = resource.name %}
+
 type mock{{ r }}Repository struct {
 	mock.Mock
 }
@@ -155,4 +155,3 @@ func TestDelete{{ r }}_ShouldCallRepositoryDelete(t *testing.T) {
 	mockRepo.AssertCalled(t, "Delete", mock.Anything, id)
 }
 {%- endif %}
-{% endfor %}

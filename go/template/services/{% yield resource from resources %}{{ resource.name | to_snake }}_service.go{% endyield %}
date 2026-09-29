@@ -1,11 +1,13 @@
-{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
-{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
-{%- set uses_models = uses_body or ('get_by_id' in used_ops) or ('list' in used_ops) -%}
+{%- set r = resource.name -%}
+{%- set lc = resource.name | to_lower_camel -%}
+{%- set ops = resource.operations -%}
+{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
+{%- set uses_models = uses_body or ('get_by_id' in ops) or ('list' in ops) -%}
 package services
 
 import (
 	"context"
-{%- if 'create' in used_ops %}
+{%- if 'create' in ops %}
 	"time"
 
 	"github.com/google/uuid"
@@ -16,26 +18,24 @@ import (
 {%- endif %}
 	"{{project_endpoint}}/repositories"
 )
-{% for resource in resources %}
-{%- set r = resource.name %}
-{%- set lc = resource.name | to_lower_camel %}
+
 type {{ r }}Service interface {
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 	Get(ctx context.Context, id string) (*models.{{ r }}Dto, error)
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 	Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error)
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 	Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error)
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 	Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error)
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 	Delete(ctx context.Context, id string) error
 {%- endif %}
 }
@@ -47,19 +47,19 @@ type {{ lc }}Service struct {
 func New{{ r }}Service(repository repositories.{{ r }}Repository) {{ r }}Service {
 	return &{{ lc }}Service{repository: repository}
 }
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
 func (s *{{ lc }}Service) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	return s.repository.Get(ctx, id)
 }
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
 func (s *{{ lc }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	return s.repository.GetList(ctx, limit)
 }
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 
 func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error) {
 	now := time.Now().UTC()
@@ -76,7 +76,7 @@ func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Re
 	return s.repository.Create(ctx, new{{ r }})
 }
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
 func (s *{{ lc }}Service) Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error) {
 	updated{{ r }} := models.{{ r }}{
@@ -89,7 +89,7 @@ func (s *{{ lc }}Service) Update(ctx context.Context, req models.Update{{ r }}Re
 	return s.repository.Update(ctx, updated{{ r }})
 }
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
 func (s *{{ lc }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error) {
 	replacement{{ r }} := models.{{ r }}{
@@ -102,10 +102,9 @@ func (s *{{ lc }}Service) Replace(ctx context.Context, req models.Replace{{ r }}
 	return s.repository.Replace(ctx, replacement{{ r }})
 }
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
 func (s *{{ lc }}Service) Delete(ctx context.Context, id string) error {
 	return s.repository.Delete(ctx, id)
 }
 {%- endif %}
-{% endfor %}

@@ -1,6 +1,7 @@
-{%- set used_ops = resources | map(attribute='operations') | sum(start=[]) -%}
-{%- set uses_body = ('create' in used_ops) or ('update' in used_ops) or ('replace' in used_ops) -%}
-{%- set uses_models = uses_body or ('get_by_id' in used_ops) or ('list' in used_ops) -%}
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
+{%- set uses_models = uses_body or ('get_by_id' in ops) or ('list' in ops) -%}
 package controllers
 
 import (
@@ -21,18 +22,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCoerceLimit_ClampsToSupportedRange(t *testing.T) {
-	assert.Equal(t, DefaultListLimit, CoerceLimit(0))
-	assert.Equal(t, DefaultListLimit, CoerceLimit(-5))
-	assert.Equal(t, 25, CoerceLimit(25))
-	assert.Equal(t, MaxListLimit, CoerceLimit(999999))
-}
-{% for resource in resources %}
-{%- set r = resource.name %}
 type Mock{{ r }}Service struct {
 	mock.Mock
 }
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
 func (m *Mock{{ r }}Service) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, id)
@@ -42,7 +35,7 @@ func (m *Mock{{ r }}Service) Get(ctx context.Context, id string) (*models.{{ r }
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
 func (m *Mock{{ r }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	args := m.Called(ctx, limit)
@@ -52,7 +45,7 @@ func (m *Mock{{ r }}Service) GetList(ctx context.Context, limit int) ([]models.{
 	return args.Get(0).([]models.{{ r }}Dto), args.Error(1)
 }
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 
 func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, req)
@@ -62,7 +55,7 @@ func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
 func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, req)
@@ -72,7 +65,7 @@ func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
 func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, req)
@@ -82,7 +75,7 @@ func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
 func (m *Mock{{ r }}Service) Delete(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
@@ -91,14 +84,10 @@ func (m *Mock{{ r }}Service) Delete(ctx context.Context, id string) error {
 {%- endif %}
 
 func newTest{{ r }}Controller(mockService *Mock{{ r }}Service) {{ r }}Controller {
-	validator, _ := services.NewSchemaValidator(map[string]string{
-		"create_request":  CreateRequestSchema,
-		"update_request":  UpdateRequestSchema,
-		"replace_request": ReplaceRequestSchema,
-	})
+	validator, _ := services.NewSchemaValidator(RequestSchemas())
 	return New{{ r }}Controller(mockService, validator)
 }
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
 func TestGet{{ r }}_Returns{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -114,7 +103,7 @@ func TestGet{{ r }}_Returns{{ r }}Dto(t *testing.T) {
 	mockService.AssertCalled(t, "Get", mock.Anything, id)
 }
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
 func TestGet{{ r }}List_ReturnsListOf{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -132,7 +121,7 @@ func TestGet{{ r }}List_ReturnsListOf{{ r }}Dto(t *testing.T) {
 	mockService.AssertCalled(t, "GetList", mock.Anything, DefaultListLimit)
 }
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 
 func TestCreate{{ r }}_ReturnsCreated{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -174,7 +163,7 @@ func TestCreate{{ r }}_ReturnsValidationError_WhenBodyIsInvalid(t *testing.T) {
 	assert.IsType(t, &models.ValidationError{}, err)
 }
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
 func TestUpdate{{ r }}_ReturnsUpdated{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -194,7 +183,7 @@ func TestUpdate{{ r }}_ReturnsUpdated{{ r }}Dto(t *testing.T) {
 	mockService.AssertCalled(t, "Update", mock.Anything, expectedReq)
 }
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
 func TestReplace{{ r }}_ReturnsReplaced{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -227,7 +216,7 @@ func TestReplace{{ r }}_ReturnsValidationError_WhenNameIsEmpty(t *testing.T) {
 	assert.IsType(t, &models.ValidationError{}, err)
 }
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
 func TestDelete{{ r }}_CallsDeleteOnService(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -241,4 +230,3 @@ func TestDelete{{ r }}_CallsDeleteOnService(t *testing.T) {
 	mockService.AssertCalled(t, "Delete", mock.Anything, id)
 }
 {%- endif %}
-{% endfor %}

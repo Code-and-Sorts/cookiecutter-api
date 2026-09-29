@@ -1,3 +1,8 @@
+# Per-resource files use the `yield` tag in their paths (for example
+# controllers/{% yield resource from resources %}...{% endyield %}), which
+# needs a recent Copier; we track the latest release.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension

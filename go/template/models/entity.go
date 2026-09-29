@@ -10,9 +10,3 @@ type BaseEntity struct {
 	CreatedBy        string    `json:"createdBy" dynamodbav:"createdBy" firestore:"createdBy"`
 	UpdatedBy        string    `json:"updatedBy" dynamodbav:"updatedBy" firestore:"updatedBy"`
 }
-{% for resource in resources %}
-type {{ resource.name }} struct {
-	BaseEntity
-	Name string `json:"name" dynamodbav:"name" firestore:"name"`
-}
-{% endfor %}

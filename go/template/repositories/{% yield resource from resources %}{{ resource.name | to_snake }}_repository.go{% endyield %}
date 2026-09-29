@@ -1,3 +1,5 @@
+{%- set r = resource.name -%}
+{%- set lc = resource.name | to_lower_camel -%}
 package repositories
 
 import (
@@ -31,21 +33,17 @@ import (
 
 	"{{project_endpoint}}/models"
 )
-{%- for resource in resources %}
 
-type {{ resource.name }}Repository interface {
-	Get(ctx context.Context, id string) (*models.{{ resource.name }}Dto, error)
-	GetList(ctx context.Context, limit int) ([]models.{{ resource.name }}Dto, error)
-	Create(ctx context.Context, item models.{{ resource.name }}) (*models.{{ resource.name }}Dto, error)
-	Update(ctx context.Context, item models.{{ resource.name }}) (*models.{{ resource.name }}Dto, error)
-	Replace(ctx context.Context, item models.{{ resource.name }}) (*models.{{ resource.name }}Dto, error)
+type {{ r }}Repository interface {
+	Get(ctx context.Context, id string) (*models.{{ r }}Dto, error)
+	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
+	Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+	Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+	Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
 	Delete(ctx context.Context, id string) error
 }
-{%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
-{% for resource in resources %}
-{%- set r = resource.name %}
-{%- set lc = resource.name | to_lower_camel %}
+
 type {{ lc }}Repository struct {
 	container *azcosmos.ContainerClient
 }
@@ -248,12 +246,9 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	_, err = repo.container.ReplaceItem(ctx, pk, item.Id, data, nil)
 	return err
 }
-{% endfor %}
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-{% for resource in resources %}
-{%- set r = resource.name %}
-{%- set lc = resource.name | to_lower_camel %}
+
 type {{ lc }}Repository struct {
 	collection *firestore.CollectionRef
 }
@@ -412,12 +407,9 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	_, err = repo.collection.Doc(item.Id).Set(ctx, *item)
 	return err
 }
-{% endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-{% for resource in resources %}
-{%- set r = resource.name %}
-{%- set lc = resource.name | to_lower_camel %}
+
 type {{ lc }}Repository struct {
 	client    *dynamodb.Client
 	tableName string
@@ -641,5 +633,4 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	})
 	return err
 }
-{% endfor %}
 {%- endif %}

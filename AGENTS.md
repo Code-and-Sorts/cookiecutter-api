@@ -107,7 +107,7 @@ To add a new cloud provider to an existing language template:
 ## Adding a New Language
 
 1. Create a new top-level directory (e.g., `java/`)
-2. Add `copier.yml` with `_min_copier_version: "9.5.0"`, the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
+2. Add `copier.yml` with `_min_copier_version: "9.18.2"`, the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
 3. Put the template project under `template/`
 4. Add input validation as a `validator:` on the prompted `project_name` and `resources` questions (Copier only runs validators for prompted questions, not for `when: false` derived values)
 5. Use conditional file/directory names if supporting multiple cloud providers

@@ -1,24 +1,38 @@
+{%- set r = resource.name -%}
 package models
-{% for resource in resources %}
+
+// {{ r }} is the stored {{ r }} record.
+type {{ r }} struct {
+	BaseEntity
+	Name string `json:"name" dynamodbav:"name" firestore:"name"`
+}
+
+// {{ r }}Dto is the {{ r }} representation returned by the API.
+type {{ r }}Dto struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
 {%- if "create" in resource.operations %}
-type Create{{ resource.name }}Request struct {
+
+type Create{{ r }}Request struct {
 	Name      string `json:"name"`
 	CreatedBy string `json:"createdBy"`
 	UpdatedBy string `json:"updatedBy"`
 }
-{% endif %}
+{%- endif %}
 {%- if "update" in resource.operations %}
-type Update{{ resource.name }}Request struct {
+
+type Update{{ r }}Request struct {
 	Id        string `json:"-"`
 	Name      string `json:"name"`
 	UpdatedBy string `json:"updatedBy"`
 }
-{% endif %}
+{%- endif %}
 {%- if "replace" in resource.operations %}
-type Replace{{ resource.name }}Request struct {
+
+type Replace{{ r }}Request struct {
 	Id        string `json:"-"`
 	Name      string `json:"name"`
 	UpdatedBy string `json:"updatedBy"`
 }
-{% endif %}
-{%- endfor %}
+{%- endif %}

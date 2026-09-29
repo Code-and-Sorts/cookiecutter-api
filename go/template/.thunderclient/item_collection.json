@@ -6,7 +6,17 @@
     "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
     "dateExported": "2024-08-10T22:25:59.850Z",
     "version": "1.2",
-    "folders": [],
+    "folders": [
+{%- for resource in resources %}
+        {
+            "_id": "folder:{{ resource.endpoint }}",
+            "name": "{{ resource.name }}",
+            "containerId": "",
+            "created": "2024-08-10T20:25:19.095Z",
+            "sortNum": {{ loop.index * 10000 }}
+        }{% if not loop.last %},{% endif %}
+{%- endfor %}
+    ],
     "requests": [
 {%- for resource in resources %}
 {%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
@@ -24,7 +34,7 @@
         {
             "_id": "{{ resource.endpoint }}-{{ op | replace('_', '-') }}",
             "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
+            "containerId": "folder:{{ resource.endpoint }}",
             "name": "{{ label }}",
             "url": "{{ url }}",
             "method": "{{ method }}",

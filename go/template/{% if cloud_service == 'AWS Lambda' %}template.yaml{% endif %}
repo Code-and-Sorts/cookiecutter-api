@@ -30,6 +30,7 @@ Resources:
 {%- endfor %}
       Events:
 {%- for resource in resources %}
+        # {{ resource.name }}: handlers/{{ resource.name | to_snake }}_handler.go
 {%- if "get_by_id" in resource.operations %}
         Get{{ resource.name }}ById:
           Type: Api
@@ -73,6 +74,7 @@ Resources:
             Method: delete
 {%- endif %}
 {%- endfor %}
+        # Health check: handlers/health_handler.go
         Health:
           Type: Api
           Properties:

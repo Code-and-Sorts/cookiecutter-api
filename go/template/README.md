@@ -260,23 +260,59 @@ This is also run automatically in CI on every PR and push to main.
 
 ## Repository structure
 
+Every resource has its own file in each layer. Shared code (list pagination, the schema
+validator, the base entity, error types and the wiring in `main.go`) lives in one file per
+package.
+
 ```text
-├── cookiecutter-template-go
-    ├── controllers
-    ├── services
-    ├── repositories
-    ├── models
-    ├── utils
-{%- if cloud_service == 'Azure Function App' %}
-    ├── httpApi
-    └── main.go
+.
+├── controllers
+│   ├── schemas                    # request body JSON schemas, one per resource and operation
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_controller.go
+│   ├── {{ resource.name | to_snake }}_controller_test.go
+{%- endfor %}
+│   ├── pagination.go
+│   └── schemas.go                 # embeds the request schemas
+├── handlers
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_handler.go
+{%- endfor %}
+{%- if cloud_service == 'AWS Lambda' %}
+│   ├── health_handler.go
+│   └── lambda.go                  # API Gateway response helpers
+{%- else %}
+│   └── health_handler.go
 {%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-    └── main.go
+├── services
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_service.go
+│   ├── {{ resource.name | to_snake }}_service_test.go
+{%- endfor %}
+│   ├── schema_validator.go
+│   └── schema_validator_test.go
+├── repositories
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_snake }}_repository.go
+{%- endfor %}
+├── models                         # each resource's entity, DTO and request types
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_model.go
+{%- endfor %}
+│   ├── entity.go                  # BaseEntity
+│   └── errors.go
+├── utils
+{%- if cloud_service == 'Azure Function App' %}
+{%- for resource in resources %}
+├── {{ resource.name | to_lower_camel }}Api/function.json
+{%- endfor %}
+├── healthApi/function.json
+├── host.json
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    └── template.yaml
+├── template.yaml
 {%- endif %}
+└── main.go                        # wires each resource's repository, service, controller and handler
 ```
 
 ## License
