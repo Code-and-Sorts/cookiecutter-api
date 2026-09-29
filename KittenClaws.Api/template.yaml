@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: dotnet8
+    MemorySize: 256
+
+Resources:
+  CreateKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.CreateKittenClaws::Post
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref KittenClawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenClawsTable
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /api/kitties
+            Method: POST
+
+  GetKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.GetKittenClaws::Get
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref KittenClawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenClawsTable
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /api/kitties/{id}
+            Method: GET
+
+  GetKittenClawsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.GetKittenClawsList::Get
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref KittenClawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenClawsTable
+      Events:
+        GetList:
+          Type: Api
+          Properties:
+            Path: /api/kitties
+            Method: GET
+
+  UpdateKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.UpdateKittenClaws::Patch
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref KittenClawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenClawsTable
+      Events:
+        Update:
+          Type: Api
+          Properties:
+            Path: /api/kitties/{id}
+            Method: PATCH
+
+  DeleteKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.DeleteKittenClaws::Delete
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref KittenClawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenClawsTable
+      Events:
+        Delete:
+          Type: Api
+          Properties:
+            Path: /api/kitties/{id}
+            Method: DELETE
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.Health::Get
+      CodeUri: ./
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /api/health
+            Method: GET
+
+  KittenClawsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kitties
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/kitties"
+  KittenClawsTableName:
+    Description: DynamoDB table name
+    Value: !Ref KittenClawsTable
