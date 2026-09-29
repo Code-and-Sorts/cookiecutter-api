@@ -33,36 +33,16 @@ jobs:
           - "10.x"
         fixture:
           - single
-        include:
-          - os: ubuntu-latest
-            template-type: dotnet
-            cloud-service: "Azure Function App"
-            dotnet-version: "10.x"
+          - multi
+          - edge
+        exclude:
+          - os: macos-latest
             fixture: multi
-          - os: ubuntu-latest
-            template-type: dotnet
-            cloud-service: "GCP Cloud Function"
-            dotnet-version: "10.x"
-            fixture: multi
-          - os: ubuntu-latest
-            template-type: dotnet
-            cloud-service: "AWS Lambda"
-            dotnet-version: "10.x"
-            fixture: multi
-          - os: ubuntu-latest
-            template-type: dotnet
-            cloud-service: "Azure Function App"
-            dotnet-version: "10.x"
+          - os: macos-latest
             fixture: edge
-          - os: ubuntu-latest
-            template-type: dotnet
-            cloud-service: "GCP Cloud Function"
-            dotnet-version: "10.x"
-            fixture: edge
-          - os: ubuntu-latest
-            template-type: dotnet
-            cloud-service: "AWS Lambda"
-            dotnet-version: "10.x"
+          - os: windows-latest
+            fixture: multi
+          - os: windows-latest
             fixture: edge
       fail-fast: false
     steps:
