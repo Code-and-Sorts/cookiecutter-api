@@ -10,9 +10,9 @@
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    <PackageReference Include="Amazon.Lambda.Core" Version="2.8.1" />
-    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.7.3" />
-    <PackageReference Include="Amazon.Lambda.TestUtilities" Version="3.0.1" />
+    <PackageReference Include="Amazon.Lambda.Core" Version="3.3.0" />
+    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="3.0.1" />
+    <PackageReference Include="Amazon.Lambda.TestUtilities" Version="4.2.0" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.513.4" />
 {%- endif %}
     <PackageReference Include="coverlet.collector" Version="6.0.4">
