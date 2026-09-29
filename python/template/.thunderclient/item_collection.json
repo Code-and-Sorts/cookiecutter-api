@@ -12,6 +12,33 @@
     "version": "1.2",
     "folders": [],
     "requests": [
+{%- if health_endpoint %}
+{%- if cloud_service == 'Azure Function App' %}
+{%- set health_path = '/api/' ~ health_endpoint %}
+{%- else %}
+{%- set health_path = '/' ~ health_endpoint %}
+{%- endif %}
+        {
+            "_id": "health",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Health Check",
+            "url": "{{ '{{baseUrl}}' }}{{ health_path }}",
+            "method": "GET",
+            "sortNum": 5000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+{%- endif %}
 {%- for resource in resources %}
 {%- set outer = loop %}
 {%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}

@@ -38,9 +38,10 @@ Each operation is deployed as its own Cloud Run function, so every path starts w
   - `{{ method }} {{ prefix }}{{ resource.endpoint }}{% if with_id %}/{item_id}{% endif %}` — {{ label }}
 {%- endif %}
 {%- endfor %}
-{%- endfor %}
+{%- endfor %}{%- if health_endpoint %}
 
-A health check is available at `{% if cloud_service == 'GCP Cloud Function' %}GET /health{% else %}GET {{ prefix }}health{% endif %}`.
+A health check is available at `{% if cloud_service == 'GCP Cloud Function' %}GET /{{ health_endpoint }}{% else %}GET {{ prefix }}{{ health_endpoint }}{% endif %}`.
+{%- endif %}
 {%- for container in containers %}
 {%- set sharing = resources | selectattr('container', 'equalto', container) | map(attribute='name') | list %}
 {%- if sharing | length > 1 %}
@@ -226,6 +227,9 @@ Settings are read from environment variables (case-insensitive).
     poetry run functions-framework --target={{ op_fn[op] }}_{{ resource.name | to_snake }} --source=main.py --port=8080
 {%- endfor %}
 {%- endfor %}
+{%- if health_endpoint %}
+    poetry run functions-framework --target=health --source=main.py --port=8080
+{%- endif %}
     ```
 
 6. Deploy to GCP
@@ -251,6 +255,14 @@ Settings are read from environment variables (case-insensitive).
       --set-env-vars GCP_PROJECT_ID=your-project-id,FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}={{ resource.container }}
 {%- endfor %}
 {%- endfor %}
+{%- if health_endpoint %}
+    gcloud functions deploy {{ health_endpoint }} \
+      --runtime python314 \
+      --trigger-http \
+      --allow-unauthenticated \
+      --entry-point health \
+      --source .
+{%- endif %}
     ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
@@ -339,7 +351,9 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {{ "%-34s" | format("├── .thunderclient") }}- Thunder Client collection
 {{ "%-34s" | format("├── blueprints") }}- Cloud entry functions
 {{ "%-34s" | format("│   ├── database.py") }}- {{ db }} client wiring shared by every resource
-{{ "%-34s" | format("│   ├── health.py") }}- Health check
+{%- if health_endpoint %}
+{{ "%-34s" | format("│   ├── health.py") }}- Health check at `{{ health_endpoint }}`
+{%- endif %}
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ ".py") }}- {{ resource.name }} {{ fn }}
 {%- endfor %}
@@ -365,6 +379,9 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
 {%- endfor %}
 {{ "%-34s" | format("├── utils") }}- Error detect & response generator utilities
+{%- if health_endpoint %}
+{{ "%-34s" | format("├── health_test.py") }}- Health check unit tests
+{%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 {{ "%-34s" | format("└── function_app.py") }}- Function App entry point, registers each blueprint
 {%- endif %}

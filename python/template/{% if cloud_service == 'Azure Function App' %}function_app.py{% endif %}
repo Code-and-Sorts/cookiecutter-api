@@ -1,14 +1,18 @@
 import azure.functions as func
 from blueprints import (
+{%- if health_endpoint %}
     health_bp,
+{%- endif %}
 {%- for resource in resources %}
     {{ resource.name | to_snake }}_bp,
 {%- endfor %}
 )
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
-
+{% if health_endpoint %}
+# Health check: GET /api/{{ health_endpoint }}
 app.register_functions(health_bp)
+{%- endif %}
 {%- for resource in resources %}
 app.register_functions({{ resource.name | to_snake }}_bp)
 {%- endfor %}

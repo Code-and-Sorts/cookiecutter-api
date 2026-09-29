@@ -4,7 +4,9 @@ Each function is exported individually for GCP deployment.
 """
 {% set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
 import functions_framework
+{%- if health_endpoint %}
 from blueprints.health import health
+{%- endif %}
 {%- for resource in resources %}
 {%- set slug = resource.name | to_snake %}
 from blueprints.{{ slug }} import (
@@ -23,5 +25,9 @@ __all__ = [
     '{{ op_fn[op] }}_{{ slug }}',
 {%- endfor %}
 {%- endfor %}
-    'health'
+{%- if health_endpoint %}
+    # Deploy as a function named "{{ health_endpoint }}" (--entry-point health)
+    # so the health check is served at /{{ health_endpoint }}.
+    'health',
+{%- endif %}
 ]

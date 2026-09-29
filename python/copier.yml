@@ -76,6 +76,18 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
+# ---- Health check ----
+# The URL segment the liveness probe is served at, using the same path prefix
+# as the resource routes. Leave it empty to generate no health check at all.
+health_endpoint:
+  type: str
+  default: "health"
+  help: URL segment for the health check; leave empty to generate no health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    The health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
+    {%- endif -%}
+
 # ---- REST resources ----
 # A list of resources to generate. Each resource gets its own URL endpoint, a
 # storage container (resources sharing a container id share storage), and a
@@ -116,8 +128,8 @@ resources:
     {%- set ns.err = "Resource '" ~ r.name ~ "' has an invalid operation. Allowed: " ~ (valid_ops | join(', ')) ~ "." -%}
     {%- elif (r.operations | unique | list | length) != (r.operations | length) -%}
     {%- set ns.err = "Resource '" ~ r.name ~ "' lists an operation more than once." -%}
-    {%- elif r.endpoint == "health" -%}
-    {%- set ns.err = "Resource endpoint 'health' is reserved for the health check." -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif (r.name | to_snake) in python_keywords -%}
