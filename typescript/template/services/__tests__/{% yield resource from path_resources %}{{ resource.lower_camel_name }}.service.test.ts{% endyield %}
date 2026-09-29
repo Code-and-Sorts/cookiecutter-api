@@ -1,4 +1,5 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Service } from '@services';
 import { {{ r }}Repository } from '@repositories';
@@ -15,13 +16,26 @@ describe('{{ r }}Service', () => {
     const mockReplace = jest.fn<MockFn>();
     const mockDelete = jest.fn<MockFn>();
 
+    // Mirrors the repository's surface: only this resource's operations.
     class Mock{{ r }}Repository {
+{%- if "get_by_id" in ops %}
         get = mockGet;
+{%- endif %}
+{%- if "list" in ops %}
         list = mockList;
+{%- endif %}
+{%- if "create" in ops %}
         create = mockCreate;
+{%- endif %}
+{%- if "update" in ops %}
         update = mockUpdate;
+{%- endif %}
+{%- if "replace" in ops %}
         replace = mockReplace;
+{%- endif %}
+{%- if "delete" in ops %}
         delete = mockDelete;
+{%- endif %}
     }
 
     beforeEach(() => {
@@ -145,17 +159,15 @@ describe('{{ r }}Service', () => {
 
     describe('replace', () => {
         it('should successfully call repository', async () => {
-            mockGet.mockResolvedValue(mockRepositoryResponse[0]);
             const repository = jest.spyOn(mockRepository, 'replace').mockReturnValue(Promise.resolve(mockRepositoryUpdateResponse));
             const result = await mockService.replace(mockUpdateRequest);
-            expect(mockGet).toHaveBeenCalledWith(mockId);
             expect(mockReplace).toHaveBeenCalledTimes(1);
             expect(result).toEqual(mockUpdateResponse);
             expect(repository).toHaveBeenCalledTimes(1);
         });
 
-        it('should preserve createdBy and createdTimestamp and refresh updatedTimestamp', async () => {
-            mockGet.mockResolvedValue(mockRepositoryResponse[0]);
+        it('should write the request as a live entity with a refreshed updatedTimestamp', async () => {
+            const before = Date.now();
             mockReplace.mockImplementation(async (entity) => entity);
             await mockService.replace(mockUpdateRequest);
             const written = mockReplace.mock.calls[0][0];
@@ -163,17 +175,14 @@ describe('{{ r }}Service', () => {
                 id: mockId,
                 name: 'mock{{ r }}1-updated',
                 isDeleted: false,
-                createdBy: 'mockUser',
-                createdTimestamp: '2024-03-24T00:00:00.000Z',
             }));
             expect(written.updatedBy).toBeUndefined();
-            expect(Date.parse(written.updatedTimestamp)).toBeGreaterThan(Date.parse('2024-03-24T00:00:00.000Z'));
+            expect(Date.parse(written.updatedTimestamp)).toBeGreaterThanOrEqual(before);
         });
 
-        it('should not write when the record is missing or soft-deleted', async () => {
-            mockGet.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
+        it('should propagate not found for missing or soft-deleted records', async () => {
+            mockReplace.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
             await expect(mockService.replace(mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
-            expect(mockReplace).not.toHaveBeenCalled();
         });
     });
 {%- endif %}

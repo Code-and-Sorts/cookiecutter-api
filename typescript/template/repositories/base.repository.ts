@@ -6,14 +6,16 @@ import { BaseItemRecord } from '@models';
 // Default cap on list reads to avoid unbounded queries.
 const DEFAULT_LIST_LIMIT = 100;
 
-export class BaseRepository<T extends BaseItemRecord> {
-  readonly _container: Container;
+// Shared data access for every resource. The CRUD methods are protected: each resource
+// repository exposes public methods only for the operations its resource declares.
+export abstract class BaseRepository<T extends BaseItemRecord> {
+  protected readonly _container: Container;
 
   constructor(container: Container) {
     this._container = container;
   }
 
-  addRecord = async (item: T): Promise<T> => {
+  protected addRecord = async (item: T): Promise<T> => {
     try {
       const { resource: createdRecord } = await this._container.items.create<T>(item);
       return createdRecord as T;
@@ -22,7 +24,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecord = async (id: string): Promise<T> => {
+  protected getRecord = async (id: string): Promise<T> => {
     try {
       const query = `SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false`;
       const { resources: items } = await this._container.items
@@ -38,7 +40,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     throw new NotFoundError(`Record not found for ID ${id}.`);
   };
 
-  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
+  protected getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
     try {
       const query = `SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT ${limit}`;
       const { resources: items } = await this._container.items
@@ -51,7 +53,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
+  protected updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -68,11 +70,18 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  replaceRecord = async (item: T): Promise<T> => {
+  protected replaceRecord = async (item: T): Promise<T> => {
     try {
-      await this.getRecord(item.id);
-      const { resource: replacedRecord } = await this._container.item(item.id, item.id).replace<T>(item);
-      return replacedRecord as T;
+      const existing = await this.getRecord(item.id);
+      // Replace keeps the stored created fields; createdBy is omitted (never undefined) when absent.
+      const { createdBy: _createdBy, ...rest } = item;
+      const written = {
+        ...rest,
+        createdTimestamp: existing.createdTimestamp,
+        ...(existing.createdBy !== undefined && { createdBy: existing.createdBy }),
+      } as T;
+      await this._container.item(item.id, item.id).replace<T>(written);
+      return written;
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw error;
@@ -81,7 +90,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  deleteRecord = async (id: string): Promise<void> => {
+  protected deleteRecord = async (id: string): Promise<void> => {
     try {
       const operations: PatchOperation[] = [
         { op: 'set', path: '/isDeleted', value: true },
@@ -111,14 +120,16 @@ import { BaseItemRecord } from '@models';
 // Default cap on list reads to avoid unbounded queries.
 const DEFAULT_LIST_LIMIT = 100;
 
-export class BaseRepository<T extends BaseItemRecord> {
-  readonly _collection: CollectionReference;
+// Shared data access for every resource. The CRUD methods are protected: each resource
+// repository exposes public methods only for the operations its resource declares.
+export abstract class BaseRepository<T extends BaseItemRecord> {
+  protected readonly _collection: CollectionReference;
 
   constructor(collection: CollectionReference) {
     this._collection = collection;
   }
 
-  addRecord = async (item: T): Promise<T> => {
+  protected addRecord = async (item: T): Promise<T> => {
     try {
       const docRef = this._collection.doc(item.id);
       await docRef.set(item);
@@ -128,7 +139,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecord = async (id: string): Promise<T> => {
+  protected getRecord = async (id: string): Promise<T> => {
     try {
       const doc = await this._collection.doc(id).get();
 
@@ -150,7 +161,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
+  protected getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
     try {
       const snapshot = await this._collection
         .where('isDeleted', '==', false)
@@ -163,7 +174,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
+  protected updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -181,11 +192,18 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  replaceRecord = async (item: T): Promise<T> => {
+  protected replaceRecord = async (item: T): Promise<T> => {
     try {
-      await this.getRecord(item.id);
-      await this._collection.doc(item.id).set(item);
-      return item;
+      const existing = await this.getRecord(item.id);
+      // Replace keeps the stored created fields; createdBy is omitted (never undefined) when absent.
+      const { createdBy: _createdBy, ...rest } = item;
+      const written = {
+        ...rest,
+        createdTimestamp: existing.createdTimestamp,
+        ...(existing.createdBy !== undefined && { createdBy: existing.createdBy }),
+      } as T;
+      await this._collection.doc(item.id).set(written);
+      return written;
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw error;
@@ -194,7 +212,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  deleteRecord = async (id: string): Promise<void> => {
+  protected deleteRecord = async (id: string): Promise<void> => {
     try {
       const doc = await this._collection.doc(id).get();
 
@@ -226,16 +244,18 @@ export const DocumentClient: ServiceIdentifier<DynamoDBDocumentClient> = Symbol.
 // Default cap on list reads to avoid unbounded scans.
 const DEFAULT_LIST_LIMIT = 100;
 
-export class BaseRepository<T extends BaseItemRecord> {
-  readonly _docClient: DynamoDBDocumentClient;
-  readonly _tableName: string;
+// Shared data access for every resource. The CRUD methods are protected: each resource
+// repository exposes public methods only for the operations its resource declares.
+export abstract class BaseRepository<T extends BaseItemRecord> {
+  protected readonly _docClient: DynamoDBDocumentClient;
+  protected readonly _tableName: string;
 
   constructor(docClient: DynamoDBDocumentClient, tableName: string) {
     this._docClient = docClient;
     this._tableName = tableName;
   }
 
-  addRecord = async (item: T): Promise<T> => {
+  protected addRecord = async (item: T): Promise<T> => {
     try {
       await this._docClient.send(new PutCommand({
         TableName: this._tableName,
@@ -247,7 +267,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecord = async (id: string): Promise<T> => {
+  protected getRecord = async (id: string): Promise<T> => {
     try {
       const { Item } = await this._docClient.send(new GetCommand({
         TableName: this._tableName,
@@ -272,7 +292,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
+  protected getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
     try {
       const { Items } = await this._docClient.send(new ScanCommand({
         TableName: this._tableName,
@@ -287,7 +307,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
+  protected updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -307,14 +327,21 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  replaceRecord = async (item: T): Promise<T> => {
+  protected replaceRecord = async (item: T): Promise<T> => {
     try {
-      await this.getRecord(item.id);
+      const existing = await this.getRecord(item.id);
+      // Replace keeps the stored created fields; createdBy is omitted (never undefined) when absent.
+      const { createdBy: _createdBy, ...rest } = item;
+      const written = {
+        ...rest,
+        createdTimestamp: existing.createdTimestamp,
+        ...(existing.createdBy !== undefined && { createdBy: existing.createdBy }),
+      } as T;
       await this._docClient.send(new PutCommand({
         TableName: this._tableName,
-        Item: item as Record<string, unknown>,
+        Item: written as Record<string, unknown>,
       }));
-      return item;
+      return written;
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw error;
@@ -323,7 +350,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  deleteRecord = async (id: string): Promise<void> => {
+  protected deleteRecord = async (id: string): Promise<void> => {
     try {
       const { Item } = await this._docClient.send(new GetCommand({
         TableName: this._tableName,

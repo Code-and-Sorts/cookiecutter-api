@@ -64,8 +64,10 @@ The default is a single resource derived from the project name with `list`, `get
   conditions belong in a precomputed flag (for example .NET's `has_body`). Only one `yield` is allowed per path segment and none inside file contents,
   so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
   still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
-- Controllers, services and routes expose only the resource's `operations` (`update` is
-  PATCH, `replace` is PUT). Repositories always implement all six operations.
+- Controllers, services, routes and repositories expose only the resource's `operations`
+  (`update` is PATCH, `replace` is PUT). Where a shared base repository holds the database
+  code (TypeScript, Python), it keeps all six operations and its own tests, so coverage
+  holds when no resource uses one.
 - Resources with the same `container` share one store and see each other's records; there
   is no type discriminator.
 - GCP and AWS read per-container settings named `FIRESTORE_COLLECTION_<CONTAINER>` and

@@ -1,4 +1,5 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 {% if cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from "@azure/cosmos";
@@ -81,56 +82,80 @@ describe('{{ r }}Repository', () => {
     ];
     const mockItemUpdate = { id: mockId, name: 'mock{{ r }}Update' };
 
+    // The base CRUD methods are protected; spy on them through an untyped view.
+    const base = mockRepository as unknown as Record<string, MockFn>;
+    const operations = ['create', 'get', 'list', 'update', 'replace', 'delete'];
+{%- set exposed = [] %}
+{%- for op, needed in [('create', 'create' in ops), ('get', 'get_by_id' in ops), ('list', 'list' in ops), ('update', 'update' in ops), ('replace', 'replace' in ops), ('delete', 'delete' in ops)] if needed %}{% set _ = exposed.append(op) %}{% endfor %}
+    const exposed = [{% for op in exposed %}'{{ op }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+
+    it('should expose only its resource operations', () => {
+        const actual = operations.filter((operation) => typeof base[operation] === 'function');
+        expect(actual).toEqual(exposed);
+    });
+{%- if "create" in ops %}
+
     describe('create', () => {
         it('should delegate to the base repository', async () => {
-            const base = jest.spyOn(mockRepository, 'addRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRepositoryResponse[0]);
             await mockRepository.create(mockItem);
-            expect(base).toHaveBeenCalledTimes(1);
-            expect(base).toHaveBeenCalledWith(mockItem);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy).toHaveBeenCalledWith(mockItem);
         });
     });
+{%- endif %}
+{%- if "get_by_id" in ops %}
 
     describe('get', () => {
         it('should delegate to the base repository', async () => {
-            const base = jest.spyOn(mockRepository, 'getRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            const spy = jest.spyOn(base, 'getRecord').mockResolvedValue(mockRepositoryResponse[0]);
             await mockRepository.get(mockId);
-            expect(base).toHaveBeenCalledTimes(1);
-            expect(base).toHaveBeenCalledWith(mockId);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy).toHaveBeenCalledWith(mockId);
         });
     });
+{%- endif %}
+{%- if "list" in ops %}
 
     describe('list', () => {
         it('should delegate to the base repository', async () => {
-            const base = jest.spyOn(mockRepository, 'getRecords').mockResolvedValue(mockRepositoryResponse);
+            const spy = jest.spyOn(base, 'getRecords').mockResolvedValue(mockRepositoryResponse);
             await mockRepository.list();
-            expect(base).toHaveBeenCalledTimes(1);
+            expect(spy).toHaveBeenCalledTimes(1);
         });
     });
+{%- endif %}
+{%- if "update" in ops %}
 
     describe('update', () => {
         it('should delegate to the base repository', async () => {
-            const base = jest.spyOn(mockRepository, 'updateRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRepositoryResponse[0]);
             await mockRepository.update(mockItemUpdate);
-            expect(base).toHaveBeenCalledTimes(1);
-            expect(base).toHaveBeenCalledWith(mockItemUpdate);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy).toHaveBeenCalledWith(mockItemUpdate);
         });
     });
+{%- endif %}
+{%- if "replace" in ops %}
 
     describe('replace', () => {
         it('should delegate to the base repository', async () => {
-            const base = jest.spyOn(mockRepository, 'replaceRecord').mockResolvedValue(mockRepositoryResponse[0]);
+            const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRepositoryResponse[0]);
             await mockRepository.replace(mockRepositoryResponse[0]);
-            expect(base).toHaveBeenCalledTimes(1);
-            expect(base).toHaveBeenCalledWith(mockRepositoryResponse[0]);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy).toHaveBeenCalledWith(mockRepositoryResponse[0]);
         });
     });
+{%- endif %}
+{%- if "delete" in ops %}
 
     describe('delete', () => {
         it('should delegate to the base repository', async () => {
-            const base = jest.spyOn(mockRepository, 'deleteRecord').mockResolvedValue();
+            const spy = jest.spyOn(base, 'deleteRecord').mockResolvedValue(undefined);
             await mockRepository.delete(mockId);
-            expect(base).toHaveBeenCalledTimes(1);
-            expect(base).toHaveBeenCalledWith(mockId);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy).toHaveBeenCalledWith(mockId);
         });
     });
+{%- endif %}
 });

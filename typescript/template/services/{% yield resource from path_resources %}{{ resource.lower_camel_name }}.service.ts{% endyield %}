@@ -49,13 +49,10 @@ export class {{ r }}Service {
 {%- if "replace" in resource.operations %}
 
   replace = async (item: {{ r }}Update): Promise<{{ r }}Response> => {
-    const existing = await this._repo.get(item.id);
+    // The repository keeps the stored createdTimestamp and createdBy.
     const entity = {{ r }}EntitySchema.parse({
       ...item,
-      id: existing.id,
       isDeleted: false,
-      createdTimestamp: existing.createdTimestamp,
-      createdBy: existing.createdBy,
       updatedTimestamp: new Date().toISOString(),
     });
     const replacedItem = await this._repo.replace(entity);

@@ -1,4 +1,5 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
 {%- set key = resource.container | upper | replace('-', '_') -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
@@ -32,10 +33,28 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
   }
 {%- endif %}
 
+{%- if "create" in ops %}
+
   create = async (newItem: {{ r }}Record): Promise<{{ r }}Record> => this.addRecord(newItem);
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
   get = async (id: string): Promise<{{ r }}Record> => this.getRecord(id);
+{%- endif %}
+{%- if "list" in ops %}
+
   list = async (limit?: number): Promise<{{ r }}Record[]> => this.getRecords(limit);
+{%- endif %}
+{%- if "update" in ops %}
+
   update = async (item: Partial<{{ r }}Record> & { id: string }): Promise<{{ r }}Record> => this.updateRecord(item);
+{%- endif %}
+{%- if "replace" in ops %}
+
   replace = async (item: {{ r }}Record): Promise<{{ r }}Record> => this.replaceRecord(item);
+{%- endif %}
+{%- if "delete" in ops %}
+
   delete = async (id: string): Promise<void> => this.deleteRecord(id);
+{%- endif %}
 }

@@ -10,6 +10,41 @@ import { NotFoundError, ProxyError } from '@errors';
 
 type MockFn = (...args: any[]) => any;
 
+// BaseRepository is abstract and its CRUD methods are protected; this subclass makes them
+// public so the shared implementation is tested directly, whichever operations resources use.
+class TestRepository extends BaseRepository<any> {
+    declare public addRecord: (item: any) => Promise<any>;
+    declare public getRecord: (id: string) => Promise<any>;
+    declare public getRecords: (limit?: number) => Promise<any[]>;
+    declare public updateRecord: (updates: any) => Promise<any>;
+    declare public replaceRecord: (item: any) => Promise<any>;
+    declare public deleteRecord: (id: string) => Promise<void>;
+}
+
+// replaceRecord keeps the stored created fields whatever the replacement carries.
+const replaceStoredRecord = {
+    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
+    name: 'stored',
+    isDeleted: false,
+    createdBy: 'mockUser',
+    createdTimestamp: '2024-03-24T00:00:00.000Z',
+    updatedTimestamp: '2024-03-24T00:00:00.000Z',
+};
+const replaceRequest = {
+    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
+    name: 'replaced',
+    isDeleted: false,
+    createdBy: 'someoneElse',
+    createdTimestamp: '2025-01-01T00:00:00.000Z',
+    updatedTimestamp: '2025-01-01T00:00:00.000Z',
+};
+const replaceExpected = {
+    ...replaceRequest,
+    createdBy: 'mockUser',
+    createdTimestamp: '2024-03-24T00:00:00.000Z',
+};
+const { createdBy: _storedCreatedBy, ...replaceStoredWithoutCreatedBy } = replaceStoredRecord;
+
 
 {% if cloud_service == 'Azure Function App' -%}
 class MockNotFound extends Error {
@@ -109,7 +144,7 @@ let mockReplace;
 let mockCreate;
 let mockPatch;
 let mockContainer;
-let mockBaseRepository;
+let mockBaseRepository: TestRepository;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
@@ -130,7 +165,7 @@ describe('BaseRepository', () => {
                 patch: mockPatch,
             }),
         } as unknown as Container;
-        mockBaseRepository = new BaseRepository(mockContainer);
+        mockBaseRepository = new TestRepository(mockContainer);
     });
 
     describe('addRecord', () => {
@@ -262,6 +297,22 @@ describe('BaseRepository', () => {
             expect(mockReplace).toHaveBeenCalledTimes(1);
         });
 
+        it('should keep the stored createdTimestamp and createdBy', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(replaceStoredRecord);
+            const result = await mockBaseRepository.replaceRecord(replaceRequest);
+            const written = mockReplace.mock.calls[0][0];
+            expect(written).toEqual(replaceExpected);
+            expect(result).toEqual(replaceExpected);
+        });
+
+        it('should omit createdBy when the stored record has none', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(replaceStoredWithoutCreatedBy);
+            await mockBaseRepository.replaceRecord(replaceRequest);
+            const written = mockReplace.mock.calls[0][0];
+            expect(written.createdTimestamp).toEqual(replaceStoredRecord.createdTimestamp);
+            expect('createdBy' in written).toBe(false);
+        });
+
         it('should rethrow not found error', async () => {
             jest.spyOn(mockBaseRepository, 'getRecord')
                 .mockRejectedValue(new NotFoundError('Not Found'));
@@ -359,7 +410,7 @@ let mockWhere: jest.Mock<MockFn>;
 let mockStream: jest.Mock<MockFn>;
 let mockDoc: jest.Mock<MockFn>;
 let mockCollection: unknown;
-let mockBaseRepository: BaseRepository<any>;
+let mockBaseRepository: TestRepository;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
@@ -378,7 +429,7 @@ describe('BaseRepository', () => {
             doc: mockDoc,
             where: mockWhere,
         } as unknown as CollectionReference;
-        mockBaseRepository = new BaseRepository(mockCollection as CollectionReference);
+        mockBaseRepository = new TestRepository(mockCollection as CollectionReference);
     });
 
     describe('addRecord', () => {
@@ -493,6 +544,22 @@ describe('BaseRepository', () => {
             expect(result).toEqual(mock{{project_class_name}}Records[0]);
         });
 
+        it('should keep the stored createdTimestamp and createdBy', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(replaceStoredRecord);
+            const result = await mockBaseRepository.replaceRecord(replaceRequest);
+            const written = mockSet.mock.calls[0][0];
+            expect(written).toEqual(replaceExpected);
+            expect(result).toEqual(replaceExpected);
+        });
+
+        it('should omit createdBy when the stored record has none', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(replaceStoredWithoutCreatedBy);
+            await mockBaseRepository.replaceRecord(replaceRequest);
+            const written = mockSet.mock.calls[0][0];
+            expect(written.createdTimestamp).toEqual(replaceStoredRecord.createdTimestamp);
+            expect('createdBy' in written).toBe(false);
+        });
+
         it('should rethrow not found error', async () => {
             jest.spyOn(mockBaseRepository, 'getRecord')
                 .mockRejectedValue(new NotFoundError('Not found'));
@@ -584,7 +651,7 @@ const mockDeleteUpdatedTimestamp = '2024-03-24T00:00:00.000Z';
 
 let mockSend: jest.Mock<MockFn>;
 let mockDocClient: unknown;
-let mockBaseRepository: BaseRepository<any>;
+let mockBaseRepository: TestRepository;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
@@ -593,7 +660,7 @@ describe('BaseRepository', () => {
         mockDocClient = {
             send: mockSend,
         };
-        mockBaseRepository = new BaseRepository(mockDocClient as any, mockTableName);
+        mockBaseRepository = new TestRepository(mockDocClient as any, mockTableName);
     });
 
     describe('addRecord', () => {
@@ -726,6 +793,22 @@ describe('BaseRepository', () => {
             expect(getRecord).toHaveBeenCalledTimes(1);
             expect(mockSend).toHaveBeenCalledTimes(1);
             expect(result).toEqual(mock{{project_class_name}}Records[0]);
+        });
+
+        it('should keep the stored createdTimestamp and createdBy', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(replaceStoredRecord);
+            const result = await mockBaseRepository.replaceRecord(replaceRequest);
+            const written = mockSend.mock.calls[0][0].input.Item;
+            expect(written).toEqual(replaceExpected);
+            expect(result).toEqual(replaceExpected);
+        });
+
+        it('should omit createdBy when the stored record has none', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(replaceStoredWithoutCreatedBy);
+            await mockBaseRepository.replaceRecord(replaceRequest);
+            const written = mockSend.mock.calls[0][0].input.Item;
+            expect(written.createdTimestamp).toEqual(replaceStoredRecord.createdTimestamp);
+            expect('createdBy' in written).toBe(false);
         });
 
         it('should rethrow not found error', async () => {
