@@ -154,3 +154,15 @@ resources:
     {%- endfor -%}
     {%- endif -%}
     {{ ns.err }}
+
+# ---- Path-safe resource flags (never prompted) ----
+# Git for Windows limits a checked-out path to 260 characters, so the request and
+# validation model paths test this precomputed flag instead of spelling out the
+# operations check. `has_body` is true when the resource accepts a request body.
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {{ dict(r, has_body=('create' in r.operations or 'update' in r.operations or 'replace' in r.operations)) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

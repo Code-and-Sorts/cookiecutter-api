@@ -59,7 +59,9 @@ The default is a single resource derived from the project name with `list`, `get
   Copier renders it once per resource with `resource` in context (`resources` is still the
   full list). Git for Windows cannot check out a path containing `|`, so paths never use
   Jinja filters: `path_resources` (a derived `when: false` copy of `resources`) adds the
-  `snake_name` and `lower_camel_name` stems. Only one `yield` is allowed per path segment and none inside file contents,
+  `snake_name` and `lower_camel_name` stems. Keep every repository path under about 200 characters too: Git for
+  Windows fails checkout past 260 characters including the clone directory, so long
+  conditions belong in a precomputed flag (for example .NET's `has_body`). Only one `yield` is allowed per path segment and none inside file contents,
   so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
   still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
 - Controllers, services and routes expose only the resource's `operations` (`update` is
