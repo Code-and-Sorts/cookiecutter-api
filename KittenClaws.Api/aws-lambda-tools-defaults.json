@@ -1,0 +1,8 @@
+{
+    "profile": "",
+    "region": "",
+    "configuration": "Release",
+    "function-runtime": "dotnet8",
+    "function-memory-size": 256,
+    "function-timeout": 30
+}
