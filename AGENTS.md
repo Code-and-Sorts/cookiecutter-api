@@ -40,7 +40,7 @@ Entry Point (Azure functions, GCP main, or AWS Lambda handler)
 
 ### Key Patterns
 
-- **Dependency Injection**: .NET uses `Microsoft.Extensions.DependencyInjection`; TypeScript (`config/container.ts`), Python (blueprint/entry point) and Go (`main.go`) wire dependencies manually
+- **Dependency Injection**: .NET uses `Microsoft.Extensions.DependencyInjection`, TypeScript uses [Inversify](https://inversify.io/) (`config/container.ts`); Python (blueprint/entry point) and Go (`main.go`) wire dependencies manually
 - **Schema Validation**: TypeScript uses [Zod](https://zod.dev/), Python uses [Pydantic](https://docs.pydantic.dev/), .NET uses [FluentValidation](https://docs.fluentvalidation.net/), Go uses JSON Schema
 - **Soft Deletes**: All templates use an `isDeleted` flag rather than hard deletes
 - **Base Records**: All entities extend a base schema with `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp`
@@ -148,7 +148,7 @@ Pipelines use a matrix strategy to test across:
 - Multiple operating systems (ubuntu, macOS, Windows) with the default single resource
 - The `multi` and `edge` fixtures on ubuntu
 - All supported cloud services
-- The newest runtime every cloud supports: Node 24, Python 3.14, .NET 10, Go 1.27
+- The newest GA runtime each cloud supports: Node 24 (Node 22 on Azure Functions), Python 3.14, .NET 10, Go 1.27
 
 ### Local Verification
 
@@ -180,7 +180,7 @@ Azure Functions, Cloud Run functions and AWS Lambda all support the new version 
 
 ## Code Conventions
 
-- **TypeScript**: Yarn for packages, Jest for tests, path aliases (`@controllers`, `@services`, etc.) via `tsconfig.json` paths
+- **TypeScript**: ES modules (`"type": "module"`), Yarn for packages, Jest for tests (ESM mode; import `jest` and friends from `@jest/globals`, mock modules with `jest.unstable_mockModule`), path aliases (`@controllers`, `@services`, etc.) via `tsconfig.json` paths, rewritten to `.js` paths by `tsc-alias`
 - **Python**: Poetry for packages, pytest for tests, blueprint pattern for route registration
 - **.NET**: NuGet for packages, xUnit v3 for tests, solution/project structure
 - **Go**: Go modules, `go test`, gofmt enforced through golangci-lint

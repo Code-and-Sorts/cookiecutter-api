@@ -1,15 +1,4 @@
-{% if cloud_service == 'Azure Function App' -%}
-process.env.COSMOS_DB_URL = 'https://cosmos-mock.documents.azure.com:443/';
-process.env.COSMOS_DB_KEY = 'mock-cosmos-key';
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-process.env.GCP_PROJECT_ID = 'mock-gcp-project';
-process.env.FIRESTORE_DATABASE = '(default)';
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-process.env.AWS_REGION = 'us-east-1';
-{%- endif %}
-
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import {
 {%- for resource in resources %}
     {{ resource.name }}Controller,
@@ -29,15 +18,17 @@ import {
 } from '@models';
 import { SchemaValidator } from '@services';
 import { ValidationError } from '@errors';
+
+type MockFn = (...args: any[]) => any;
 {% for resource in resources %}
 {%- set r = resource.name %}
 describe('{{ r }}Controller', () => {
-    const mockGet = jest.fn();
-    const mockList = jest.fn();
-    const mockCreate = jest.fn();
-    const mockUpdate = jest.fn();
-    const mockReplace = jest.fn();
-    const mockDelete = jest.fn();
+    const mockGet = jest.fn<MockFn>();
+    const mockList = jest.fn<MockFn>();
+    const mockCreate = jest.fn<MockFn>();
+    const mockUpdate = jest.fn<MockFn>();
+    const mockReplace = jest.fn<MockFn>();
+    const mockDelete = jest.fn<MockFn>();
 
     class Mock{{ r }}Service {
         get = mockGet;

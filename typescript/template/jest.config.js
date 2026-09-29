@@ -1,11 +1,12 @@
-const { pathsToModuleNameMapper } = require('ts-jest');
-const { compilerOptions } = require('./tsconfig');
+import { createDefaultEsmPreset, pathsToModuleNameMapper } from 'ts-jest';
+import tsconfig from './tsconfig.json' with { type: 'json' };
 
-module.exports = {
-    preset: 'ts-jest',
+export default {
+    ...createDefaultEsmPreset(),
     testEnvironment: 'node',
     rootDir: '.',
     testMatch: ['**/__tests__/*.test.ts'],
+    setupFiles: ['<rootDir>/jest.setup.ts'],
     coveragePathIgnorePatterns: ['/node_modules/'],
     coverageThreshold: {
         global: {
@@ -15,5 +16,5 @@ module.exports = {
             lines: 90,
         },
     },
-    moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths, { prefix: '<rootDir>/' }),
+    moduleNameMapper: pathsToModuleNameMapper(tsconfig.compilerOptions.paths, { prefix: '<rootDir>/' }),
 };

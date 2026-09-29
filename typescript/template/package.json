@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "{{project_description}}",
   "packageManager": "yarn@4.18.1",
+  "type": "module",
 {%- if cloud_service == 'Azure Function App' %}
   "main": "dist/functions/*.js",
 {%- endif %}
@@ -16,7 +17,11 @@
   ],
 {%- endif %}
   "engines": {
+{%- if cloud_service == 'Azure Function App' %}
+    "node": ">=22"
+{%- else %}
     "node": ">=24"
+{%- endif %}
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
@@ -24,12 +29,12 @@
     "start": "func start --typescript",
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    "start": "npx functions-framework --target=api --source=dist/",
+    "start": "functions-framework --target=api",
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
     "start": "node dist/lambda.js",
 {%- endif %}
-    "test:unit": "yarn jest --verbose --coverage",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --verbose --coverage",
     "lint": "eslint .",
     "format": "eslint --fix . && prettier --write .",
     "audit": "yarn npm audit --severity moderate"
@@ -48,11 +53,17 @@
     "@aws-sdk/lib-dynamodb": "^3.1139.0",
 {%- endif %}
     "dotenv": "^18.0.3",
+    "inversify": "^8.2.3",
+    "reflect-metadata": "^0.2.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "@types/node": "^24.13.6",
+    "@jest/globals": "^30.5.2",
+{%- if cloud_service == 'Azure Function App' %}
+    "@types/node": "^22.20.4",
+{%- else %}
+    "@types/node": "^24.19.0",
+{%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
     "azure-functions-core-tools": "^4.15.1",
 {%- endif %}

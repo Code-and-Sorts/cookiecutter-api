@@ -1,3 +1,5 @@
+import 'reflect-metadata';
+import { inject, injectable } from 'inversify';
 import {
 {%- for resource in resources %}
     {{ resource.name }}Repository,
@@ -14,10 +16,11 @@ import {
 } from '@models';
 {% for resource in resources %}
 {%- set r = resource.name %}
+@injectable()
 export class {{ r }}Service {
   private _repo: {{ r }}Repository;
 
-  constructor(repo: {{ r }}Repository) {
+  constructor(@inject({{ r }}Repository) repo: {{ r }}Repository) {
     this._repo = repo;
   }
 {%- if "create" in resource.operations %}

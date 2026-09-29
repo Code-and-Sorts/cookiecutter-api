@@ -26,7 +26,7 @@ This project is a TypeScript Node.js REST API built on [Cloud Run functions](htt
 This project is a TypeScript Node.js REST API built on [AWS Lambda](https://docs.aws.amazon.com/lambda/) behind Amazon API Gateway and backed by [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/). A single Lambda handler routes every request to the matching resource, and `template.yaml` is an [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) template for local runs and deployment.
 {%- endif %}
 
-The API follows a controller → service → repository layout, validates input with [Zod](https://zod.dev/), and soft-deletes records by setting `isDeleted`.
+The API follows a controller → service → repository layout wired together by an [Inversify](https://inversify.io/) container in `config/container.ts`, validates input with [Zod](https://zod.dev/), and soft-deletes records by setting `isDeleted`. The project is an ES module (`"type": "module"`).
 
 ## Endpoints
 
@@ -111,7 +111,7 @@ Locally the variables are read from the process environment and from a `.env` fi
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 24 (LTS)
+{% if cloud_service == 'Azure Function App' %}- [Node.js](https://nodejs.org/) 22 (LTS){% else %}- [Node.js](https://nodejs.org/) 24 (LTS){% endif %}
 - [Yarn](https://yarnpkg.com/) 4, enabled with `corepack enable`
 {%- if cloud_service == 'Azure Function App' %}
 - [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) v4 (installed as a dev dependency)
@@ -170,7 +170,7 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
 ## Deploy
 
 {% if cloud_service == 'Azure Function App' -%}
-Create a Function App on the Flex Consumption plan with the Node.js 24 runtime, set the environment variables as app settings, and publish:
+Create a Function App on the Flex Consumption plan with the Node.js 22 runtime, set the environment variables as app settings, and publish:
 
 ```console
 az functionapp create \
@@ -179,7 +179,7 @@ az functionapp create \
   --storage-account <storage-account> \
   --flexconsumption-location <region> \
   --runtime node \
-  --runtime-version 24 \
+  --runtime-version 22 \
   --functions-version 4
 
 az functionapp config appsettings set \
@@ -190,8 +190,6 @@ az functionapp config appsettings set \
 yarn build
 func azure functionapp publish <function-app-name>
 ```
-
-Node.js 24 is not available on the Linux Consumption plan, which stops at Node.js 22; use Flex Consumption, Premium or Dedicated.
 {%- elif cloud_service == 'GCP Cloud Function' -%}
 Deploy the `api` entry point with the Node.js 24 runtime. Cloud Build installs the dependencies and runs `yarn build`:
 

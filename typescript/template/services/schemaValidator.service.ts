@@ -1,6 +1,9 @@
+import 'reflect-metadata';
+import { injectable } from 'inversify';
 import { z } from 'zod';
 import { ValidationError } from '@errors';
 
+@injectable()
 export class SchemaValidator {
   validate<T>(obj: any, schema: z.ZodType<T>): T {
     try {

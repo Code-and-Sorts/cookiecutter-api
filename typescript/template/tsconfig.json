@@ -1,13 +1,16 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "target": "es2024",
     "lib": ["es2024"],
-    "types": ["node", "jest"],
+    "types": ["node"],
     "outDir": "dist",
     "rootDir": ".",
     "sourceMap": true,
     "strict": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "paths": {
       "@config/*": ["./config/*"],
       "@controllers": ["./controllers/index"],
@@ -17,5 +20,8 @@
       "@errors": ["./types/errors/index"],
       "@utils": ["./utils/index"]
     }
+  },
+  "tsc-alias": {
+    "resolveFullPaths": true
   }
 }
