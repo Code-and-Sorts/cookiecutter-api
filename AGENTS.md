@@ -165,7 +165,7 @@ To verify changes locally, generate a template and test it:
 
 ```bash
 # Install dependencies
-pip install 'copier>=9.18.2' jinja2-strcase jinja2-time
+pip install copier jinja2-strcase jinja2-time
 
 # Generate a project
 copier copy --defaults --trust \
