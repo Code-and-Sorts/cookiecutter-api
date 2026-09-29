@@ -1,3 +1,5 @@
+# Custom health check path: the edge fixture serves it at /status.
+health_endpoint: "status"
 resources:
   - name: "Cat"
     endpoint: "cats"

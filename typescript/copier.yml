@@ -75,6 +75,16 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
+# ---- Health check ----
+health_endpoint:
+  type: str
+  default: "health"
+  help: URL segment for the health check; leave empty to generate no health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to skip the health check.
+    {%- endif -%}
+
 # ---- REST resources ----
 # A list of resources to generate. Each resource gets its own URL endpoint, a
 # storage container (resources sharing a container id share storage), and a
@@ -125,8 +135,8 @@ resources:
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved because it collides with a generated or imported TypeScript identifier or a shared file name. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
-    {%- elif r.endpoint == "health" -%}
-    {%- set ns.err = "Resource endpoint 'health' is reserved for the health check." -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
     {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
     {%- elif (ops | length) < 1 -%}

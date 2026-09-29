@@ -74,6 +74,11 @@ container, collection or table. Resources that share a `container` share their r
 `operations` is any subset of `list`, `get_by_id`, `create`, `update` (PATCH), `replace`
 (PUT) and `delete`; only those routes are generated.
 
+Every project also gets a `GET` health check named `health`, served under the same route
+prefix as its resources (for example `/api/health` on Azure Functions). Answer
+`health_endpoint` (or pass `--data health_endpoint=status`) to use another name, or leave it
+empty to skip the health check.
+
 Each resource gets its own files in every layer, for example `CatController.cs` and
 `DogController.cs` in .NET, or `controllers/cat.controller.ts` and
 `controllers/dog.controller.ts` in TypeScript.

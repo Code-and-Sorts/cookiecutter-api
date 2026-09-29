@@ -31,14 +31,16 @@ The API follows a controller → service → repository layout wired together by
 ## Endpoints
 
 {% if cloud_service == 'Azure Function App' -%}
-Azure Functions serves HTTP functions under the `/api` route prefix. Every route except `/api/health` uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+Azure Functions serves HTTP functions under the `/api` route prefix. Every route{% if health_endpoint %} except `/api/{{ health_endpoint }}`{% endif %} uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
 {%- elif cloud_service == 'GCP Cloud Function' -%}
 Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally).
 {%- else -%}
 Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`).
 {%- endif %}
 
-- `GET {{ base_path }}/health` — health check
+{%- if health_endpoint %}
+- `GET {{ base_path }}/{{ health_endpoint }}` — health check
+{%- endif %}
 {%- for resource in resources %}
 - **{{ resource.name }}** (storage: `{{ resource.container }}`)
 {%- if "list" in resource.operations %}
@@ -238,7 +240,9 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
 ├── functions                       - Azure Functions HTTP triggers
+{%- if health_endpoint %}
 │   ├── health.ts
+{%- endif %}
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.ts
 {%- endfor %}
@@ -250,6 +254,9 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- endfor %}
 {%- if cloud_service != 'Azure Function App' %}
 ├── routes                          - Per-resource HTTP method routing
+{%- if health_endpoint %}
+│   ├── health.routes.ts
+{%- endif %}
 │   ├── response.ts
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.routes.ts

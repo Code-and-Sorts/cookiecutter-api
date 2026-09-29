@@ -73,7 +73,9 @@ The default is a single resource derived from the project name with `list`, `get
 - GCP and AWS read per-container settings named `FIRESTORE_COLLECTION_<CONTAINER>` and
   `DYNAMODB_TABLE_NAME_<CONTAINER>` (upper case, `-` becomes `_`). Azure setting names
   follow each language's existing convention.
-- The `resources` validator rejects the endpoint `health`, the name `Health`, duplicate
+- The health check is its own handler file per cloud, served at `health_endpoint` (default
+  `health`) and generated only when that answer is non-empty.
+- The `resources` validator rejects an endpoint equal to `health_endpoint`, the name `Health`, duplicate
   operations, names or containers that collide after case and separator normalization, and
   per-language reserved names. Only add a reserved name after rendering it and watching
   the generated project fail to build.
@@ -130,6 +132,7 @@ To add a new cloud provider to an existing language template:
 | `project_lower_camel_name` | lowerCamelCase (TS/C#) | `"myApi"` |
 | `project_slug` | snake_case (Python only) | `"my_api"` |
 | `cloud_service` | Target cloud platform | `"Azure Function App"` |
+| `health_endpoint` | Health check URL segment; empty skips the health check | `"health"` |
 | `resources` | REST resources to generate | see [Resources](#resources) |
 | `author` | Project author | `"Your Name"` |
 | `open_source_license` | License type | `"MIT license"` |
@@ -153,7 +156,7 @@ Each language has a GitHub Actions workflow that:
 The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
 Its `resources-fixture` input renders `fixtures/<name>-resources.yml`: `multi` (two
 resources sharing a container) and `edge` (list-only, delete-only, hyphenated and shared
-containers, names of differing lengths).
+containers, names of differing lengths, and the health check at `/status`).
 
 Pipelines use a matrix strategy to test across:
 - Multiple operating systems (ubuntu, macOS, Windows) with the default single resource

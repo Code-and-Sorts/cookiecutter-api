@@ -1,0 +1,25 @@
+{%- if cloud_service == 'GCP Cloud Function' -%}
+import * as ff from '@google-cloud/functions-framework';
+import { jsonResponse, notAllowed } from './response';
+
+// Handles /{{ health_endpoint }}: an unauthenticated liveness probe.
+export const healthRoutes = async (req: ff.Request, res: ff.Response, id?: string): Promise<void> => {
+  if (id) return jsonResponse(res, 404, { error: 'Not found.' });
+  if (req.method !== 'GET') return notAllowed(res);
+  return jsonResponse(res, 200, { status: 'ok' });
+};
+{%- else -%}
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { jsonResponse, notAllowed } from './response';
+
+// Handles /{{ health_endpoint }}: an unauthenticated liveness probe.
+export const healthRoutes = async (event: APIGatewayProxyEvent, id?: string): Promise<APIGatewayProxyResult> => {
+  if (id) {
+    return jsonResponse(404, { error: 'Not found.' });
+  }
+  if (event.httpMethod !== 'GET') {
+    return notAllowed();
+  }
+  return jsonResponse(200, { status: 'ok' });
+};
+{%- endif %}

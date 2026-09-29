@@ -86,10 +86,12 @@ const send = async (method: string, path: string, body?: unknown) => {
 
 describe('routing', () => {
     beforeEach(() => jest.clearAllMocks());
+{%- if health_endpoint %}
 
-    it('should answer the health check', async () => {
-        expect(await send('GET', '/health')).toEqual(200);
+    it('should dispatch GET /{{ health_endpoint }} to the health check', async () => {
+        expect(await send('GET', '/{{ health_endpoint }}')).toEqual(200);
     });
+{%- endif %}
 
     it('should return 404 for an unknown endpoint', async () => {
         expect(await send('GET', '/unknown')).toEqual(404);

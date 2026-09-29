@@ -3,7 +3,7 @@ import { app, HttpResponseInit } from '@azure/functions';
 app.http('health', {
     methods: ['GET'],
     authLevel: 'anonymous',
-    route: 'health',
+    route: '{{ health_endpoint }}',
     handler: async (): Promise<HttpResponseInit> => ({
         status: 200,
         body: JSON.stringify({ status: 'ok' }, null, 2),

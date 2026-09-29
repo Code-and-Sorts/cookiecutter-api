@@ -1,5 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import {
+{%- if health_endpoint %}
+  healthRoutes,
+{%- endif %}
   jsonResponse,
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Routes,
@@ -13,12 +16,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const endpoint = segments[0];
   const id = event.pathParameters?.id;
 
-  if (event.httpMethod === 'GET' && endpoint === 'health' && segments.length === 1) {
-    return jsonResponse(200, { status: 'ok' });
-  }
-
   try {
     switch (endpoint) {
+{%- if health_endpoint %}
+      case '{{ health_endpoint }}':
+        return await healthRoutes(event, id);
+{%- endif %}
 {%- for resource in resources %}
       case '{{ resource.endpoint }}':
         return await {{ resource.name | to_lower_camel }}Routes(event, id);

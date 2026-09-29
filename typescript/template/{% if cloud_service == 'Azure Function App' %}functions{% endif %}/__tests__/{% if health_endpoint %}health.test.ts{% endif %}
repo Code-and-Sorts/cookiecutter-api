@@ -16,7 +16,7 @@ beforeAll(async () => {
 
 describe('health', () => {
     it('should register an anonymous health check', async () => {
-        expect(registrations.health).toMatchObject({ methods: ['GET'], route: 'health', authLevel: 'anonymous' });
+        expect(registrations.health).toMatchObject({ methods: ['GET'], route: '{{ health_endpoint }}', authLevel: 'anonymous' });
         expect((await registrations.health.handler()).status).toEqual(200);
     });
 });

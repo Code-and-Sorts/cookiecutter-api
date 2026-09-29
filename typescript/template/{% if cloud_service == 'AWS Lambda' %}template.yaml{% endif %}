@@ -27,11 +27,13 @@ Resources:
             TableName: !Ref {{ container | lower | replace('-', '_') | to_camel }}Table
 {%- endfor %}
       Events:
+{%- if health_endpoint %}
         Health:
           Type: Api
           Properties:
-            Path: /health
+            Path: /{{ health_endpoint }}
             Method: get
+{%- endif %}
 {%- for resource in resources %}
 {%- set cn = resource.name %}
 {%- if "list" in resource.operations %}
