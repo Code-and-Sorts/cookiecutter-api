@@ -1,0 +1,127 @@
+{
+    "clientName": "Thunder Client",
+    "collectionName": "KittenClaws Requests",
+    "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+    "dateExported": "2024-08-10T22:25:59.850Z",
+    "version": "1.2",
+    "folders": [],
+    "requests": [
+        {
+            "_id": "kitties-list",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "List KittenClaws",
+            "url": "{{baseUrl}}/kitties",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "kitties-get_by_id",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Get by ID KittenClaws",
+            "url": "{{baseUrl}}/kitties/{{kittenClawsId}}",
+            "method": "GET",
+            "sortNum": 20000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "kitties-create",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Create KittenClaws",
+            "url": "{{baseUrl}}/kitties",
+            "method": "POST",
+            "sortNum": 30000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"Item1\",\n  \"type\": \"item\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "201"
+                },
+                {
+                    "type": "set-env-var",
+                    "custom": "json.id",
+                    "action": "setto",
+                    "value": "{{kittenClawsId}}"
+                }
+            ]
+        },
+        {
+            "_id": "kitties-update",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Update KittenClaws",
+            "url": "{{baseUrl}}/kitties/{{kittenClawsId}}",
+            "method": "PATCH",
+            "sortNum": 40000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"Item1-Update\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "kitties-delete",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Delete KittenClaws",
+            "url": "{{baseUrl}}/kitties/{{kittenClawsId}}",
+            "method": "DELETE",
+            "sortNum": 50000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        }
+    ],
+    "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
+}

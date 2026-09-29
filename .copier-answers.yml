@@ -1,0 +1,18 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_src_path: ./python
+author: Sir Meowsalots
+cloud_service: AWS Lambda
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: kitty_cats
+    endpoint: kitties
+    name: KittenClaws
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - delete
+
