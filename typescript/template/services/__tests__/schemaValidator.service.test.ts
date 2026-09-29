@@ -1,25 +1,9 @@
-{% if cloud_service == 'Azure Function App' -%}
-process.env.COSMOS_DB_URL = 'https://cosmos-mock.documents.azure.com:443/';
-process.env.COSMOS_DB_KEY = 'mock-cosmos-key';
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-process.env.GCP_PROJECT_ID = 'mock-gcp-project';
-process.env.FIRESTORE_DATABASE = '(default)';
-process.env.FIRESTORE_COLLECTION = '{{project_endpoint}}';
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-process.env.AWS_REGION = 'us-east-1';
-process.env.DYNAMODB_TABLE_NAME = 'mock-table';
-{%- endif %}
-
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { ValidationError } from '@errors';
 import { BaseSchema, GuidSchema } from '@models';
 import { SchemaValidator } from '@services';
 
 describe('SchemaValidator', () => {
-    process.env.COSMOS_DB_URL = 'mockCosmosDbUrl';
-    process.env.COSMOS_DB_KEY = 'mockCosmosDbKey';
-
     beforeEach(() => {
         jest.resetAllMocks();
     });

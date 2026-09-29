@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: {{ project_description }}
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs24.x
+
+Resources:
+  {{ project_class_name }}Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: dist/lambda.handler
+      CodeUri: .
+      Description: {{ project_description }}
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+{%- for container in resources | map(attribute='container') | unique %}
+          DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}: !Ref {{ container | lower | replace('-', '_') | to_camel }}Table
+{%- endfor %}
+      Policies:
+{%- for container in resources | map(attribute='container') | unique %}
+        - DynamoDBCrudPolicy:
+            TableName: !Ref {{ container | lower | replace('-', '_') | to_camel }}Table
+{%- endfor %}
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+{%- for resource in resources %}
+{%- set cn = resource.name %}
+{%- if "list" in resource.operations %}
+        List{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}
+            Method: get
+{%- endif %}
+{%- if "get_by_id" in resource.operations %}
+        Get{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}/{id}
+            Method: get
+{%- endif %}
+{%- if "create" in resource.operations %}
+        Create{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}
+            Method: post
+{%- endif %}
+{%- if "update" in resource.operations %}
+        Update{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}/{id}
+            Method: patch
+{%- endif %}
+{%- if "replace" in resource.operations %}
+        Replace{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}/{id}
+            Method: put
+{%- endif %}
+{%- if "delete" in resource.operations %}
+        Delete{{ cn }}:
+          Type: Api
+          Properties:
+            Path: /{{ resource.endpoint }}/{id}
+            Method: delete
+{%- endif %}
+{%- endfor %}
+{% for container in resources | map(attribute='container') | unique %}
+  {{ container | lower | replace('-', '_') | to_camel }}Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: {{ container }}
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+{% endfor %}
+Outputs:
+  {{ project_class_name }}Api:
+    Description: API Gateway endpoint base URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  {{ project_class_name }}Function:
+    Description: Lambda Function ARN
+    Value: !GetAtt {{ project_class_name }}Function.Arn

@@ -1,7 +1,7 @@
+import 'reflect-metadata';
+import { injectable } from 'inversify';
 import { z } from 'zod';
 import { ValidationError } from '@errors';
-import { injectable } from 'inversify';
-import 'reflect-metadata';
 
 @injectable()
 export class SchemaValidator {

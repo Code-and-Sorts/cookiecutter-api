@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { BaseRepository } from '@repositories';
 {% if cloud_service == 'Azure Function App' -%}
 import { Container } from '@azure/cosmos';
@@ -7,6 +7,8 @@ import { Container } from '@azure/cosmos';
 import { CollectionReference } from '@google-cloud/firestore';
 {%- endif %}
 import { NotFoundError, ProxyError } from '@errors';
+
+type MockFn = (...args: any[]) => any;
 
 
 {% if cloud_service == 'Azure Function App' -%}
@@ -102,7 +104,6 @@ const mockDeleteRecordOperations = [
 ];
 const mockDeleteRecordCondition = 'FROM c WHERE c.isDeleted = false';
 
-let mockResult;
 let mockFetchAll;
 let mockReplace;
 let mockCreate;
@@ -113,10 +114,10 @@ let mockBaseRepository;
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockFetchAll = jest.fn().mockImplementation(() => mockResult);
-        mockReplace = jest.fn().mockImplementation(() => mockResult);
-        mockCreate = jest.fn().mockImplementation(() => mockResult);
-        mockPatch = jest.fn().mockImplementation(() => mockResult);
+        mockFetchAll = jest.fn<MockFn>();
+        mockReplace = jest.fn<MockFn>();
+        mockCreate = jest.fn<MockFn>();
+        mockPatch = jest.fn<MockFn>();
         mockContainer = {
             items: {
                 query: () => ({
@@ -251,6 +252,27 @@ describe('BaseRepository', () => {
         });
     });
 
+    describe('replaceRecord', () => {
+        it('should successfully get and replace record', async () => {
+            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
+            mockReplace.mockReturnValue({ resource: mock{{project_class_name}}Records[0] });
+            await mockBaseRepository.replaceRecord(mock{{project_class_name}}Update);
+            expect(getRecord).toHaveBeenCalledTimes(1);
+            expect(mockReplace).toHaveBeenCalledTimes(1);
+        });
+
+        it('should rethrow not found error', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not Found'));
+            try {
+                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Update);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+            }
+        });
+    });
+
     describe('deleteRecord', () => {
         beforeEach(() => {
             jest.resetAllMocks();
@@ -330,24 +352,24 @@ const mockDeletedRecord = {
     isDeleted: true,
 };
 
-let mockSet: jest.Mock;
-let mockGet: jest.Mock;
-let mockUpdate: jest.Mock;
-let mockWhere: jest.Mock;
-let mockStream: jest.Mock;
-let mockDoc: jest.Mock;
+let mockSet: jest.Mock<MockFn>;
+let mockGet: jest.Mock<MockFn>;
+let mockUpdate: jest.Mock<MockFn>;
+let mockWhere: jest.Mock<MockFn>;
+let mockStream: jest.Mock<MockFn>;
+let mockDoc: jest.Mock<MockFn>;
 let mockCollection: unknown;
 let mockBaseRepository: BaseRepository<any>;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockSet = jest.fn().mockResolvedValue(undefined);
-        mockGet = jest.fn();
-        mockUpdate = jest.fn().mockResolvedValue(undefined);
-        mockStream = jest.fn();
-        mockWhere = jest.fn().mockReturnValue({ get: jest.fn() });
-        mockDoc = jest.fn().mockReturnValue({
+        mockSet = jest.fn<MockFn>().mockResolvedValue(undefined);
+        mockGet = jest.fn<MockFn>();
+        mockUpdate = jest.fn<MockFn>().mockResolvedValue(undefined);
+        mockStream = jest.fn<MockFn>();
+        mockWhere = jest.fn<MockFn>().mockReturnValue({ get: jest.fn<MockFn>() });
+        mockDoc = jest.fn<MockFn>().mockReturnValue({
             set: mockSet,
             get: mockGet,
             update: mockUpdate,
@@ -419,7 +441,7 @@ describe('BaseRepository', () => {
             const mockSnapshot = {
                 docs: mock{{project_class_name}}Records.map((r) => ({ data: () => r })),
             };
-            mockWhere.mockReturnValue({ limit: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue(mockSnapshot) }) });
+            mockWhere.mockReturnValue({ limit: jest.fn<MockFn>().mockReturnValue({ get: jest.fn<MockFn>().mockResolvedValue(mockSnapshot) }) });
             const result = await mockBaseRepository.getRecords();
             expect(mockWhere).toHaveBeenCalledWith('isDeleted', '==', false);
             expect(result).toEqual(mock{{project_class_name}}Records);
@@ -427,8 +449,8 @@ describe('BaseRepository', () => {
 
         it('should throw proxy error on failure', async () => {
             mockWhere.mockReturnValue({
-                limit: jest.fn().mockReturnValue({
-                    get: jest.fn().mockRejectedValue(new Error('Unknown error')),
+                limit: jest.fn<MockFn>().mockReturnValue({
+                    get: jest.fn<MockFn>().mockRejectedValue(new Error('Unknown error')),
                 }),
             });
             try {
@@ -455,6 +477,27 @@ describe('BaseRepository', () => {
                 .mockRejectedValue(new NotFoundError('Not found'));
             try {
                 await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
+            }
+        });
+    });
+
+    describe('replaceRecord', () => {
+        it('should successfully replace document', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{project_class_name}}Records[0]);
+            const result = await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
+            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
+            expect(mockSet).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{project_class_name}}Records[0]);
+        });
+
+        it('should rethrow not found error', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not found'));
+            try {
+                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
             }
@@ -539,14 +582,14 @@ const mockDeletedRecord = {
 };
 const mockDeleteUpdatedTimestamp = '2024-03-24T00:00:00.000Z';
 
-let mockSend: jest.Mock;
+let mockSend: jest.Mock<MockFn>;
 let mockDocClient: unknown;
 let mockBaseRepository: BaseRepository<any>;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockSend = jest.fn();
+        mockSend = jest.fn<MockFn>();
         mockDocClient = {
             send: mockSend,
         };
@@ -670,6 +713,28 @@ describe('BaseRepository', () => {
                 expect(error).toBeInstanceOf(ProxyError);
                 expect(error.statusCode).toEqual(502);
                 expect(error.message).toEqual(`Error upserting item with id ${mock{{project_class_name}}Id}.`);
+            }
+        });
+    });
+
+    describe('replaceRecord', () => {
+        it('should successfully get and put replaced record', async () => {
+            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockResolvedValue(mock{{project_class_name}}Records[0]);
+            mockSend.mockResolvedValue({});
+            const result = await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
+            expect(getRecord).toHaveBeenCalledTimes(1);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mock{{project_class_name}}Records[0]);
+        });
+
+        it('should rethrow not found error', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord')
+                .mockRejectedValue(new NotFoundError('Not found'));
+            try {
+                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
+            } catch (error) {
+                expect(error).toBeInstanceOf(NotFoundError);
             }
         });
     });

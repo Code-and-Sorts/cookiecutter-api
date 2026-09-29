@@ -51,7 +51,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: T): Promise<T> => {
+  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -65,6 +65,19 @@ export class BaseRepository<T extends BaseItemRecord> {
         throw new NotFoundError(`Record with id ${updates.id} not found.`);
       }
       throw new ProxyError(`Error upserting item with id ${updates.id}.`);
+    }
+  };
+
+  replaceRecord = async (item: T): Promise<T> => {
+    try {
+      await this.getRecord(item.id);
+      const { resource: replacedRecord } = await this._container.item(item.id, item.id).replace<T>(item);
+      return replacedRecord as T;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new ProxyError(`Error replacing item with id ${item.id}.`);
     }
   };
 
@@ -150,7 +163,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: T): Promise<T> => {
+  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -165,6 +178,19 @@ export class BaseRepository<T extends BaseItemRecord> {
         throw error;
       }
       throw new ProxyError(`Error upserting item with id ${updates.id}.`);
+    }
+  };
+
+  replaceRecord = async (item: T): Promise<T> => {
+    try {
+      await this.getRecord(item.id);
+      await this._collection.doc(item.id).set(item);
+      return item;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new ProxyError(`Error replacing item with id ${item.id}.`);
     }
   };
 
@@ -191,8 +217,11 @@ export class BaseRepository<T extends BaseItemRecord> {
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 import { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import type { ServiceIdentifier } from 'inversify';
 import { ProxyError, NotFoundError } from '@errors';
 import { BaseItemRecord } from '@models';
+
+export const DocumentClient: ServiceIdentifier<DynamoDBDocumentClient> = Symbol.for('DynamoDBDocumentClient');
 
 // Default cap on list reads to avoid unbounded scans.
 const DEFAULT_LIST_LIMIT = 100;
@@ -258,7 +287,7 @@ export class BaseRepository<T extends BaseItemRecord> {
     }
   };
 
-  updateRecord = async (updates: T): Promise<T> => {
+  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
     try {
       const currentItem = await this.getRecord(updates.id);
       const updatedItem = {
@@ -275,6 +304,22 @@ export class BaseRepository<T extends BaseItemRecord> {
         throw error;
       }
       throw new ProxyError(`Error upserting item with id ${updates.id}.`);
+    }
+  };
+
+  replaceRecord = async (item: T): Promise<T> => {
+    try {
+      await this.getRecord(item.id);
+      await this._docClient.send(new PutCommand({
+        TableName: this._tableName,
+        Item: item as Record<string, unknown>,
+      }));
+      return item;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new ProxyError(`Error replacing item with id ${item.id}.`);
     }
   };
 
