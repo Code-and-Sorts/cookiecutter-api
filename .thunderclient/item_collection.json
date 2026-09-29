@@ -1,0 +1,147 @@
+{
+    "clientName": "Thunder Client",
+    "collectionName": "KittenClaws Requests",
+    "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+    "dateExported": "2024-08-10T22:25:59.850Z",
+    "version": "1.2",
+    "folders": [],
+    "requests": [
+{
+            "_id": "00000000-0000-4000-8000-000000000001",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Health",
+            "url": "{{baseUrl}}/health",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:25:19.095Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+{
+            "_id": "00000000-0000-4000-8000-000000000002",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Create KittenClaws",
+            "url": "{{baseUrl}}/kitties",
+            "method": "POST",
+            "sortNum": 20000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:25:19.095Z",
+            "headers": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"KittenClaws1\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "201"
+                },
+                {
+                    "type": "set-env-var",
+                    "custom": "json.id",
+                    "action": "setto",
+                    "value": "{{kittenClawsId}}"
+                }
+            ]
+        },
+{
+            "_id": "00000000-0000-4000-8000-000000000003",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "List KittenClaws",
+            "url": "{{baseUrl}}/kitties",
+            "method": "GET",
+            "sortNum": 30000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:25:19.095Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+{
+            "_id": "00000000-0000-4000-8000-000000000004",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Get KittenClaws by ID",
+            "url": "{{baseUrl}}/kitties/{{kittenClawsId}}",
+            "method": "GET",
+            "sortNum": 40000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:25:19.095Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+{
+            "_id": "00000000-0000-4000-8000-000000000005",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Update KittenClaws",
+            "url": "{{baseUrl}}/kitties/{{kittenClawsId}}",
+            "method": "PATCH",
+            "sortNum": 50000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:25:19.095Z",
+            "headers": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"name\": \"KittenClaws1-Update\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+{
+            "_id": "00000000-0000-4000-8000-000000000006",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Delete KittenClaws",
+            "url": "{{baseUrl}}/kitties/{{kittenClawsId}}",
+            "method": "DELETE",
+            "sortNum": 60000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:25:19.095Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        }
+    ],
+    "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
+}
