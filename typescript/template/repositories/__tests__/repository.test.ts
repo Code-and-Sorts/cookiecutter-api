@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 {% if cloud_service == 'Azure Function App' -%}
 import { CosmosClient } from "@azure/cosmos";
 {%- endif %}
@@ -13,22 +14,24 @@ import {
 {%- endfor %}
 } from "@repositories";
 
+type MockFn = (...args: any[]) => any;
+
 const mockResult = {};
 {% if cloud_service == 'Azure Function App' %}
 class MockCosmosClient {
-    public database = jest.fn().mockImplementation(() => ({
-        container: jest.fn(() => mockResult),
+    public database = jest.fn<MockFn>().mockImplementation(() => ({
+        container: jest.fn<MockFn>(() => mockResult),
     }));
 }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 class MockFirestore {
-    public collection = jest.fn().mockImplementation(() => mockResult);
+    public collection = jest.fn<MockFn>().mockImplementation(() => mockResult);
 }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 class MockDynamoDBDocumentClient {
-    public send = jest.fn().mockImplementation(() => mockResult);
+    public send = jest.fn<MockFn>().mockImplementation(() => mockResult);
 }
 {%- endif %}
 {% for resource in resources %}
@@ -40,17 +43,17 @@ describe('{{ r }}Repository', () => {
 {%- if cloud_service == 'Azure Function App' %}
 
     const mockCosmosClient = new MockCosmosClient() as unknown as CosmosClient;
-    const mockRepository = new {{ r }}Repository(mockCosmosClient.database('mock-db').container('mock-container'));
+    const mockRepository = new {{ r }}Repository(mockCosmosClient.database('mock-db'));
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
     const mockFirestore = new MockFirestore() as unknown as Firestore;
-    const mockRepository = new {{ r }}Repository(mockFirestore.collection('mock-collection'));
+    const mockRepository = new {{ r }}Repository(mockFirestore);
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
     const mockDocClient = new MockDynamoDBDocumentClient() as unknown as DynamoDBDocumentClient;
-    const mockRepository = new {{ r }}Repository(mockDocClient, 'mock-table');
+    const mockRepository = new {{ r }}Repository(mockDocClient);
 {%- endif %}
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
     const mockItem = {

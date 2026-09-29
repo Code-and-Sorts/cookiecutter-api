@@ -1,5 +1,7 @@
+import 'reflect-metadata';
+import { Container } from 'inversify';
 {% if cloud_service == 'Azure Function App' -%}
-import { CosmosClient } from '@azure/cosmos';
+import { CosmosClient, Database } from '@azure/cosmos';
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 import { Firestore } from '@google-cloud/firestore';
@@ -9,6 +11,9 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 {%- endif %}
 import {
+{%- if cloud_service == 'AWS Lambda' %}
+  DocumentClient,
+{%- endif %}
 {%- for resource in resources %}
   {{ resource.name }}Repository,
 {%- endfor %}
@@ -31,7 +36,6 @@ const client = new CosmosClient({
   endpoint: env.COSMOS_DB_URL,
   key: env.COSMOS_DB_KEY,
 });
-const database = client.database(env.COSMOS_DB_DATABASE_NAME);
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 const client = new Firestore({
@@ -40,21 +44,25 @@ const client = new Firestore({
 });
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-const dynamoClient = new DynamoDBClient({ region: env.AWS_REGION });
-const client = DynamoDBDocumentClient.from(dynamoClient);
+const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.AWS_REGION }));
 {%- endif %}
 
-const validator = new SchemaValidator();
-
-{%- for resource in resources %}
-{%- set r = resource.name %}
-{%- if cloud_service == 'Azure Function App' %}
-export const {{ r | to_lower_camel }}Controller = new {{ r }}Controller(new {{ r }}Service(new {{ r }}Repository(database.container(env.COSMOS_CONTAINER_{{ resource.container | upper | replace('-', '_') }}))), validator);
+export const container = new Container({ defaultScope: 'Singleton' });
+{% if cloud_service == 'Azure Function App' -%}
+container.bind(Database).toConstantValue(client.database(env.COSMOS_DB_DATABASE_NAME));
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-export const {{ r | to_lower_camel }}Controller = new {{ r }}Controller(new {{ r }}Service(new {{ r }}Repository(client.collection(env.FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}))), validator);
+container.bind(Firestore).toConstantValue(client);
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-export const {{ r | to_lower_camel }}Controller = new {{ r }}Controller(new {{ r }}Service(new {{ r }}Repository(client, env.DYNAMODB_TABLE_NAME_{{ resource.container | upper | replace('-', '_') }})), validator);
+container.bind(DocumentClient).toConstantValue(client);
 {%- endif %}
+container.bind(SchemaValidator).toSelf();
+{%- for resource in resources %}
+container.bind({{ resource.name }}Repository).toSelf();
+container.bind({{ resource.name }}Service).toSelf();
+container.bind({{ resource.name }}Controller).toSelf();
+{%- endfor %}
+{% for resource in resources %}
+export const {{ resource.name | to_lower_camel }}Controller = container.get({{ resource.name }}Controller);
 {%- endfor %}

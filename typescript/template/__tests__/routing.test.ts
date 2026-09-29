@@ -1,27 +1,29 @@
 {%- set all_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-{%- if cloud_service == 'Azure Function App' -%}
+import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
+{% if cloud_service == 'Azure Function App' -%}
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 import { APIGatewayProxyEvent } from 'aws-lambda';
 {%- endif %}
 import { NotFoundError } from '@errors';
-import * as container from '@config/container';
+
+type MockFn = (...args: any[]) => any;
 
 {% if cloud_service == 'Azure Function App' -%}
-jest.mock('@azure/functions', () => ({ app: { http: jest.fn() } }));
+jest.unstable_mockModule('@azure/functions', () => ({ app: { http: jest.fn<MockFn>() } }));
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-jest.mock('@google-cloud/functions-framework', () => ({ http: jest.fn() }));
+jest.unstable_mockModule('@google-cloud/functions-framework', () => ({ http: jest.fn<MockFn>() }));
 {%- endif %}
-jest.mock('@config/container', () => {
+jest.unstable_mockModule('@config/container', () => {
     const mockController = () => ({
-        list: jest.fn().mockResolvedValue([]),
-        get: jest.fn().mockResolvedValue({}),
-        post: jest.fn().mockResolvedValue({}),
-        update: jest.fn().mockResolvedValue({}),
-        replace: jest.fn().mockResolvedValue({}),
-        delete: jest.fn().mockResolvedValue(undefined),
+        list: jest.fn<MockFn>().mockResolvedValue([]),
+        get: jest.fn<MockFn>().mockResolvedValue({}),
+        post: jest.fn<MockFn>().mockResolvedValue({}),
+        update: jest.fn<MockFn>().mockResolvedValue({}),
+        replace: jest.fn<MockFn>().mockResolvedValue({}),
+        delete: jest.fn<MockFn>().mockResolvedValue(undefined),
     });
     return {
 {%- for resource in resources %}
@@ -32,7 +34,11 @@ jest.mock('@config/container', () => {
 
 const mockId = '91ed1c70-5412-449a-b949-80542a4eb3d5';
 const mockBody = { id: 'body-id', name: 'mockName' };
-const controllers = container as unknown as Record<string, Record<string, jest.Mock>>;
+let controllers: Record<string, Record<string, jest.Mock<MockFn>>>;
+
+beforeAll(async () => {
+    controllers = (await import('@config/container')) as unknown as Record<string, Record<string, jest.Mock<MockFn>>>;
+});
 {%- if cloud_service == 'Azure Function App' %}
 
 type Registration = { methods: string[]; route: string; handler: (request: HttpRequest, context: InvocationContext) => Promise<HttpResponseInit> };
@@ -41,7 +47,7 @@ let registrations: Record<string, Registration>;
 beforeAll(async () => {
     const { app } = await import('@azure/functions');
     await import('../functions/index');
-    registrations = Object.fromEntries((app.http as jest.Mock).mock.calls.map(([name, options]) => [name, options]));
+    registrations = Object.fromEntries((app.http as jest.Mock<MockFn>).mock.calls.map(([name, options]) => [name, options]));
 });
 
 const call = async (name: string, id?: string, body?: unknown) => {
@@ -51,7 +57,7 @@ const call = async (name: string, id?: string, body?: unknown) => {
         query: new URLSearchParams(),
         json: async () => body,
     } as unknown as HttpRequest;
-    return registrations[name].handler(request, { log: jest.fn() } as unknown as InvocationContext);
+    return registrations[name].handler(request, { log: jest.fn<MockFn>() } as unknown as InvocationContext);
 };
 
 describe('routing', () => {
@@ -155,14 +161,14 @@ let api: (req: unknown, res: unknown) => Promise<void>;
 beforeAll(async () => {
     const ff = await import('@google-cloud/functions-framework');
     await import('../main');
-    api = (ff.http as jest.Mock).mock.calls[0][1];
+    api = (ff.http as jest.Mock<MockFn>).mock.calls[0][1];
 });
 
 const send = async (method: string, path: string, body?: unknown) => {
     const res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn().mockReturnThis(),
-        send: jest.fn().mockReturnThis(),
+        status: jest.fn<MockFn>().mockReturnThis(),
+        json: jest.fn<MockFn>().mockReturnThis(),
+        send: jest.fn<MockFn>().mockReturnThis(),
     };
     await api({ method, path, body, query: {} }, res);
     return res.status.mock.calls[0][0];

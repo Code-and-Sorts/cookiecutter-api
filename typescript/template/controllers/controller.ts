@@ -1,3 +1,5 @@
+import 'reflect-metadata';
+import { inject, injectable } from 'inversify';
 import {
 {%- for resource in resources %}
     {{ resource.name }}Service,
@@ -27,11 +29,15 @@ const coerceLimit = (raw?: string | number): number => {
 };
 {% for resource in resources %}
 {%- set r = resource.name %}
+@injectable()
 export class {{ r }}Controller {
   private _service: {{ r }}Service;
   private _validator: SchemaValidator;
 
-  constructor(service: {{ r }}Service, validator: SchemaValidator) {
+  constructor(
+    @inject({{ r }}Service) service: {{ r }}Service,
+    @inject(SchemaValidator) validator: SchemaValidator,
+  ) {
     this._service = service;
     this._validator = validator;
   }

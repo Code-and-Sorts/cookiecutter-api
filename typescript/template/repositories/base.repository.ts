@@ -217,8 +217,11 @@ export class BaseRepository<T extends BaseItemRecord> {
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 import { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import type { ServiceIdentifier } from 'inversify';
 import { ProxyError, NotFoundError } from '@errors';
 import { BaseItemRecord } from '@models';
+
+export const DocumentClient: ServiceIdentifier<DynamoDBDocumentClient> = Symbol.for('DynamoDBDocumentClient');
 
 // Default cap on list reads to avoid unbounded scans.
 const DEFAULT_LIST_LIMIT = 100;

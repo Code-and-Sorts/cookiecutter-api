@@ -29,8 +29,6 @@ jobs:
           - "Azure Function App"
           - "GCP Cloud Function"
           - "AWS Lambda"
-        node-version:
-          - "24.x"
         fixture:
           - single
           - multi
@@ -56,10 +54,10 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
 
-      - name: Setup Node ${{ matrix.node-version }} Environment
+      - name: Setup Node Environment
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: ${{ matrix.cloud-service == 'Azure Function App' && '22.x' || '24.x' }}
 
       - run: corepack enable
         shell: bash

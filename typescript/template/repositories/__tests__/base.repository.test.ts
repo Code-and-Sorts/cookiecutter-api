@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { BaseRepository } from '@repositories';
 {% if cloud_service == 'Azure Function App' -%}
 import { Container } from '@azure/cosmos';
@@ -6,6 +7,8 @@ import { Container } from '@azure/cosmos';
 import { CollectionReference } from '@google-cloud/firestore';
 {%- endif %}
 import { NotFoundError, ProxyError } from '@errors';
+
+type MockFn = (...args: any[]) => any;
 
 
 {% if cloud_service == 'Azure Function App' -%}
@@ -111,10 +114,10 @@ let mockBaseRepository;
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockFetchAll = jest.fn();
-        mockReplace = jest.fn();
-        mockCreate = jest.fn();
-        mockPatch = jest.fn();
+        mockFetchAll = jest.fn<MockFn>();
+        mockReplace = jest.fn<MockFn>();
+        mockCreate = jest.fn<MockFn>();
+        mockPatch = jest.fn<MockFn>();
         mockContainer = {
             items: {
                 query: () => ({
@@ -349,24 +352,24 @@ const mockDeletedRecord = {
     isDeleted: true,
 };
 
-let mockSet: jest.Mock;
-let mockGet: jest.Mock;
-let mockUpdate: jest.Mock;
-let mockWhere: jest.Mock;
-let mockStream: jest.Mock;
-let mockDoc: jest.Mock;
+let mockSet: jest.Mock<MockFn>;
+let mockGet: jest.Mock<MockFn>;
+let mockUpdate: jest.Mock<MockFn>;
+let mockWhere: jest.Mock<MockFn>;
+let mockStream: jest.Mock<MockFn>;
+let mockDoc: jest.Mock<MockFn>;
 let mockCollection: unknown;
 let mockBaseRepository: BaseRepository<any>;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockSet = jest.fn().mockResolvedValue(undefined);
-        mockGet = jest.fn();
-        mockUpdate = jest.fn().mockResolvedValue(undefined);
-        mockStream = jest.fn();
-        mockWhere = jest.fn().mockReturnValue({ get: jest.fn() });
-        mockDoc = jest.fn().mockReturnValue({
+        mockSet = jest.fn<MockFn>().mockResolvedValue(undefined);
+        mockGet = jest.fn<MockFn>();
+        mockUpdate = jest.fn<MockFn>().mockResolvedValue(undefined);
+        mockStream = jest.fn<MockFn>();
+        mockWhere = jest.fn<MockFn>().mockReturnValue({ get: jest.fn<MockFn>() });
+        mockDoc = jest.fn<MockFn>().mockReturnValue({
             set: mockSet,
             get: mockGet,
             update: mockUpdate,
@@ -438,7 +441,7 @@ describe('BaseRepository', () => {
             const mockSnapshot = {
                 docs: mock{{project_class_name}}Records.map((r) => ({ data: () => r })),
             };
-            mockWhere.mockReturnValue({ limit: jest.fn().mockReturnValue({ get: jest.fn().mockResolvedValue(mockSnapshot) }) });
+            mockWhere.mockReturnValue({ limit: jest.fn<MockFn>().mockReturnValue({ get: jest.fn<MockFn>().mockResolvedValue(mockSnapshot) }) });
             const result = await mockBaseRepository.getRecords();
             expect(mockWhere).toHaveBeenCalledWith('isDeleted', '==', false);
             expect(result).toEqual(mock{{project_class_name}}Records);
@@ -446,8 +449,8 @@ describe('BaseRepository', () => {
 
         it('should throw proxy error on failure', async () => {
             mockWhere.mockReturnValue({
-                limit: jest.fn().mockReturnValue({
-                    get: jest.fn().mockRejectedValue(new Error('Unknown error')),
+                limit: jest.fn<MockFn>().mockReturnValue({
+                    get: jest.fn<MockFn>().mockRejectedValue(new Error('Unknown error')),
                 }),
             });
             try {
@@ -579,14 +582,14 @@ const mockDeletedRecord = {
 };
 const mockDeleteUpdatedTimestamp = '2024-03-24T00:00:00.000Z';
 
-let mockSend: jest.Mock;
+let mockSend: jest.Mock<MockFn>;
 let mockDocClient: unknown;
 let mockBaseRepository: BaseRepository<any>;
 
 describe('BaseRepository', () => {
     beforeEach(() => {
         jest.resetAllMocks();
-        mockSend = jest.fn();
+        mockSend = jest.fn<MockFn>();
         mockDocClient = {
             send: mockSend,
         };
