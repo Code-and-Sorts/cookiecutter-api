@@ -1,46 +1,77 @@
 {%- set r = resource.name -%}
 {%- set lc = resource.name | to_lower_camel -%}
+{%- set ops = resource.operations -%}
+{%- set needs_get_item = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
+{%- set needs_time = 'update' in ops or 'replace' in ops -%}
 package repositories
 
 import (
 	"context"
 {%- if cloud_service == 'Azure Function App' %}
 	"encoding/json"
+{%- endif %}
+{%- if cloud_service == 'Azure Function App' and needs_get_item %}
 	"errors"
 {%- endif %}
+{%- if needs_get_item or (cloud_service == 'Azure Function App' and 'list' in ops) %}
 	"fmt"
-{%- if cloud_service == 'Azure Function App' %}
+{%- endif %}
+{%- if cloud_service == 'Azure Function App' and needs_get_item %}
 	"net/http"
 {%- endif %}
+{%- if needs_time %}
 	"time"
+{%- endif %}
 {% if cloud_service == 'Azure Function App' %}
+{%- if needs_get_item %}
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+{%- endif %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 	"cloud.google.com/go/firestore"
+{%- if 'list' in ops %}
 	"google.golang.org/api/iterator"
+{%- endif %}
+{%- if needs_get_item %}
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+{%- endif %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+{%- if 'list' in ops %}
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
+{%- endif %}
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+{%- if 'list' in ops %}
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+{%- endif %}
 {%- endif %}
 
 	"{{project_endpoint}}/models"
 )
 
 type {{ r }}Repository interface {
+{%- if 'get_by_id' in ops %}
 	Get(ctx context.Context, id string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'list' in ops %}
 	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'create' in ops %}
 	Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'update' in ops %}
 	Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'replace' in ops %}
 	Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'delete' in ops %}
 	Delete(ctx context.Context, id string) error
+{%- endif %}
 }
 {%- if cloud_service == 'Azure Function App' %}
 
@@ -51,6 +82,7 @@ type {{ lc }}Repository struct {
 func New{{ r }}Repository(container *azcosmos.ContainerClient) {{ r }}Repository {
 	return &{{ lc }}Repository{container: container}
 }
+{%- if needs_get_item %}
 
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	pk := azcosmos.NewPartitionKeyString(id)
@@ -74,6 +106,8 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 
 	return &item, nil
 }
+{%- endif %}
+{%- if 'get_by_id' in ops %}
 
 func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	item, err := repo.getItem(ctx, id)
@@ -86,6 +120,8 @@ func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ 
 		Name: item.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'list' in ops %}
 
 func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	query := fmt.Sprintf("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT %d", limit)
@@ -116,6 +152,8 @@ func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]model
 
 	return results, nil
 }
+{%- endif %}
+{%- if 'create' in ops %}
 
 func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	pk := azcosmos.NewPartitionKeyString(item.Id)
@@ -139,6 +177,8 @@ func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }})
 		Name: created.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'update' in ops %}
 
 func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	currentItem, err := repo.getItem(ctx, item.Id)
@@ -189,6 +229,8 @@ func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }})
 		Name: updated.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'replace' in ops %}
 
 func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	currentItem, err := repo.getItem(ctx, item.Id)
@@ -229,6 +271,8 @@ func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}
 		Name: replaced.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'delete' in ops %}
 
 func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	item, err := repo.getItem(ctx, id)
@@ -247,6 +291,7 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	return err
 }
 {%- endif %}
+{%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
 type {{ lc }}Repository struct {
@@ -256,6 +301,7 @@ type {{ lc }}Repository struct {
 func New{{ r }}Repository(collection *firestore.CollectionRef) {{ r }}Repository {
 	return &{{ lc }}Repository{collection: collection}
 }
+{%- if needs_get_item %}
 
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	doc, err := repo.collection.Doc(id).Get(ctx)
@@ -277,6 +323,8 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 
 	return &item, nil
 }
+{%- endif %}
+{%- if 'get_by_id' in ops %}
 
 func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	item, err := repo.getItem(ctx, id)
@@ -289,6 +337,8 @@ func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ 
 		Name: item.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'list' in ops %}
 
 func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	iter := repo.collection.Where("isDeleted", "==", false).Limit(limit).Documents(ctx)
@@ -316,6 +366,8 @@ func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]model
 
 	return results, nil
 }
+{%- endif %}
+{%- if 'create' in ops %}
 
 func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	_, err := repo.collection.Doc(item.Id).Set(ctx, item)
@@ -328,6 +380,8 @@ func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }})
 		Name: item.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'update' in ops %}
 
 func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	currentItem, err := repo.getItem(ctx, item.Id)
@@ -367,6 +421,8 @@ func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }})
 		Name: updateItem.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'replace' in ops %}
 
 func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	currentItem, err := repo.getItem(ctx, item.Id)
@@ -396,6 +452,8 @@ func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}
 		Name: replacementItem.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'delete' in ops %}
 
 func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	item, err := repo.getItem(ctx, id)
@@ -408,6 +466,7 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	return err
 }
 {%- endif %}
+{%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
 type {{ lc }}Repository struct {
@@ -418,6 +477,7 @@ type {{ lc }}Repository struct {
 func New{{ r }}Repository(client *dynamodb.Client, tableName string) {{ r }}Repository {
 	return &{{ lc }}Repository{client: client, tableName: tableName}
 }
+{%- if needs_get_item %}
 
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
@@ -448,6 +508,8 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 
 	return &item, nil
 }
+{%- endif %}
+{%- if 'get_by_id' in ops %}
 
 func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	item, err := repo.getItem(ctx, id)
@@ -460,6 +522,8 @@ func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ 
 		Name: item.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'list' in ops %}
 
 func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	filt := expression.Equal(expression.Name("isDeleted"), expression.Value(false))
@@ -509,6 +573,8 @@ func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]model
 
 	return results, nil
 }
+{%- endif %}
+{%- if 'create' in ops %}
 
 func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	av, err := attributevalue.MarshalMap(item)
@@ -529,6 +595,8 @@ func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }})
 		Name: item.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'update' in ops %}
 
 func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	currentItem, err := repo.getItem(ctx, item.Id)
@@ -576,6 +644,8 @@ func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }})
 		Name: updateItem.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'replace' in ops %}
 
 func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	currentItem, err := repo.getItem(ctx, item.Id)
@@ -613,6 +683,8 @@ func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}
 		Name: replacementItem.Name,
 	}, nil
 }
+{%- endif %}
+{%- if 'delete' in ops %}
 
 func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	item, err := repo.getItem(ctx, id)
@@ -633,4 +705,5 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	})
 	return err
 }
+{%- endif %}
 {%- endif %}

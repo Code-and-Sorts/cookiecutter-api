@@ -4,8 +4,10 @@ package services
 import (
 	"context"
 	"testing"
+{%- if resource.operations | reject('equalto', 'delete') | list | length > 0 %}
 
 	"{{project_endpoint}}/models"
+{%- endif %}
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -14,6 +16,7 @@ import (
 type mock{{ r }}Repository struct {
 	mock.Mock
 }
+{%- if "get_by_id" in resource.operations %}
 
 func (m *mock{{ r }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, id)
@@ -22,6 +25,8 @@ func (m *mock{{ r }}Repository) Get(ctx context.Context, id string) (*models.{{ 
 	}
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
+{%- endif %}
+{%- if "list" in resource.operations %}
 
 func (m *mock{{ r }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	args := m.Called(ctx, limit)
@@ -30,6 +35,8 @@ func (m *mock{{ r }}Repository) GetList(ctx context.Context, limit int) ([]model
 	}
 	return args.Get(0).([]models.{{ r }}Dto), args.Error(1)
 }
+{%- endif %}
+{%- if "create" in resource.operations %}
 
 func (m *mock{{ r }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, item)
@@ -38,6 +45,8 @@ func (m *mock{{ r }}Repository) Create(ctx context.Context, item models.{{ r }})
 	}
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
+{%- endif %}
+{%- if "update" in resource.operations %}
 
 func (m *mock{{ r }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, item)
@@ -46,6 +55,8 @@ func (m *mock{{ r }}Repository) Update(ctx context.Context, item models.{{ r }})
 	}
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
+{%- endif %}
+{%- if "replace" in resource.operations %}
 
 func (m *mock{{ r }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, item)
@@ -54,11 +65,14 @@ func (m *mock{{ r }}Repository) Replace(ctx context.Context, item models.{{ r }}
 	}
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
+{%- endif %}
+{%- if "delete" in resource.operations %}
 
 func (m *mock{{ r }}Repository) Delete(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
+{%- endif %}
 
 func setup{{ r }}ServiceTest() (*mock{{ r }}Repository, {{ r }}Service) {
 	mockRepo := new(mock{{ r }}Repository)
