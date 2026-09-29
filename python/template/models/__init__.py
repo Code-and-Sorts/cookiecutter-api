@@ -1,3 +1,19 @@
-from .{{project_slug}} import {{ project_class_name }}, Base{{ project_class_name }}, {{ project_class_name }}Response, {{ project_class_name }}IdValidation, generate_utc_timestamp
+from .resources import (
+    generate_utc_timestamp,
+{%- for resource in resources %}
+    Base{{ resource.name }},
+    {{ resource.name }},
+    {{ resource.name }}Response,
+    {{ resource.name }}IdValidation,
+{%- endfor %}
+)
 
-__all__ = ["{{ project_class_name }}","Base{{ project_class_name }}","{{ project_class_name }}Response","{{ project_class_name }}IdValidation", "generate_utc_timestamp"]
+__all__ = [
+    "generate_utc_timestamp",
+{%- for resource in resources %}
+    "Base{{ resource.name }}",
+    "{{ resource.name }}",
+    "{{ resource.name }}Response",
+    "{{ resource.name }}IdValidation",
+{%- endfor %}
+]

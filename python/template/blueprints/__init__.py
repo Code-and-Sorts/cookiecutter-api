@@ -1,5 +1,5 @@
 {% if cloud_service == 'Azure Function App' -%}
-from .{{project_slug}}_api import bp
+from .api import bp
 
 __all__ = ["bp"]
 {%- endif %}

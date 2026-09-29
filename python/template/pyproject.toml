@@ -7,29 +7,29 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.13,<3.15"
-pydantic = "^2.12.0"
-pydantic-settings = "^2.6.0"
+python = ">=3.14,<3.15"
+pydantic = "^2.13.5"
+pydantic-settings = "^2.15.0"
 {% if cloud_service == 'Azure Function App' -%}
-azure-cosmos = "^4.15.0"
+azure-cosmos = "^4.17.1"
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
-google-cloud-firestore = "^2.26.0"
-functions-framework = "^3.10.0"
+google-cloud-firestore = "^2.32.0"
+functions-framework = "^3.10.2"
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
 aioboto3 = "^15.5.0"
 {%- endif %}
-pytest-mock = "^3.14.0"
-pytest-describe = "^3.0.0"
+pytest-mock = "^3.15.1"
+pytest-describe = "^3.2.0"
 
 [tool.poetry.group.dev.dependencies]
 {% if cloud_service == 'Azure Function App' -%}
-azure-functions = "2.1.0"
+azure-functions = "2.3.0"
 {%- endif %}
-pytest = "^9.0.0"
-pytest-cov = "^7.0.0"
-ruff = "^0.15.0"
+pytest = "^9.1.1"
+pytest-cov = "^7.1.0"
+ruff = "^0.16.9"
 
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report=term-missing --cov-fail-under=80"
@@ -39,7 +39,7 @@ omit = ["*_test.py"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]

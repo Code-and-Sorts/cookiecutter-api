@@ -1,127 +1,66 @@
+{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
+{%- set methods = {'list': 'GET', 'get_by_id': 'GET', 'create': 'POST', 'update': 'PATCH', 'replace': 'PUT', 'delete': 'DELETE'} -%}
+{%- set labels = {'list': 'List', 'get_by_id': 'Get by ID', 'create': 'Create', 'update': 'Update', 'replace': 'Replace', 'delete': 'Delete'} -%}
+{%- set statuses = {'list': '200', 'get_by_id': '200', 'create': '201', 'update': '200', 'replace': '200', 'delete': '200'} -%}
+{%- set bodies = {'create': '{\\n  \\"name\\": \\"Item1\\",\\n  \\"type\\": \\"item\\"\\n}', 'update': '{\\n  \\"name\\": \\"Item1-Update\\"\\n}', 'replace': '{\\n  \\"name\\": \\"Item1-Replace\\",\\n  \\"type\\": \\"item\\"\\n}'} -%}
+{%- set ns = namespace(sort=0) -%}
 {
     "clientName": "Thunder Client",
-    "collectionName": "{{ project_name }}s Requests",
+    "collectionName": "{{ project_name }} Requests",
     "collectionId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
     "dateExported": "2024-08-10T22:25:59.850Z",
     "version": "1.2",
     "folders": [],
     "requests": [
+{%- for resource in resources %}
+{%- set outer = loop %}
+{%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
+{%- for op in resource.operations %}
+{%- set ns.sort = ns.sort + 10000 %}
+{%- if cloud_service == 'Azure Function App' %}
+{%- set path = '/api/' ~ resource.endpoint %}
+{%- elif cloud_service == 'GCP Cloud Function' %}
+{%- set path = '/' ~ op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
+{%- else %}
+{%- set path = '/' ~ resource.endpoint %}
+{%- endif %}
         {
-            "_id": "a26e1715-1b03-4e9a-855a-1694f972b6da",
+            "_id": "{{ resource.endpoint }}-{{ op }}",
             "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
             "containerId": "",
-            "name": "Get {{ project_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}",
-            "method": "GET",
-            "sortNum": 10000,
+            "name": "{{ labels[op] }} {{ resource.name }}",
+            "url": "{{ '{{baseUrl}}' }}{{ path }}{% if op not in ['list', 'create'] %}/{{ id_var }}{% endif %}",
+            "method": "{{ methods[op] }}",
+            "sortNum": {{ ns.sort }},
             "created": "2024-08-10T20:25:19.095Z",
             "modified": "2024-08-10T20:42:18.713Z",
             "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "c9e0f3f9-2f59-4adc-97af-a1b63c03db81",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Get {{ project_name }} by ID",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "GET",
-            "sortNum": 20000,
-            "created": "2024-08-10T20:26:15.998Z",
-            "modified": "2024-08-10T20:42:41.531Z",
-            "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "0f157099-1bbf-49ed-b06d-c089c868b488",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Create {{ project_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}",
-            "method": "POST",
-            "sortNum": 30000,
-            "created": "2024-08-10T20:26:20.281Z",
-            "modified": "2024-08-10T21:37:03.009Z",
-            "headers": [],
+{%- if op in bodies %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"Item1\",\n  \"type\": \"item\"\n}",
+                "raw": "{{ bodies[op] }}",
                 "form": []
             },
+{%- endif %}
             "tests": [
                 {
                     "type": "res-code",
                     "custom": "",
                     "action": "equal",
-                    "value": "201"
-                },
+                    "value": "{{ statuses[op] }}"
+                }
+{%- if op == 'create' %},
                 {
                     "type": "set-env-var",
                     "custom": "json.id",
                     "action": "setto",
-                    "value": "{{ '{{itemId}}' }}"
+                    "value": "{{ id_var }}"
                 }
+{%- endif %}
             ]
-        },
-        {
-            "_id": "6f0060e6-1215-46cf-9fcf-58978b949064",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Update {{ project_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "PATCH",
-            "sortNum": 40000,
-            "created": "2024-08-10T20:26:22.436Z",
-            "modified": "2024-08-10T20:41:19.211Z",
-            "headers": [],
-            "body": {
-                "type": "json",
-                "raw": "{\n  \"name\": \"Item1-Update\"\n}",
-                "form": []
-            },
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        },
-        {
-            "_id": "55de1112-4666-402b-8831-58937afbe355",
-            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
-            "containerId": "",
-            "name": "Delete {{ project_name }}",
-            "url": "{{ '{{baseUrl}}' }}/api/{{ project_endpoint }}/{{ '{{itemId}}' }}",
-            "method": "DELETE",
-            "sortNum": 50000,
-            "created": "2024-08-10T20:26:54.814Z",
-            "modified": "2024-08-10T20:41:58.983Z",
-            "headers": [],
-            "tests": [
-                {
-                    "type": "res-code",
-                    "custom": "",
-                    "action": "equal",
-                    "value": "200"
-                }
-            ]
-        }
+        }{% if not (outer.last and loop.last) %},{% endif %}
+{%- endfor %}
+{%- endfor %}
     ],
     "ref": "hV3l1oL8kpRySEVYqD5DKi65Y5KibnbF1ExE8IKtcmz1fKzswGSfM7KOAzb9fi_ziXgiU-u7hzp53wOpXKhhlA"
 }
