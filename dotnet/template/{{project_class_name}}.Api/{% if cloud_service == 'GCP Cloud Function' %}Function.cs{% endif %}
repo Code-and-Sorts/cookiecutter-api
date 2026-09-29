@@ -30,12 +30,6 @@ public class Function : IHttpFunction
         try
         {
             var path = request.Path.Value ?? string.Empty;
-            if (request.Method == "GET" && path.TrimEnd('/') == "/health")
-            {
-                await response.WriteJsonAsync(StatusCodes.Status200OK, new { status = "ok" }, ct);
-                return;
-            }
-
             var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var endpoint = segments.Length >= 1 ? segments[0] : string.Empty;
             var id = segments.Length >= 2 ? segments[1] : null;

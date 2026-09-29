@@ -24,16 +24,6 @@ public class FunctionTests
     }
 
     [Fact]
-    public async Task HandleAsync_Health_ReturnsOk()
-    {
-        var httpContext = Mocks.CreateHttpContext("GET", "/health");
-
-        await _function.HandleAsync(httpContext);
-
-        Assert.Equal(200, httpContext.Response.StatusCode);
-    }
-
-    [Fact]
     public async Task HandleAsync_UnknownEndpoint_ReturnsNotFound()
     {
         var httpContext = Mocks.CreateHttpContext("GET", "/unknown-endpoint");
@@ -80,6 +70,9 @@ public class FunctionTests
 {%- for resource in resources %}
     [InlineData("/{{ resource.endpoint }}")]
 {%- endfor %}
+{%- if health_endpoint %}
+    [InlineData("/{{ health_endpoint }}")]
+{%- endif %}
     public async Task HandleAsync_ResourceEndpoint_IsRoutedToItsHandler(string path)
     {
         var function = new Function(
@@ -87,6 +80,9 @@ public class FunctionTests
 {%- for resource in resources %}
             new {{ resource.name }}Handler(Substitute.For<I{{ resource.name }}Controller>()),
 {%- endfor %}
+{%- if health_endpoint %}
+            new HealthHandler(),
+{%- endif %}
         ], Substitute.For<ILogger<Function>>());
         var httpContext = Mocks.CreateHttpContext("OPTIONS", path);
 

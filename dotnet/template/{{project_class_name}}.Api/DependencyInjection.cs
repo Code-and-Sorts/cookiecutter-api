@@ -35,6 +35,9 @@ public static class DependencyInjection
 {%- for resource in resources %}
         services.AddSingleton<IResourceHandler, {{ resource.name }}Handler>();
 {%- endfor %}
+{%- if health_endpoint %}
+        services.AddSingleton<IResourceHandler, HealthHandler>();
+{%- endif %}
 
         return services;
     }

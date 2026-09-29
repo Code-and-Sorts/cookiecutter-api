@@ -40,8 +40,10 @@ The REST API exposes the following resources and operations:
   - `DELETE {{ prefix }}/{{ resource.endpoint }}/{id}` — soft delete
 {%- endif %}
 {%- endfor %}
-- **`{{ prefix }}/health`**
-  - `GET {{ prefix }}/health` — health check
+{%- if health_endpoint %}
+- **`{{ prefix }}/{{ health_endpoint }}`**
+  - `GET {{ prefix }}/{{ health_endpoint }}` — health check
+{%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 
 Paths are relative to the Function App host (`http://localhost:7071` when running locally); `/api` is the Azure Functions default route prefix.

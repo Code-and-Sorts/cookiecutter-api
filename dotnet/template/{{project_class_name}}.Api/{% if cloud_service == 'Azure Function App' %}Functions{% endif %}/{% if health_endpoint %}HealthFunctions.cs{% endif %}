@@ -10,7 +10,7 @@ public class HealthFunctions
 {
     [Function("Health")]
     public Task<IActionResult> Health(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health")] HttpRequestData req, CancellationToken ct = default)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "{{ health_endpoint }}")] HttpRequestData req, CancellationToken ct = default)
     {
         return Task.FromResult<IActionResult>(new OkObjectResult(new { status = "ok" }));
     }

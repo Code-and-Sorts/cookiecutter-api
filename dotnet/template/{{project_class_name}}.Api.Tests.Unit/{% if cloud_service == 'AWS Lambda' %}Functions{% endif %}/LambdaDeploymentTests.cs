@@ -21,11 +21,11 @@ public class LambdaDeploymentTests
             .Select(line => line["Handler: ".Length..].Split("::"))
             .ToList();
 
-        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + 1 }}, handlers.Count);
+        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + (1 if health_endpoint else 0) }}, handlers.Count);
         foreach (var handler in handlers)
         {
-            Assert.Equal(typeof(HealthFunctions).Assembly.GetName().Name, handler[0]);
-            var handlerType = typeof(HealthFunctions).Assembly.GetType(handler[1]);
+            Assert.Equal(typeof(Startup).Assembly.GetName().Name, handler[0]);
+            var handlerType = typeof(Startup).Assembly.GetType(handler[1]);
             Assert.NotNull(handlerType);
             Assert.NotNull(handlerType.GetConstructor(Type.EmptyTypes));
             Assert.NotNull(handlerType.GetMethod(handler[2]));
@@ -33,7 +33,9 @@ public class LambdaDeploymentTests
     }
 
     [Theory]
+{%- if health_endpoint %}
     [InlineData(typeof(HealthFunctions))]
+{%- endif %}
 {%- for resource in resources %}
     [InlineData(typeof({{ resource.name }}Functions))]
 {%- endfor %}
