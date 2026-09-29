@@ -36,7 +36,7 @@ Azure Functions serves HTTP functions under the `/api` route prefix. Every route
 Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally).
 {%- else -%}
 Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`).
-{%- endif %}
+{%- endif %}{{ "\n" }}
 
 {%- if health_endpoint %}
 - `GET {{ base_path }}/{{ health_endpoint }}` — health check
@@ -63,7 +63,39 @@ Paths are relative to the API Gateway stage URL (for example `https://<api-id>.e
 {%- endif %}
 {%- endfor %}
 
-The `id` in the path always wins over an `id` in a PATCH or PUT body. Operations that were not generated for a resource{% if cloud_service == 'Azure Function App' %} have no function registered{% else %} return 405 Method Not Allowed{% endif %}.
+## Requests and responses
+
+Every response the app sends is JSON (`Content-Type: application/json`), errors included.
+
+- An item is `{"id": "<uuid>", "name": "<string>"}`. A list is a JSON array (`[]` when empty).
+- A request body must be a JSON object holding only the resource's fields. POST and PUT require `name` as a non-empty string (numbers and booleans are not converted). PATCH may leave `name` out, but when present it must be a non-empty string.
+- Unknown fields are rejected, including `id`, `isDeleted`, the timestamps and `createdBy`/`updatedBy`, so clients can never set ids or system fields. The id comes from the path only.
+- `?limit=` on a list is optional: a missing or invalid value uses the default (100) and larger values are capped at 1000.
+
+| Status | When | Body |
+|---|---|---|
+| 200 | get, list, update, replace | the item, or an array of items |
+| 201 | create | the new item |
+| 200 | delete | `{"message": "<Name> with id <id> was deleted successfully."}` |
+| 400 | body is not valid JSON or not an object, a field is missing or invalid, or an unknown field is sent | `{"errorMessage": "<what is wrong>"}` |
+| 404 | the id does not exist, is soft-deleted, or is not a UUID | `{"errorMessage": "<Name> with id <id> was not found."}` |
+{%- if cloud_service != 'Azure Function App' %}
+| 404 | unknown path | `{"errorMessage": "Not found."}` |
+| 405 | known path, operation not generated for the resource | `{"errorMessage": "Method not allowed."}` |
+{%- endif %}
+| 500 | anything unexpected, such as a database failure | `{"errorMessage": "An unexpected error occurred."}` |
+
+Expected 4xx outcomes are not logged as errors. Unexpected errors are logged at error level with their stack trace (a database failure carries the SDK error as its `cause`); exception text never reaches the client.
+{%- if cloud_service == 'Azure Function App' %}
+
+Requests for a method or path that has no registered function never reach the app: the Functions host answers them itself with its own 404 (not JSON, and not a 405). That covers unknown paths and operations that were not generated for a resource.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+
+Every request reaches the `api` function, so unknown paths get the JSON 404 and operations that were not generated get the JSON 405. The Functions Framework parses request bodies before the function runs; `main.ts` gives its Express app a JSON final handler, so a malformed body is still answered with the JSON 400 above. The framework itself answers `/favicon.ico` and `/robots.txt` with an empty 404.
+{%- else %}
+
+API Gateway only routes the methods and paths listed in `template.yaml`, one per generated operation. Any other method or path is answered by API Gateway (and by `sam local start-api`) with `403 {"message": "Missing Authentication Token"}` without invoking the Lambda, so the handler's JSON 404 and 405 answers only apply to requests that reach it.
+{%- endif %}
 
 ## Storage
 
@@ -91,6 +123,8 @@ Each resource is stored in the {{ store_word }} named by its `container` setting
 
 `<CONTAINER>` is the container id upper-cased with `-` replaced by `_`.
 
+Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp`, plus `createdBy`/`updatedBy` only when they are set (they are never stored as null or empty). Timestamps are ISO-8601 UTC with millisecond precision, for example `2026-09-29T22:49:26.625Z`. Create sets both timestamps; PATCH and PUT keep the stored `createdTimestamp` and `createdBy` and refresh `updatedTimestamp`; DELETE is a soft delete that sets `isDeleted: true` and refreshes `updatedTimestamp`.
+
 ## Environment variables
 
 | Variable | Required | Description |
@@ -109,7 +143,7 @@ Each resource is stored in the {{ store_word }} named by its `container` setting
 | `{{ env_prefix }}{{ container | upper | replace('-', '_') }}` | no | {{ store_word }} for `{{ container }}` (default `{{ container }}`) |
 {%- endfor %}
 
-Locally the variables are read from the process environment and from a `.env` file in the project root.
+Locally the variables are read from the process environment and from a `.env` file in the project root (loaded quietly, without a startup banner).
 
 ## Prerequisites
 
@@ -167,7 +201,7 @@ sam local start-api
 The API is served at `http://127.0.0.1:3000`. The functions reach DynamoDB with your local AWS credentials; the table names come from `template.yaml`.
 {%- endif %}
 
-The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation and a `baseUrl` that matches the local server above.
+The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation, a few error cases, and a `baseUrl` that matches the local server above.
 
 ## Deploy
 
@@ -273,9 +307,9 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- for resource in resources %}
 │       {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.schema.ts
 {%- endfor %}
-├── utils                           - Error to HTTP response mapping, list limits
+├── utils                           - Error to JSON response mapping, JSON body parsing, list limits
 {%- if cloud_service == 'GCP Cloud Function' %}
-├── main.ts                         - Functions Framework entry point
+├── main.ts                         - Functions Framework entry point and JSON final handler
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 ├── lambda.ts                       - Lambda handler

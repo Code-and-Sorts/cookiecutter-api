@@ -1,36 +1,39 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import {
+  errorResponse,
 {%- if health_endpoint %}
   healthRoutes,
 {%- endif %}
-  jsonResponse,
+  notFound,
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
 } from '@routes';
-import { detectError } from '@utils';
 
+// Routes by the API Gateway resource (/<endpoint> or /<endpoint>/{id}); template.yaml maps
+// only the enabled operations, so API Gateway answers other paths and methods itself.
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const routePath = (event.resource || event.path || '').replace(/\/+$/, '');
-  const segments = routePath.split('/').filter(Boolean);
+  const segments = (event.resource || event.path || '').split('/').filter(Boolean);
   const endpoint = segments[0];
-  const id = event.pathParameters?.id;
+  const id = segments.length > 1 ? event.pathParameters?.id : undefined;
 
   try {
+    if (segments.length > 2 || (segments.length === 2 && id === undefined)) {
+      return notFound();
+    }
     switch (endpoint) {
 {%- if health_endpoint %}
       case '{{ health_endpoint }}':
-        return await healthRoutes(event, id);
+        return id === undefined ? await healthRoutes(event) : notFound();
 {%- endif %}
 {%- for resource in resources %}
       case '{{ resource.endpoint }}':
         return await {{ resource.name | to_lower_camel }}Routes(event, id);
 {%- endfor %}
       default:
-        return jsonResponse(404, { error: 'Not found.' });
+        return notFound();
     }
   } catch (error) {
-    const errorResponse = detectError(error);
-    return jsonResponse(errorResponse.status, errorResponse.body);
+    return errorResponse(error);
   }
 };

@@ -1,9 +1,9 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Controller } from '@controllers';
 import { {{ r }}Service, SchemaValidator } from '@services';
-import { {{ r }}RequestSchema, {{ r }}UpdateSchema, GuidSchema } from '@models';
-import { ValidationError } from '@errors';
+import { NotFoundError, ValidationError } from '@errors';
 
 type MockFn = (...args: any[]) => any;
 
@@ -30,77 +30,77 @@ describe('{{ r }}Controller', () => {
 
     const mockValidGuid = '91ed1c70-5412-449a-b949-80542a4eb3d5';
     const mockInvalidGuid = 'invalid-guid';
-    const mockPostRequest = { name: 'mock{{ r }}' };
-    const mockInvalidPostRequest = { name: 'mock{{ r }}', invalidProp: 'mockInvalidProp' };
-    const mockPutRequest = { id: mockValidGuid, name: 'mock{{ r }}' };
-    const mockInvalidPutRequest = { id: mockInvalidGuid, name: 'mock{{ r }}' };
-    const mockSchemaValidator = new SchemaValidator();
+    const mockBody = { name: 'mock{{ r }}' };
     const mockService = new Mock{{ r }}Service() as unknown as {{ r }}Service;
-    const mockController = new {{ r }}Controller(mockService, mockSchemaValidator);
-{%- if "create" in resource.operations %}
+    const mockController = new {{ r }}Controller(mockService, new SchemaValidator());
+
+    // Asserts that a call is rejected with a 400 ValidationError carrying the given message.
+    const expectBadRequest = async (call: Promise<unknown>, message: string) => {
+        await expect(call).rejects.toBeInstanceOf(ValidationError);
+        await expect(call).rejects.toMatchObject({ statusCode: 400, message });
+    };
+
+    // Asserts that a call is rejected with the contract's 404 for the given id.
+    const expectNotFound = async (call: Promise<unknown>, id: string) => {
+        await expect(call).rejects.toBeInstanceOf(NotFoundError);
+        await expect(call).rejects.toMatchObject({ statusCode: 404, message: `{{ r }} with id ${id} was not found.` });
+    };
+{%- if "create" in ops %}
 
     describe('post', () => {
-        it('should successfully call service', async () => {
-            await mockController.post(mockPostRequest);
-            expect(mockCreate).toHaveBeenCalledTimes(1);
+        it('should pass the validated body to the service', async () => {
+            mockCreate.mockResolvedValue({ id: mockValidGuid, ...mockBody });
+            expect(await mockController.post(mockBody)).toEqual({ id: mockValidGuid, ...mockBody });
+            expect(mockCreate).toHaveBeenCalledWith(mockBody);
         });
 
-        it('should successfully validate the item request', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPostRequest);
-            await mockController.post(mockPostRequest);
-            expect(validator).toHaveBeenCalledTimes(1);
-            expect(validator).toHaveBeenCalledWith(mockPostRequest, {{ r }}RequestSchema);
+        it('should return 400 when name is missing', async () => {
+            await expectBadRequest(mockController.post({}), 'name is required.');
+            expect(mockCreate).not.toHaveBeenCalled();
         });
 
-        it('should successfully throw for invalid request', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate');
-            try {
-                await mockController.post(mockInvalidPostRequest);
-            } catch (error) {
-                expect(validator).toHaveBeenCalledTimes(1);
-                expect(error).toBeInstanceOf(ValidationError);
-                expect(error.statusCode).toEqual(422);
-                expect(error.message).toEqual('Failed schema validation');
-            }
+        it('should return 400 when name is not a string', async () => {
+            await expectBadRequest(mockController.post({ name: 42 }), 'name must be a string.');
+            await expectBadRequest(mockController.post({ name: true }), 'name must be a string.');
+        });
+
+        it('should return 400 when name is empty', async () => {
+            await expectBadRequest(mockController.post({ name: '' }), 'name must not be empty.');
+        });
+
+        it('should return 400 for unknown fields, including system fields', async () => {
+            await expectBadRequest(mockController.post({ ...mockBody, invalidProp: 'x' }), 'Unknown field: invalidProp.');
+            await expectBadRequest(mockController.post({ ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
+            await expectBadRequest(
+                mockController.post({ ...mockBody, isDeleted: false, createdBy: 'x' }),
+                'Unknown fields: isDeleted, createdBy.',
+            );
+            expect(mockCreate).not.toHaveBeenCalled();
+        });
+
+        it('should return 400 for a body that is not an object', async () => {
+            await expectBadRequest(mockController.post([mockBody]), 'Request body must be a JSON object.');
+            await expectBadRequest(mockController.post('mock'), 'Request body must be a JSON object.');
         });
     });
 {%- endif %}
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
     describe('get', () => {
-        it('should successfully call service', async () => {
+        it('should call the service with the id', async () => {
             await mockController.get(mockValidGuid);
-            expect(mockGet).toHaveBeenCalledTimes(1);
+            expect(mockGet).toHaveBeenCalledWith(mockValidGuid);
         });
 
-        it('should successfully validate a valid ID', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockValidGuid);
-            await mockController.get(mockValidGuid);
-            expect(validator).toHaveBeenCalledTimes(1);
-            expect(validator).toHaveBeenCalledWith(mockValidGuid, GuidSchema);
-        });
-
-        it('should successfully throw validation error for invalid ID', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate');
-            try {
-                await mockController.get(mockInvalidGuid);
-            } catch (error) {
-                expect(validator).toHaveBeenCalledTimes(1);
-                expect(error).toBeInstanceOf(ValidationError);
-                expect(error.statusCode).toEqual(422);
-                expect(error.message).toEqual('Failed schema validation');
-            }
+        it('should return 404 for an id that is not a UUID', async () => {
+            await expectNotFound(mockController.get(mockInvalidGuid), mockInvalidGuid);
+            expect(mockGet).not.toHaveBeenCalled();
         });
     });
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
     describe('list', () => {
-        it('should successfully call service', async () => {
-            await mockController.list();
-            expect(mockList).toHaveBeenCalledTimes(1);
-        });
-
         it('should default the limit when not provided', async () => {
             await mockController.list();
             expect(mockList).toHaveBeenCalledWith(100);
@@ -112,88 +112,83 @@ describe('{{ r }}Controller', () => {
 
             await mockController.list('999999');
             expect(mockList).toHaveBeenCalledWith(1000);
+
+            await mockController.list('abc');
+            expect(mockList).toHaveBeenCalledWith(100);
         });
     });
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
     describe('update', () => {
-        it('should successfully call service', async () => {
-            await mockController.update(mockPutRequest);
-            expect(mockUpdate).toHaveBeenCalledTimes(1);
+        it('should pass the path id and validated body to the service', async () => {
+            await mockController.update(mockValidGuid, mockBody);
+            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, mockBody);
         });
 
-        it('should throw validation error when the id is missing', async () => {
-            await expect(mockController.update({ name: 'mock{{ r }}' })).rejects.toThrow('Missing item id.');
+        it('should accept an empty body', async () => {
+            await mockController.update(mockValidGuid, {});
+            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, {});
+        });
+
+        it('should return 400 when name is present but empty or not a string', async () => {
+            await expectBadRequest(mockController.update(mockValidGuid, { name: '' }), 'name must not be empty.');
+            await expectBadRequest(mockController.update(mockValidGuid, { name: 1 }), 'name must be a string.');
+            await expectBadRequest(mockController.update(mockValidGuid, { name: null }), 'name must be a string.');
+        });
+
+        it('should return 400 for unknown fields, including id', async () => {
+            await expectBadRequest(mockController.update(mockValidGuid, { ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
             expect(mockUpdate).not.toHaveBeenCalled();
         });
 
-        it('should successfully validate a valid ID', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPutRequest);
-            await mockController.update(mockPutRequest);
-            expect(validator).toHaveBeenCalledTimes(2);
-            expect(validator).toHaveBeenCalledWith(mockPutRequest, {{ r }}UpdateSchema);
+        it('should return 400 for a body that is not an object', async () => {
+            await expectBadRequest(mockController.update(mockValidGuid, null), 'Request body must be a JSON object.');
         });
 
-        it('should successfully throw validation error for invalid ID', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate');
-            try {
-                await mockController.update(mockInvalidPutRequest);
-            } catch (error) {
-                expect(validator).toHaveBeenCalledTimes(1);
-                expect(error).toBeInstanceOf(ValidationError);
-                expect(error.statusCode).toEqual(422);
-                expect(error.message).toEqual('Failed schema validation');
-            }
+        it('should return 404 for an id that is not a UUID', async () => {
+            await expectNotFound(mockController.update(mockInvalidGuid, mockBody), mockInvalidGuid);
+            expect(mockUpdate).not.toHaveBeenCalled();
         });
     });
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
     describe('replace', () => {
-        it('should successfully call service', async () => {
-            await mockController.replace(mockPutRequest);
-            expect(mockReplace).toHaveBeenCalledTimes(1);
+        it('should pass the path id and validated body to the service', async () => {
+            await mockController.replace(mockValidGuid, mockBody);
+            expect(mockReplace).toHaveBeenCalledWith(mockValidGuid, mockBody);
         });
 
-        it('should throw validation error when the id is missing', async () => {
-            await expect(mockController.replace({ name: 'mock{{ r }}' })).rejects.toThrow('Missing item id.');
+        it('should return 400 when name is missing', async () => {
+            await expectBadRequest(mockController.replace(mockValidGuid, {}), 'name is required.');
             expect(mockReplace).not.toHaveBeenCalled();
         });
 
-        it('should successfully validate the request', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockPutRequest);
-            await mockController.replace(mockPutRequest);
-            expect(validator).toHaveBeenCalledTimes(2);
-            expect(validator).toHaveBeenCalledWith(mockPutRequest, {{ r }}UpdateSchema);
+        it('should return 400 for unknown fields, including id', async () => {
+            await expectBadRequest(mockController.replace(mockValidGuid, { ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
+            expect(mockReplace).not.toHaveBeenCalled();
+        });
+
+        it('should return 404 for an id that is not a UUID', async () => {
+            await expectNotFound(mockController.replace(mockInvalidGuid, mockBody), mockInvalidGuid);
+            expect(mockReplace).not.toHaveBeenCalled();
         });
     });
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
     describe('delete', () => {
-        it('should successfully call service', async () => {
-            await mockController.delete(mockValidGuid);
-            expect(mockDelete).toHaveBeenCalledTimes(1);
+        it('should call the service and return the confirmation message', async () => {
+            expect(await mockController.delete(mockValidGuid)).toEqual({
+                message: `{{ r }} with id ${mockValidGuid} was deleted successfully.`,
+            });
+            expect(mockDelete).toHaveBeenCalledWith(mockValidGuid);
         });
 
-        it('should successfully validate a valid ID', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate').mockReturnValue(mockValidGuid);
-            await mockController.delete(mockValidGuid);
-            expect(validator).toHaveBeenCalledTimes(1);
-            expect(validator).toHaveBeenCalledWith(mockValidGuid, GuidSchema);
-        });
-
-        it('should successfully throw validation error for invalid ID', async () => {
-            const validator = jest.spyOn(mockSchemaValidator, 'validate');
-            try {
-                await mockController.delete(mockInvalidGuid);
-            } catch (error) {
-                expect(validator).toHaveBeenCalledTimes(1);
-                expect(error).toBeInstanceOf(ValidationError);
-                expect(error.statusCode).toEqual(422);
-                expect(error.message).toEqual('Failed schema validation');
-            }
+        it('should return 404 for an id that is not a UUID', async () => {
+            await expectNotFound(mockController.delete(mockInvalidGuid), mockInvalidGuid);
+            expect(mockDelete).not.toHaveBeenCalled();
         });
     });
 {%- endif %}

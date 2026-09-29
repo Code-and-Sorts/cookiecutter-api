@@ -1,5 +1,6 @@
 import { app, HttpResponseInit } from '@azure/functions';
 
+// Anonymous liveness probe at /api/{{ health_endpoint }}.
 app.http('health', {
     methods: ['GET'],
     authLevel: 'anonymous',

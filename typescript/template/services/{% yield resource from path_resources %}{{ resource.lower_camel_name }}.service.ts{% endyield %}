@@ -1,14 +1,23 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
 import { {{ r }}Repository } from '@repositories';
+{%- if ops | reject('equalto', 'delete') | list %}
 import {
+{%- if "create" in ops or "replace" in ops %}
     {{ r }},
+{%- endif %}
     {{ r }}Response,
     {{ r }}ResponseSchema,
+{%- if "create" in ops or "replace" in ops %}
     {{ r }}EntitySchema,
+{%- endif %}
+{%- if "update" in ops %}
     {{ r }}Update,
+{%- endif %}
 } from '@models';
+{%- endif %}
 
 @injectable()
 export class {{ r }}Service {
@@ -17,41 +26,44 @@ export class {{ r }}Service {
   constructor(@inject({{ r }}Repository) repo: {{ r }}Repository) {
     this._repo = repo;
   }
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 
+  // Assigns a new id and both timestamps; createdBy/updatedBy are omitted when unset.
   create = async (item: {{ r }}): Promise<{{ r }}Response> => {
     const newItem = {{ r }}EntitySchema.parse(item);
-    const createdItem: {{ r }}Response = await this._repo.create(newItem);
+    const createdItem = await this._repo.create(newItem);
     return {{ r }}ResponseSchema.parse(createdItem);
   };
 {%- endif %}
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
   get = async (id: string): Promise<{{ r }}Response> => {
     const item = await this._repo.get(id);
     return {{ r }}ResponseSchema.parse(item);
   };
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
   list = async (limit?: number): Promise<{{ r }}Response[]> => {
     const items = await this._repo.list(limit);
     return items.map((item) => {{ r }}ResponseSchema.parse(item));
   };
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
-  update = async (item: {{ r }}Update): Promise<{{ r }}Response> => {
-    const updatedItem = await this._repo.update({ ...item, updatedTimestamp: new Date().toISOString() });
+  // Merges the given fields into the stored record and refreshes updatedTimestamp.
+  update = async (id: string, item: {{ r }}Update): Promise<{{ r }}Response> => {
+    const updatedItem = await this._repo.update({ ...item, id, updatedTimestamp: new Date().toISOString() });
     return {{ r }}ResponseSchema.parse(updatedItem);
   };
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
-  replace = async (item: {{ r }}Update): Promise<{{ r }}Response> => {
+  replace = async (id: string, item: {{ r }}): Promise<{{ r }}Response> => {
     // The repository keeps the stored createdTimestamp and createdBy.
     const entity = {{ r }}EntitySchema.parse({
       ...item,
+      id,
       isDeleted: false,
       updatedTimestamp: new Date().toISOString(),
     });
@@ -59,7 +71,7 @@ export class {{ r }}Service {
     return {{ r }}ResponseSchema.parse(replacedItem);
   };
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
   delete = async (id: string): Promise<void> => this._repo.delete(id);
 {%- endif %}

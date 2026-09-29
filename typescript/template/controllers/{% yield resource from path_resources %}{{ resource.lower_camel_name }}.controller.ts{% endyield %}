@@ -1,30 +1,32 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set by_id = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
 import { {{ r }}Service, SchemaValidator } from '@services';
 import {
-{%- if ops | reject('equalto', 'delete') | list %}
-    {{ r }},
+{%- if ops | select('in', ['list', 'get_by_id', 'create', 'update', 'replace']) | list %}
+    {{ r }}Response,
 {%- endif %}
-{%- if "create" in ops %}
+{%- if "create" in ops or "replace" in ops %}
     {{ r }}RequestSchema,
 {%- endif %}
-{%- if "update" in ops or "replace" in ops %}
-    {{ r }}Update,
+{%- if "update" in ops %}
     {{ r }}UpdateSchema,
 {%- endif %}
-{%- if ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list %}
+{%- if by_id %}
     GuidSchema,
 {%- endif %}
 } from '@models';
-{%- if "update" in ops or "replace" in ops %}
-import { ValidationError } from '@errors';
+{%- if by_id %}
+import { NotFoundError } from '@errors';
 {%- endif %}
 {%- if "list" in ops %}
 import { coerceLimit } from '@utils';
 {%- endif %}
 
+// Validates requests for /{{ resource.endpoint }}. Bodies are the parsed JSON exactly as the
+// client sent it; ids come from the path only, so a body can never set one.
 @injectable()
 export class {{ r }}Controller {
   private _service: {{ r }}Service;
@@ -37,52 +39,56 @@ export class {{ r }}Controller {
     this._service = service;
     this._validator = validator;
   }
-{%- if "create" in resource.operations %}
+{%- if by_id %}
 
-  post = async (itemRequest: {{ r }}): Promise<{{ r }}> => {
-    const item = this._validator.validate(itemRequest, {{ r }}RequestSchema);
+  // An id that is not a UUID can never exist, so it is reported as not found.
+  private assertId = (id: string): void => {
+    if (!GuidSchema.safeParse(id).success) {
+      throw new NotFoundError(`{{ r }} with id ${id} was not found.`);
+    }
+  };
+{%- endif %}
+{%- if "create" in ops %}
+
+  post = async (body: unknown): Promise<{{ r }}Response> => {
+    const item = this._validator.validate(body, {{ r }}RequestSchema);
     return this._service.create(item);
   };
 {%- endif %}
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
-  get = async (id: string): Promise<{{ r }}> => {
-    this._validator.validate(id, GuidSchema);
+  get = async (id: string): Promise<{{ r }}Response> => {
+    this.assertId(id);
     return this._service.get(id);
   };
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
-  list = async (limit?: string | number): Promise<{{ r }}[]> =>
+  list = async (limit?: string | number | null): Promise<{{ r }}Response[]> =>
     this._service.list(coerceLimit(limit));
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
-  update = async (itemRequest: Partial<{{ r }}Update>): Promise<{{ r }}> => {
-    if (!itemRequest.id) {
-      throw new ValidationError('Missing item id.');
-    }
-    this._validator.validate(itemRequest.id, GuidSchema);
-    const item = this._validator.validate(itemRequest, {{ r }}UpdateSchema);
-    return this._service.update(item);
+  update = async (id: string, body: unknown): Promise<{{ r }}Response> => {
+    this.assertId(id);
+    const item = this._validator.validate(body, {{ r }}UpdateSchema);
+    return this._service.update(id, item);
   };
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
-  replace = async (itemRequest: Partial<{{ r }}Update>): Promise<{{ r }}> => {
-    if (!itemRequest.id) {
-      throw new ValidationError('Missing item id.');
-    }
-    this._validator.validate(itemRequest.id, GuidSchema);
-    const item = this._validator.validate(itemRequest, {{ r }}UpdateSchema);
-    return this._service.replace(item);
+  replace = async (id: string, body: unknown): Promise<{{ r }}Response> => {
+    this.assertId(id);
+    const item = this._validator.validate(body, {{ r }}RequestSchema);
+    return this._service.replace(id, item);
   };
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
-  delete = async (id: string): Promise<void> => {
-    this._validator.validate(id, GuidSchema);
+  delete = async (id: string): Promise<{ message: string }> => {
+    this.assertId(id);
     await this._service.delete(id);
+    return { message: `{{ r }} with id ${id} was deleted successfully.` };
   };
 {%- endif %}
 }

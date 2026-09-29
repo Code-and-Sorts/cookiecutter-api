@@ -54,7 +54,8 @@ describe('{{ r }}Service', () => {
         createdTimestamp: '2024-03-24T00:00:00.000Z',
         updatedTimestamp: '2024-03-24T00:00:00.000Z',
     };
-    const mockUpdateRequest = { id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0', name: 'mock{{ r }}1-updated' };
+    const mockUpdateRequest = { name: 'mock{{ r }}1-updated' };
+    const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
     const mockUpdateResponse = { id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0', name: 'mock{{ r }}1-updated' };
     const mockResponse = [
         { id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0', name: 'mock{{ r }}1' },
@@ -101,6 +102,19 @@ describe('{{ r }}Service', () => {
             expect(repository).toHaveBeenCalledTimes(1);
             expect(repository).toHaveBeenCalledWith(mockCreateSchema);
         });
+
+        it('should store a new record with a UUID, ISO timestamps and no audit fields', async () => {
+            mockCreate.mockImplementation(async (entity) => entity);
+            const result = await mockService.create(mockCreateRequest);
+            const written = mockCreate.mock.calls[0][0];
+            expect(written.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+            expect(written.isDeleted).toBe(false);
+            expect(written.createdTimestamp).toMatch(isoTimestamp);
+            expect(written.updatedTimestamp).toMatch(isoTimestamp);
+            expect('createdBy' in written).toBe(false);
+            expect('updatedBy' in written).toBe(false);
+            expect(result).toEqual({ id: written.id, ...mockCreateRequest });
+        });
     });
 {%- endif %}
 {%- if "get_by_id" in resource.operations %}
@@ -133,7 +147,7 @@ describe('{{ r }}Service', () => {
     describe('update', () => {
         it('should successfully call repository', async () => {
             const repository = jest.spyOn(mockRepository, 'update').mockReturnValue(Promise.resolve(mockRepositoryUpdateResponse));
-            const result = await mockService.update(mockUpdateRequest);
+            const result = await mockService.update(mockId, mockUpdateRequest);
             expect(mockUpdate).toHaveBeenCalledTimes(1);
             expect(result).toEqual(mockUpdateResponse);
             expect(repository).toHaveBeenCalledTimes(1);
@@ -141,17 +155,18 @@ describe('{{ r }}Service', () => {
 
         it('should refresh updatedTimestamp without sending audit fields', async () => {
             mockUpdate.mockResolvedValue(mockRepositoryUpdateResponse);
-            await mockService.update(mockUpdateRequest);
+            await mockService.update(mockId, mockUpdateRequest);
             const written = mockUpdate.mock.calls[0][0];
-            expect(written).toEqual(expect.objectContaining(mockUpdateRequest));
+            expect(written).toEqual(expect.objectContaining({ ...mockUpdateRequest, id: mockId }));
             expect(written.createdBy).toBeUndefined();
             expect(written.createdTimestamp).toBeUndefined();
+            expect(written.updatedTimestamp).toMatch(isoTimestamp);
             expect(Date.parse(written.updatedTimestamp)).toBeGreaterThan(Date.parse(mockRepositoryUpdateResponse.updatedTimestamp));
         });
 
         it('should propagate not found for missing or soft-deleted records', async () => {
             mockUpdate.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
-            await expect(mockService.update(mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
+            await expect(mockService.update(mockId, mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
         });
     });
 {%- endif %}
@@ -160,7 +175,7 @@ describe('{{ r }}Service', () => {
     describe('replace', () => {
         it('should successfully call repository', async () => {
             const repository = jest.spyOn(mockRepository, 'replace').mockReturnValue(Promise.resolve(mockRepositoryUpdateResponse));
-            const result = await mockService.replace(mockUpdateRequest);
+            const result = await mockService.replace(mockId, mockUpdateRequest);
             expect(mockReplace).toHaveBeenCalledTimes(1);
             expect(result).toEqual(mockUpdateResponse);
             expect(repository).toHaveBeenCalledTimes(1);
@@ -169,7 +184,7 @@ describe('{{ r }}Service', () => {
         it('should write the request as a live entity with a refreshed updatedTimestamp', async () => {
             const before = Date.now();
             mockReplace.mockImplementation(async (entity) => entity);
-            await mockService.replace(mockUpdateRequest);
+            await mockService.replace(mockId, mockUpdateRequest);
             const written = mockReplace.mock.calls[0][0];
             expect(written).toEqual(expect.objectContaining({
                 id: mockId,
@@ -177,12 +192,13 @@ describe('{{ r }}Service', () => {
                 isDeleted: false,
             }));
             expect(written.updatedBy).toBeUndefined();
+            expect(written.updatedTimestamp).toMatch(isoTimestamp);
             expect(Date.parse(written.updatedTimestamp)).toBeGreaterThanOrEqual(before);
         });
 
         it('should propagate not found for missing or soft-deleted records', async () => {
             mockReplace.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
-            await expect(mockService.replace(mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
+            await expect(mockService.replace(mockId, mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
         });
     });
 {%- endif %}

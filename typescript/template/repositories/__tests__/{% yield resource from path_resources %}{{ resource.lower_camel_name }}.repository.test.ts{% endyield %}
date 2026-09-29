@@ -93,6 +93,11 @@ describe('{{ r }}Repository', () => {
         const actual = operations.filter((operation) => typeof base[operation] === 'function');
         expect(actual).toEqual(exposed);
     });
+
+    it('should name the resource in not found errors', () => {
+        const error = (base['notFound'] as (id: string) => Error)(mockId);
+        expect(error.message).toEqual(`{{ r }} with id ${mockId} was not found.`);
+    });
 {%- if "create" in ops %}
 
     describe('create', () => {

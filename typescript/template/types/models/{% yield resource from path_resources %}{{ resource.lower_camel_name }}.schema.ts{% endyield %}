@@ -2,15 +2,18 @@
 import { z } from 'zod';
 import { BaseIdentifier, BaseSchema } from './base.schema';
 
+// The fields clients send and receive. Add fields here: they flow into the request,
+// update, response and stored entity schemas below.
 export const {{ r }}Schema = z.object({
-    name: z.string().optional(),
+    name: z.string().min(1),
 });
 
-export const {{ r }}UpdateSchema = z.object({
-    id: z.string(),
-}).extend({{ r }}Schema.shape).strict();
-
+// POST and PUT bodies: every field required, unknown fields (including id and the
+// system fields) rejected.
 export const {{ r }}RequestSchema = {{ r }}Schema.strict();
+
+// PATCH bodies: every field optional but still validated, unknown fields rejected.
+export const {{ r }}UpdateSchema = {{ r }}Schema.partial().strict();
 
 export const {{ r }}ResponseSchema = z.object({
     ...BaseIdentifier.shape,

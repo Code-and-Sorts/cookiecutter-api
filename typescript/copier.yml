@@ -75,6 +75,18 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
+# Directory names for cloud-specific code: empty on the other clouds, so Copier skips the
+# whole directory. They keep template paths short enough for Git for Windows.
+functions_dir:
+  type: str
+  when: false
+  default: "{{ 'functions' if cloud_service == 'Azure Function App' else '' }}"
+
+routes_dir:
+  type: str
+  when: false
+  default: "{{ 'routes' if cloud_service != 'Azure Function App' else '' }}"
+
 # ---- Health check ----
 health_endpoint:
   type: str
@@ -111,7 +123,7 @@ resources:
     {%- elif cloud_service == "AWS Lambda" -%}
     {%- set reserved_names = reserved_names + ["APIGatewayProxyEvent", "APIGatewayProxyResult"] -%}
     {%- endif -%}
-    {%- set generated_suffixes = ["Controller", "Entity", "Record", "Repository", "Request", "Response", "Service", "Update"] -%}
+    {%- set generated_suffixes = ["Controller", "Entity", "EntitySchema", "Record", "Repository", "Request", "RequestSchema", "Response", "ResponseSchema", "Schema", "Service", "Update", "UpdateSchema"] -%}
     {%- set ns = namespace(err="", eps=[], names=[], raw_names=[], containers={}, clash="") -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}

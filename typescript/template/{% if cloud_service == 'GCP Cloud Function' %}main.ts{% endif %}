@@ -1,36 +1,71 @@
+import { createRequire } from 'node:module';
 import * as ff from '@google-cloud/functions-framework';
 import {
+  errorResponse,
 {%- if health_endpoint %}
   healthRoutes,
 {%- endif %}
   jsonResponse,
+  notFound,
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
 } from '@routes';
-import { detectError } from '@utils';
+import { INVALID_JSON_MESSAGE } from '@utils';
 
-ff.http('api', async (req: ff.Request, res: ff.Response) => {
-  const cleanPath = req.path.replace(/\/+$/, '');
-  const segments = cleanPath.split('/').filter(Boolean);
-  const endpoint = segments[0];
-  const id = segments[1];
+type Next = (error?: unknown) => void;
+type ExpressApplication = { handle(req: ff.Request, res: ff.Response, next?: Next): void };
+
+// The Functions Framework parses bodies with Express's body-parser before the function runs,
+// and Express answers a parse failure (for example malformed JSON) with an HTML error page.
+// This final handler answers anything that never reached the function in JSON instead.
+export const frameworkFinalHandler = (req: ff.Request, res: ff.Response): Next => (error?: unknown) => {
+  if (res.headersSent) {
+    return;
+  }
+  if (error === undefined) {
+    return notFound(res);
+  }
+  const status = (error as { status?: number }).status;
+  if (status !== undefined && status >= 400 && status < 500) {
+    return jsonResponse(res, 400, { errorMessage: INVALID_JSON_MESSAGE });
+  }
+  return errorResponse(res, error);
+};
+
+// Install it on the Express copy the framework itself loads; the framework builds its app
+// after loading this module.
+const frameworkRequire = createRequire(createRequire(import.meta.url).resolve('@google-cloud/functions-framework'));
+const express = frameworkRequire('express') as { application: ExpressApplication };
+const handle = express.application.handle;
+express.application.handle = function (this: ExpressApplication, req, res, next) {
+  return handle.call(this, req, res, next ?? frameworkFinalHandler(req, res));
+};
+
+// The single HTTP function: routes /<endpoint> and /<endpoint>/<id> by exact path.
+export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
+  const segments = req.path.split('/').filter(Boolean);
+  const [endpoint, id] = segments;
 
   try {
+    if (segments.length > 2) {
+      return notFound(res);
+    }
     switch (endpoint) {
 {%- if health_endpoint %}
       case '{{ health_endpoint }}':
-        return await healthRoutes(req, res, id);
+        return id === undefined ? await healthRoutes(req, res) : notFound(res);
 {%- endif %}
 {%- for resource in resources %}
       case '{{ resource.endpoint }}':
         return await {{ resource.name | to_lower_camel }}Routes(req, res, id);
 {%- endfor %}
       default:
-        return jsonResponse(res, 404, { error: 'Not found.' });
+        return notFound(res);
     }
   } catch (error) {
-    const errorResponse = detectError(error);
-    return res.status(errorResponse.status).send(errorResponse.body);
+    return errorResponse(res, error);
   }
-});
+};
+
+ff.http('api', api);

@@ -1,46 +1,66 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import { NotFoundError, ProxyError, ValidationError } from '@errors';
-import { detectError } from '@utils';
+import { detectError, parseJsonBody } from '@utils';
+
+type MockFn = (...args: any[]) => any;
 
 describe('detectError', () => {
-    beforeEach(() => {
-        jest.resetAllMocks();
+    it('should return 400 with the message for ValidationError', () => {
+        const log = jest.fn<MockFn>();
+        expect(detectError(new ValidationError('name is required.'), log)).toEqual({
+            status: 400,
+            body: { errorMessage: 'name is required.' },
+        });
+        expect(log).not.toHaveBeenCalled();
     });
 
-    const mockValidationErrorResponse = {
-        status: 422,
-        body: 'Validation error',
-    };
-    const mockNotFoundErrorResponse = {
-        status: 404,
-        body: 'Not found error',
-    };
-    const mockProxyErrorResponse = {
-        status: 502,
-        body: 'Proxy error',
-    };
-    const mockUnknownErrorResponse = {
-        status: 500,
-        body: 'Unknown error occurred.',
-    };
-
-    it('should successfully return error response for ValidationError', () => {
-        const response = detectError(new ValidationError('Validation error'));
-        expect(response).toEqual(mockValidationErrorResponse);
+    it('should return 404 with the message for NotFoundError', () => {
+        const log = jest.fn<MockFn>();
+        expect(detectError(new NotFoundError('Item with id 1 was not found.'), log)).toEqual({
+            status: 404,
+            body: { errorMessage: 'Item with id 1 was not found.' },
+        });
+        expect(log).not.toHaveBeenCalled();
     });
 
-    it('should successfully return error response for ProxyError', () => {
-        const response = detectError(new ProxyError('Proxy error'));
-        expect(response).toEqual(mockProxyErrorResponse);
+    it('should log a ProxyError with its cause and hide it behind a generic 500', () => {
+        const log = jest.fn<MockFn>();
+        const cause = new Error('connection refused');
+        const error = new ProxyError('Error creating item in database.', cause);
+        expect(error.cause).toBe(cause);
+        expect(detectError(error, log)).toEqual({
+            status: 500,
+            body: { errorMessage: 'An unexpected error occurred.' },
+        });
+        expect(log).toHaveBeenCalledWith(expect.any(String), error);
     });
 
-    it('should successfully return error response for NotFoundError', () => {
-        const response = detectError(new NotFoundError('Not found error'));
-        expect(response).toEqual(mockNotFoundErrorResponse);
+    it('should log an unknown error and hide it behind a generic 500', () => {
+        const log = jest.fn<MockFn>();
+        const error = new Error('secret details');
+        expect(detectError(error, log)).toEqual({
+            status: 500,
+            body: { errorMessage: 'An unexpected error occurred.' },
+        });
+        expect(log).toHaveBeenCalledWith(expect.any(String), error);
     });
 
-    it('should successfully return error response for unknown error', () => {
-        const response = detectError(new Error('Unknown error'));
-        expect(response).toEqual(mockUnknownErrorResponse);
+    it('should log to console.error by default', () => {
+        const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        expect(detectError('boom').status).toEqual(500);
+        expect(spy).toHaveBeenCalledTimes(1);
+        spy.mockRestore();
+    });
+});
+
+describe('parseJsonBody', () => {
+    it('should parse a JSON body', () => {
+        expect(parseJsonBody('{"name":"x"}')).toEqual({ name: 'x' });
+        expect(parseJsonBody('[1]')).toEqual([1]);
+    });
+
+    it.each([undefined, null, '', '   ', '{bad', 'name=x'])('should reject %p with a 400 ValidationError', (raw) => {
+        expect(() => parseJsonBody(raw)).toThrow(ValidationError);
+        expect(() => parseJsonBody(raw)).toThrow('Request body must be valid JSON.');
     });
 });

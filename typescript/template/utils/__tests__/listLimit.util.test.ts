@@ -4,7 +4,12 @@ import { coerceLimit, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from '@utils';
 describe('coerceLimit', () => {
     it('should default the limit when not provided or invalid', () => {
         expect(coerceLimit()).toEqual(DEFAULT_LIST_LIMIT);
+        expect(coerceLimit(null)).toEqual(DEFAULT_LIST_LIMIT);
+        expect(coerceLimit('')).toEqual(DEFAULT_LIST_LIMIT);
         expect(coerceLimit('abc')).toEqual(DEFAULT_LIST_LIMIT);
+        expect(coerceLimit('5abc')).toEqual(DEFAULT_LIST_LIMIT);
+        expect(coerceLimit('2.5')).toEqual(DEFAULT_LIST_LIMIT);
+        expect(coerceLimit('-3')).toEqual(DEFAULT_LIST_LIMIT);
         expect(coerceLimit(0)).toEqual(DEFAULT_LIST_LIMIT);
     });
 

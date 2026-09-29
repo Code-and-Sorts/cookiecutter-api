@@ -165,7 +165,7 @@ describe('BaseRepository', () => {
                 patch: mockPatch,
             }),
         } as unknown as Container;
-        mockBaseRepository = new TestRepository(mockContainer);
+        mockBaseRepository = new TestRepository(mockContainer, 'Item');
     });
 
     describe('addRecord', () => {
@@ -208,7 +208,7 @@ describe('BaseRepository', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
                 expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record not found for ID ${mock{{project_class_name}}Id}.`);
+                expect(error.message).toEqual(`Item with id ${mock{{project_class_name}}Id} was not found.`);
             }
         });
 
@@ -219,7 +219,7 @@ describe('BaseRepository', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(ProxyError);
                 expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
+                expect(error.message).toEqual('Error retrieving item from database.');
             }
         });
     });
@@ -244,7 +244,7 @@ describe('BaseRepository', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(ProxyError);
                 expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
+                expect(error.message).toEqual('Error retrieving items from database.');
             }
         });
     });
@@ -258,20 +258,20 @@ describe('BaseRepository', () => {
             await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
             expect(getRecord).toHaveBeenCalledTimes(1);
             expect(mockReplace).toHaveBeenCalledTimes(1);
-            expect(containerItem).toHaveBeenCalledWith(mock{{project_class_name}}Id);
+            expect(containerItem).toHaveBeenCalledWith(mock{{project_class_name}}Id, mock{{project_class_name}}Id);
         });
 
         it('should successfully throw not found error', async () => {
             jest.spyOn(mockBaseRepository, 'getRecord')
                 .mockResolvedValue(mock{{project_class_name}}sRepositoryResponse);
-            mockReplace.mockRejectedValueOnce(new NotFoundError('Not Found'));
+            mockReplace.mockRejectedValueOnce(Object.assign(new Error('Not Found'), { code: 404 }));
 
             try {
                 await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
                 expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
+                expect(error.message).toEqual(`Item with id ${mock{{project_class_name}}Id} was not found.`);
             }
         });
 
@@ -348,7 +348,7 @@ describe('BaseRepository', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
                 expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
+                expect(error.message).toEqual(`Item with id ${mock{{project_class_name}}Id} was not found.`);
             }
         });
 
@@ -429,7 +429,7 @@ describe('BaseRepository', () => {
             doc: mockDoc,
             where: mockWhere,
         } as unknown as CollectionReference;
-        mockBaseRepository = new TestRepository(mockCollection as CollectionReference);
+        mockBaseRepository = new TestRepository(mockCollection as CollectionReference, 'Item');
     });
 
     describe('addRecord', () => {
@@ -660,7 +660,7 @@ describe('BaseRepository', () => {
         mockDocClient = {
             send: mockSend,
         };
-        mockBaseRepository = new TestRepository(mockDocClient as any, mockTableName);
+        mockBaseRepository = new TestRepository(mockDocClient as any, mockTableName, 'Item');
     });
 
     describe('addRecord', () => {
@@ -711,6 +711,12 @@ describe('BaseRepository', () => {
             }
         });
 
+        it('should keep the SDK error as the proxy error cause', async () => {
+            const cause = new Error('Unknown error');
+            mockSend.mockRejectedValueOnce(cause);
+            await expect(mockBaseRepository.getRecord(mock{{project_class_name}}Id)).rejects.toMatchObject({ cause });
+        });
+
         it('should throw proxy error on failure', async () => {
             mockSend.mockRejectedValueOnce(new Error('Unknown error'));
             try {
@@ -735,6 +741,24 @@ describe('BaseRepository', () => {
             mockSend.mockResolvedValue({ Items: undefined });
             const result = await mockBaseRepository.getRecords();
             expect(result).toEqual([]);
+        });
+
+        it('should keep scanning until the limit is reached or the table ends', async () => {
+            mockSend
+                .mockResolvedValueOnce({ Items: [mock{{project_class_name}}Records[0]], LastEvaluatedKey: { id: 'a' } })
+                .mockResolvedValueOnce({ Items: [], LastEvaluatedKey: { id: 'b' } })
+                .mockResolvedValueOnce({ Items: [mock{{project_class_name}}Records[1]] });
+            const result = await mockBaseRepository.getRecords(5);
+            expect(mockSend).toHaveBeenCalledTimes(3);
+            expect(mockSend.mock.calls[1][0].input.ExclusiveStartKey).toEqual({ id: 'a' });
+            expect(result).toEqual(mock{{project_class_name}}Records);
+        });
+
+        it('should stop scanning once the limit is reached', async () => {
+            mockSend.mockResolvedValue({ Items: mock{{project_class_name}}Records, LastEvaluatedKey: { id: 'a' } });
+            const result = await mockBaseRepository.getRecords(1);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+            expect(result).toEqual([mock{{project_class_name}}Records[0]]);
         });
 
         it('should throw proxy error on failure', async () => {
@@ -839,7 +863,7 @@ describe('BaseRepository', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
                 expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
+                expect(error.message).toEqual(`Item with id ${mock{{project_class_name}}Id} was not found.`);
             }
         });
 
@@ -850,7 +874,7 @@ describe('BaseRepository', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
                 expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
+                expect(error.message).toEqual(`Item with id ${mock{{project_class_name}}Id} was not found.`);
             }
         });
 

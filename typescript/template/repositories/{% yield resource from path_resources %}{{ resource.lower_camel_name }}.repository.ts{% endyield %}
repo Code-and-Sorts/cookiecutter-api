@@ -19,17 +19,17 @@ import { BaseRepository{% if cloud_service == 'AWS Lambda' %}, DocumentClient{% 
 export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 {%- if cloud_service == 'Azure Function App' %}
   constructor(@inject(Database) database: Database) {
-    super(database.container(env.COSMOS_CONTAINER_{{ key }}));
+    super(database.container(env.COSMOS_CONTAINER_{{ key }}), '{{ r }}');
   }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
   constructor(@inject(Firestore) client: Firestore) {
-    super(client.collection(env.FIRESTORE_COLLECTION_{{ key }}));
+    super(client.collection(env.FIRESTORE_COLLECTION_{{ key }}), '{{ r }}');
   }
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
   constructor(@inject(DocumentClient) client: DynamoDBDocumentClient) {
-    super(client, env.DYNAMODB_TABLE_NAME_{{ key }});
+    super(client, env.DYNAMODB_TABLE_NAME_{{ key }}, '{{ r }}');
   }
 {%- endif %}
 
