@@ -5,13 +5,8 @@
         "name": {
             "type": "string",
             "minLength": 1
-        },
-        "createdBy": {
-            "type": "string"
-        },
-        "updatedBy": {
-            "type": "string"
         }
     },
-    "required": ["name"]
+    "required": ["name"],
+    "additionalProperties": false
 }

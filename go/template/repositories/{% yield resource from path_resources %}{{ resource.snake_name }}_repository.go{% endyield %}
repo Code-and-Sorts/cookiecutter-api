@@ -2,7 +2,6 @@
 {%- set lc = resource.name | to_lower_camel -%}
 {%- set ops = resource.operations -%}
 {%- set needs_get_item = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
-{%- set needs_time = 'update' in ops or 'replace' in ops -%}
 package repositories
 
 import (
@@ -13,14 +12,11 @@ import (
 {%- if cloud_service == 'Azure Function App' and needs_get_item %}
 	"errors"
 {%- endif %}
-{%- if needs_get_item or (cloud_service == 'Azure Function App' and 'list' in ops) %}
+{%- if cloud_service == 'Azure Function App' and 'list' in ops %}
 	"fmt"
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' and needs_get_item %}
 	"net/http"
-{%- endif %}
-{%- if needs_time %}
-	"time"
 {%- endif %}
 {% if cloud_service == 'Azure Function App' %}
 {%- if needs_get_item %}
@@ -84,13 +80,13 @@ func New{{ r }}Repository(container *azcosmos.ContainerClient) {{ r }}Repository
 }
 {%- if needs_get_item %}
 
+// getItem reads a record that exists and is not soft-deleted.
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
-	pk := azcosmos.NewPartitionKeyString(id)
-	resp, err := repo.container.ReadItem(ctx, pk, id, nil)
+	resp, err := repo.container.ReadItem(ctx, azcosmos.NewPartitionKeyString(id), id, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-			return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+			return nil, models.NewNotFoundError("{{ r }}", id)
 		}
 		return nil, err
 	}
@@ -101,198 +97,33 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 	}
 
 	if item.IsDeleted {
-		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		return nil, models.NewNotFoundError("{{ r }}", id)
 	}
 
 	return &item, nil
 }
 {%- endif %}
-{%- if 'get_by_id' in ops %}
+{%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
 
-func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
-	item, err := repo.getItem(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   item.Id,
-		Name: item.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'list' in ops %}
-
-func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
-	query := fmt.Sprintf("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT %d", limit)
-	pager := repo.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
-
-	var results []models.{{ r }}Dto
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, item := range resp.Items {
-			var entity models.{{ r }}
-			if err := json.Unmarshal(item, &entity); err != nil {
-				return nil, err
-			}
-			results = append(results, models.{{ r }}Dto{
-				Id:   entity.Id,
-				Name: entity.Name,
-			})
-		}
-
-		if len(results) >= limit {
-			break
-		}
-	}
-
-	return results, nil
-}
-{%- endif %}
-{%- if 'create' in ops %}
-
-func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	pk := azcosmos.NewPartitionKeyString(item.Id)
-	data, err := json.Marshal(item)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := repo.container.CreateItem(ctx, pk, data, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var created models.{{ r }}
-	if err := json.Unmarshal(resp.Value, &created); err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   created.Id,
-		Name: created.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'update' in ops %}
-
-func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	currentItem, err := repo.getItem(ctx, item.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	updateItem := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               currentItem.Id,
-			IsDeleted:        currentItem.IsDeleted,
-			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp: currentItem.CreatedTimestamp,
-			UpdatedTimestamp: time.Now().UTC(),
-		},
-	}
-
-	if item.Name != "" {
-		updateItem.Name = item.Name
-	} else {
-		updateItem.Name = currentItem.Name
-	}
-
-	if item.UpdatedBy != "" {
-		updateItem.UpdatedBy = item.UpdatedBy
-	} else {
-		updateItem.UpdatedBy = currentItem.UpdatedBy
-	}
-
-	pk := azcosmos.NewPartitionKeyString(updateItem.Id)
-	data, err := json.Marshal(updateItem)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := repo.container.ReplaceItem(ctx, pk, updateItem.Id, data, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var updated models.{{ r }}
-	if err := json.Unmarshal(resp.Value, &updated); err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   updated.Id,
-		Name: updated.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'replace' in ops %}
-
-func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	currentItem, err := repo.getItem(ctx, item.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	replacementItem := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               currentItem.Id,
-			IsDeleted:        false,
-			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp: currentItem.CreatedTimestamp,
-			UpdatedBy:        item.UpdatedBy,
-			UpdatedTimestamp: time.Now().UTC(),
-		},
-		Name: item.Name,
-	}
-
-	pk := azcosmos.NewPartitionKeyString(replacementItem.Id)
-	data, err := json.Marshal(replacementItem)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := repo.container.ReplaceItem(ctx, pk, replacementItem.Id, data, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var replaced models.{{ r }}
-	if err := json.Unmarshal(resp.Value, &replaced); err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   replaced.Id,
-		Name: replaced.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'delete' in ops %}
-
-func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
-	item, err := repo.getItem(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	item.IsDeleted = true
-	pk := azcosmos.NewPartitionKeyString(item.Id)
+// write stores item. Writes don't request the item back from Cosmos DB (the
+// SDK returns no body unless EnableContentResponseOnWrite is set), so callers
+// build their response from the item they wrote.
+func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
 	data, err := json.Marshal(item)
 	if err != nil {
 		return err
 	}
 
-	_, err = repo.container.ReplaceItem(ctx, pk, item.Id, data, nil)
+	pk := azcosmos.NewPartitionKeyString(item.Id)
+	if create {
+		_, err = repo.container.CreateItem(ctx, pk, data, nil)
+	} else {
+		_, err = repo.container.ReplaceItem(ctx, pk, item.Id, data, nil)
+	}
 	return err
 }
 {%- endif %}
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
+{%- elif cloud_service == 'GCP Cloud Function' %}
 
 type {{ lc }}Repository struct {
 	collection *firestore.CollectionRef
@@ -303,11 +134,12 @@ func New{{ r }}Repository(collection *firestore.CollectionRef) {{ r }}Repository
 }
 {%- if needs_get_item %}
 
+// getItem reads a record that exists and is not soft-deleted.
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	doc, err := repo.collection.Doc(id).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+			return nil, models.NewNotFoundError("{{ r }}", id)
 		}
 		return nil, err
 	}
@@ -318,156 +150,27 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 	}
 
 	if item.IsDeleted {
-		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		return nil, models.NewNotFoundError("{{ r }}", id)
 	}
 
 	return &item, nil
 }
 {%- endif %}
-{%- if 'get_by_id' in ops %}
+{%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
 
-func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
-	item, err := repo.getItem(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   item.Id,
-		Name: item.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'list' in ops %}
-
-func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
-	iter := repo.collection.Where("isDeleted", "==", false).Limit(limit).Documents(ctx)
-	defer iter.Stop()
-
-	var results []models.{{ r }}Dto
-	for {
-		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		var entity models.{{ r }}
-		if err := doc.DataTo(&entity); err != nil {
-			return nil, err
-		}
-		results = append(results, models.{{ r }}Dto{
-			Id:   entity.Id,
-			Name: entity.Name,
-		})
-	}
-
-	return results, nil
-}
-{%- endif %}
-{%- if 'create' in ops %}
-
-func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	_, err := repo.collection.Doc(item.Id).Set(ctx, item)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   item.Id,
-		Name: item.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'update' in ops %}
-
-func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	currentItem, err := repo.getItem(ctx, item.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	updateItem := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               currentItem.Id,
-			IsDeleted:        currentItem.IsDeleted,
-			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp: currentItem.CreatedTimestamp,
-			UpdatedTimestamp: time.Now().UTC(),
-		},
-	}
-
-	if item.Name != "" {
-		updateItem.Name = item.Name
+// write stores item as the whole document.
+func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
+	doc := repo.collection.Doc(item.Id)
+	var err error
+	if create {
+		_, err = doc.Create(ctx, item)
 	} else {
-		updateItem.Name = currentItem.Name
+		_, err = doc.Set(ctx, item)
 	}
-
-	if item.UpdatedBy != "" {
-		updateItem.UpdatedBy = item.UpdatedBy
-	} else {
-		updateItem.UpdatedBy = currentItem.UpdatedBy
-	}
-
-	_, err = repo.collection.Doc(updateItem.Id).Set(ctx, updateItem)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   updateItem.Id,
-		Name: updateItem.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'replace' in ops %}
-
-func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	currentItem, err := repo.getItem(ctx, item.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	replacementItem := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               currentItem.Id,
-			IsDeleted:        false,
-			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp: currentItem.CreatedTimestamp,
-			UpdatedBy:        item.UpdatedBy,
-			UpdatedTimestamp: time.Now().UTC(),
-		},
-		Name: item.Name,
-	}
-
-	_, err = repo.collection.Doc(replacementItem.Id).Set(ctx, replacementItem)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   replacementItem.Id,
-		Name: replacementItem.Name,
-	}, nil
-}
-{%- endif %}
-{%- if 'delete' in ops %}
-
-func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
-	item, err := repo.getItem(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	item.IsDeleted = true
-	_, err = repo.collection.Doc(item.Id).Set(ctx, *item)
 	return err
 }
 {%- endif %}
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
+{%- elif cloud_service == 'AWS Lambda' %}
 
 type {{ lc }}Repository struct {
 	client    *dynamodb.Client
@@ -479,6 +182,7 @@ func New{{ r }}Repository(client *dynamodb.Client, tableName string) {{ r }}Repo
 }
 {%- if needs_get_item %}
 
+// getItem reads a record that exists and is not soft-deleted.
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
@@ -494,7 +198,7 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 	}
 
 	if resp.Item == nil {
-		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		return nil, models.NewNotFoundError("{{ r }}", id)
 	}
 
 	var item models.{{ r }}
@@ -503,11 +207,33 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 	}
 
 	if item.IsDeleted {
-		return nil, &models.NotFoundError{Message: fmt.Sprintf("Item with id %s not found", id)}
+		return nil, models.NewNotFoundError("{{ r }}", id)
 	}
 
 	return &item, nil
 }
+{%- endif %}
+{%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
+
+// write stores item as the whole record. A create fails instead of
+// overwriting an existing id.
+func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
+	av, err := attributevalue.MarshalMap(item)
+	if err != nil {
+		return err
+	}
+
+	input := &dynamodb.PutItemInput{
+		TableName: aws.String(repo.tableName),
+		Item:      av,
+	}
+	if create {
+		input.ConditionExpression = aws.String("attribute_not_exists(id)")
+	}
+	_, err = repo.client.PutItem(ctx, input)
+	return err
+}
+{%- endif %}
 {%- endif %}
 {%- if 'get_by_id' in ops %}
 
@@ -517,48 +243,79 @@ func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ 
 		return nil, err
 	}
 
-	return &models.{{ r }}Dto{
-		Id:   item.Id,
-		Name: item.Name,
-	}, nil
+	dto := models.To{{ r }}Dto(*item)
+	return &dto, nil
 }
 {%- endif %}
 {%- if 'list' in ops %}
 
+// GetList returns up to limit records that are not soft-deleted.
 func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
-	filt := expression.Equal(expression.Name("isDeleted"), expression.Value(false))
-	expr, err := expression.NewBuilder().WithFilter(filt).Build()
+	results := make([]models.{{ r }}Dto, 0)
+{%- if cloud_service == 'Azure Function App' %}
+	query := fmt.Sprintf("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT %d", limit)
+	pager := repo.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
+
+	for pager.More() && len(results) < limit {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, data := range resp.Items {
+			var item models.{{ r }}
+			if err := json.Unmarshal(data, &item); err != nil {
+				return nil, err
+			}
+			results = append(results, models.To{{ r }}Dto(item))
+		}
+	}
+{%- elif cloud_service == 'GCP Cloud Function' %}
+	iter := repo.collection.Where("isDeleted", "==", false).Limit(limit).Documents(ctx)
+	defer iter.Stop()
+
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		var item models.{{ r }}
+		if err := doc.DataTo(&item); err != nil {
+			return nil, err
+		}
+		results = append(results, models.To{{ r }}Dto(item))
+	}
+{%- elif cloud_service == 'AWS Lambda' %}
+	filter := expression.Equal(expression.Name("isDeleted"), expression.Value(false))
+	expr, err := expression.NewBuilder().WithFilter(filter).Build()
 	if err != nil {
 		return nil, err
 	}
 
-	var results []models.{{ r }}Dto
 	var lastKey map[string]types.AttributeValue
-
 	for {
-		input := &dynamodb.ScanInput{
+		resp, err := repo.client.Scan(ctx, &dynamodb.ScanInput{
 			TableName:                 aws.String(repo.tableName),
 			FilterExpression:          expr.Filter(),
 			ExpressionAttributeNames:  expr.Names(),
 			ExpressionAttributeValues: expr.Values(),
 			ExclusiveStartKey:         lastKey,
 			Limit:                     aws.Int32(int32(limit)),
-		}
-
-		resp, err := repo.client.Scan(ctx, input)
+		})
 		if err != nil {
 			return nil, err
 		}
 
-		for _, item := range resp.Items {
-			var entity models.{{ r }}
-			if err := attributevalue.UnmarshalMap(item, &entity); err != nil {
+		for _, data := range resp.Items {
+			var item models.{{ r }}
+			if err := attributevalue.UnmarshalMap(data, &item); err != nil {
 				return nil, err
 			}
-			results = append(results, models.{{ r }}Dto{
-				Id:   entity.Id,
-				Name: entity.Name,
-			})
+			results = append(results, models.To{{ r }}Dto(item))
 		}
 
 		if resp.LastEvaluatedKey == nil || len(results) >= limit {
@@ -566,126 +323,83 @@ func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]model
 		}
 		lastKey = resp.LastEvaluatedKey
 	}
+{%- endif %}
 
 	if len(results) > limit {
 		results = results[:limit]
 	}
-
 	return results, nil
 }
 {%- endif %}
 {%- if 'create' in ops %}
 
 func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	av, err := attributevalue.MarshalMap(item)
-	if err != nil {
+	if err := repo.write(ctx, item, true); err != nil {
 		return nil, err
 	}
 
-	_, err = repo.client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String(repo.tableName),
-		Item:      av,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   item.Id,
-		Name: item.Name,
-	}, nil
+	dto := models.To{{ r }}Dto(item)
+	return &dto, nil
 }
 {%- endif %}
 {%- if 'update' in ops %}
 
+// Update changes the name when one is given and refreshes updatedTimestamp,
+// keeping every other stored field.
 func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	currentItem, err := repo.getItem(ctx, item.Id)
+	updated, err := repo.getItem(ctx, item.Id)
 	if err != nil {
 		return nil, err
-	}
-
-	updateItem := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               currentItem.Id,
-			IsDeleted:        currentItem.IsDeleted,
-			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp: currentItem.CreatedTimestamp,
-			UpdatedTimestamp: time.Now().UTC(),
-		},
 	}
 
 	if item.Name != "" {
-		updateItem.Name = item.Name
-	} else {
-		updateItem.Name = currentItem.Name
+		updated.Name = item.Name
 	}
-
 	if item.UpdatedBy != "" {
-		updateItem.UpdatedBy = item.UpdatedBy
-	} else {
-		updateItem.UpdatedBy = currentItem.UpdatedBy
+		updated.UpdatedBy = item.UpdatedBy
 	}
+	updated.UpdatedTimestamp = models.Now()
 
-	av, err := attributevalue.MarshalMap(updateItem)
-	if err != nil {
+	if err := repo.write(ctx, *updated, false); err != nil {
 		return nil, err
 	}
 
-	_, err = repo.client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String(repo.tableName),
-		Item:      av,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   updateItem.Id,
-		Name: updateItem.Name,
-	}, nil
+	dto := models.To{{ r }}Dto(*updated)
+	return &dto, nil
 }
 {%- endif %}
 {%- if 'replace' in ops %}
 
+// Replace overwrites the client-settable fields, keeping id, createdTimestamp
+// and createdBy, and refreshes updatedTimestamp.
 func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	currentItem, err := repo.getItem(ctx, item.Id)
+	current, err := repo.getItem(ctx, item.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	replacementItem := models.{{ r }}{
+	replacement := models.{{ r }}{
 		BaseEntity: models.BaseEntity{
-			Id:               currentItem.Id,
-			IsDeleted:        false,
-			CreatedBy:        currentItem.CreatedBy,
-			CreatedTimestamp: currentItem.CreatedTimestamp,
+			Id:               current.Id,
+			CreatedTimestamp: current.CreatedTimestamp,
+			UpdatedTimestamp: models.Now(),
+			CreatedBy:        current.CreatedBy,
 			UpdatedBy:        item.UpdatedBy,
-			UpdatedTimestamp: time.Now().UTC(),
 		},
 		Name: item.Name,
 	}
 
-	av, err := attributevalue.MarshalMap(replacementItem)
-	if err != nil {
+	if err := repo.write(ctx, replacement, false); err != nil {
 		return nil, err
 	}
 
-	_, err = repo.client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String(repo.tableName),
-		Item:      av,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.{{ r }}Dto{
-		Id:   replacementItem.Id,
-		Name: replacementItem.Name,
-	}, nil
+	dto := models.To{{ r }}Dto(replacement)
+	return &dto, nil
 }
 {%- endif %}
 {%- if 'delete' in ops %}
 
+// Delete soft-deletes the record: it is kept with isDeleted set to true.
 func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	item, err := repo.getItem(ctx, id)
 	if err != nil {
@@ -693,17 +407,7 @@ func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	}
 
 	item.IsDeleted = true
-
-	av, err := attributevalue.MarshalMap(item)
-	if err != nil {
-		return err
-	}
-
-	_, err = repo.client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String(repo.tableName),
-		Item:      av,
-	})
-	return err
+	item.UpdatedTimestamp = models.Now()
+	return repo.write(ctx, *item, false)
 }
-{%- endif %}
 {%- endif %}

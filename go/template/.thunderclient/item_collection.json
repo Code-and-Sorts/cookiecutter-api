@@ -1,4 +1,4 @@
-{%- set route_prefix = '' if cloud_service == 'AWS Lambda' else '/api' -%}
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set ns = namespace(sort=0) -%}
 {
     "clientName": "Thunder Client",
@@ -45,19 +45,19 @@
 {%- if op == "create" %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1\",\n  \"createdBy\": \"ThunderClient\",\n  \"updatedBy\": \"ThunderClient\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1\"\n}",
                 "form": []
             },
 {%- elif op == "update" %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1-Update\",\n  \"updatedBy\": \"ThunderClient\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1-Update\"\n}",
                 "form": []
             },
 {%- elif op == "replace" %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1-Replace\",\n  \"updatedBy\": \"ThunderClient\"\n}",
+                "raw": "{\n  \"name\": \"{{ resource.name }}1-Replace\"\n}",
                 "form": []
             },
 {%- endif %}

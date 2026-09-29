@@ -35,7 +35,7 @@ Resources:
         Get{{ resource.name }}ById:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: get
 {%- endif %}
 {%- if "list" in resource.operations %}
@@ -56,21 +56,21 @@ Resources:
         Update{{ resource.name }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: patch
 {%- endif %}
 {%- if "replace" in resource.operations %}
         Replace{{ resource.name }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: put
 {%- endif %}
 {%- if "delete" in resource.operations %}
         Delete{{ resource.name }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: delete
 {%- endif %}
 {%- endfor %}

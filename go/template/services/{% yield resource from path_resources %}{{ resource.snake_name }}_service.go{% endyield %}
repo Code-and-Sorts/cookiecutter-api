@@ -8,7 +8,6 @@ package services
 import (
 	"context"
 {%- if 'create' in ops %}
-	"time"
 
 	"github.com/google/uuid"
 {%- endif %}
@@ -62,12 +61,10 @@ func (s *{{ lc }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r
 {%- if "create" in ops %}
 
 func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error) {
-	now := time.Now().UTC()
+	now := models.Now()
 	new{{ r }} := models.{{ r }}{
 		BaseEntity: models.BaseEntity{
 			Id:               uuid.New().String(),
-			CreatedBy:        req.CreatedBy,
-			UpdatedBy:        req.UpdatedBy,
 			CreatedTimestamp: now,
 			UpdatedTimestamp: now,
 		},
@@ -80,11 +77,8 @@ func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Re
 
 func (s *{{ lc }}Service) Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error) {
 	updated{{ r }} := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:        req.Id,
-			UpdatedBy: req.UpdatedBy,
-		},
-		Name: req.Name,
+		BaseEntity: models.BaseEntity{Id: req.Id},
+		Name:       req.Name,
 	}
 	return s.repository.Update(ctx, updated{{ r }})
 }
@@ -93,11 +87,8 @@ func (s *{{ lc }}Service) Update(ctx context.Context, req models.Update{{ r }}Re
 
 func (s *{{ lc }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error) {
 	replacement{{ r }} := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:        req.Id,
-			UpdatedBy: req.UpdatedBy,
-		},
-		Name: req.Name,
+		BaseEntity: models.BaseEntity{Id: req.Id},
+		Name:       req.Name,
 	}
 	return s.repository.Replace(ctx, replacement{{ r }})
 }

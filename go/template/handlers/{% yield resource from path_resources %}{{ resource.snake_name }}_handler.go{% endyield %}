@@ -1,21 +1,20 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set ep = resource.endpoint -%}
 {%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
+{%- set uses_id = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 package handlers
 
 import (
 {%- if cloud_service == 'AWS Lambda' %}
 	"context"
-{%- else %}
-	"encoding/json"
 {%- endif %}
 {%- if 'delete' in ops %}
 	"fmt"
 {%- endif %}
-	"log"
-{%- if cloud_service != 'AWS Lambda' %}
+	"log/slog"
 	"net/http"
-{%- endif %}
 {%- if 'list' in ops %}
 	"strconv"
 {%- endif %}
@@ -30,66 +29,62 @@ import (
 	"{{project_endpoint}}/controllers"
 	"{{project_endpoint}}/utils"
 )
-{%- if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
+{%- if cloud_service != 'AWS Lambda' %}
 
-// Register{{ r }}Routes registers the /api/{{ resource.endpoint }} routes on mux.
+// Register{{ r }}Routes registers the {{ route_prefix }}/{{ ep }} routes on mux. Other
+// methods on these paths get the JSON 405 response.
 func Register{{ r }}Routes(mux *http.ServeMux, controller controllers.{{ r }}Controller) {
 {%- if "list" in ops %}
-	mux.HandleFunc("GET /api/{{ resource.endpoint }}", handleGet{{ r }}List(controller))
+	mux.HandleFunc("GET {{ route_prefix }}/{{ ep }}", handleGet{{ r }}List(controller))
 {%- endif %}
 {%- if "get_by_id" in ops %}
-	mux.HandleFunc("GET /api/{{ resource.endpoint }}/{id}", handleGet{{ r }}(controller))
+	mux.HandleFunc("GET {{ route_prefix }}/{{ ep }}/{id}", handleGet{{ r }}(controller))
 {%- endif %}
 {%- if "create" in ops %}
-	mux.HandleFunc("POST /api/{{ resource.endpoint }}", handleCreate{{ r }}(controller))
+	mux.HandleFunc("POST {{ route_prefix }}/{{ ep }}", handleCreate{{ r }}(controller))
 {%- endif %}
 {%- if "update" in ops %}
-	mux.HandleFunc("PATCH /api/{{ resource.endpoint }}/{id}", handleUpdate{{ r }}(controller))
+	mux.HandleFunc("PATCH {{ route_prefix }}/{{ ep }}/{id}", handleUpdate{{ r }}(controller))
 {%- endif %}
 {%- if "replace" in ops %}
-	mux.HandleFunc("PUT /api/{{ resource.endpoint }}/{id}", handleReplace{{ r }}(controller))
+	mux.HandleFunc("PUT {{ route_prefix }}/{{ ep }}/{id}", handleReplace{{ r }}(controller))
 {%- endif %}
 {%- if "delete" in ops %}
-	mux.HandleFunc("DELETE /api/{{ resource.endpoint }}/{id}", handleDelete{{ r }}(controller))
+	mux.HandleFunc("DELETE {{ route_prefix }}/{{ ep }}/{id}", handleDelete{{ r }}(controller))
 {%- endif %}
+	mux.HandleFunc("{{ route_prefix }}/{{ ep }}", methodNotAllowed)
+	mux.HandleFunc("{{ route_prefix }}/{{ ep }}/{id}", methodNotAllowed)
 }
-{%- if "get_by_id" in ops %}
-
-func handleGet{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		log.Printf("Get{{ r }} processed a request.")
-
-		result, err := controller.Get(r.Context(), id)
-		if err != nil {
-			log.Printf("Exception in Get{{ r }}: %v", err)
-			utils.DetectError(w, err)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
-	}
-}
-{%- endif %}
 {%- if "list" in ops %}
 
 func handleGet{{ r }}List(controller controllers.{{ r }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Get{{ r }}List processed a request.")
+		slog.Info("Get{{ r }}List processed a request.")
 
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		result, err := controller.GetList(r.Context(), limit)
 		if err != nil {
-			log.Printf("Exception in Get{{ r }}List: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
+		utils.WriteJSON(w, http.StatusOK, result)
+	}
+}
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+func handleGet{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("Get{{ r }} processed a request.")
+
+		result, err := controller.Get(r.Context(), r.PathValue("id"))
+		if err != nil {
+			utils.DetectError(w, err)
+			return
+		}
+
+		utils.WriteJSON(w, http.StatusOK, result)
 	}
 }
 {%- endif %}
@@ -97,18 +92,15 @@ func handleGet{{ r }}List(controller controllers.{{ r }}Controller) http.Handler
 
 func handleCreate{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Create{{ r }} processed a request.")
+		slog.Info("Create{{ r }} processed a request.")
 
 		result, err := controller.Create(r.Context(), r.Body)
 		if err != nil {
-			log.Printf("Exception in Create{{ r }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(result)
+		utils.WriteJSON(w, http.StatusCreated, result)
 	}
 }
 {%- endif %}
@@ -116,19 +108,15 @@ func handleCreate{{ r }}(controller controllers.{{ r }}Controller) http.HandlerF
 
 func handleUpdate{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		log.Printf("Update{{ r }} processed a request.")
+		slog.Info("Update{{ r }} processed a request.")
 
-		result, err := controller.Update(r.Context(), id, r.Body)
+		result, err := controller.Update(r.Context(), r.PathValue("id"), r.Body)
 		if err != nil {
-			log.Printf("Exception in Update{{ r }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
+		utils.WriteJSON(w, http.StatusOK, result)
 	}
 }
 {%- endif %}
@@ -136,19 +124,15 @@ func handleUpdate{{ r }}(controller controllers.{{ r }}Controller) http.HandlerF
 
 func handleReplace{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		log.Printf("Replace{{ r }} processed a request.")
+		slog.Info("Replace{{ r }} processed a request.")
 
-		result, err := controller.Replace(r.Context(), id, r.Body)
+		result, err := controller.Replace(r.Context(), r.PathValue("id"), r.Body)
 		if err != nil {
-			log.Printf("Exception in Replace{{ r }}: %v", err)
 			utils.DetectError(w, err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
+		utils.WriteJSON(w, http.StatusOK, result)
 	}
 }
 {%- endif %}
@@ -156,101 +140,97 @@ func handleReplace{{ r }}(controller controllers.{{ r }}Controller) http.Handler
 
 func handleDelete{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		log.Printf("Delete{{ r }} processed a request.")
+		slog.Info("Delete{{ r }} processed a request.")
 
-		err := controller.Delete(r.Context(), id)
-		if err != nil {
-			log.Printf("Exception in Delete{{ r }}: %v", err)
+		id := r.PathValue("id")
+		if err := controller.Delete(r.Context(), id); err != nil {
 			utils.DetectError(w, err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		utils.WriteJSON(w, http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("{{ r }} with id %s was deleted successfully.", id),
 		})
 	}
 }
 {%- endif %}
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
+{%- else %}
 
-// Handle{{ r }} serves an API Gateway request for the /{{ resource.endpoint }} routes.
-func Handle{{ r }}(ctx context.Context, request events.APIGatewayProxyRequest, controller controllers.{{ r }}Controller) (events.APIGatewayProxyResponse, error) {
-	switch request.HTTPMethod {
-	case "GET":
-		if hasItemID(request) {
-{%- if "get_by_id" in ops %}
-			result, err := controller.Get(ctx, request.PathParameters["item_id"])
-			if err != nil {
-				log.Printf("Exception in Get{{ r }}: %v", err)
-				return utils.DetectError(err), nil
-			}
-			return jsonResponse(200, result)
-{%- else %}
-			return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
-{%- endif %}
-		}
+// Register{{ r }}Routes registers the /{{ ep }} and /{{ ep }}/{id} resource paths
+// on router.
+func Register{{ r }}Routes(router *Router, controller controllers.{{ r }}Controller) {
+	handler := handle{{ r }}(controller)
+	router.Handle("/{{ ep }}", handler)
+	router.Handle("/{{ ep }}/{id}", handler)
+}
+
+// handle{{ r }} serves the /{{ ep }} routes. Methods that are not enabled get the
+// JSON 405 response.
+func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
+	return func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+{%- if uses_id %}
+		id := request.PathParameters["id"]
+{% endif %}
+		switch request.HTTPMethod + " " + request.Resource {
 {%- if "list" in ops %}
-		limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
-		result, err := controller.GetList(ctx, limit)
-		if err != nil {
-			log.Printf("Exception in Get{{ r }}List: %v", err)
-			return utils.DetectError(err), nil
-		}
-		return jsonResponse(200, result)
-{%- else %}
-		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+		case "GET /{{ ep }}":
+			slog.Info("Get{{ r }}List processed a request.")
+			limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
+			result, err := controller.GetList(ctx, limit)
+			if err != nil {
+				return utils.DetectError(err)
+			}
+			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
-	case "POST":
+{%- if "get_by_id" in ops %}
+		case "GET /{{ ep }}/{id}":
+			slog.Info("Get{{ r }} processed a request.")
+			result, err := controller.Get(ctx, id)
+			if err != nil {
+				return utils.DetectError(err)
+			}
+			return utils.JSONResponse(http.StatusOK, result)
+{%- endif %}
 {%- if "create" in ops %}
-		result, err := controller.Create(ctx, strings.NewReader(request.Body))
-		if err != nil {
-			log.Printf("Exception in Create{{ r }}: %v", err)
-			return utils.DetectError(err), nil
-		}
-		return jsonResponse(201, result)
-{%- else %}
-		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+		case "POST /{{ ep }}":
+			slog.Info("Create{{ r }} processed a request.")
+			result, err := controller.Create(ctx, strings.NewReader(request.Body))
+			if err != nil {
+				return utils.DetectError(err)
+			}
+			return utils.JSONResponse(http.StatusCreated, result)
 {%- endif %}
-	case "PATCH":
 {%- if "update" in ops %}
-		result, err := controller.Update(ctx, request.PathParameters["item_id"], strings.NewReader(request.Body))
-		if err != nil {
-			log.Printf("Exception in Update{{ r }}: %v", err)
-			return utils.DetectError(err), nil
-		}
-		return jsonResponse(200, result)
-{%- else %}
-		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+		case "PATCH /{{ ep }}/{id}":
+			slog.Info("Update{{ r }} processed a request.")
+			result, err := controller.Update(ctx, id, strings.NewReader(request.Body))
+			if err != nil {
+				return utils.DetectError(err)
+			}
+			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
-	case "PUT":
 {%- if "replace" in ops %}
-		result, err := controller.Replace(ctx, request.PathParameters["item_id"], strings.NewReader(request.Body))
-		if err != nil {
-			log.Printf("Exception in Replace{{ r }}: %v", err)
-			return utils.DetectError(err), nil
-		}
-		return jsonResponse(200, result)
-{%- else %}
-		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+		case "PUT /{{ ep }}/{id}":
+			slog.Info("Replace{{ r }} processed a request.")
+			result, err := controller.Replace(ctx, id, strings.NewReader(request.Body))
+			if err != nil {
+				return utils.DetectError(err)
+			}
+			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
-	case "DELETE":
 {%- if "delete" in ops %}
-		if err := controller.Delete(ctx, request.PathParameters["item_id"]); err != nil {
-			log.Printf("Exception in Delete{{ r }}: %v", err)
-			return utils.DetectError(err), nil
-		}
-		return jsonResponse(200, map[string]string{
-			"message": fmt.Sprintf("{{ r }} with id %s was deleted successfully.", request.PathParameters["item_id"]),
-		})
-{%- else %}
-		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+		case "DELETE /{{ ep }}/{id}":
+			slog.Info("Delete{{ r }} processed a request.")
+			if err := controller.Delete(ctx, id); err != nil {
+				return utils.DetectError(err)
+			}
+			return utils.JSONResponse(http.StatusOK, map[string]string{
+				"message": fmt.Sprintf("{{ r }} with id %s was deleted successfully.", id),
+			})
 {%- endif %}
-	default:
-		return utils.GenerateErrorResponse("Method Not Allowed", 405), nil
+		default:
+			return methodNotAllowed()
+		}
 	}
 }
 {%- endif %}

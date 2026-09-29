@@ -1,21 +1,28 @@
 package services
 
 import (
-	"encoding/json"
+	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
 	"{{project_endpoint}}/models"
 )
 
+// SchemaValidator validates raw JSON request bodies against named JSON schemas.
 type SchemaValidator interface {
-	Validate(data any, schemaName string) error
+	// Validate returns a *models.ValidationError when body is not valid JSON or
+	// does not match the schema.
+	Validate(body []byte, schemaName string) error
 }
 
 type schemaValidator struct {
 	schemas map[string]*jsonschema.Schema
+	printer *message.Printer
 }
 
 func NewSchemaValidator(schemaDefs map[string]string) (SchemaValidator, error) {
@@ -39,28 +46,48 @@ func NewSchemaValidator(schemaDefs map[string]string) (SchemaValidator, error) {
 		schemas[name] = sch
 	}
 
-	return &schemaValidator{schemas: schemas}, nil
+	return &schemaValidator{schemas: schemas, printer: message.NewPrinter(language.English)}, nil
 }
 
-func (v *schemaValidator) Validate(data any, schemaName string) error {
+func (v *schemaValidator) Validate(body []byte, schemaName string) error {
 	sch, ok := v.schemas[schemaName]
 	if !ok {
 		return fmt.Errorf("schema %s not found", schemaName)
 	}
 
-	jsonBytes, err := json.Marshal(data)
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("failed to marshal data: %w", err)
-	}
-
-	inst, err := jsonschema.UnmarshalJSON(strings.NewReader(string(jsonBytes)))
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal instance: %w", err)
+		return &models.ValidationError{Message: "Request body must be valid JSON."}
 	}
 
 	if err := sch.Validate(inst); err != nil {
-		return &models.ValidationError{Message: "Failed schema validation."}
+		var validationErr *jsonschema.ValidationError
+		if errors.As(err, &validationErr) {
+			return &models.ValidationError{Message: v.describe(validationErr)}
+		}
+		return err
 	}
 
 	return nil
+}
+
+// describe turns the leaf schema failures into one readable message, for
+// example "name: got number, want string."
+func (v *schemaValidator) describe(err *jsonschema.ValidationError) string {
+	var problems []string
+	var collect func(e *jsonschema.ValidationError)
+	collect = func(e *jsonschema.ValidationError) {
+		if len(e.Causes) == 0 {
+			location := "request body"
+			if len(e.InstanceLocation) > 0 {
+				location = strings.Join(e.InstanceLocation, ".")
+			}
+			problems = append(problems, location+": "+e.ErrorKind.LocalizedString(v.printer))
+		}
+		for _, cause := range e.Causes {
+			collect(cause)
+		}
+	}
+	collect(err)
+	return strings.Join(problems, "; ") + "."
 }

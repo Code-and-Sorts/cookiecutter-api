@@ -1,0 +1,83 @@
+// Package function is the Cloud Run function. Deploy it with --entry-point
+// api; cmd/main.go runs it locally with the Functions Framework.
+package function
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"os"
+
+	"cloud.google.com/go/firestore"
+	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
+
+	"{{project_endpoint}}/controllers"
+	"{{project_endpoint}}/handlers"
+	"{{project_endpoint}}/repositories"
+	"{{project_endpoint}}/services"
+	"{{project_endpoint}}/utils"
+)
+
+func init() {
+	slog.SetDefault(utils.NewLogger())
+	functions.HTTP("api", newAPI().ServeHTTP)
+}
+
+// newAPI wires every resource's repository, service, controller and routes
+// into one handler that routes by path.
+func newAPI() http.Handler {
+	validator, err := services.NewSchemaValidator(controllers.RequestSchemas())
+	exitOnError("Failed to initialize schema validator", err)
+	client := newFirestoreClient()
+
+	router := handlers.NewRouter()
+{%- if health_endpoint %}
+	handlers.RegisterHealthRoute(router)
+{%- endif %}
+{%- for resource in resources %}
+	{
+		collection := firestoreCollection(client, "FIRESTORE_COLLECTION_{{ resource.container | upper | replace('-', '_') }}", "{{ resource.container }}")
+		repository := repositories.New{{ resource.name }}Repository(collection)
+		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
+		handlers.Register{{ resource.name }}Routes(router, controller)
+	}
+{%- endfor %}
+
+	return handlers.Recover(router)
+}
+
+// newFirestoreClient connects to the database named by FIRESTORE_DATABASE
+// (default "(default)") in the GCP_PROJECT_ID project.
+func newFirestoreClient() *firestore.Client {
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		exitOnError("Missing settings", errors.New("GCP_PROJECT_ID is required"))
+	}
+	databaseName := os.Getenv("FIRESTORE_DATABASE")
+	if databaseName == "" {
+		databaseName = firestore.DefaultDatabaseID
+	}
+
+	client, err := firestore.NewClientWithDatabase(context.Background(), projectID, databaseName)
+	exitOnError("Failed to create Firestore client", err)
+	return client
+}
+
+// firestoreCollection returns the collection named by the setting, or by
+// defaultName when the setting is unset.
+func firestoreCollection(client *firestore.Client, setting, defaultName string) *firestore.CollectionRef {
+	name := os.Getenv(setting)
+	if name == "" {
+		name = defaultName
+	}
+	return client.Collection(name)
+}
+
+// exitOnError logs err at error level and exits when err is not nil.
+func exitOnError(message string, err error) {
+	if err != nil {
+		slog.Error(message, "error", err)
+		os.Exit(1)
+	}
+}

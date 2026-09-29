@@ -124,6 +124,15 @@ func TestCreate{{ r }}_ShouldReturnCreated{{ r }}Dto(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
 	mockRepo.AssertExpectations(t)
+
+	stored := mockRepo.Calls[0].Arguments.Get(1).(models.{{ r }})
+	assert.Len(t, stored.Id, 36)
+	assert.Equal(t, "mockCreate{{ r }}", stored.Name)
+	assert.False(t, stored.IsDeleted)
+	assert.Empty(t, stored.CreatedBy)
+	assert.Empty(t, stored.UpdatedBy)
+	assert.Equal(t, stored.CreatedTimestamp, stored.UpdatedTimestamp)
+	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$`, stored.CreatedTimestamp)
 }
 {%- endif %}
 {%- if "update" in resource.operations %}

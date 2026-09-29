@@ -7,14 +7,15 @@
 This project is a Go-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) with a [custom handler](https://learn.microsoft.com/en-us/azure/azure-functions/functions-custom-handlers). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-This project is a Go-based REST API built using [Google Cloud Functions](https://cloud.google.com/functions/docs). The API leverages GCP's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered function serves as the entry point for the API, providing a seamless way to handle client requests.
+This project is a Go-based REST API built as a single HTTP [Cloud Run function](https://cloud.google.com/functions/docs) (formerly Cloud Functions) with the [Functions Framework for Go](https://github.com/GoogleCloudPlatform/functions-framework-go). The function, registered as `api` in `function.go`, routes every request by its path, and `cmd/main.go` runs it locally.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 This project is a Go-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with [API Gateway](https://docs.aws.amazon.com/apigateway/). The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) framework is used for local development and deployment.
 {%- endif %}
 
-{%- set route_prefix = '' if cloud_service == 'AWS Lambda' else '/api' %}
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' %}
 {%- set containers = resources | map(attribute='container') | unique | list %}
+
 The REST API exposes the following resources and operations:
 {% for resource in resources %}
 - **`{{ route_prefix }}/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
@@ -40,8 +41,46 @@ The REST API exposes the following resources and operations:
 
 {%- if health_endpoint %}
 
-A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}`.
+A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and answers `200 {"status":"ok"}`{% if cloud_service == 'Azure Function App' %} without a function key{% endif %}.
 {%- endif %}
+{%- if cloud_service == 'Azure Function App' %}
+
+Routes are served under the Functions host's default `/api` prefix. The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed){% if health_endpoint %}; the health check function is anonymous{% endif %}.
+{%- elif cloud_service == 'AWS Lambda' %}
+
+API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`).
+{%- endif %}
+
+### Responses
+
+Every response, including errors, is JSON (`Content-Type: application/json`).
+
+| Case | Status | Body |
+|---|---|---|
+| Create | 201 | the item |
+| Get, update, replace | 200 | the item |
+| List | 200 | an array of items (`[]` when there are none) |
+| Delete | 200 | `{"message": "<Name> with id <id> was deleted successfully."}` |
+| Invalid body | 400 | `{"errorMessage": "<what is wrong>"}` |
+| Id not found, soft-deleted or not a UUID | 404 | `{"errorMessage": "<Name> with id <id> was not found."}` |
+| Unknown path | 404 | `{"errorMessage": "Not found."}` |
+| Known path, method not enabled | 405 | `{"errorMessage": "Method not allowed."}` |
+| Anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` |
+
+An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be JSON objects: create (POST) and replace (PUT) require a non-empty string `name`; update (PATCH) accepts an optional non-empty string `name`. Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with a 400. List takes an optional `?limit=` (default 100, at most 1000; invalid values fall back to the default).
+{%- if cloud_service == 'Azure Function App' %}
+
+A method a resource does not enable never reaches the handler when the method is missing from every function registered for that path: the Functions host answers it with its own 404.
+{%- elif cloud_service == 'AWS Lambda' %}
+
+API Gateway answers a path or method that `template.yaml` does not map with its own `403 {"message":"Missing Authentication Token"}` before the Lambda function runs; the JSON 404 and 405 responses above apply to requests that reach the function.
+{%- endif %}
+
+Records are stored with `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Delete is a soft delete: it sets `isDeleted` to `true`.
+
+### Logging
+
+Logs are written with `log/slog`. Records below error level go to stdout; unexpected errors are logged at error level, with a stack trace, to stderr. Expected 4xx outcomes are not logged as errors.
 
 ### Storage containers
 
@@ -70,7 +109,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 - Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-- GCP Cloud Functions: Utilizes Google Cloud's serverless platform to create scalable and efficient endpoints with HTTP triggers.
+- GCP Cloud Run functions: One HTTP function, `api`, built with the Functions Framework for Go, serves every endpoint on Google Cloud's serverless platform.
 
 - Go-Based: Written entirely in Go, leveraging its performance, simplicity, and rich standard library for rapid development.
 
@@ -184,20 +223,25 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     make run
     ```
 
-    This command builds the Go binary and starts the local development server on port 8080, where you can interact with your API endpoints.
+    This runs `FUNCTION_TARGET=api PORT=8080 go run ./cmd`: the Functions Framework serves the `api` function at every path on port 8080, for example `http://localhost:8080/{{ resources[0].endpoint }}`. Set `FIRESTORE_EMULATOR_HOST` to use the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator).
 
 6. Deploy to GCP
 
-    Build and deploy to Cloud Run (recommended for Go HTTP servers):
+    Deploy the `api` entry point as an HTTP Cloud Run function:
 
     ```console
-    gcloud run deploy {{project_endpoint}}-api \
-      --source . \
-      --base-image go127 \
+    gcloud functions deploy {{project_endpoint}}-api \
+      --gen2 \
+      --runtime go127 \
       --region us-central1 \
+      --source . \
+      --entry-point api \
+      --trigger-http \
       --allow-unauthenticated \
       --set-env-vars GCP_PROJECT_ID=your-project-id{% for container in containers %},FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}={{ container }}{% endfor %}
     ```
+
+    The function's routes have no prefix: `https://<function-url>/{{ resources[0].endpoint }}`.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 1. Install AWS SAM CLI
@@ -225,7 +269,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     This command builds the Go binary using SAM and starts the local API Gateway, where you can interact with your API endpoints.
 {%- endif %}
 
-5. Thunderclient
+{{ 7 if cloud_service == 'GCP Cloud Function' else 5 }}. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 
@@ -263,31 +307,51 @@ This is also run automatically in CI on every PR and push to main.
 
 ## Repository structure
 
-Every resource has its own file in each layer. Shared code (list pagination, the schema
-validator, the base entity, error types and the wiring in `main.go`) lives in one file per
-package.
+Every resource has its own file in each layer. Shared code (routing, list pagination, id
+checks, the schema validator, the base entity, error types, logging and the wiring in
+`{{ 'function.go' if cloud_service == 'GCP Cloud Function' else 'main.go' }}`) lives in one file per package.
 
 ```text
 .
+├── .github/workflows              # CI: format, vet, build, lint, unit tests and vulnerability scan
+├── .thunderclient                 # Thunder Client requests and the localhost environment
+├── .golangci.yml
+{%- if cloud_service == 'GCP Cloud Function' %}
+├── cmd
+│   └── main.go                    # runs the function locally with the Functions Framework
+{%- endif %}
 ├── controllers
 │   ├── schemas                    # request body JSON schemas, one per resource and operation
 {%- for resource in resources %}
 │   ├── {{ resource.name | to_snake }}_controller.go
 │   ├── {{ resource.name | to_snake }}_controller_test.go
 {%- endfor %}
+│   ├── ids.go                     # only UUID ids reach the database
+│   ├── ids_test.go
 │   ├── pagination.go
+│   ├── pagination_test.go
 │   └── schemas.go                 # embeds the request schemas
 ├── handlers
-{%- set handlers_last = health_endpoint or cloud_service == 'AWS Lambda' %}
 {%- for resource in resources %}
-│   {{ '└──' if loop.last and not handlers_last else '├──' }} {{ resource.name | to_snake }}_handler.go
+│   ├── {{ resource.name | to_snake }}_handler.go
+│   ├── {{ resource.name | to_snake }}_handler_test.go
 {%- endfor %}
 {%- if health_endpoint %}
-│   {{ '├──' if cloud_service == 'AWS Lambda' else '└──' }} health_handler.go
+│   ├── health_handler.go
+│   ├── health_handler_test.go
 {%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-│   └── lambda.go                  # API Gateway response helpers
-{%- endif %}
+│   ├── router.go                  # JSON 404, 405 and 500 responses
+│   └── router_test.go
+├── models                         # each resource's entity, DTO and request types
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_model.go
+{%- endfor %}
+│   ├── entity.go                  # BaseEntity
+│   └── errors.go
+├── repositories
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_snake }}_repository.go
+{%- endfor %}
 ├── services
 {%- for resource in resources %}
 │   ├── {{ resource.name | to_snake }}_service.go
@@ -295,30 +359,33 @@ package.
 {%- endfor %}
 │   ├── schema_validator.go
 │   └── schema_validator_test.go
-├── repositories
-{%- for resource in resources %}
-│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_snake }}_repository.go
-{%- endfor %}
-├── models                         # each resource's entity, DTO and request types
-{%- for resource in resources %}
-│   ├── {{ resource.name | to_snake }}_model.go
-{%- endfor %}
-│   ├── entity.go                  # BaseEntity
-│   └── errors.go
 ├── utils
+│   ├── error_detector.go          # maps errors to JSON error responses
+│   ├── error_detector_test.go
+│   ├── logger.go                  # info logs to stdout, errors to stderr
+│   └── logger_test.go
 {%- if cloud_service == 'Azure Function App' %}
 {%- for resource in resources %}
-├── {{ resource.name | to_lower_camel }}Api/function.json
+├── {{ resource.name | to_lower_camel }}Api
+│   └── function.json
 {%- endfor %}
 {%- if health_endpoint %}
-├── healthApi/function.json
+├── healthApi
+│   └── function.json
 {%- endif %}
 ├── host.json
+├── local.settings.json
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-├── template.yaml
+├── template.yaml                  # SAM template: API Gateway routes and DynamoDB tables
 {%- endif %}
-└── main.go                        # wires each resource's repository, service, controller and handler
+├── go.mod
+├── Makefile
+{%- if cloud_service == 'GCP Cloud Function' %}
+└── function.go                    # registers the "api" function and wires each resource
+{%- else %}
+└── main.go                        # wires each resource's repository, service, controller and routes
+{%- endif %}
 ```
 
 ## License

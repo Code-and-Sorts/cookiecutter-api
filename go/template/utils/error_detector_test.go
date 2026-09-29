@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
-{%- if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
+	"fmt"
+	"log/slog"
+{%- if cloud_service != 'AWS Lambda' %}
 	"net/http"
 	"net/http/httptest"
 {%- endif %}
@@ -13,104 +16,127 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-{% if cloud_service == 'Azure Function App' or cloud_service == 'GCP Cloud Function' %}
+
+// captureLogs sends the default logger to a buffer for the rest of the test.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &logs
+}
+{%- if cloud_service != 'AWS Lambda' %}
+
+func decodeError(t *testing.T, w *httptest.ResponseRecorder) string {
+	t.Helper()
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	var baseError models.BaseError
+	assert.NoError(t, json.NewDecoder(w.Body).Decode(&baseError))
+	return baseError.ErrorMessage
+}
+
 func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
-	// Arrange
 	w := httptest.NewRecorder()
-	err := &models.NotFoundError{Message: "Item not found"}
 
-	// Act
-	DetectError(w, err)
+	DetectError(w, fmt.Errorf("wrapped: %w", models.NewNotFoundError("Item", "abc")))
 
-	// Assert
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	var baseError models.BaseError
-	json.NewDecoder(w.Body).Decode(&baseError)
-	assert.Equal(t, "Item not found", baseError.ErrorMessage)
+	assert.Equal(t, "Item with id abc was not found.", decodeError(t, w))
 }
 
 func TestDetectError_WithValidationError_Returns400(t *testing.T) {
-	// Arrange
+	logs := captureLogs(t)
 	w := httptest.NewRecorder()
-	err := &models.ValidationError{Message: "Name is required."}
 
-	// Act
-	DetectError(w, err)
+	DetectError(w, &models.ValidationError{Message: "Name is required."})
 
-	// Assert
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	var baseError models.BaseError
-	json.NewDecoder(w.Body).Decode(&baseError)
-	assert.Equal(t, "Name is required.", baseError.ErrorMessage)
+	assert.Equal(t, "Name is required.", decodeError(t, w))
+	assert.Empty(t, logs.String())
 }
 
-func TestDetectError_WithGenericError_Returns500(t *testing.T) {
-	// Arrange
+func TestDetectError_WithGenericError_Returns500WithoutDetails(t *testing.T) {
+	logs := captureLogs(t)
 	w := httptest.NewRecorder()
-	err := errors.New("Mock exception")
 
-	// Act
-	DetectError(w, err)
+	DetectError(w, errors.New("Mock exception"))
 
-	// Assert
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	var baseError models.BaseError
-	json.NewDecoder(w.Body).Decode(&baseError)
-	assert.Equal(t, "Mock exception", baseError.ErrorMessage)
+	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, w))
+	assert.Contains(t, logs.String(), "level=ERROR")
+	assert.Contains(t, logs.String(), "Mock exception")
+	assert.Contains(t, logs.String(), "stack=")
 }
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
-	// Arrange
-	err := &models.NotFoundError{Message: "Item not found"}
 
-	// Act
-	resp := DetectError(err)
+func TestWriteJSON_LogsEncodingFailure(t *testing.T) {
+	logs := captureLogs(t)
+	w := httptest.NewRecorder()
 
-	// Assert
-	assert.Equal(t, 404, resp.StatusCode)
+	WriteJSON(w, http.StatusOK, make(chan int))
+
+	assert.Contains(t, logs.String(), "Failed to write response")
+}
+{%- else %}
+
+func decodeError(t *testing.T, body string) string {
+	t.Helper()
 	var baseError models.BaseError
-	json.Unmarshal([]byte(resp.Body), &baseError)
-	assert.Equal(t, "Item not found", baseError.ErrorMessage)
+	assert.NoError(t, json.Unmarshal([]byte(body), &baseError))
+	return baseError.ErrorMessage
+}
+
+func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
+	resp := DetectError(fmt.Errorf("wrapped: %w", models.NewNotFoundError("Item", "abc")))
+
+	assert.Equal(t, 404, resp.StatusCode)
+	assert.Equal(t, "Item with id abc was not found.", decodeError(t, resp.Body))
 }
 
 func TestDetectError_WithValidationError_Returns400(t *testing.T) {
-	// Arrange
-	err := &models.ValidationError{Message: "Name is required."}
+	logs := captureLogs(t)
 
-	// Act
-	resp := DetectError(err)
+	resp := DetectError(&models.ValidationError{Message: "Name is required."})
 
-	// Assert
 	assert.Equal(t, 400, resp.StatusCode)
-	var baseError models.BaseError
-	json.Unmarshal([]byte(resp.Body), &baseError)
-	assert.Equal(t, "Name is required.", baseError.ErrorMessage)
+	assert.Equal(t, "Name is required.", decodeError(t, resp.Body))
+	assert.Empty(t, logs.String())
 }
 
-func TestDetectError_WithGenericError_Returns500(t *testing.T) {
-	// Arrange
-	err := errors.New("Mock exception")
+func TestDetectError_WithGenericError_Returns500WithoutDetails(t *testing.T) {
+	logs := captureLogs(t)
 
-	// Act
-	resp := DetectError(err)
+	resp := DetectError(errors.New("Mock exception"))
 
-	// Assert
 	assert.Equal(t, 500, resp.StatusCode)
-	var baseError models.BaseError
-	json.Unmarshal([]byte(resp.Body), &baseError)
-	assert.Equal(t, "Mock exception", baseError.ErrorMessage)
+	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, resp.Body))
+	assert.Contains(t, logs.String(), "level=ERROR")
+	assert.Contains(t, logs.String(), "Mock exception")
+	assert.Contains(t, logs.String(), "stack=")
 }
 
-func TestGenerateErrorResponse_ReturnsCorrectResponse(t *testing.T) {
-	// Act
-	resp := GenerateErrorResponse("Not Found", 404)
+func TestGenerateErrorResponse_ReturnsJSONErrorBody(t *testing.T) {
+	resp := GenerateErrorResponse(NotFoundMessage, 404)
 
-	// Assert
 	assert.Equal(t, 404, resp.StatusCode)
 	assert.Equal(t, "application/json", resp.Headers["Content-Type"])
-	var baseError models.BaseError
-	json.Unmarshal([]byte(resp.Body), &baseError)
-	assert.Equal(t, "Not Found", baseError.ErrorMessage)
+	assert.JSONEq(t, `{"errorMessage": "Not found."}`, resp.Body)
+}
+
+func TestJSONResponse_EncodesBody(t *testing.T) {
+	resp := JSONResponse(200, []string{})
+
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Headers["Content-Type"])
+	assert.Equal(t, `[]`, resp.Body)
+}
+
+func TestJSONResponse_Returns500_WhenBodyCannotBeEncoded(t *testing.T) {
+	captureLogs(t)
+
+	resp := JSONResponse(200, make(chan int))
+
+	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, resp.Body))
 }
 {%- endif %}

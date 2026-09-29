@@ -1,0 +1,133 @@
+package main
+
+import (
+{%- if cloud_service == 'Azure Function App' %}
+	"errors"
+{%- else %}
+	"context"
+{%- endif %}
+	"log/slog"
+{%- if cloud_service == 'Azure Function App' %}
+	"net/http"
+{%- endif %}
+	"os"
+{% if cloud_service == 'Azure Function App' %}
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+{%- else %}
+	"github.com/aws/aws-lambda-go/lambda"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+{%- endif %}
+
+	"{{project_endpoint}}/controllers"
+	"{{project_endpoint}}/handlers"
+	"{{project_endpoint}}/repositories"
+	"{{project_endpoint}}/services"
+	"{{project_endpoint}}/utils"
+)
+
+func main() {
+	slog.SetDefault(utils.NewLogger())
+	validator := newValidator()
+{%- if cloud_service == 'Azure Function App' %}
+	client, databaseName := newCosmosClient()
+
+	router := handlers.NewRouter()
+{%- if health_endpoint %}
+	handlers.RegisterHealthRoute(router)
+{%- endif %}
+{%- for resource in resources %}
+	{
+		container := cosmosContainer(client, databaseName, "CosmosDbContainerName_{{ resource.container | to_camel }}", "{{ resource.container }}")
+		repository := repositories.New{{ resource.name }}Repository(container)
+		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
+		handlers.Register{{ resource.name }}Routes(router, controller)
+	}
+{%- endfor %}
+
+	// The Functions host forwards each request to the port it passes in
+	// FUNCTIONS_CUSTOMHANDLER_PORT.
+	listenAddr := ":80"
+	if port, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
+		listenAddr = ":" + port
+	}
+
+	slog.Info("Listening for requests", "address", listenAddr)
+	exitOnError("Server stopped", http.ListenAndServe(listenAddr, handlers.Recover(router)))
+}
+
+// newCosmosClient connects to the Cosmos DB account named by the
+// CosmosDbEndpoint, CosmosDbKey and CosmosDbDatabaseName settings.
+func newCosmosClient() (*azcosmos.Client, string) {
+	endpoint := os.Getenv("CosmosDbEndpoint")
+	key := os.Getenv("CosmosDbKey")
+	databaseName := os.Getenv("CosmosDbDatabaseName")
+	if endpoint == "" || key == "" || databaseName == "" {
+		exitOnError("Missing settings", errors.New("CosmosDbEndpoint, CosmosDbKey and CosmosDbDatabaseName are required"))
+	}
+
+	cred, err := azcosmos.NewKeyCredential(key)
+	exitOnError("Failed to create Cosmos DB credential", err)
+
+	client, err := azcosmos.NewClientWithKey(endpoint, cred, nil)
+	exitOnError("Failed to create Cosmos DB client", err)
+
+	return client, databaseName
+}
+
+// cosmosContainer opens the container named by the setting, or by
+// defaultName when the setting is unset.
+func cosmosContainer(client *azcosmos.Client, databaseName, setting, defaultName string) *azcosmos.ContainerClient {
+	name := os.Getenv(setting)
+	if name == "" {
+		name = defaultName
+	}
+
+	container, err := client.NewContainer(databaseName, name)
+	exitOnError("Failed to open Cosmos DB container "+name, err)
+	return container
+}
+{%- else %}
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
+	exitOnError("Failed to load AWS config", err)
+	client := dynamodb.NewFromConfig(cfg)
+
+	router := handlers.NewRouter()
+{%- if health_endpoint %}
+	handlers.RegisterHealthRoute(router)
+{%- endif %}
+{%- for resource in resources %}
+	{
+		table := tableName("DYNAMODB_TABLE_NAME_{{ resource.container | upper | replace('-', '_') }}", "{{ resource.container }}")
+		repository := repositories.New{{ resource.name }}Repository(client, table)
+		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
+		handlers.Register{{ resource.name }}Routes(router, controller)
+	}
+{%- endfor %}
+
+	lambda.Start(router.ServeRequest)
+}
+
+// tableName returns the DynamoDB table named by the setting, or defaultName
+// when the setting is unset.
+func tableName(setting, defaultName string) string {
+	if name := os.Getenv(setting); name != "" {
+		return name
+	}
+	return defaultName
+}
+{%- endif %}
+
+func newValidator() services.SchemaValidator {
+	validator, err := services.NewSchemaValidator(controllers.RequestSchemas())
+	exitOnError("Failed to initialize schema validator", err)
+	return validator
+}
+
+// exitOnError logs err at error level and exits when err is not nil.
+func exitOnError(message string, err error) {
+	if err != nil {
+		slog.Error(message, "error", err)
+		os.Exit(1)
+	}
+}

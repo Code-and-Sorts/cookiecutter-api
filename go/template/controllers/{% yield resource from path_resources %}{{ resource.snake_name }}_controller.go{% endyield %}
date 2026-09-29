@@ -3,13 +3,13 @@
 {%- set snake = resource.name | to_snake -%}
 {%- set ops = resource.operations -%}
 {%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set uses_models = uses_body or ('get_by_id' in ops) or ('list' in ops) -%}
+{%- set uses_id = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
+{%- set uses_models = uses_body or uses_id or ('list' in ops) -%}
 package controllers
 
 import (
 	"context"
 {%- if uses_body %}
-	"encoding/json"
 	"io"
 {%- endif %}
 {%- if uses_models %}
@@ -51,24 +51,32 @@ func New{{ r }}Controller(service services.{{ r }}Service, schemaValidator servi
 {%- if "get_by_id" in ops %}
 
 func (c *{{ lc }}Controller) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
+	if !IsValidID(id) {
+		return nil, models.NewNotFoundError("{{ r }}", id)
+	}
 	return c.service.Get(ctx, id)
 }
 {%- endif %}
 {%- if "list" in ops %}
 
+// GetList returns at most limit records (see CoerceLimit), never nil, so an
+// empty list is encoded as [].
 func (c *{{ lc }}Controller) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
-	return c.service.GetList(ctx, CoerceLimit(limit))
+	items, err := c.service.GetList(ctx, CoerceLimit(limit))
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []models.{{ r }}Dto{}
+	}
+	return items, nil
 }
 {%- endif %}
 {%- if "create" in ops %}
 
 func (c *{{ lc }}Controller) Create(ctx context.Context, body io.Reader) (*models.{{ r }}Dto, error) {
 	var req models.Create{{ r }}Request
-	if err := json.NewDecoder(body).Decode(&req); err != nil {
-		return nil, &models.ValidationError{Message: "Invalid request body."}
-	}
-
-	if err := c.schemaValidator.Validate(req, "{{ snake }}_create_request"); err != nil {
+	if err := decodeRequest(c.schemaValidator, body, "{{ snake }}_create_request", &req); err != nil {
 		return nil, err
 	}
 
@@ -78,16 +86,15 @@ func (c *{{ lc }}Controller) Create(ctx context.Context, body io.Reader) (*model
 {%- if "update" in ops %}
 
 func (c *{{ lc }}Controller) Update(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
-	var req models.Update{{ r }}Request
-	if err := json.NewDecoder(body).Decode(&req); err != nil {
-		return nil, &models.ValidationError{Message: "Invalid request body."}
+	if !IsValidID(id) {
+		return nil, models.NewNotFoundError("{{ r }}", id)
 	}
 
-	req.Id = id
-
-	if err := c.schemaValidator.Validate(req, "{{ snake }}_update_request"); err != nil {
+	var req models.Update{{ r }}Request
+	if err := decodeRequest(c.schemaValidator, body, "{{ snake }}_update_request", &req); err != nil {
 		return nil, err
 	}
+	req.Id = id
 
 	return c.service.Update(ctx, req)
 }
@@ -95,16 +102,15 @@ func (c *{{ lc }}Controller) Update(ctx context.Context, id string, body io.Read
 {%- if "replace" in ops %}
 
 func (c *{{ lc }}Controller) Replace(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
-	var req models.Replace{{ r }}Request
-	if err := json.NewDecoder(body).Decode(&req); err != nil {
-		return nil, &models.ValidationError{Message: "Invalid request body."}
+	if !IsValidID(id) {
+		return nil, models.NewNotFoundError("{{ r }}", id)
 	}
 
-	req.Id = id
-
-	if err := c.schemaValidator.Validate(req, "{{ snake }}_replace_request"); err != nil {
+	var req models.Replace{{ r }}Request
+	if err := decodeRequest(c.schemaValidator, body, "{{ snake }}_replace_request", &req); err != nil {
 		return nil, err
 	}
+	req.Id = id
 
 	return c.service.Replace(ctx, req)
 }
@@ -112,6 +118,9 @@ func (c *{{ lc }}Controller) Replace(ctx context.Context, id string, body io.Rea
 {%- if "delete" in ops %}
 
 func (c *{{ lc }}Controller) Delete(ctx context.Context, id string) error {
+	if !IsValidID(id) {
+		return models.NewNotFoundError("{{ r }}", id)
+	}
 	return c.service.Delete(ctx, id)
 }
 {%- endif %}

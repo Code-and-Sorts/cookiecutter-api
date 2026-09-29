@@ -12,27 +12,32 @@ type {{ r }}Dto struct {
 	Id   string `json:"id"`
 	Name string `json:"name"`
 }
+
+// To{{ r }}Dto maps a stored {{ r }} record to its API representation.
+func To{{ r }}Dto(item {{ r }}) {{ r }}Dto {
+	return {{ r }}Dto{Id: item.Id, Name: item.Name}
+}
 {%- if "create" in resource.operations %}
 
+// Create{{ r }}Request is the body of POST /{{ resource.endpoint }}.
 type Create{{ r }}Request struct {
-	Name      string `json:"name"`
-	CreatedBy string `json:"createdBy"`
-	UpdatedBy string `json:"updatedBy"`
+	Name string `json:"name"`
 }
 {%- endif %}
 {%- if "update" in resource.operations %}
 
+// Update{{ r }}Request is the body of PATCH /{{ resource.endpoint }}/{id}. An
+// empty Name leaves the stored name unchanged.
 type Update{{ r }}Request struct {
-	Id        string `json:"-"`
-	Name      string `json:"name"`
-	UpdatedBy string `json:"updatedBy"`
+	Id   string `json:"-"`
+	Name string `json:"name"`
 }
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
+// Replace{{ r }}Request is the body of PUT /{{ resource.endpoint }}/{id}.
 type Replace{{ r }}Request struct {
-	Id        string `json:"-"`
-	Name      string `json:"name"`
-	UpdatedBy string `json:"updatedBy"`
+	Id   string `json:"-"`
+	Name string `json:"name"`
 }
 {%- endif %}
