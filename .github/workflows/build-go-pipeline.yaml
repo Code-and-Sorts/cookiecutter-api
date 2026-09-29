@@ -90,8 +90,6 @@ jobs:
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
-        env:
-          GOTOOLCHAIN: auto
 
       - name: Run dependency vulnerability scan
         continue-on-error: true
