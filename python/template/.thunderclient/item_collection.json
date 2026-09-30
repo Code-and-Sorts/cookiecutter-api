@@ -58,7 +58,16 @@
             "sortNum": {{ ns.sort }},
             "created": "2024-08-10T20:25:19.095Z",
             "modified": "2024-08-10T20:42:18.713Z",
+{%- if op in ['create', 'update', 'replace', 'delete'] %}
+            "headers": [
+                {
+                    "name": "X-User-Id",
+                    "value": "local-user"
+                }
+            ],
+{%- else %}
             "headers": [],
+{%- endif %}
 {%- if op in bodies %}
             "body": {
                 "type": "json",

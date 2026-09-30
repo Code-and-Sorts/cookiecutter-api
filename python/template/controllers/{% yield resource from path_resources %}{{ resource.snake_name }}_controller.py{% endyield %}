@@ -39,25 +39,25 @@ class {{ r }}Controller:
 {%- endif %}
 {%- if "create" in ops %}
 
-    async def create(self, body: bytes | str | None) -> {{ r }}Response:
-        return await self.service.create(parse_body(body, Base{{ r }}))
+    async def create(self, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
+        return await self.service.create(parse_body(body, Base{{ r }}), user_id)
 {%- endif %}
 {%- if "update" in ops %}
 
-    async def update(self, item_id: str | None, body: bytes | str | None) -> {{ r }}Response:
+    async def update(self, item_id: str | None, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
         item_id = require_uuid(item_id, RESOURCE)
-        return await self.service.update(item_id, parse_body(body, {{ r }}Update))
+        return await self.service.update(item_id, parse_body(body, {{ r }}Update), user_id)
 {%- endif %}
 {%- if "replace" in ops %}
 
-    async def replace(self, item_id: str | None, body: bytes | str | None) -> {{ r }}Response:
+    async def replace(self, item_id: str | None, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
         item_id = require_uuid(item_id, RESOURCE)
-        return await self.service.replace(item_id, parse_body(body, Base{{ r }}))
+        return await self.service.replace(item_id, parse_body(body, Base{{ r }}), user_id)
 {%- endif %}
 {%- if "delete" in ops %}
 
-    async def delete(self, item_id: str | None) -> dict:
+    async def delete(self, item_id: str | None, user_id: str | None = None) -> dict:
         item_id = require_uuid(item_id, RESOURCE)
-        await self.service.soft_delete(item_id)
+        await self.service.soft_delete(item_id, user_id)
         return {"message": f"{RESOURCE} with id {item_id} was deleted successfully."}
 {%- endif %}

@@ -8,8 +8,9 @@
     'GCP Cloud Function': {'id': 'item_id', 'limit': 'request.args.get("limit")', 'body': 'request.get_data()'},
     'AWS Lambda': {'id': 'item_id', 'limit': '(event.get("queryStringParameters") or {}).get("limit")', 'body': 'event_body(event)'},
 }[cloud_service] -%}
+{%- set writes = ['create', 'update', 'replace', 'delete'] -%}
 {%- macro call(op, fn, with_id) -%}
-{%- set args = ([request.id] if with_id else []) + ([request.limit] if op == 'list' else []) + ([request.body] if op in ['create', 'update', 'replace'] else []) -%}
+{%- set args = ([request.id] if with_id else []) + ([request.limit] if op == 'list' else []) + ([request.body] if op in ['create', 'update', 'replace'] else []) + (['user_id'] if op in writes else []) -%}
 {{ fn }}({{ args | join(', ') }})
 {%- endmacro -%}
 {%- if cloud_service == 'Azure Function App' -%}
@@ -33,7 +34,11 @@ def _build_controller(container_client) -> {{ r }}Controller:
 @bp.route(route="{{ resource.endpoint }}{% if with_id %}/{id}{% endif %}", methods=[func.HttpMethod.{{ method }}])
 async def {{ fn }}_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("{{ labels[op] }} {{ resource.endpoint }}{% if op == 'get_by_id' %} by ID{% endif %} processed a request.")
+{%- if op in writes %}
+    return await handle(CONTAINER, _build_controller, lambda c, user_id: c.{{ call(op, fn, with_id) }}, {% if status != 200 %}{{ status }}, {% endif %}request=req)
+{%- else %}
     return await handle(CONTAINER, _build_controller, lambda c: c.{{ call(op, fn, with_id) }}{% if status != 200 %}, {{ status }}{% endif %})
+{%- endif %}
 {%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' -%}
@@ -41,6 +46,9 @@ from flask import Request
 from controllers import {{ r }}Controller
 from services import {{ r }}Service
 from repositories import {{ r }}Repository
+{%- if ops | select('in', writes) | list %}
+from utils.user_id import user_id_from
+{%- endif %}
 from .database import run
 
 ENDPOINT = "{{ resource.endpoint }}"
@@ -59,6 +67,9 @@ from repositories import {{ r }}Repository
 {%- if ('create' in ops) or ('update' in ops) or ('replace' in ops) %}
 from utils.routing import event_body
 {%- endif %}
+{%- if ops | select('in', writes) | list %}
+from utils.user_id import user_id_from
+{%- endif %}
 from .database import run, session
 
 ENDPOINT = "{{ resource.endpoint }}"
@@ -76,6 +87,9 @@ def _controller() -> {{ r }}Controller:
 
 
 def {{ fn }}({% if cloud_service == 'GCP Cloud Function' %}request: Request{% else %}event: dict{% endif %}, item_id: str | None) -> tuple[int, object]:
+{%- if op in writes %}
+    user_id = user_id_from({% if cloud_service == 'GCP Cloud Function' %}request{% else %}event{% endif %})
+{%- endif %}
     return {{ status }}, {% if cloud_service == 'GCP Cloud Function' %}run(CONTAINER, _build_controller, lambda c: c.{{ call(op, fn, with_id) }}){% else %}run(_controller().{{ call(op, fn, with_id) }}){% endif %}
 {%- endfor %}
 

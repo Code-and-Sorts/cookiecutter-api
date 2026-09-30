@@ -73,8 +73,8 @@ def describe_{{ slug }}_controller():
         def test_passes_validated_body(controller, mock_service):
             mock_service.create.return_value = _response
 
-            assert asyncio.run(controller.create(b'{"name": "mockName"}')) == _response
-            mock_service.create.assert_awaited_once_with(Base{{ r }}(name="mockName"))
+            assert asyncio.run(controller.create(b'{"name": "mockName"}', "user-1")) == _response
+            mock_service.create.assert_awaited_once_with(Base{{ r }}(name="mockName"), "user-1")
 
         @pytest.mark.parametrize("body", [
             b'{"name": "mockName", "id": "' + ITEM_ID.encode() + b'"}',
@@ -95,9 +95,9 @@ def describe_{{ slug }}_controller():
         def test_passes_only_the_fields_sent(controller, mock_service):
             mock_service.update.return_value = _response
 
-            assert asyncio.run(controller.update(ITEM_ID, b'{"name": "mockName"}')) == _response
-            item_id, changes = mock_service.update.call_args.args
-            assert item_id == ITEM_ID
+            assert asyncio.run(controller.update(ITEM_ID, b'{"name": "mockName"}', "user-1")) == _response
+            item_id, changes, user_id = mock_service.update.call_args.args
+            assert (item_id, user_id) == (ITEM_ID, "user-1")
             assert changes.model_dump(exclude_unset=True) == {"name": "mockName"}
 
         def test_empty_object_changes_nothing(controller, mock_service):
@@ -129,8 +129,8 @@ def describe_{{ slug }}_controller():
         def test_passes_validated_body(controller, mock_service):
             mock_service.replace.return_value = _response
 
-            assert asyncio.run(controller.replace(ITEM_ID, b'{"name": "mockName"}')) == _response
-            mock_service.replace.assert_awaited_once_with(ITEM_ID, Base{{ r }}(name="mockName"))
+            assert asyncio.run(controller.replace(ITEM_ID, b'{"name": "mockName"}', "user-1")) == _response
+            mock_service.replace.assert_awaited_once_with(ITEM_ID, Base{{ r }}(name="mockName"), "user-1")
 
         @pytest.mark.parametrize("body", [
             b'{"name": "mockName", "id": "' + ITEM_ID.encode() + b'"}',
@@ -152,10 +152,10 @@ def describe_{{ slug }}_controller():
 
     def describe_delete():
         def test_returns_confirmation_message(controller, mock_service):
-            result = asyncio.run(controller.delete(ITEM_ID))
+            result = asyncio.run(controller.delete(ITEM_ID, "user-1"))
 
             assert result == {"message": f"{{ r }} with id {ITEM_ID} was deleted successfully."}
-            mock_service.soft_delete.assert_awaited_once_with(ITEM_ID)
+            mock_service.soft_delete.assert_awaited_once_with(ITEM_ID, "user-1")
 
         def test_non_uuid_id_is_not_found(controller, mock_service):
             with pytest.raises(NotFoundError):

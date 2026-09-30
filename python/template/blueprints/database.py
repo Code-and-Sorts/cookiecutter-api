@@ -5,6 +5,7 @@ from azure.cosmos.aio import ContainerProxy, CosmosClient
 from config import get_settings
 from utils import detect_error, response_generator
 from utils.deadline import within_deadline
+from utils.user_id import user_id_from
 
 # One client per worker, as the SDK recommends; all functions share one event loop.
 _client: CosmosClient | None = None
@@ -34,12 +35,16 @@ async def get_container(container_id: str) -> ContainerProxy:
     return database.get_container_client(settings.container_names[container_id])
 
 
-async def handle(container_id, build_controller, operation, status_code: int = 200) -> func.HttpResponse:
-    async def run():
-        return await operation(build_controller(await get_container(container_id)))
+async def handle(
+    container_id, build_controller, operation, status_code: int = 200, request: func.HttpRequest | None = None
+) -> func.HttpResponse:
+    """Writes pass `request`; `operation` then also receives its user id, read before the database is touched."""
+    async def run(*args):
+        return await operation(build_controller(await get_container(container_id)), *args)
 
     try:
-        return response_generator(await within_deadline(run()), status_code)
+        args = () if request is None else (user_id_from(request),)
+        return response_generator(await within_deadline(run(*args)), status_code)
     except Exception as error:
         return detect_error(error)
 {%- endif %}

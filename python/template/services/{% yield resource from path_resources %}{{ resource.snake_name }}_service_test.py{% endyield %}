@@ -55,29 +55,29 @@ def describe_{{ slug }}_service():
     def describe_create():
         def test_calls_repository(service, mock_repository):
             item = Base{{ r }}(name="mockName1")
-            assert asyncio.run(service.create(item)) == _responses[0]
-            mock_repository.create.assert_awaited_once_with(item)
+            assert asyncio.run(service.create(item, "user-1")) == _responses[0]
+            mock_repository.create.assert_awaited_once_with(item, "user-1")
 {%- endif %}
 {%- if "update" in ops %}
 
     def describe_update():
         def test_calls_repository(service, mock_repository):
             changes = {{ r }}Update(name="mockName1")
-            assert asyncio.run(service.update(ITEM_ID, changes)) == _responses[0]
-            mock_repository.update.assert_awaited_once_with(ITEM_ID, changes)
+            assert asyncio.run(service.update(ITEM_ID, changes, "user-1")) == _responses[0]
+            mock_repository.update.assert_awaited_once_with(ITEM_ID, changes, "user-1")
 {%- endif %}
 {%- if "replace" in ops %}
 
     def describe_replace():
         def test_calls_repository(service, mock_repository):
             item = Base{{ r }}(name="mockName1")
-            assert asyncio.run(service.replace(ITEM_ID, item)) == _responses[0]
-            mock_repository.replace.assert_awaited_once_with(ITEM_ID, item)
+            assert asyncio.run(service.replace(ITEM_ID, item, "user-1")) == _responses[0]
+            mock_repository.replace.assert_awaited_once_with(ITEM_ID, item, "user-1")
 {%- endif %}
 {%- if "delete" in ops %}
 
     def describe_soft_delete():
         def test_calls_repository(service, mock_repository):
-            asyncio.run(service.soft_delete(ITEM_ID))
-            mock_repository.delete.assert_awaited_once_with(ITEM_ID)
+            asyncio.run(service.soft_delete(ITEM_ID, "user-1"))
+            mock_repository.delete.assert_awaited_once_with(ITEM_ID, "user-1")
 {%- endif %}

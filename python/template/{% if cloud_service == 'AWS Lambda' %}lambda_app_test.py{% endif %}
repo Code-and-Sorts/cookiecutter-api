@@ -1,4 +1,5 @@
 {%- from '_macros.jinja' import routes -%}
+{%- set writes = ['create', 'update', 'replace', 'delete'] -%}
 import asyncio
 import base64
 import json
@@ -10,10 +11,14 @@ import blueprints
 from blueprints import database
 from controllers import ({% for resource in resources %}{{ resource.name }}Controller{% if not loop.last %}, {% endif %}{% endfor %})
 from repositories import ({% for resource in resources %}{{ resource.name }}Repository{% if not loop.last %}, {% endif %}{% endfor %})
+from utils.user_id import MAX_USER_ID_LENGTH, USER_ID_TOO_LONG_MESSAGE
 from conftest import ITEM_ID
 
 _BODY = '{"name": "mockName"}'
 _ITEM = {"id": ITEM_ID, "name": "mockName"}
+_USER_ID = "user-1"
+_USER_HEADERS = {"X-User-Id": f"  {_USER_ID}  "}
+_TOO_LONG_HEADERS = {"X-User-Id": "u" * (MAX_USER_ID_LENGTH + 1)}
 
 
 def _event(method, resource, item_id=None, body=None, query=None, **extra):
@@ -46,12 +51,14 @@ _ROUTES = [
 {%- for resource in resources %}
 {%- set slug = resource.name | to_snake %}
 {%- for op, fn, method, with_id, status in routes if op in resource.operations %}
-{%- set args = (['ITEM_ID'] if with_id else []) + (['"5"'] if op == 'list' else []) + (['_BODY'] if op in ['create', 'update', 'replace'] else []) %}
+{%- set args = (['ITEM_ID'] if with_id else []) + (['"5"'] if op == 'list' else []) + (['_BODY'] if op in ['create', 'update', 'replace'] else []) + (['_USER_ID'] if op in writes else []) %}
     (blueprints.{{ slug }}, "{{ method }}", "/{{ resource.endpoint }}{% if with_id %}/{id}{% endif %}", {% if with_id %}ITEM_ID{% else %}None{% endif %},
      {% if op in ['create', 'update', 'replace'] %}_BODY{% else %}None{% endif %}, {% if op == 'list' %}{"limit": "5"}{% else %}None{% endif %}, "{{ fn }}", ({{ args | join(', ') }},), {{ status }}),
 {%- endfor %}
 {%- endfor %}
 ]
+
+_WRITE_ROUTES = [route for route in _ROUTES if route[6] in {{ writes }}]
 
 # Only reachable if API Gateway forwards them.
 _NOT_ALLOWED = [
@@ -92,10 +99,18 @@ def describe_lambda_handler():
         payload = [_ITEM] if action == "get_list" else _ITEM
         getattr(controller, action).return_value = payload
         with patch.object(module, "_controller", return_value=controller):
-            response = _call(_event(method, resource, item_id, body, query))
+            response = _call(_event(method, resource, item_id, body, query, headers=_USER_HEADERS))
 
         assert response == (status, "application/json", payload)
         getattr(controller, action).assert_awaited_once_with(*args)
+
+    @pytest.mark.parametrize("module, method, resource, item_id, body, query, action, args, status", _WRITE_ROUTES)
+    def test_too_long_user_id_is_rejected_before_the_database(module, method, resource, item_id, body, query, action, args, status):
+        with patch.object(module, "_controller") as controller:
+            response = _call(_event(method, resource, item_id, body, query, headers=_TOO_LONG_HEADERS))
+
+        assert response == (400, "application/json", {"errorMessage": USER_ID_TOO_LONG_MESSAGE})
+        controller.assert_not_called()
 {%- if health_endpoint %}
 
     def test_health():
@@ -145,7 +160,7 @@ def describe_lambda_handler():
             _call(_event(method, resource, item_id, encoded, isBase64Encoded=True))
 
         (called,) = controller.method_calls
-        assert called.args[-1] == _BODY.encode()
+        assert called.args[-2] == _BODY.encode()
 
     def test_unexpected_error_is_logged_and_hidden(caplog):
         module, method, resource, item_id, body, query, *_ = _ROUTES[0]

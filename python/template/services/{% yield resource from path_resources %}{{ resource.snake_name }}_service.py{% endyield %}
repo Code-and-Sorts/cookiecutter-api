@@ -26,21 +26,21 @@ class {{ r }}Service:
 {%- endif %}
 {%- if "create" in ops %}
 
-    async def create(self, item: Base{{ r }}) -> {{ r }}Response:
-        return await self.repository.create(item)
+    async def create(self, item: Base{{ r }}, user_id: str | None = None) -> {{ r }}Response:
+        return await self.repository.create(item, user_id)
 {%- endif %}
 {%- if "update" in ops %}
 
-    async def update(self, item_id: str, changes: {{ r }}Update) -> {{ r }}Response:
-        return await self.repository.update(item_id, changes)
+    async def update(self, item_id: str, changes: {{ r }}Update, user_id: str | None = None) -> {{ r }}Response:
+        return await self.repository.update(item_id, changes, user_id)
 {%- endif %}
 {%- if "replace" in ops %}
 
-    async def replace(self, item_id: str, item: Base{{ r }}) -> {{ r }}Response:
-        return await self.repository.replace(item_id, item)
+    async def replace(self, item_id: str, item: Base{{ r }}, user_id: str | None = None) -> {{ r }}Response:
+        return await self.repository.replace(item_id, item, user_id)
 {%- endif %}
 {%- if "delete" in ops %}
 
-    async def soft_delete(self, item_id: str) -> None:
-        await self.repository.delete(item_id)
+    async def soft_delete(self, item_id: str, user_id: str | None = None) -> None:
+        await self.repository.delete(item_id, user_id)
 {%- endif %}

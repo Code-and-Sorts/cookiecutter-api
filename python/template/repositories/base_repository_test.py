@@ -11,7 +11,7 @@ from azure.cosmos.exceptions import (
 )
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-from google.cloud.firestore import FieldFilter
+from google.cloud.firestore import DELETE_FIELD, FieldFilter
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 from botocore.exceptions import ClientError
@@ -122,6 +122,12 @@ def describe_base_repository_records():
             }
             assert result == _ItemResponse(id=record["id"], name="mockName1")
 
+        def test_user_id_sets_created_and_updated_by():
+            repository = _offline_repository()
+            asyncio.run(repository._create({"name": "mockName1"}, "editor"))
+
+            assert _written(repository)["createdBy"] == _written(repository)["updatedBy"] == "editor"
+
         def test_generates_a_new_id_each_time():
             repository = _offline_repository()
             asyncio.run(repository._create({"name": "a"}))
@@ -131,20 +137,21 @@ def describe_base_repository_records():
 
     def describe_update():
         def test_merges_changes_and_keeps_creation_fields():
-            repository = _offline_repository({**_stored_item, "extra": "kept"})
+            repository = _offline_repository({**_stored_item, "extra": "kept", "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._update(ITEM_ID, {"name": "mockName1-Update"}))
+                result = asyncio.run(repository._update(ITEM_ID, {"name": "mockName1-Update"}, "editor"))
 
             assert _written(repository) == {
                 **_stored_item,
                 "extra": "kept",
                 "name": "mockName1-Update",
                 "updatedTimestamp": _NOW,
+                "updatedBy": "editor",
             }
             assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Update")
 
-        def test_no_changes_only_refreshes_updated_timestamp():
-            repository = _offline_repository(_stored_item)
+        def test_no_changes_or_user_id_refreshes_timestamp_and_drops_updated_by():
+            repository = _offline_repository({**_stored_item, "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
                 asyncio.run(repository._update(ITEM_ID, {}))
 
@@ -160,7 +167,7 @@ def describe_base_repository_records():
         def test_overwrites_fields_and_keeps_creation_fields():
             repository = _offline_repository({**_stored_item, "extra": "dropped", "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
+                result = asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}, "editor"))
 
             assert _written(repository) == {
                 "id": ITEM_ID,
@@ -169,16 +176,17 @@ def describe_base_repository_records():
                 "createdTimestamp": _CREATED,
                 "createdBy": "creator",
                 "updatedTimestamp": _NOW,
+                "updatedBy": "editor",
             }
             assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Replace")
 
-        def test_omits_unset_created_by():
+        def test_omits_unset_created_by_and_drops_updated_by_without_user_id():
             stored = {key: value for key, value in _stored_item.items() if key != "createdBy"}
-            repository = _offline_repository(stored)
+            repository = _offline_repository({**stored, "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
                 asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
 
-            assert "createdBy" not in _written(repository)
+            assert not {"createdBy", "updatedBy"} & set(_written(repository))
 
         def test_not_found_error():
             repository = _offline_repository()
@@ -237,16 +245,21 @@ def describe_cosmos_storage():
             assert asyncio.run(_ItemRepository(container)._get_list(100)) == []
 
     def describe_delete():
-        def test_patches_is_deleted_and_updated_timestamp(container):
+        @pytest.mark.parametrize("user_id, updated_by", [
+            ("editor", [{ 'op': 'set', 'path': '/updatedBy', 'value': "editor" }]),
+            (None, [{ 'op': 'set', 'path': '/updatedBy', 'value': "" }, { 'op': 'remove', 'path': '/updatedBy' }]),
+        ])
+        def test_patches_is_deleted_and_updated_fields(container, user_id, updated_by):
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID, user_id))
 
             container.patch_item.assert_awaited_once_with(
                 item=ITEM_ID,
                 partition_key=ITEM_ID,
                 patch_operations=[
                     { 'op': 'set', 'path': '/isDeleted', 'value': True },
-                    { 'op': 'set', 'path': '/updatedTimestamp', 'value': _NOW }
+                    { 'op': 'set', 'path': '/updatedTimestamp', 'value': _NOW },
+                    *updated_by,
                 ],
                 filter_predicate='from c WHERE c.isDeleted = false'
             )
@@ -364,14 +377,15 @@ def describe_firestore_storage():
             query.limit.assert_called_once_with(100)
 
     def describe_delete():
-        def test_flags_document_deleted(collection):
+        @pytest.mark.parametrize("user_id, updated_by", [("editor", "editor"), (None, DELETE_FIELD)])
+        def test_flags_document_deleted(collection, user_id, updated_by):
             doc_ref = _doc_ref(collection, dict(_stored_item))
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(_ItemRepository(collection)._delete(ITEM_ID))
+                asyncio.run(_ItemRepository(collection)._delete(ITEM_ID, user_id))
 
             collection.document.assert_called_once_with(ITEM_ID)
             doc_ref.update.assert_awaited_once_with(
-                {'isDeleted': True, 'updatedTimestamp': _NOW}, **FIRESTORE_CALL_OPTIONS
+                {'isDeleted': True, 'updatedTimestamp': _NOW, 'updatedBy': updated_by}, **FIRESTORE_CALL_OPTIONS
             )
 
         @pytest.mark.parametrize("data", [None, {**_stored_item, "isDeleted": True}])
@@ -456,15 +470,19 @@ def describe_dynamodb_storage():
             assert asyncio.run(_repository(table)._get_list(100)) == []
 
     def describe_delete():
-        def test_flags_item_deleted(table):
+        @pytest.mark.parametrize("user_id, update, user_values", [
+            ("editor", "SET isDeleted = :val, updatedTimestamp = :updated, updatedBy = :user", {":user": "editor"}),
+            (None, "SET isDeleted = :val, updatedTimestamp = :updated REMOVE updatedBy", {}),
+        ])
+        def test_flags_item_deleted(table, user_id, update, user_values):
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(_repository(table)._delete(ITEM_ID))
+                asyncio.run(_repository(table)._delete(ITEM_ID, user_id))
 
             table.update_item.assert_awaited_once_with(
                 Key={"id": ITEM_ID},
-                UpdateExpression="SET isDeleted = :val, updatedTimestamp = :updated",
+                UpdateExpression=update,
                 ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
-                ExpressionAttributeValues={":val": True, ":false": False, ":updated": _NOW}
+                ExpressionAttributeValues={":val": True, ":false": False, ":updated": _NOW, **user_values}
             )
 
         def test_missing_or_deleted_is_not_found(table):

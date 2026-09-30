@@ -5,7 +5,7 @@ from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosReso
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 from google.api_core.retry_async import AsyncRetry
-from google.cloud.firestore import AsyncCollectionReference, FieldFilter
+from google.cloud.firestore import DELETE_FIELD, AsyncCollectionReference, FieldFilter
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 from contextlib import asynccontextmanager
@@ -20,6 +20,10 @@ from models import generate_utc_timestamp
 from errors import NotFoundError
 
 _CREATION_FIELDS = ("createdTimestamp", "createdBy")
+
+
+def _user_fields(user_id: str | None, *fields: str) -> dict:
+    return {field: user_id for field in fields} if user_id else {}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
 # The SDK retries for up to 300 s by default; keep each call inside the request deadline.
@@ -157,7 +161,7 @@ class BaseRepository[ResponseT: BaseModel]:
         return [self.response_model.model_validate(item) for item in items[:limit]]
 {%- endif %}
 
-    async def _create(self, fields: dict) -> ResponseT:
+    async def _create(self, fields: dict, user_id: str | None = None) -> ResponseT:
         now = generate_utc_timestamp()
         record = {
             "id": str(uuid.uuid4()),
@@ -165,22 +169,25 @@ class BaseRepository[ResponseT: BaseModel]:
             "isDeleted": False,
             "createdTimestamp": now,
             "updatedTimestamp": now,
+            **_user_fields(user_id, "createdBy", "updatedBy"),
         }
         await self._write(record)
         return self.response_model.model_validate(record)
 
-    async def _update(self, item_id: str, changes: dict) -> ResponseT:
+    async def _update(self, item_id: str, changes: dict, user_id: str | None = None) -> ResponseT:
         stored = await self._get_stored(item_id)
+        stored.pop("updatedBy", None)
         record = {
             **stored,
             **changes,
             "id": item_id,
             "updatedTimestamp": generate_utc_timestamp(),
+            **_user_fields(user_id, "updatedBy"),
         }
         await self._write(record)
         return self.response_model.model_validate(record)
 
-    async def _replace(self, item_id: str, fields: dict) -> ResponseT:
+    async def _replace(self, item_id: str, fields: dict, user_id: str | None = None) -> ResponseT:
         stored = await self._get_stored(item_id)
         now = generate_utc_timestamp()
         record = {
@@ -190,16 +197,21 @@ class BaseRepository[ResponseT: BaseModel]:
             "createdTimestamp": now,
             **{field: stored[field] for field in _CREATION_FIELDS if stored.get(field)},
             "updatedTimestamp": now,
+            **_user_fields(user_id, "updatedBy"),
         }
         await self._write(record)
         return self.response_model.model_validate(record)
 
-    async def _delete(self, item_id: str) -> None:
+    async def _delete(self, item_id: str, user_id: str | None = None) -> None:
 {%- if cloud_service == 'Azure Function App' %}
         operations: list[dict] = [
             { 'op': 'set', 'path': '/isDeleted', 'value': True },
-            { 'op': 'set', 'path': '/updatedTimestamp', 'value': generate_utc_timestamp() }
+            { 'op': 'set', 'path': '/updatedTimestamp', 'value': generate_utc_timestamp() },
+            # Remove fails on a missing path, so an anonymous delete sets updatedBy first.
+            { 'op': 'set', 'path': '/updatedBy', 'value': user_id or "" },
         ]
+        if not user_id:
+            operations.append({ 'op': 'remove', 'path': '/updatedBy' })
         try:
             await self.container_client.patch_item(
                 item=item_id,
@@ -225,17 +237,25 @@ class BaseRepository[ResponseT: BaseModel]:
             raise self._not_found(item_id)
 
         await doc_ref.update(
-            {'isDeleted': True, 'updatedTimestamp': generate_utc_timestamp()}, **FIRESTORE_CALL_OPTIONS
+            {'isDeleted': True, 'updatedTimestamp': generate_utc_timestamp(), 'updatedBy': user_id or DELETE_FIELD},
+            **FIRESTORE_CALL_OPTIONS
         )
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+        update = "SET isDeleted = :val, updatedTimestamp = :updated"
+        values = {":val": True, ":false": False, ":updated": generate_utc_timestamp()}
+        if user_id:
+            update += ", updatedBy = :user"
+            values[":user"] = user_id
+        else:
+            update += " REMOVE updatedBy"
         try:
             async with self._table() as table:
                 await table.update_item(
                     Key={"id": item_id},
-                    UpdateExpression="SET isDeleted = :val, updatedTimestamp = :updated",
+                    UpdateExpression=update,
                     ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
-                    ExpressionAttributeValues={":val": True, ":false": False, ":updated": generate_utc_timestamp()}
+                    ExpressionAttributeValues=values
                 )
         except ClientError as error:
             if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
