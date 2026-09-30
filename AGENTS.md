@@ -107,9 +107,9 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **User id:** the optional `X-User-Id` header (trimmed, at most 256 characters, else 400) is the only source of
   `createdBy`/`updatedBy`. Create sets both; update, replace and delete set `updatedBy`, and a write without the
   header removes it. Bodies still reject both fields. The header is not authenticated; every generated README says so.
-- **Existing data:** records written by projects generated from `main` must still read and update: Firestore
-  Timestamps (Go, .NET) and Python's `createdDate`/`updatedDate` are normalised on read.
-- **Azure auth:** resource functions use function keys; the health function is anonymous.
+- **Auth:** resource routes need credentials and health is open where the platform allows it. Azure: function keys,
+  anonymous health function. AWS: API Gateway API keys (`x-api-key`, SAM usage plan), health exempt. GCP: IAM
+  invoker (deployed with `--no-allow-unauthenticated`); the one function means health needs the token too.
 - `?limit=` on list is honoured everywhere.
 - A failing database yields the generic 500 within 10 seconds: database calls use a per-request deadline or
   capped retries, so the answer arrives well inside the platform timeout.

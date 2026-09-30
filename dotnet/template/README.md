@@ -142,16 +142,6 @@ Each resource reads and writes the DynamoDB table configured for its `container`
 
 Resources that use the same container share its records: there is no type discriminator, so every resource on a shared container lists, reads, updates and deletes the same items.
 
-{%- if cloud_service == 'Azure Function App' %}
-{%- set old_setting, new_setting = 'CosmosDbContainerName', 'CosmosDbContainerName_<Container>' %}
-{%- elif cloud_service == 'GCP Cloud Function' %}
-{%- set old_setting, new_setting = 'FIRESTORE_COLLECTION', 'FIRESTORE_COLLECTION_<CONTAINER>' %}
-{%- else %}
-{%- set old_setting, new_setting = 'DYNAMODB_TABLE_NAME', 'DYNAMODB_TABLE_NAME_<CONTAINER>' %}
-{%- endif %}
-
-> **Upgrading from a single-resource project:** the storage setting name now includes the container id. `{{ old_setting }}` became `{{ new_setting }}` (see the table above), so rename it in every deployed environment.
-
 ## Features
 {%- if cloud_service == 'Azure Function App' %}
 

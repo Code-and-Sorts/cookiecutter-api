@@ -193,11 +193,6 @@ Settings are read from environment variables (case-insensitive).
 {%- endfor %}
 {%- endif %}
 
-> **Note:** earlier versions of this template used a single
-{%- if cloud_service == 'Azure Function App' %} `COSMOS_DB_CONTAINER_NAME`{% endif %}
-{%- if cloud_service == 'GCP Cloud Function' %} `FIRESTORE_COLLECTION`{% endif %}
-{%- if cloud_service == 'AWS Lambda' %} `DYNAMODB_TABLE_NAME`{% endif %} variable. It has been replaced by one variable per container, listed above.
-
 ## Setup and Installation
 
 {% if cloud_service == 'Azure Function App' -%}
