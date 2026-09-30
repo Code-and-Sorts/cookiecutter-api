@@ -193,6 +193,22 @@ def describe_base_repository_records():
             with pytest.raises(NotFoundError):
                 asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
             repository._write.assert_not_called()
+
+    @pytest.mark.parametrize("operation", ["_update", "_replace"])
+    def test_legacy_date_fields_are_written_as_timestamps(operation):
+        stored = {key: value for key, value in _stored_item.items() if not key.endswith("Timestamp")}
+        repository = _offline_repository({**stored, "createdDate": _CREATED, "updatedDate": _CREATED})
+        with patch(_TIMESTAMP, return_value=_NOW):
+            asyncio.run(getattr(repository, operation)(ITEM_ID, {"name": "mockName1-Update"}))
+
+        assert _written(repository) == {
+            "id": ITEM_ID,
+            "name": "mockName1-Update",
+            "isDeleted": False,
+            "createdTimestamp": _CREATED,
+            "createdBy": "creator",
+            "updatedTimestamp": _NOW,
+        }
 {%- if cloud_service == 'Azure Function App' %}
 
 
