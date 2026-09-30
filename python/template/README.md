@@ -71,7 +71,7 @@ Resource functions use the `function` auth level, so calls need a function key (
 API Gateway only forwards the routes declared in `template.yaml`: for any other path or method it answers `403 {"message": "Missing Authentication Token"}` itself, without invoking the function. The function's own 404 and 405 answers apply when it is invoked some other way.
 {%- endif %}
 
-If the database fails or cannot be reached, the request ends with that 500 within 8 seconds: every database call has a short timeout and a capped retry policy, and `utils/deadline.py` bounds each request's database work as a whole.
+If the database fails or cannot be reached, the request ends with that 500 within 8 seconds: every database call has a short timeout and a capped retry policy, and `utils/deadline.py` bounds each request's database work as a whole.{% if cloud_service == 'GCP Cloud Function' %} WSGI servers such as the Functions Framework are not told when a client disconnects, so an abandoned request keeps running until its database deadline.{% endif %}
 
 Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Update and replace keep the creation fields; delete sets `isDeleted` and refreshes `updatedTimestamp`.
 

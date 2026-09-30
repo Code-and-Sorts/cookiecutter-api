@@ -231,7 +231,17 @@ class BaseRepository[ResponseT: BaseModel]:
                 patch_operations=operations,
                 filter_predicate="from c WHERE c.isDeleted = false"
             )
-        except (CosmosAccessConditionFailedError, CosmosResourceNotFoundError):
+        except CosmosAccessConditionFailedError:
+            # 412: the filter predicate failed, so the item is already deleted.
+            raise self._not_found(item_id) from None
+        except CosmosResourceNotFoundError as error:
+            # Only a missing item is a 404. A missing database or container is a
+            # configuration error that must reach the generic 500: Cosmos DB marks
+            # it with a sub-status (for example 1003), and where none is sent (the
+            # emulator) reading the container raises it instead.
+            if error.sub_status:
+                raise
+            await self.container_client.read()
             raise self._not_found(item_id) from None
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}

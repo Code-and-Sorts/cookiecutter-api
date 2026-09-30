@@ -199,6 +199,7 @@ def describe_cosmos_storage():
         client = MagicMock()
         client.upsert_item = AsyncMock()
         client.patch_item = AsyncMock()
+        client.read = AsyncMock(return_value={"id": "items"})
         return client
 
     def describe_get_stored():
@@ -261,6 +262,26 @@ def describe_cosmos_storage():
         ])
         def test_missing_or_deleted_is_not_found(container, error):
             container.patch_item.side_effect = error
+            with pytest.raises(NotFoundError):
+                asyncio.run(_ItemRepository(container)._delete(_ID))
+
+        @pytest.mark.parametrize("sub_status", [1003, 1008])
+        def test_missing_container_or_database_propagates(container, sub_status):
+            container.patch_item.side_effect = CosmosResourceNotFoundError(
+                status_code=404, message="Owner resource does not exist", sub_status=sub_status
+            )
+            with pytest.raises(CosmosResourceNotFoundError):
+                asyncio.run(_ItemRepository(container)._delete(_ID))
+            container.read.assert_not_called()
+
+        def test_missing_container_without_sub_status_propagates(container):
+            container.patch_item.side_effect = CosmosResourceNotFoundError(status_code=404, message="missing")
+            container.read.side_effect = CosmosResourceNotFoundError(status_code=404, message="Collection not found")
+            with pytest.raises(CosmosResourceNotFoundError, match="Collection not found"):
+                asyncio.run(_ItemRepository(container)._delete(_ID))
+
+        def test_missing_item_with_zero_sub_status_is_not_found(container):
+            container.patch_item.side_effect = CosmosResourceNotFoundError(status_code=404, message="missing", sub_status=0)
             with pytest.raises(NotFoundError):
                 asyncio.run(_ItemRepository(container)._delete(_ID))
 
