@@ -64,15 +64,14 @@ public class {{ r }}ServiceTests
     {
         var createRequest = new Create{{ r }}Request { Name = "mockCreate{{ r }}" };
         var expectedItem = new {{ r }}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = createRequest.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}Entity>(), "User1", Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest, TestContext.Current.CancellationToken);
+        var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest, "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
         await _{{ r | to_lower_camel }}RepositoryMock.Received(1).CreateAsync(
-            Arg.Is<{{ r }}Entity>(entity => entity.Name == createRequest.Name && entity.CreatedBy == null && entity.UpdatedBy == null),
-            Arg.Any<CancellationToken>());
+            Arg.Is<{{ r }}Entity>(entity => entity.Name == createRequest.Name), "User1", Arg.Any<CancellationToken>());
     }
 {%- endif %}
 {%- if "update" in resource.operations %}
@@ -83,10 +82,10 @@ public class {{ r }}ServiceTests
         var updateRequest = new Update{{ r }}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdate{{ r }}" };
         var updated{{ r }} = new {{ r }}Entity { Id = updateRequest.Id, Name = updateRequest.Name };
         var expectedItem = new {{ r }}Dto { Id = updated{{ r }}.Id, Name = updated{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.UpdateAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.UpdateAsync(Arg.Any<{{ r }}Entity>(), "User1", Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.UpdateAsync(updateRequest, TestContext.Current.CancellationToken);
+        var result = await _{{ r | to_lower_camel }}Service.UpdateAsync(updateRequest, "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -99,10 +98,10 @@ public class {{ r }}ServiceTests
         var replaceRequest = new Replace{{ r }}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockReplace{{ r }}" };
         var replaced{{ r }} = new {{ r }}Entity { Id = replaceRequest.Id, Name = replaceRequest.Name };
         var expectedItem = new {{ r }}Dto { Id = replaced{{ r }}.Id, Name = replaced{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.ReplaceAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.ReplaceAsync(Arg.Any<{{ r }}Entity>(), "User1", Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.ReplaceAsync(replaceRequest, TestContext.Current.CancellationToken);
+        var result = await _{{ r | to_lower_camel }}Service.ReplaceAsync(replaceRequest, "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -113,12 +112,12 @@ public class {{ r }}ServiceTests
     public async Task DeleteAsync_ShouldCallRepositoryDelete()
     {
         var itemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        _{{ r | to_lower_camel }}RepositoryMock.DeleteAsync(itemId, Arg.Any<CancellationToken>())
+        _{{ r | to_lower_camel }}RepositoryMock.DeleteAsync(itemId, "User1", Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
-        await _{{ r | to_lower_camel }}Service.DeleteAsync(itemId, TestContext.Current.CancellationToken);
+        await _{{ r | to_lower_camel }}Service.DeleteAsync(itemId, "User1", TestContext.Current.CancellationToken);
 
-        await _{{ r | to_lower_camel }}RepositoryMock.Received(1).DeleteAsync(itemId, Arg.Any<CancellationToken>());
+        await _{{ r | to_lower_camel }}RepositoryMock.Received(1).DeleteAsync(itemId, "User1", Arg.Any<CancellationToken>());
     }
 {%- endif %}
 }

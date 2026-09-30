@@ -24,15 +24,15 @@ public interface I{{ r }}Controller
     Task<IEnumerable<{{ r }}Dto>> GetListAsync(string? limit = null, CancellationToken ct = default);
 {%- endif %}
 {%- if "create" in resource.operations %}
-    Task<{{ r }}Dto> CreateAsync(Stream item, CancellationToken ct = default);
+    Task<{{ r }}Dto> CreateAsync(Stream item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "update" in resource.operations %}
-    Task<{{ r }}Dto> UpdateAsync(string id, Stream item, CancellationToken ct = default);
+    Task<{{ r }}Dto> UpdateAsync(string id, Stream item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "replace" in resource.operations %}
-    Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, CancellationToken ct = default);
+    Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "delete" in resource.operations %}
-    Task<DeleteOkObjectResult> DeleteAsync(string id, CancellationToken ct = default);
+    Task<DeleteOkObjectResult> DeleteAsync(string id, string? userId, CancellationToken ct = default);
 {%- endif %}
 }

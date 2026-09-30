@@ -34,12 +34,12 @@ public class EntityRepositoryTests
 
         public Task<IEnumerable<string>> List(int limit) => ListAsync(limit, TestContext.Current.CancellationToken);
 
-        public Task<string> Insert({{ r }}Entity item) => InsertAsync(item, TestContext.Current.CancellationToken);
+        public Task<string> Insert({{ r }}Entity item, string? userId = null) => InsertAsync(item, userId, TestContext.Current.CancellationToken);
 
-        public Task<string> Merge({{ r }}Entity changes) =>
-            MergeAsync(changes, (current, update) => current.Name = update.Name, TestContext.Current.CancellationToken);
+        public Task<string> Merge({{ r }}Entity changes, string? userId = null) =>
+            MergeAsync(changes, (current, update) => current.Name = update.Name, userId, TestContext.Current.CancellationToken);
 
-        public Task Delete(string id) => SoftDeleteAsync(id, TestContext.Current.CancellationToken);
+        public Task Delete(string id, string? userId = null) => SoftDeleteAsync(id, userId, TestContext.Current.CancellationToken);
     }
 
     private static {{ r }}Entity StoredItem(string name = "stored", bool isDeleted = false) => new()
@@ -97,28 +97,32 @@ public class EntityRepositoryTests
         Assert.Empty(await _repository.List(100));
     }
 
-    [Fact]
-    public async Task Insert_StampsIdAndOneTimestampReading()
+    [Theory]
+    [InlineData("User1")]
+    [InlineData(null)]
+    public async Task Insert_StampsIdOneTimestampReadingAndUserId(string? userId)
     {
-        await _repository.Insert(new {{ r }}Entity { Name = "new" });
+        await _repository.Insert(new {{ r }}Entity { Name = "new" }, userId);
 
-        await _mockStore.Received(1).CreateAsync(Arg.Is<{{ r }}Entity>(k => IsNewItem(k)), Arg.Any<CancellationToken>());
+        await _mockStore.Received(1).CreateAsync(Arg.Is<{{ r }}Entity>(k => IsNewItem(k, userId)), Arg.Any<CancellationToken>());
     }
 
-    private static bool IsNewItem({{ r }}Entity item) =>
+    private static bool IsNewItem({{ r }}Entity item, string? userId) =>
         Guid.TryParseExact(item.Id, "D", out _) && item.Name == "new" && !item.IsDeleted
         && System.Text.RegularExpressions.Regex.IsMatch(item.CreatedTimestamp, TimestampPattern)
-        && item.UpdatedTimestamp == item.CreatedTimestamp && item.CreatedBy == null && item.UpdatedBy == null;
+        && item.UpdatedTimestamp == item.CreatedTimestamp && item.CreatedBy == userId && item.UpdatedBy == userId;
 
-    [Fact]
-    public async Task Merge_KeepsCreatedFieldsAndRefreshesUpdatedTimestamp()
+    [Theory]
+    [InlineData("User1")]
+    [InlineData(null)]
+    public async Task Merge_KeepsCreatedFieldsAndRefreshesUpdatedFields(string? userId)
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
 
-        Assert.Equal("changed", await _repository.Merge(new {{ r }}Entity { Id = ItemId, Name = "changed" }));
+        Assert.Equal("changed", await _repository.Merge(new {{ r }}Entity { Id = ItemId, Name = "changed" }, userId));
 
         await _mockStore.Received(1).SaveAsync(
-            Arg.Is<{{ r }}Entity>(k => k.Id == ItemId && k.Name == "changed" && k.CreatedBy == "User2" && k.UpdatedBy == "User3"
+            Arg.Is<{{ r }}Entity>(k => k.Id == ItemId && k.Name == "changed" && k.CreatedBy == "User2" && k.UpdatedBy == userId
                 && k.CreatedTimestamp == StoredTimestamp && k.UpdatedTimestamp != StoredTimestamp
                 && System.Text.RegularExpressions.Regex.IsMatch(k.UpdatedTimestamp, TimestampPattern)),
             Arg.Any<CancellationToken>());
@@ -133,15 +137,18 @@ public class EntityRepositoryTests
         await _mockStore.DidNotReceiveWithAnyArgs().SaveAsync(default!, default);
     }
 
-    [Fact]
-    public async Task Delete_SoftDeletesAndRefreshesUpdatedTimestamp()
+    [Theory]
+    [InlineData("User1")]
+    [InlineData(null)]
+    public async Task Delete_SoftDeletesAndRefreshesUpdatedFields(string? userId)
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
 
-        await _repository.Delete(ItemId);
+        await _repository.Delete(ItemId, userId);
 
         await _mockStore.Received(1).SaveAsync(
-            Arg.Is<{{ r }}Entity>(k => k.IsDeleted && k.CreatedTimestamp == StoredTimestamp && k.UpdatedTimestamp != StoredTimestamp),
+            Arg.Is<{{ r }}Entity>(k => k.IsDeleted && k.CreatedBy == "User2" && k.UpdatedBy == userId
+                && k.CreatedTimestamp == StoredTimestamp && k.UpdatedTimestamp != StoredTimestamp),
             Arg.Any<CancellationToken>());
     }
 }

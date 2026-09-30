@@ -24,20 +24,20 @@ public class {{ r }}Repository(IDocumentStore<{{ r }}Entity> store)
 {%- endif %}
 {%- if "create" in ops %}
 
-    public Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default) => InsertAsync(item, ct);
+    public Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) => InsertAsync(item, userId, ct);
 {%- endif %}
 {%- if "update" in ops %}
 
-    public Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default) =>
-        MergeAsync(item, (current, changes) => current.Name = changes.Name ?? current.Name, ct);
+    public Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) =>
+        MergeAsync(item, (current, changes) => current.Name = changes.Name ?? current.Name, userId, ct);
 {%- endif %}
 {%- if "replace" in ops %}
 
-    public Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default) =>
-        MergeAsync(item, (current, changes) => current.Name = changes.Name, ct);
+    public Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) =>
+        MergeAsync(item, (current, changes) => current.Name = changes.Name, userId, ct);
 {%- endif %}
 {%- if "delete" in ops %}
 
-    public Task DeleteAsync(string id, CancellationToken ct = default) => SoftDeleteAsync(id, ct);
+    public Task DeleteAsync(string id, string? userId, CancellationToken ct = default) => SoftDeleteAsync(id, userId, ct);
 {%- endif %}
 }

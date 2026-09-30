@@ -44,38 +44,38 @@ public class {{ r }}Controller : I{{ r }}Controller
 {%- endif %}
 {%- if "create" in resource.operations %}
 
-    public async Task<{{ r }}Dto> CreateAsync(Stream item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> CreateAsync(Stream item, string? userId, CancellationToken ct = default)
     {
         var request = await RequestBody.ReadValidAsync<Create{{ r }}Request, Create{{ r }}RequestValidator>(item, ct);
-        return await _service.CreateAsync(request, ct);
+        return await _service.CreateAsync(request, userId, ct);
     }
 {%- endif %}
 {%- if "update" in resource.operations %}
 
-    public async Task<{{ r }}Dto> UpdateAsync(string id, Stream item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> UpdateAsync(string id, Stream item, string? userId, CancellationToken ct = default)
     {
         ItemIds.EnsureValid(ResourceName, id);
         var request = await RequestBody.ReadValidAsync<Update{{ r }}Request, Update{{ r }}RequestValidator>(item, ct);
         request.Id = id;
-        return await _service.UpdateAsync(request, ct);
+        return await _service.UpdateAsync(request, userId, ct);
     }
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
-    public async Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, string? userId, CancellationToken ct = default)
     {
         ItemIds.EnsureValid(ResourceName, id);
         var request = await RequestBody.ReadValidAsync<Replace{{ r }}Request, Replace{{ r }}RequestValidator>(item, ct);
         request.Id = id;
-        return await _service.ReplaceAsync(request, ct);
+        return await _service.ReplaceAsync(request, userId, ct);
     }
 {%- endif %}
 {%- if "delete" in resource.operations %}
 
-    public async Task<DeleteOkObjectResult> DeleteAsync(string id, CancellationToken ct = default)
+    public async Task<DeleteOkObjectResult> DeleteAsync(string id, string? userId, CancellationToken ct = default)
     {
         ItemIds.EnsureValid(ResourceName, id);
-        await _service.DeleteAsync(id, ct);
+        await _service.DeleteAsync(id, userId, ct);
         return DeleteOkObjectResult.For(ResourceName, id);
     }
 {%- endif %}

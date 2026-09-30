@@ -34,12 +34,12 @@ public class {{ r }}Service : I{{ r }}Service
 {%- endif %}
 {%- if "create" in resource.operations %}
 
-    public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default) =>
-        await _repository.CreateAsync(new {{ r }}Entity { Name = item.Name }, ct);
+    public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, string? userId, CancellationToken ct = default) =>
+        await _repository.CreateAsync(new {{ r }}Entity { Name = item.Name }, userId, ct);
 {%- endif %}
 {%- if "update" in resource.operations %}
 
-    public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, string? userId, CancellationToken ct = default)
     {
         var updated{{ r }} = new {{ r }}Entity
         {
@@ -47,23 +47,23 @@ public class {{ r }}Service : I{{ r }}Service
             // A null name (not sent in the PATCH body) keeps the stored name.
             Name = item.Name!,
         };
-        return await _repository.UpdateAsync(updated{{ r }}, ct);
+        return await _repository.UpdateAsync(updated{{ r }}, userId, ct);
     }
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
-    public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, CancellationToken ct = default)
+    public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, string? userId, CancellationToken ct = default)
     {
         var replaced{{ r }} = new {{ r }}Entity
         {
             Id = item.Id,
             Name = item.Name,
         };
-        return await _repository.ReplaceAsync(replaced{{ r }}, ct);
+        return await _repository.ReplaceAsync(replaced{{ r }}, userId, ct);
     }
 {%- endif %}
 {%- if "delete" in resource.operations %}
 
-    public async Task DeleteAsync(string id, CancellationToken ct = default) => await _repository.DeleteAsync(id, ct);
+    public async Task DeleteAsync(string id, string? userId, CancellationToken ct = default) => await _repository.DeleteAsync(id, userId, ct);
 {%- endif %}
 }

@@ -21,15 +21,15 @@ public interface I{{ r }}Service
     Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default);
 {%- endif %}
 {%- if "create" in resource.operations %}
-    Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default);
+    Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "update" in resource.operations %}
-    Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, CancellationToken ct = default);
+    Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "replace" in resource.operations %}
-    Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, CancellationToken ct = default);
+    Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "delete" in resource.operations %}
-    Task DeleteAsync(string id, CancellationToken ct = default);
+    Task DeleteAsync(string id, string? userId, CancellationToken ct = default);
 {%- endif %}
 }

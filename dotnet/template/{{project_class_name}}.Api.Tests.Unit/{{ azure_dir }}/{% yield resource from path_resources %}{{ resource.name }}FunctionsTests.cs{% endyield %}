@@ -131,7 +131,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
 
         var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"), TestContext.Current.CancellationToken);
 
@@ -141,7 +141,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsBadRequest_WhenBodyIsInvalid()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new BadRequestException("name must be a string."));
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new BadRequestException("name must be a string."));
 
         var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData("POST"), TestContext.Current.CancellationToken);
 
@@ -152,7 +152,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"), TestContext.Current.CancellationToken);
 
@@ -164,7 +164,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
     {
-        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
 
         var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
@@ -174,7 +174,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Update{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
@@ -186,7 +186,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
     {
-        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
 
         var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
@@ -196,7 +196,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Replace{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
@@ -208,7 +208,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Delete{{ r }}_ReturnsDeleteMessage_When{{ r }}IsDeleted()
     {
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
 
         var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
 
@@ -218,7 +218,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Delete{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
 

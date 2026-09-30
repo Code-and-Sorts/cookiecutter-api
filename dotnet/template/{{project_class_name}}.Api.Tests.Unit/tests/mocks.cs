@@ -37,6 +37,7 @@ public static class Mocks
         var request = Substitute.For<HttpRequestData>(context);
         request.Body.Returns(CreateStream(body));
         request.Method.Returns(restMethod);
+        request.Headers.Returns(new HttpHeadersCollection());
         request.Url.Returns(new Uri("http://localhost/api/endpoint"));
 
         return request;
@@ -49,6 +50,7 @@ public static class Mocks
         var request = Substitute.For<HttpRequestData>(context);
         request.Body.Returns(new MemoryStream());
         request.Method.Returns(restMethod);
+        request.Headers.Returns(new HttpHeadersCollection());
         request.Url.Returns(new Uri("http://localhost/api/endpoint" + query));
 
         return request;

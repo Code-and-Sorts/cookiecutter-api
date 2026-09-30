@@ -63,7 +63,7 @@ public class {{ r }}RepositoryTests
     [Fact]
     public async Task CreateAsync_ShouldStoreItemAndReturn{{ r }}Dto()
     {
-        var result = await _repository.CreateAsync(new {{ r }}Entity { Name = "mock{{ r }}" }, TestContext.Current.CancellationToken);
+        var result = await _repository.CreateAsync(new {{ r }}Entity { Name = "mock{{ r }}" }, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("mock{{ r }}", result.Name);
         await _mockStore.Received(1).CreateAsync(Arg.Is<{{ r }}Entity>(k => k.Id == result.Id && k.Name == "mock{{ r }}"), Arg.Any<CancellationToken>());
@@ -76,7 +76,7 @@ public class {{ r }}RepositoryTests
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem("mock{{ r }}Old"));
 
-        var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, TestContext.Current.CancellationToken);
+        var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("mock{{ r }}New", result.Name);
         await _mockStore.Received(1).SaveAsync(
@@ -89,7 +89,7 @@ public class {{ r }}RepositoryTests
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem("mock{{ r }}Old"));
 
-        var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = null! }, TestContext.Current.CancellationToken);
+        var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = null! }, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("mock{{ r }}Old", result.Name);
     }
@@ -101,7 +101,7 @@ public class {{ r }}RepositoryTests
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem("mock{{ r }}Old"));
 
-        var result = await _repository.ReplaceAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, TestContext.Current.CancellationToken);
+        var result = await _repository.ReplaceAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("mock{{ r }}New", result.Name);
         await _mockStore.Received(1).SaveAsync(
@@ -116,7 +116,7 @@ public class {{ r }}RepositoryTests
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
 
-        await _repository.DeleteAsync(ItemId, TestContext.Current.CancellationToken);
+        await _repository.DeleteAsync(ItemId, null, TestContext.Current.CancellationToken);
 
         await _mockStore.Received(1).SaveAsync(Arg.Is<{{ r }}Entity>(k => k.IsDeleted && k.CreatedTimestamp == StoredTimestamp), Arg.Any<CancellationToken>());
     }

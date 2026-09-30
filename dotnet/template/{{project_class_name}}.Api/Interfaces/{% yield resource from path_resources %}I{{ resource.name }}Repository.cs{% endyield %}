@@ -31,21 +31,21 @@ public interface I{{ r }}Repository
 {%- if "create" in ops %}
 {%- if not ns.first %}
 {% endif %}{% set ns.first = false %}
-    Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, CancellationToken ct = default);
+    Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "update" in ops %}
 {%- if not ns.first %}
 {% endif %}{% set ns.first = false %}
-    Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, CancellationToken ct = default);
+    Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "replace" in ops %}
 {%- if not ns.first %}
 {% endif %}{% set ns.first = false %}
-    Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, CancellationToken ct = default);
+    Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, string? userId, CancellationToken ct = default);
 {%- endif %}
 {%- if "delete" in ops %}
 {%- if not ns.first %}
 {% endif %}{% set ns.first = false %}
-    Task DeleteAsync(string id, CancellationToken ct = default);
+    Task DeleteAsync(string id, string? userId, CancellationToken ct = default);
 {%- endif %}
 }

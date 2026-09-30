@@ -33,22 +33,22 @@ public class {{ r }}Handler(I{{ r }}Controller controller) : IResourceHandler
 {%- endif %}
 {%- if "create" in ops %}
             case ("POST", null):
-                await response.WriteJsonAsync(StatusCodes.Status201Created, await _controller.CreateAsync(request.Body, ct), ct);
+                await response.WriteJsonAsync(StatusCodes.Status201Created, await _controller.CreateAsync(request.Body, UserIds.From(request), ct), ct);
                 return;
 {%- endif %}
 {%- if "update" in ops %}
             case ("PATCH", string itemId):
-                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.UpdateAsync(itemId, request.Body, ct), ct);
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.UpdateAsync(itemId, request.Body, UserIds.From(request), ct), ct);
                 return;
 {%- endif %}
 {%- if "replace" in ops %}
             case ("PUT", string itemId):
-                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.ReplaceAsync(itemId, request.Body, ct), ct);
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.ReplaceAsync(itemId, request.Body, UserIds.From(request), ct), ct);
                 return;
 {%- endif %}
 {%- if "delete" in ops %}
             case ("DELETE", string itemId):
-                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.DeleteAsync(itemId, ct), ct);
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.DeleteAsync(itemId, UserIds.From(request), ct), ct);
                 return;
 {%- endif %}
 {%- if not resource.has_collection %}

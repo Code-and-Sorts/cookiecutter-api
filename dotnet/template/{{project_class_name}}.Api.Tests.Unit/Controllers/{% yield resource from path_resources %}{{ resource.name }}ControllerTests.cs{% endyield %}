@@ -78,10 +78,10 @@ public class {{ r }}ControllerTests
     {
         var expectedItem = new {{ r }}Dto { Id = ItemId, Name = "mockCreate{{ r }}" };
         _mock{{ r }}Service
-            .CreateAsync(Arg.Is<Create{{ r }}Request>(req => req.Name == "mockCreate{{ r }}"), Arg.Any<CancellationToken>())
+            .CreateAsync(Arg.Is<Create{{ r }}Request>(req => req.Name == "mockCreate{{ r }}"), "User1", Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ lc }}Controller.CreateAsync(Mocks.CreateStream("{\"name\":\"mockCreate{{ r }}\"}"), TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Controller.CreateAsync(Mocks.CreateStream("{\"name\":\"mockCreate{{ r }}\"}"), "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -91,11 +91,11 @@ public class {{ r }}ControllerTests
     [InlineData("{\"name\":\"\"}")]
     public async Task CreateAsync_ThrowsBadRequest_WhenNameIsMissingOrEmpty(string body)
     {
-        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.CreateAsync(Mocks.CreateStream(body), TestContext.Current.CancellationToken));
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.CreateAsync(Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
         Assert.Equal("name is required and must be a non-empty string.", exception.Message);
 
-        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().CreateAsync(default!, default);
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().CreateAsync(default!, default, default);
     }
 
     [Theory]
@@ -106,9 +106,9 @@ public class {{ r }}ControllerTests
     [InlineData("[]")]
     public async Task CreateAsync_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
-        await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.CreateAsync(Mocks.CreateStream(body), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.CreateAsync(Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
-        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().CreateAsync(default!, default);
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().CreateAsync(default!, default, default);
     }
 {%- endif %}
 {%- if "update" in ops %}
@@ -118,10 +118,10 @@ public class {{ r }}ControllerTests
     {
         var expectedItem = new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" };
         _mock{{ r }}Service
-            .UpdateAsync(Arg.Is<Update{{ r }}Request>(req => req.Id == ItemId && req.Name == "mockUpdated{{ r }}"), Arg.Any<CancellationToken>())
+            .UpdateAsync(Arg.Is<Update{{ r }}Request>(req => req.Id == ItemId && req.Name == "mockUpdated{{ r }}"), "User1", Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream("{\"name\":\"mockUpdated{{ r }}\"}"), TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream("{\"name\":\"mockUpdated{{ r }}\"}"), "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -129,15 +129,15 @@ public class {{ r }}ControllerTests
     [Fact]
     public async Task UpdateAsync_AllowsBodyWithoutName()
     {
-        await _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream("{}"), TestContext.Current.CancellationToken);
+        await _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream("{}"), "User1", TestContext.Current.CancellationToken);
 
-        await _mock{{ r }}Service.Received(1).UpdateAsync(Arg.Is<Update{{ r }}Request>(req => req.Id == ItemId && req.Name == null), Arg.Any<CancellationToken>());
+        await _mock{{ r }}Service.Received(1).UpdateAsync(Arg.Is<Update{{ r }}Request>(req => req.Id == ItemId && req.Name == null), "User1", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task UpdateAsync_ThrowsBadRequest_WhenNameIsEmpty()
     {
-        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream("{\"name\":\"\"}"), TestContext.Current.CancellationToken));
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream("{\"name\":\"\"}"), null, TestContext.Current.CancellationToken));
 
         Assert.Equal("name must be a non-empty string.", exception.Message);
     }
@@ -148,15 +148,15 @@ public class {{ r }}ControllerTests
     [InlineData("\"mock{{ r }}\"")]
     public async Task UpdateAsync_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
-        await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream(body), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
-        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default, default);
     }
 
     [Fact]
     public async Task UpdateAsync_ThrowsNotFound_WhenIdIsNotAUuid()
     {
-        await Assert.ThrowsAsync<NotFoundException>(() => _{{ lc }}Controller.UpdateAsync("not-a-uuid", Mocks.CreateStream("{\"name\":\"mock{{ r }}\"}"), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<NotFoundException>(() => _{{ lc }}Controller.UpdateAsync("not-a-uuid", Mocks.CreateStream("{\"name\":\"mock{{ r }}\"}"), null, TestContext.Current.CancellationToken));
     }
 {%- endif %}
 {%- if "replace" in ops %}
@@ -166,10 +166,10 @@ public class {{ r }}ControllerTests
     {
         var expectedItem = new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" };
         _mock{{ r }}Service
-            .ReplaceAsync(Arg.Is<Replace{{ r }}Request>(req => req.Id == ItemId && req.Name == "mockReplaced{{ r }}"), Arg.Any<CancellationToken>())
+            .ReplaceAsync(Arg.Is<Replace{{ r }}Request>(req => req.Id == ItemId && req.Name == "mockReplaced{{ r }}"), "User1", Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
-        var result = await _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream("{\"name\":\"mockReplaced{{ r }}\"}"), TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream("{\"name\":\"mockReplaced{{ r }}\"}"), "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedItem, result);
     }
@@ -179,7 +179,7 @@ public class {{ r }}ControllerTests
     [InlineData("{\"name\":\"\"}")]
     public async Task ReplaceAsync_ThrowsBadRequest_WhenNameIsMissingOrEmpty(string body)
     {
-        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream(body), TestContext.Current.CancellationToken));
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
         Assert.Equal("name is required and must be a non-empty string.", exception.Message);
     }
@@ -189,15 +189,15 @@ public class {{ r }}ControllerTests
     [InlineData("{\"name\":\"mock{{ r }}\",\"isDeleted\":false}")]
     public async Task ReplaceAsync_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
-        await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream(body), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
-        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().ReplaceAsync(default!, default);
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().ReplaceAsync(default!, default, default);
     }
 
     [Fact]
     public async Task ReplaceAsync_ThrowsNotFound_WhenIdIsNotAUuid()
     {
-        await Assert.ThrowsAsync<NotFoundException>(() => _{{ lc }}Controller.ReplaceAsync("not-a-uuid", Mocks.CreateStream("{\"name\":\"mock{{ r }}\"}"), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<NotFoundException>(() => _{{ lc }}Controller.ReplaceAsync("not-a-uuid", Mocks.CreateStream("{\"name\":\"mock{{ r }}\"}"), null, TestContext.Current.CancellationToken));
     }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -205,20 +205,20 @@ public class {{ r }}ControllerTests
     [Fact]
     public async Task DeleteAsync_CallsDeleteOnServiceAndReturnsMessage()
     {
-        _mock{{ r }}Service.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _mock{{ r }}Service.DeleteAsync(ItemId, "User1", Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var result = await _{{ lc }}Controller.DeleteAsync(ItemId, TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Controller.DeleteAsync(ItemId, "User1", TestContext.Current.CancellationToken);
 
         Assert.Equal($"{{ r }} with id {ItemId} was deleted successfully.", result.Message);
-        await _mock{{ r }}Service.Received(1).DeleteAsync(ItemId, Arg.Any<CancellationToken>());
+        await _mock{{ r }}Service.Received(1).DeleteAsync(ItemId, "User1", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DeleteAsync_ThrowsNotFound_WhenIdIsNotAUuid()
     {
-        await Assert.ThrowsAsync<NotFoundException>(() => _{{ lc }}Controller.DeleteAsync("not-a-uuid", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<NotFoundException>(() => _{{ lc }}Controller.DeleteAsync("not-a-uuid", null, TestContext.Current.CancellationToken));
 
-        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default);
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default, default);
     }
 {%- endif %}
 }

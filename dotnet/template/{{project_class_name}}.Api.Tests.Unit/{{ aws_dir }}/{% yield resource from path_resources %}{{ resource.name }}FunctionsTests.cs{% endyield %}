@@ -131,7 +131,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
 
         var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
@@ -145,7 +145,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsBadRequest_WhenBodyIsInvalid()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new BadRequestException("Request body must be valid JSON."));
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new BadRequestException("Request body must be valid JSON."));
 
         var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("POST")));
 
@@ -157,7 +157,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
 
@@ -169,7 +169,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
     {
-        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
 
         var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
@@ -182,7 +182,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Update{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
 
@@ -194,7 +194,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
     {
-        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
 
         var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
@@ -207,7 +207,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Replace{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
 
@@ -219,7 +219,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Delete{{ r }}_ReturnsOk_When{{ r }}IsDeleted()
     {
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
 
         var response = await _functions.Delete{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("DELETE", IdPath())));
 
@@ -230,7 +230,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Delete{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
         var response = await _functions.Delete{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("DELETE", IdPath())));
 

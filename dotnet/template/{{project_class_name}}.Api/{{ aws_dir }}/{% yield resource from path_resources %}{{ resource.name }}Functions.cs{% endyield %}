@@ -35,24 +35,24 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
 
     [LambdaFunction(ResourceName = "Create{{ r }}Function")]
     public Task<APIGatewayProxyResponse> Create{{ r }}(APIGatewayProxyRequest request) =>
-        FunctionRunner.RunAsync(request, "POST", CollectionRoute, _logger, ct => _controller.CreateAsync(FunctionRunner.BodyStream(request), ct), statusCode: 201);
+        FunctionRunner.RunAsync(request, "POST", CollectionRoute, _logger, ct => _controller.CreateAsync(FunctionRunner.BodyStream(request), UserIds.From(request), ct), statusCode: 201);
 {%- endif %}
 {%- if "update" in ops %}
 
     [LambdaFunction(ResourceName = "Update{{ r }}Function")]
     public Task<APIGatewayProxyResponse> Update{{ r }}(APIGatewayProxyRequest request) =>
-        FunctionRunner.RunAsync(request, "PATCH", ItemRoute, _logger, ct => _controller.UpdateAsync(FunctionRunner.Id(request), FunctionRunner.BodyStream(request), ct));
+        FunctionRunner.RunAsync(request, "PATCH", ItemRoute, _logger, ct => _controller.UpdateAsync(FunctionRunner.Id(request), FunctionRunner.BodyStream(request), UserIds.From(request), ct));
 {%- endif %}
 {%- if "replace" in ops %}
 
     [LambdaFunction(ResourceName = "Replace{{ r }}Function")]
     public Task<APIGatewayProxyResponse> Replace{{ r }}(APIGatewayProxyRequest request) =>
-        FunctionRunner.RunAsync(request, "PUT", ItemRoute, _logger, ct => _controller.ReplaceAsync(FunctionRunner.Id(request), FunctionRunner.BodyStream(request), ct));
+        FunctionRunner.RunAsync(request, "PUT", ItemRoute, _logger, ct => _controller.ReplaceAsync(FunctionRunner.Id(request), FunctionRunner.BodyStream(request), UserIds.From(request), ct));
 {%- endif %}
 {%- if "delete" in ops %}
 
     [LambdaFunction(ResourceName = "Delete{{ r }}Function")]
     public Task<APIGatewayProxyResponse> Delete{{ r }}(APIGatewayProxyRequest request) =>
-        FunctionRunner.RunAsync(request, "DELETE", ItemRoute, _logger, ct => _controller.DeleteAsync(FunctionRunner.Id(request), ct));
+        FunctionRunner.RunAsync(request, "DELETE", ItemRoute, _logger, ct => _controller.DeleteAsync(FunctionRunner.Id(request), UserIds.From(request), ct));
 {%- endif %}
 }
