@@ -2,6 +2,8 @@ namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using {{project_class_name}}.Api.Utils;
 using FluentValidation;
 using FluentValidation.Results;
@@ -56,6 +58,37 @@ public class ErrorDetectorTest
         Assert.Equal(400, statusCode);
         Assert.Equal("name is required.", body.ErrorMessage);
         Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public void Classify_WithCancellationFromTheClient_DoesNotLogAnError()
+    {
+        using var aborted = new CancellationTokenSource();
+        aborted.Cancel();
+
+        var (statusCode, _) = ErrorDetector.Classify(new OperationCanceledException(aborted.Token), _logger, aborted.Token);
+
+        Assert.Equal(500, statusCode);
+        Assert.DoesNotContain(_logger.Entries, entry => entry.Level >= LogLevel.Warning);
+    }
+
+    [Fact]
+    public void Classify_WithPassedRequestDeadline_Returns500AndLogsError()
+    {
+        var (statusCode, body) = ErrorDetector.Classify(new TaskCanceledException("deadline"), _logger, CancellationToken.None);
+
+        Assert.Equal(500, statusCode);
+        Assert.Equal("An unexpected error occurred.", body.ErrorMessage);
+        Assert.Equal(LogLevel.Error, Assert.Single(_logger.Entries).Level);
+    }
+
+    [Fact]
+    public void RequestDeadline_CancelsWithinTenSeconds()
+    {
+        using var deadline = RequestDeadline.Start(CancellationToken.None);
+
+        Assert.True(RequestDeadline.Timeout <= TimeSpan.FromSeconds(10));
+        Assert.False(deadline.Token.IsCancellationRequested);
     }
 
     [Fact]

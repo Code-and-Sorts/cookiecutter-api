@@ -1,5 +1,8 @@
 {%- set r = resource.name -%}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
+{%- set ops = resource.operations -%}
+{%- set uses_body = "create" in ops or "update" in ops or "replace" in ops -%}
+{%- set collection = "/" ~ resource.endpoint -%}
+{%- set item = collection ~ "/{id}" -%}
 namespace {{project_class_name}}.Api.Functions;
 
 using System;
@@ -7,6 +10,7 @@ using System;
 using System.IO;
 using System.Text;
 {% endif -%}
+using System.Threading;
 using System.Threading.Tasks;
 using Amazon.Lambda.Annotations;
 using Amazon.Lambda.APIGatewayEvents;
@@ -14,109 +18,87 @@ using Microsoft.Extensions.Logging;
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Utils;
 
+// Each operation is its own Lambda function behind one API Gateway route. The request
+// can reach a function without API Gateway, so every function first checks that the
+// method and path are its own route (RouteGuard) and answers 405/404 otherwise.
 public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Functions> logger)
 {
+    private const string CollectionRoute = "{{ collection }}";
+    private const string ItemRoute = "{{ item }}";
     private readonly I{{ r }}Controller _controller = controller;
     private readonly ILogger<{{ r }}Functions> _logger = logger;
 {%- if uses_body %}
 
     private static Stream BodyStream(APIGatewayProxyRequest request) => new MemoryStream(Encoding.UTF8.GetBytes(request.Body ?? string.Empty));
 {%- endif %}
-{%- if "get_by_id" in resource.operations %}
 
-    [LambdaFunction(ResourceName = "Get{{ r }}Function")]
-    public async Task<APIGatewayProxyResponse> Get{{ r }}(APIGatewayProxyRequest request)
+    private async Task<APIGatewayProxyResponse> HandleAsync(
+        APIGatewayProxyRequest request, string method, string route, Func<CancellationToken, Task<APIGatewayProxyResponse>> handle)
     {
+        var mismatch = RouteGuard.Check(request, method, route);
+        if (mismatch != null)
+        {
+            return mismatch;
+        }
+
         try
         {
-            var id = request.PathParameters["id"];
-            return ResponseHelper.Ok(await _controller.GetAsync(id));
+            using var deadline = RequestDeadline.Start(CancellationToken.None);
+            return await handle(deadline.Token);
         }
         catch (Exception ex)
         {
             return ErrorDetector.DetectError(ex, _logger);
         }
     }
+{%- if "get_by_id" in ops %}
+
+    [LambdaFunction(ResourceName = "Get{{ r }}Function")]
+    public Task<APIGatewayProxyResponse> Get{{ r }}(APIGatewayProxyRequest request) =>
+        HandleAsync(request, "GET", ItemRoute, async ct =>
+            ResponseHelper.Ok(await _controller.GetAsync(request.PathParameters["id"], ct)));
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
     [LambdaFunction(ResourceName = "Get{{ r }}ListFunction")]
-    public async Task<APIGatewayProxyResponse> Get{{ r }}List(APIGatewayProxyRequest request)
-    {
-        try
+    public Task<APIGatewayProxyResponse> Get{{ r }}List(APIGatewayProxyRequest request) =>
+        HandleAsync(request, "GET", CollectionRoute, async ct =>
         {
             string? limit = null;
             request.QueryStringParameters?.TryGetValue("limit", out limit);
-            return ResponseHelper.Ok(await _controller.GetListAsync(limit));
-        }
-        catch (Exception ex)
-        {
-            return ErrorDetector.DetectError(ex, _logger);
-        }
-    }
+            return ResponseHelper.Ok(await _controller.GetListAsync(limit, ct));
+        });
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 
     [LambdaFunction(ResourceName = "Create{{ r }}Function")]
-    public async Task<APIGatewayProxyResponse> Create{{ r }}(APIGatewayProxyRequest request)
-    {
-        try
-        {
-            return ResponseHelper.Created(await _controller.CreateAsync(BodyStream(request)));
-        }
-        catch (Exception ex)
-        {
-            return ErrorDetector.DetectError(ex, _logger);
-        }
-    }
+    public Task<APIGatewayProxyResponse> Create{{ r }}(APIGatewayProxyRequest request) =>
+        HandleAsync(request, "POST", CollectionRoute, async ct =>
+            ResponseHelper.Created(await _controller.CreateAsync(BodyStream(request), ct)));
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
     [LambdaFunction(ResourceName = "Update{{ r }}Function")]
-    public async Task<APIGatewayProxyResponse> Update{{ r }}(APIGatewayProxyRequest request)
-    {
-        try
-        {
-            var id = request.PathParameters["id"];
-            return ResponseHelper.Ok(await _controller.UpdateAsync(id, BodyStream(request)));
-        }
-        catch (Exception ex)
-        {
-            return ErrorDetector.DetectError(ex, _logger);
-        }
-    }
+    public Task<APIGatewayProxyResponse> Update{{ r }}(APIGatewayProxyRequest request) =>
+        HandleAsync(request, "PATCH", ItemRoute, async ct =>
+            ResponseHelper.Ok(await _controller.UpdateAsync(request.PathParameters["id"], BodyStream(request), ct)));
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
     [LambdaFunction(ResourceName = "Replace{{ r }}Function")]
-    public async Task<APIGatewayProxyResponse> Replace{{ r }}(APIGatewayProxyRequest request)
-    {
-        try
-        {
-            var id = request.PathParameters["id"];
-            return ResponseHelper.Ok(await _controller.ReplaceAsync(id, BodyStream(request)));
-        }
-        catch (Exception ex)
-        {
-            return ErrorDetector.DetectError(ex, _logger);
-        }
-    }
+    public Task<APIGatewayProxyResponse> Replace{{ r }}(APIGatewayProxyRequest request) =>
+        HandleAsync(request, "PUT", ItemRoute, async ct =>
+            ResponseHelper.Ok(await _controller.ReplaceAsync(request.PathParameters["id"], BodyStream(request), ct)));
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
     [LambdaFunction(ResourceName = "Delete{{ r }}Function")]
-    public async Task<APIGatewayProxyResponse> Delete{{ r }}(APIGatewayProxyRequest request)
-    {
-        try
+    public Task<APIGatewayProxyResponse> Delete{{ r }}(APIGatewayProxyRequest request) =>
+        HandleAsync(request, "DELETE", ItemRoute, async ct =>
         {
             var id = request.PathParameters["id"];
-            await _controller.DeleteAsync(id);
+            await _controller.DeleteAsync(id, ct);
             return ResponseHelper.Ok(new DeleteOkObjectResult { Message = $"{{ r }} with id {id} was deleted successfully." });
-        }
-        catch (Exception ex)
-        {
-            return ErrorDetector.DetectError(ex, _logger);
-        }
-    }
+        });
 {%- endif %}
 }

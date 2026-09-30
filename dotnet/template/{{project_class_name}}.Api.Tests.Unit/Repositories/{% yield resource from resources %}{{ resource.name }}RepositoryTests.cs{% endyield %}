@@ -108,6 +108,18 @@ public class {{ r }}RepositoryTests
     }
 
     [Fact]
+    public async Task GetAsync_ShouldNotReportNotFound_WhenContainerIsMissing()
+    {
+        // Substatus 1003: the container (or database) does not exist, a configuration error.
+        _mockContainer.ReadItemAsync<{{ r }}Entity>(ItemId, Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+            .Throws(new CosmosException("Owner resource does not exist", HttpStatusCode.NotFound, 1003, "123", 0));
+
+        var exception = await Assert.ThrowsAsync<CosmosException>(() => _repository.GetAsync(ItemId, TestContext.Current.CancellationToken));
+
+        Assert.Equal(1003, exception.SubStatusCode);
+    }
+
+    [Fact]
     public async Task GetAsync_ShouldThrowNotFound_WhenItemIsSoftDeleted()
     {
         SetupRead(StoredItem(isDeleted: true));

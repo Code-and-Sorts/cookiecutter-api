@@ -78,6 +78,34 @@ public class FunctionTests
     }
 
     [Fact]
+    public async Task HandleAsync_DoesNotLogAnError_WhenTheClientCancels()
+    {
+        using var aborted = new System.Threading.CancellationTokenSource();
+        var httpContext = Mocks.CreateHttpContext("GET", "/things");
+        httpContext.RequestAborted = aborted.Token;
+        aborted.Cancel();
+        _mockHandler.HandleAsync(Arg.Any<HttpContext>(), Arg.Any<string?>()).Throws(new OperationCanceledException());
+
+        await _function.HandleAsync(httpContext);
+
+        Assert.DoesNotContain(_logger.Entries, entry => entry.Level >= LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GivesHandlersATokenBoundedByTheRequestDeadline()
+    {
+        var httpContext = Mocks.CreateHttpContext("GET", "/things");
+        var requestAborted = httpContext.RequestAborted;
+        System.Threading.CancellationToken handlerToken = default;
+        _mockHandler.HandleAsync(Arg.Do<HttpContext>(context => handlerToken = context.RequestAborted), Arg.Any<string?>()).Returns(Task.CompletedTask);
+
+        await _function.HandleAsync(httpContext);
+
+        Assert.True(handlerToken.CanBeCanceled);
+        Assert.NotEqual(requestAborted, handlerToken);
+    }
+
+    [Fact]
     public async Task HandleAsync_ReturnsBadRequestWithoutLogging_WhenBodyIsMalformed()
     {
         var httpContext = Mocks.CreateHttpContext("POST", "/things", body: "{not json");

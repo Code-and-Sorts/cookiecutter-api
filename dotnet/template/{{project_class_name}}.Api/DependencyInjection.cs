@@ -14,7 +14,9 @@ using Microsoft.Extensions.Configuration;
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 using Google.Api.Gax;
+using Google.Api.Gax.Grpc;
 using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
 using Microsoft.Extensions.Configuration;
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -63,7 +65,16 @@ public static class DependencyInjection
             throw new InvalidOperationException($"CosmosDbConnectionMode '{connectionModeSetting}' is not valid. Use Direct or Gateway.");
         }
 
-        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString, new CosmosClientOptions { ConnectionMode = connectionMode }));
+        // Bound each call so a failing database answers well inside the platform timeout
+        // (each request also has a RequestDeadline).
+        var cosmosOptions = new CosmosClientOptions
+        {
+            ConnectionMode = connectionMode,
+            RequestTimeout = TimeSpan.FromSeconds(5),
+            MaxRetryAttemptsOnRateLimitedRequests = 3,
+            MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(3),
+        };
+        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString, cosmosOptions));
 {%- for resource in resources %}
 {%- set r = resource.name %}
 
@@ -91,8 +102,16 @@ public static class DependencyInjection
             throw new InvalidOperationException("Firestore configuration is missing or incomplete.");
         }
 
+        // Bound each call so a failing database answers well inside the platform timeout
+        // (each request also has a RequestDeadline).
         services.AddSingleton(provider =>
-            new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId, EmulatorDetection = EmulatorDetection.EmulatorOrProduction }.Build()
+            new FirestoreDbBuilder
+            {
+                ProjectId = projectId,
+                DatabaseId = databaseId,
+                EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+                Settings = new FirestoreSettings { CallSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(5))) },
+            }.Build()
         );
 {%- for resource in resources %}
 {%- set r = resource.name %}
@@ -114,7 +133,13 @@ public static class DependencyInjection
 
     public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
-        services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient());
+        // Bound each call and its retries so a failing database answers well inside the
+        // Lambda timeout (each request also has a RequestDeadline).
+        services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient(new AmazonDynamoDBConfig
+        {
+            MaxErrorRetry = 2,
+            Timeout = TimeSpan.FromSeconds(3),
+        }));
 {%- for resource in resources %}
 {%- set r = resource.name %}
 

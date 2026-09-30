@@ -26,11 +26,14 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
-            return new OkObjectResult(await _controller.GetAsync(id, ct));
+            // The Cosmos DB SDK does not always honour cancellation (its gateway client
+            // retries timeouts on its own schedule), so stop waiting at the deadline.
+            using var deadline = RequestDeadline.Start(ct);
+            return new OkObjectResult(await _controller.GetAsync(id, deadline.Token).WaitAsync(deadline.Token));
         }
         catch (Exception ex)
         {
-            return ErrorDetector.DetectError(ex, _logger);
+            return ErrorDetector.DetectError(ex, _logger, ct);
         }
     }
 {%- endif %}
@@ -42,12 +45,13 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
+            using var deadline = RequestDeadline.Start(ct);
             var limit = HttpUtility.ParseQueryString(req.Url.Query)["limit"];
-            return new OkObjectResult(await _controller.GetListAsync(limit, ct));
+            return new OkObjectResult(await _controller.GetListAsync(limit, deadline.Token).WaitAsync(deadline.Token));
         }
         catch (Exception ex)
         {
-            return ErrorDetector.DetectError(ex, _logger);
+            return ErrorDetector.DetectError(ex, _logger, ct);
         }
     }
 {%- endif %}
@@ -59,12 +63,13 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
-            var created = await _controller.CreateAsync(req.Body, ct);
+            using var deadline = RequestDeadline.Start(ct);
+            var created = await _controller.CreateAsync(req.Body, deadline.Token).WaitAsync(deadline.Token);
             return new CreatedResult($"/api/{{ resource.endpoint }}", created);
         }
         catch (Exception ex)
         {
-            return ErrorDetector.DetectError(ex, _logger);
+            return ErrorDetector.DetectError(ex, _logger, ct);
         }
     }
 {%- endif %}
@@ -76,11 +81,12 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
-            return new OkObjectResult(await _controller.UpdateAsync(id, req.Body, ct));
+            using var deadline = RequestDeadline.Start(ct);
+            return new OkObjectResult(await _controller.UpdateAsync(id, req.Body, deadline.Token).WaitAsync(deadline.Token));
         }
         catch (Exception ex)
         {
-            return ErrorDetector.DetectError(ex, _logger);
+            return ErrorDetector.DetectError(ex, _logger, ct);
         }
     }
 {%- endif %}
@@ -92,11 +98,12 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
-            return new OkObjectResult(await _controller.ReplaceAsync(id, req.Body, ct));
+            using var deadline = RequestDeadline.Start(ct);
+            return new OkObjectResult(await _controller.ReplaceAsync(id, req.Body, deadline.Token).WaitAsync(deadline.Token));
         }
         catch (Exception ex)
         {
-            return ErrorDetector.DetectError(ex, _logger);
+            return ErrorDetector.DetectError(ex, _logger, ct);
         }
     }
 {%- endif %}
@@ -108,12 +115,13 @@ public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Func
     {
         try
         {
-            await _controller.DeleteAsync(id, ct);
+            using var deadline = RequestDeadline.Start(ct);
+            await _controller.DeleteAsync(id, deadline.Token).WaitAsync(deadline.Token);
             return new OkObjectResult(new DeleteOkObjectResult { Message = $"{{ r }} with id {id} was deleted successfully." });
         }
         catch (Exception ex)
         {
-            return ErrorDetector.DetectError(ex, _logger);
+            return ErrorDetector.DetectError(ex, _logger, ct);
         }
     }
 {%- endif %}

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 {%- endif %}
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Threading;
 {%- if cloud_service == 'AWS Lambda' %}
 using Amazon.Lambda.APIGatewayEvents;
 {%- else %}
@@ -40,11 +41,19 @@ public static class ErrorDetector
     /// client errors (invalid request, item not found) keep their message and are not
     /// logged; anything else is logged with its stack trace and answered with a generic
     /// 500 so that no exception text or SDK diagnostics reach the client.
+    /// A request the client cancelled (<paramref name="requestAborted"/>) is not an
+    /// unexpected error and is only logged at information level; a passed
+    /// <see cref="RequestDeadline"/> is an unexpected error.
     /// </summary>
-    public static (int StatusCode, BaseError Body) Classify(Exception error, ILogger logger)
+    public static (int StatusCode, BaseError Body) Classify(Exception error, ILogger logger, CancellationToken requestAborted = default)
     {
         switch (error)
         {
+            // SDKs report a cancelled call in their own way (gRPC as RpcException Cancelled),
+            // so any failure after the client went away counts as a cancelled request.
+            case not null when requestAborted.IsCancellationRequested:
+                logger.LogInformation("The client cancelled the request.");
+                return (500, new BaseError { ErrorMessage = UnexpectedErrorMessage });
             case ApiException apiError:
                 return (apiError.StatusCode, new BaseError { ErrorMessage = apiError.Message });
             case ValidationException validationError:
@@ -57,9 +66,9 @@ public static class ErrorDetector
     }
 {%- if cloud_service == 'AWS Lambda' %}
 
-    public static APIGatewayProxyResponse DetectError(Exception error, ILogger logger)
+    public static APIGatewayProxyResponse DetectError(Exception error, ILogger logger, CancellationToken requestAborted = default)
     {
-        var (statusCode, body) = Classify(error, logger);
+        var (statusCode, body) = Classify(error, logger, requestAborted);
         return ResponseHelper.WithStatus(statusCode, body);
     }
 }
@@ -79,9 +88,9 @@ public static class ResponseHelper
 }
 {%- else %}
 
-    public static HttpResponseInit DetectError(Exception error, ILogger logger)
+    public static HttpResponseInit DetectError(Exception error, ILogger logger, CancellationToken requestAborted = default)
     {
-        var (statusCode, body) = Classify(error, logger);
+        var (statusCode, body) = Classify(error, logger, requestAborted);
         return new HttpResponseInit(body, statusCode);
     }
 }

@@ -119,6 +119,21 @@ public class {{ r }}FunctionsTests
     }
 
     [Fact]
+    public async Task Get{{ r }}List_ReturnsGenericErrorAtTheDeadline_WhenTheDatabaseHangs()
+    {
+        // A call that never completes and ignores cancellation, like a hung Cosmos DB gateway.
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<IEnumerable<{{ r }}Dto>>().Task);
+        var started = DateTime.UtcNow;
+
+        var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
+
+        Assert.InRange(DateTime.UtcNow - started, RequestDeadline.Timeout - TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
+        var errorResult = Assert.IsType<HttpResponseInit>(result);
+        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Error);
+    }
+
+    [Fact]
     public async Task Get{{ r }}List_ReturnsGenericError_WhenExceptionIsThrown()
     {
         _mock{{ r }}Controller.GetListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));

@@ -82,6 +82,12 @@ Every response body is JSON (`Content-Type: application/json`), including errors
 
 An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be a JSON object: `name` is required on create (`POST`) and replace (`PUT`) and optional on update (`PATCH`), and when present it must be a non-empty JSON string (numbers and booleans are not converted). Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with `400`, so clients can never set ids or system fields.
 
+Each request's database work is bounded by a 5-second deadline (`Utils/RequestDeadline.cs`) and the database client has capped timeouts and retries, so an unreachable or failing database answers the generic `500` well inside the platform timeout. A request the client cancels is logged at information level, not as an error.
+{%- if cloud_service == 'AWS Lambda' %}
+
+Each operation is its own Lambda function. Every function checks that the event's method and path are its own route and otherwise answers `405 {"errorMessage": "Method not allowed."}` (another method) or `404 {"errorMessage": "Not found."}` (another path), so an event sent straight to the wrong function is not served.
+{%- endif %}
+
 List endpoints accept `?limit=<n>` (default `100`, at most `1000`); a missing or invalid value uses the default and a larger value is capped.
 {%- if cloud_service == 'Azure Function App' %}
 

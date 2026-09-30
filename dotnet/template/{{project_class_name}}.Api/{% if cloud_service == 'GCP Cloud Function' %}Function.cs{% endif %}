@@ -27,6 +27,10 @@ public class Function : IHttpFunction
         var response = context.Response;
         var ct = context.RequestAborted;
 
+        // Handlers read context.RequestAborted, which now also ends at the request deadline.
+        using var deadline = RequestDeadline.Start(ct);
+        context.RequestAborted = deadline.Token;
+
         try
         {
             // Routes are /<endpoint> and /<endpoint>/<id>; any other path is unknown.
@@ -43,8 +47,11 @@ public class Function : IHttpFunction
         }
         catch (Exception ex)
         {
-            var errorResult = ErrorDetector.DetectError(ex, _logger);
-            await response.WriteJsonAsync(errorResult.StatusCode ?? StatusCodes.Status500InternalServerError, errorResult.Value!, ct);
+            var errorResult = ErrorDetector.DetectError(ex, _logger, ct);
+            if (!ct.IsCancellationRequested)
+            {
+                await response.WriteJsonAsync(errorResult.StatusCode ?? StatusCodes.Status500InternalServerError, errorResult.Value!, ct);
+            }
         }
     }
 }

@@ -50,7 +50,9 @@ public class {{ r }}Repository : I{{ r }}Repository
             var response = await _container.ReadItemAsync<{{ r }}Entity>(id, new PartitionKey(id), null, ct);
             item = response.Resource;
         }
-        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        // Substatus 0 is a missing item; any other 404 (for example 1003, the container or
+        // database does not exist) is a configuration error and stays an unexpected 500.
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0)
         {
             throw new NotFoundException(ResourceName, id);
         }
