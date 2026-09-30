@@ -25,6 +25,10 @@ import { describe, it, expect, beforeEach, beforeAll, afterEach, jest } from '@j
 import { APIGatewayProxyEvent } from 'aws-lambda';
 {%- endif %}
 import { NotFoundError, ValidationError } from '@errors';
+{%- if gcp %}
+import { EventEmitter } from 'node:events';
+import { currentSignal } from '@utils';
+{%- endif %}
 
 type MockFn = (...args: any[]) => any;
 
@@ -69,11 +73,13 @@ beforeAll(async () => {
     expect(ff.http).toHaveBeenCalledWith('api', main.api);
 });
 
-const mockResponse = () => ({
-    headersSent: false,
-    status: jest.fn<MockFn>().mockReturnThis(),
-    json: jest.fn<MockFn>().mockReturnThis(),
-});
+const mockResponse = () =>
+    Object.assign(new EventEmitter(), {
+        headersSent: false,
+        writableEnded: false,
+        status: jest.fn<MockFn>().mockReturnThis(),
+        json: jest.fn<MockFn>().mockReturnThis(),
+    });
 
 const send = async (method: string, path: string, body?: unknown) => {
     const res = mockResponse();
@@ -177,6 +183,46 @@ describe('routing', () => {
 {%- endif %}
 });
 {%- if gcp %}
+
+describe('client disconnects', () => {
+    it('should abort the request signal when the response closes before it is sent', async () => {
+        const method = controllers['{{ first.name | to_lower_camel }}Controller'].{{ p[3] }};
+        let signal: AbortSignal | undefined;
+        let release: () => void = () => undefined;
+        method.mockImplementationOnce(() => {
+            signal = currentSignal();
+            return new Promise((resolve) => {
+                release = () => resolve({});
+            });
+        });
+        const res = mockResponse();
+        const rawBody = Buffer.from(JSON.stringify({ name: 'mockName' }));
+        const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {} }, res);
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(signal?.aborted).toBe(false);
+        res.emit('close');
+        expect(signal?.aborted).toBe(true);
+        release();
+        await pending;
+        expect(res.listenerCount('close')).toEqual(0);
+    });
+
+    it('should not abort once the response has been sent', async () => {
+        const method = controllers['{{ first.name | to_lower_camel }}Controller'].{{ p[3] }};
+        let signal: AbortSignal | undefined;
+        method.mockImplementationOnce(async () => {
+            signal = currentSignal();
+            return {};
+        });
+        const res = mockResponse();
+        const rawBody = Buffer.from(JSON.stringify({ name: 'mockName' }));
+        const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {} }, res);
+        await pending;
+        res.writableEnded = true;
+        res.emit('close');
+        expect(signal?.aborted).toBe(false);
+    });
+});
 
 describe('frameworkFinalHandler', () => {
     const run = (error?: unknown, headersSent = false) => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, jest } from '@jest/globals';
 import { NotFoundError, ProxyError, ValidationError } from '@errors';
-import { detectError, parseJsonBody } from '@utils';
+import { cancellationError, detectError, isCancellation, parseJsonBody } from '@utils';
 
 type MockFn = (...args: any[]) => any;
 
@@ -75,5 +75,11 @@ describe('cancelled requests', () => {
         expect(log).not.toHaveBeenCalled();
         expect(warn).toHaveBeenCalledTimes(2);
         warn.mockRestore();
+    });
+});
+
+describe('cancellationError', () => {
+    it('should be treated as a cancellation', () => {
+        expect(isCancellation(cancellationError())).toBe(true);
     });
 });

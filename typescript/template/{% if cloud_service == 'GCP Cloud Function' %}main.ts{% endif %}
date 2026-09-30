@@ -11,7 +11,7 @@ import {
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
 } from '@routes';
-import { INVALID_JSON_MESSAGE } from '@utils';
+import { INVALID_JSON_MESSAGE, runWithSignal } from '@utils';
 
 type Next = (error?: unknown) => void;
 type ExpressApplication = { handle(req: ff.Request, res: ff.Response, next?: Next): void };
@@ -42,8 +42,8 @@ express.application.handle = function (this: ExpressApplication, req, res, next)
   return handle.call(this, req, res, next ?? frameworkFinalHandler(req, res));
 };
 
-// The single HTTP function: routes /<endpoint> and /<endpoint>/<id> by exact path.
-export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
+// Routes /<endpoint> and /<endpoint>/<id> by exact path.
+const route = async (req: ff.Request, res: ff.Response): Promise<void> => {
   const segments = req.path.split('/').filter(Boolean);
   const [endpoint, id] = segments;
 
@@ -65,6 +65,23 @@ export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
     }
   } catch (error) {
     return errorResponse(res, error);
+  }
+};
+
+// The single HTTP function. A client that disconnects before the response is sent aborts the
+// request's signal, which ends pending database work as a cancellation (logged as a warning).
+export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
+  const controller = new AbortController();
+  const onClose = () => {
+    if (!res.writableEnded) {
+      controller.abort();
+    }
+  };
+  res.on('close', onClose);
+  try {
+    await runWithSignal(controller.signal, () => route(req, res));
+  } finally {
+    res.off('close', onClose);
   }
 };
 
