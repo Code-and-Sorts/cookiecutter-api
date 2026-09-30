@@ -67,6 +67,8 @@ Every response, including errors, is JSON (`Content-Type: application/json`).
 | Known path, method not enabled | 405 | `{"errorMessage": "Method not allowed."}` |
 | Anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` |
 
+Each request has an 8-second deadline (`handlers.RequestTimeout`) that covers every database call and the SDK's retries, so an unreachable or failing database answers with the 500 above instead of hanging until the platform times out.
+
 An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be JSON objects: create (POST) and replace (PUT) require a non-empty string `name`; update (PATCH) accepts an optional non-empty string `name`. Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with a 400. List takes an optional `?limit=` (default 100, at most 1000; invalid values fall back to the default).
 {%- if cloud_service == 'Azure Function App' %}
 
@@ -80,7 +82,7 @@ Records are stored with `id`, `name`, `isDeleted`, `createdTimestamp` and `updat
 
 ### Logging
 
-Logs are written with `log/slog`. Records below error level go to stdout; unexpected errors are logged at error level, with a stack trace, to stderr. Expected 4xx outcomes are not logged as errors.
+Logs are written with `log/slog`. Records below error level go to stdout; unexpected errors are logged at error level, with a stack trace, to stderr. Expected 4xx outcomes, and requests the client cancels by disconnecting, are not logged as errors.
 
 ### Storage containers
 
@@ -340,7 +342,7 @@ checks, the schema validator, the base entity, error types, logging and the wiri
 │   ├── health_handler.go
 │   ├── health_handler_test.go
 {%- endif %}
-│   ├── router.go                  # JSON 404, 405 and 500 responses
+│   ├── router.go                  # request deadline and JSON 404, 405 and 500 responses
 │   └── router_test.go
 ├── models                         # each resource's entity, DTO and request types
 {%- for resource in resources %}
@@ -350,8 +352,12 @@ checks, the schema validator, the base entity, error types, logging and the wiri
 │   └── errors.go
 ├── repositories
 {%- for resource in resources %}
-│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_snake }}_repository.go
+│   {{ '└──' if loop.last and cloud_service != 'Azure Function App' else '├──' }} {{ resource.name | to_snake }}_repository.go
 {%- endfor %}
+{%- if cloud_service == 'Azure Function App' %}
+│   ├── cosmos.go                  # tells a missing item from a missing container
+│   └── cosmos_test.go
+{%- endif %}
 ├── services
 {%- for resource in resources %}
 │   ├── {{ resource.name | to_snake }}_service.go

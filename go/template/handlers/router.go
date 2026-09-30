@@ -1,10 +1,9 @@
 package handlers
 
 import (
-{%- if cloud_service == 'AWS Lambda' %}
 	"context"
-{%- endif %}
 	"net/http"
+	"time"
 {%- if cloud_service == 'AWS Lambda' %}
 
 	"github.com/aws/aws-lambda-go/events"
@@ -12,6 +11,11 @@ import (
 
 	"{{project_endpoint}}/utils"
 )
+
+// RequestTimeout bounds each request, including every database call and the
+// SDK's retries, so a failing database answers with the JSON 500 well inside
+// the platform's own timeout instead of hanging.
+const RequestTimeout = 8 * time.Second
 {%- if cloud_service != 'AWS Lambda' %}
 
 // NewRouter returns a ServeMux that answers any request no route matches with
@@ -29,6 +33,15 @@ func NewRouter() *http.ServeMux {
 // when no method-specific pattern matches.
 func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 	utils.WriteError(w, http.StatusMethodNotAllowed, utils.MethodNotAllowedMessage)
+}
+
+// WithRequestTimeout gives each request's context the RequestTimeout deadline.
+func WithRequestTimeout(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), RequestTimeout)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // Recover answers a panic in next with the JSON 500 body instead of dropping
@@ -69,9 +82,12 @@ func (router *Router) Handle(resource string, handler RouteHandler) {
 	router.routes[resource] = handler
 }
 
-// ServeRequest is the Lambda handler. Unknown resource paths get the JSON 404
-// body, and a panic gets the JSON 500 body.
+// ServeRequest is the Lambda handler. Each request gets the RequestTimeout
+// deadline, unknown resource paths get the JSON 404 body, and a panic gets the
+// JSON 500 body.
 func (router *Router) ServeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (response events.APIGatewayProxyResponse, err error) {
+	ctx, cancel := context.WithTimeout(ctx, RequestTimeout)
+	defer cancel()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			utils.LogUnexpected(recovered)

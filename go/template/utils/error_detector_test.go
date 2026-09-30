@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,34 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	t.Cleanup(func() { slog.SetDefault(previous) })
 	return &logs
 }
+
+func TestErrorStatus_CancelledRequest_IsNotLoggedAsError(t *testing.T) {
+	logs := captureLogs(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	status, message := errorStatus(ctx, ctx.Err())
+
+	assert.Equal(t, 500, status)
+	assert.Equal(t, UnexpectedErrorMessage, message)
+	assert.Contains(t, logs.String(), "level=INFO")
+	assert.NotContains(t, logs.String(), "level=ERROR")
+}
+
+func TestErrorStatus_TimedOutDatabaseCall_IsLoggedAsError(t *testing.T) {
+	logs := captureLogs(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-ctx.Done()
+
+	status, message := errorStatus(ctx, fmt.Errorf("database call: %w", ctx.Err()))
+
+	assert.Equal(t, 500, status)
+	assert.Equal(t, UnexpectedErrorMessage, message)
+	assert.Contains(t, logs.String(), "level=ERROR")
+	assert.Contains(t, logs.String(), "deadline exceeded")
+	assert.Contains(t, logs.String(), "stack=")
+}
 {%- if cloud_service != 'AWS Lambda' %}
 
 func decodeError(t *testing.T, w *httptest.ResponseRecorder) string {
@@ -39,7 +68,7 @@ func decodeError(t *testing.T, w *httptest.ResponseRecorder) string {
 func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	DetectError(w, fmt.Errorf("wrapped: %w", models.NewNotFoundError("Item", "abc")))
+	DetectError(context.Background(), w, fmt.Errorf("wrapped: %w", models.NewNotFoundError("Item", "abc")))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, "Item with id abc was not found.", decodeError(t, w))
@@ -49,7 +78,7 @@ func TestDetectError_WithValidationError_Returns400(t *testing.T) {
 	logs := captureLogs(t)
 	w := httptest.NewRecorder()
 
-	DetectError(w, &models.ValidationError{Message: "Name is required."})
+	DetectError(context.Background(), w, &models.ValidationError{Message: "Name is required."})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Equal(t, "Name is required.", decodeError(t, w))
@@ -60,7 +89,7 @@ func TestDetectError_WithGenericError_Returns500WithoutDetails(t *testing.T) {
 	logs := captureLogs(t)
 	w := httptest.NewRecorder()
 
-	DetectError(w, errors.New("Mock exception"))
+	DetectError(context.Background(), w, errors.New("Mock exception"))
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, w))
@@ -87,7 +116,7 @@ func decodeError(t *testing.T, body string) string {
 }
 
 func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
-	resp := DetectError(fmt.Errorf("wrapped: %w", models.NewNotFoundError("Item", "abc")))
+	resp := DetectError(context.Background(), fmt.Errorf("wrapped: %w", models.NewNotFoundError("Item", "abc")))
 
 	assert.Equal(t, 404, resp.StatusCode)
 	assert.Equal(t, "Item with id abc was not found.", decodeError(t, resp.Body))
@@ -96,7 +125,7 @@ func TestDetectError_WithNotFoundError_Returns404(t *testing.T) {
 func TestDetectError_WithValidationError_Returns400(t *testing.T) {
 	logs := captureLogs(t)
 
-	resp := DetectError(&models.ValidationError{Message: "Name is required."})
+	resp := DetectError(context.Background(), &models.ValidationError{Message: "Name is required."})
 
 	assert.Equal(t, 400, resp.StatusCode)
 	assert.Equal(t, "Name is required.", decodeError(t, resp.Body))
@@ -106,7 +135,7 @@ func TestDetectError_WithValidationError_Returns400(t *testing.T) {
 func TestDetectError_WithGenericError_Returns500WithoutDetails(t *testing.T) {
 	logs := captureLogs(t)
 
-	resp := DetectError(errors.New("Mock exception"))
+	resp := DetectError(context.Background(), errors.New("Mock exception"))
 
 	assert.Equal(t, 500, resp.StatusCode)
 	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, resp.Body))

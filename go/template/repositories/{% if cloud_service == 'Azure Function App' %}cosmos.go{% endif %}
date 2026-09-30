@@ -1,0 +1,24 @@
+package repositories
+
+import (
+	"errors"
+	"net/http"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+)
+
+// IsItemNotFound reports whether err is Cosmos DB's answer for a missing item:
+// a 404 with substatus 0. A 404 with another substatus, such as 1003 for a
+// container or database that does not exist, is a configuration error, so it
+// stays an unexpected error (a logged 500) instead of becoming a 404.
+func IsItemNotFound(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) || respErr.StatusCode != http.StatusNotFound {
+		return false
+	}
+	if respErr.RawResponse == nil {
+		return true
+	}
+	substatus := respErr.RawResponse.Header.Get("x-ms-substatus")
+	return substatus == "" || substatus == "0"
+}

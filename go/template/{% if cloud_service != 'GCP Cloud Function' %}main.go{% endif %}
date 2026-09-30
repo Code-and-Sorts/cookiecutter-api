@@ -11,7 +11,12 @@ import (
 	"net/http"
 {%- endif %}
 	"os"
+{%- if cloud_service == 'Azure Function App' %}
+	"time"
+{%- endif %}
 {% if cloud_service == 'Azure Function App' %}
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- else %}
 	"github.com/aws/aws-lambda-go/lambda"
@@ -53,7 +58,7 @@ func main() {
 	}
 
 	slog.Info("Listening for requests", "address", listenAddr)
-	exitOnError("Server stopped", http.ListenAndServe(listenAddr, handlers.Recover(router)))
+	exitOnError("Server stopped", http.ListenAndServe(listenAddr, handlers.Recover(handlers.WithRequestTimeout(router))))
 }
 
 // newCosmosClient connects to the Cosmos DB account named by the
@@ -69,7 +74,18 @@ func newCosmosClient() (*azcosmos.Client, string) {
 	cred, err := azcosmos.NewKeyCredential(key)
 	exitOnError("Failed to create Cosmos DB credential", err)
 
-	client, err := azcosmos.NewClientWithKey(endpoint, cred, nil)
+	// Bound every HTTP try and the retries. Requests already have a deadline
+	// (handlers.RequestTimeout), but the SDK reads the account properties on
+	// the first request without it, which would otherwise wait up to a minute
+	// when Cosmos DB is unreachable.
+	options := &azcosmos.ClientOptions{ClientOptions: azcore.ClientOptions{
+		Retry: policy.RetryOptions{
+			MaxRetries: 1,
+			TryTimeout: 3 * time.Second,
+			RetryDelay: 500 * time.Millisecond,
+		},
+	}}
+	client, err := azcosmos.NewClientWithKey(endpoint, cred, options)
 	exitOnError("Failed to create Cosmos DB client", err)
 
 	return client, databaseName

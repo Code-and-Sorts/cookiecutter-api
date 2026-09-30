@@ -9,19 +9,10 @@ import (
 {%- if cloud_service == 'Azure Function App' %}
 	"encoding/json"
 {%- endif %}
-{%- if cloud_service == 'Azure Function App' and needs_get_item %}
-	"errors"
-{%- endif %}
 {%- if cloud_service == 'Azure Function App' and 'list' in ops %}
 	"fmt"
 {%- endif %}
-{%- if cloud_service == 'Azure Function App' and needs_get_item %}
-	"net/http"
-{%- endif %}
 {% if cloud_service == 'Azure Function App' %}
-{%- if needs_get_item %}
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-{%- endif %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
@@ -84,8 +75,7 @@ func New{{ r }}Repository(container *azcosmos.ContainerClient) {{ r }}Repository
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	resp, err := repo.container.ReadItem(ctx, azcosmos.NewPartitionKeyString(id), id, nil)
 	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+		if IsItemNotFound(err) {
 			return nil, models.NewNotFoundError("{{ r }}", id)
 		}
 		return nil, err

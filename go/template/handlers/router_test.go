@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 {%- endif %}
 	"testing"
+	"time"
 {%- if cloud_service == 'AWS Lambda' %}
 
 	"github.com/aws/aws-lambda-go/events"
@@ -36,6 +37,19 @@ func TestNewRouter_UnknownPath_ReturnsJSON404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 	assert.JSONEq(t, `{"errorMessage": "Not found."}`, w.Body.String())
+}
+
+func TestWithRequestTimeout_SetsDeadline(t *testing.T) {
+	var deadline time.Time
+	var hasDeadline bool
+	handler := WithRequestTimeout(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deadline, hasDeadline = r.Context().Deadline()
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.True(t, hasDeadline)
+	assert.WithinDuration(t, time.Now().Add(RequestTimeout), deadline, time.Second)
 }
 
 func TestRecover_Panic_ReturnsJSON500(t *testing.T) {
@@ -72,6 +86,22 @@ func TestRouter_UnknownResource_ReturnsJSON404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 	assert.Equal(t, "application/json", response.Headers["Content-Type"])
 	assert.JSONEq(t, `{"errorMessage": "Not found."}`, response.Body)
+}
+
+func TestRouter_SetsRequestDeadline(t *testing.T) {
+	var deadline time.Time
+	var hasDeadline bool
+	router := NewRouter()
+	router.Handle("/items", func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+		deadline, hasDeadline = ctx.Deadline()
+		return methodNotAllowed()
+	})
+
+	_, err := router.ServeRequest(context.Background(), events.APIGatewayProxyRequest{HTTPMethod: http.MethodGet, Resource: "/items"})
+
+	assert.NoError(t, err)
+	assert.True(t, hasDeadline)
+	assert.WithinDuration(t, time.Now().Add(RequestTimeout), deadline, time.Second)
 }
 
 func TestRouter_Panic_ReturnsJSON500(t *testing.T) {

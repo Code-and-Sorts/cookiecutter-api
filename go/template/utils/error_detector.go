@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -24,8 +25,11 @@ const (
 )
 
 // errorStatus maps err to its HTTP status and the message sent to the client.
-// Unexpected errors are logged with a stack trace and never shown to clients.
-func errorStatus(err error) (int, string) {
+// Unexpected errors, including a database call that ran out of time, are
+// logged with a stack trace and never shown to clients. A request the client
+// cancelled (for example by disconnecting) is not an error and is logged at
+// info level.
+func errorStatus(ctx context.Context, err error) (int, string) {
 	var notFound *models.NotFoundError
 	var validation *models.ValidationError
 	switch {
@@ -33,6 +37,9 @@ func errorStatus(err error) (int, string) {
 		return 404, notFound.Message
 	case errors.As(err, &validation):
 		return 400, validation.Message
+	case errors.Is(ctx.Err(), context.Canceled):
+		slog.InfoContext(ctx, "Request cancelled by the client", "error", err)
+		return 500, UnexpectedErrorMessage
 	default:
 		LogUnexpected(err)
 		return 500, UnexpectedErrorMessage
@@ -60,8 +67,8 @@ func WriteError(w http.ResponseWriter, statusCode int, message string) {
 }
 
 // DetectError writes the error response that matches err.
-func DetectError(w http.ResponseWriter, err error) {
-	statusCode, message := errorStatus(err)
+func DetectError(ctx context.Context, w http.ResponseWriter, err error) {
+	statusCode, message := errorStatus(ctx, err)
 	WriteError(w, statusCode, message)
 }
 {%- else %}
@@ -91,8 +98,8 @@ func GenerateErrorResponse(message string, statusCode int) events.APIGatewayProx
 }
 
 // DetectError builds the error response that matches err.
-func DetectError(err error) events.APIGatewayProxyResponse {
-	statusCode, message := errorStatus(err)
+func DetectError(ctx context.Context, err error) events.APIGatewayProxyResponse {
+	statusCode, message := errorStatus(ctx, err)
 	return GenerateErrorResponse(message, statusCode)
 }
 {%- endif %}

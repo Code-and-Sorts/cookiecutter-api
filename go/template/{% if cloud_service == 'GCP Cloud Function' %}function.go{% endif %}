@@ -44,7 +44,7 @@ func newAPI() http.Handler {
 	}
 {%- endfor %}
 
-	return handlers.Recover(router)
+	return handlers.Recover(handlers.WithRequestTimeout(router))
 }
 
 // newFirestoreClient connects to the database named by FIRESTORE_DATABASE

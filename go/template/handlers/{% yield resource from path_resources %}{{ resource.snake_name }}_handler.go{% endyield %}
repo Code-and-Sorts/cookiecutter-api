@@ -64,7 +64,7 @@ func handleGet{{ r }}List(controller controllers.{{ r }}Controller) http.Handler
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		result, err := controller.GetList(r.Context(), limit)
 		if err != nil {
-			utils.DetectError(w, err)
+			utils.DetectError(r.Context(), w, err)
 			return
 		}
 
@@ -80,7 +80,7 @@ func handleGet{{ r }}(controller controllers.{{ r }}Controller) http.HandlerFunc
 
 		result, err := controller.Get(r.Context(), r.PathValue("id"))
 		if err != nil {
-			utils.DetectError(w, err)
+			utils.DetectError(r.Context(), w, err)
 			return
 		}
 
@@ -96,7 +96,7 @@ func handleCreate{{ r }}(controller controllers.{{ r }}Controller) http.HandlerF
 
 		result, err := controller.Create(r.Context(), r.Body)
 		if err != nil {
-			utils.DetectError(w, err)
+			utils.DetectError(r.Context(), w, err)
 			return
 		}
 
@@ -112,7 +112,7 @@ func handleUpdate{{ r }}(controller controllers.{{ r }}Controller) http.HandlerF
 
 		result, err := controller.Update(r.Context(), r.PathValue("id"), r.Body)
 		if err != nil {
-			utils.DetectError(w, err)
+			utils.DetectError(r.Context(), w, err)
 			return
 		}
 
@@ -128,7 +128,7 @@ func handleReplace{{ r }}(controller controllers.{{ r }}Controller) http.Handler
 
 		result, err := controller.Replace(r.Context(), r.PathValue("id"), r.Body)
 		if err != nil {
-			utils.DetectError(w, err)
+			utils.DetectError(r.Context(), w, err)
 			return
 		}
 
@@ -144,7 +144,7 @@ func handleDelete{{ r }}(controller controllers.{{ r }}Controller) http.HandlerF
 
 		id := r.PathValue("id")
 		if err := controller.Delete(r.Context(), id); err != nil {
-			utils.DetectError(w, err)
+			utils.DetectError(r.Context(), w, err)
 			return
 		}
 
@@ -178,7 +178,7 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 			limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
 			result, err := controller.GetList(ctx, limit)
 			if err != nil {
-				return utils.DetectError(err)
+				return utils.DetectError(ctx, err)
 			}
 			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
@@ -187,7 +187,7 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 			slog.Info("Get{{ r }} processed a request.")
 			result, err := controller.Get(ctx, id)
 			if err != nil {
-				return utils.DetectError(err)
+				return utils.DetectError(ctx, err)
 			}
 			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
@@ -196,7 +196,7 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 			slog.Info("Create{{ r }} processed a request.")
 			result, err := controller.Create(ctx, strings.NewReader(request.Body))
 			if err != nil {
-				return utils.DetectError(err)
+				return utils.DetectError(ctx, err)
 			}
 			return utils.JSONResponse(http.StatusCreated, result)
 {%- endif %}
@@ -205,7 +205,7 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 			slog.Info("Update{{ r }} processed a request.")
 			result, err := controller.Update(ctx, id, strings.NewReader(request.Body))
 			if err != nil {
-				return utils.DetectError(err)
+				return utils.DetectError(ctx, err)
 			}
 			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
@@ -214,7 +214,7 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 			slog.Info("Replace{{ r }} processed a request.")
 			result, err := controller.Replace(ctx, id, strings.NewReader(request.Body))
 			if err != nil {
-				return utils.DetectError(err)
+				return utils.DetectError(ctx, err)
 			}
 			return utils.JSONResponse(http.StatusOK, result)
 {%- endif %}
@@ -222,7 +222,7 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 		case "DELETE /{{ ep }}/{id}":
 			slog.Info("Delete{{ r }} processed a request.")
 			if err := controller.Delete(ctx, id); err != nil {
-				return utils.DetectError(err)
+				return utils.DetectError(ctx, err)
 			}
 			return utils.JSONResponse(http.StatusOK, map[string]string{
 				"message": fmt.Sprintf("{{ r }} with id %s was deleted successfully.", id),
