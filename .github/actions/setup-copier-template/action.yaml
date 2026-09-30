@@ -1,24 +1,47 @@
 name: Setup Copier Template
-description: Composite action to generate the Copier template.
+description: Render one of the language templates with Copier.
 
 inputs:
   template-language:
     required: true
-    description: Template language
+    description: Template language directory (python, typescript, dotnet or go).
   template-cloud-service:
     required: true
-    description: Template cloud service
+    description: Template cloud service.
   resources-fixture:
     required: false
     default: "single"
     description: >-
-      Which resources fixture to render: "single" renders the default single
-      resource derived from the project name; any other value renders
-      fixtures/<value>-resources.yml ("edge" in CI, "multi" for the example branches).
+      "single" renders the default resource derived from the project name; any other value
+      renders fixtures/<value>-resources.yml ("edge" in CI, "multi" for the example branches).
   output-dir:
     required: false
     default: "KittenClaws"
     description: Directory to render the generated project into.
+  project-name:
+    required: false
+    default: "KittenClaws"
+    description: Project name; Copier derives the class, slug and endpoint names from it.
+  project-description:
+    required: false
+    default: "Kitties got claws...beware"
+    description: Project description.
+  project-endpoint:
+    required: false
+    default: ""
+    description: Endpoint for the default resource; empty lets Copier derive it.
+  author:
+    required: false
+    default: "Sir Meowsalots"
+    description: Project author.
+  open-source-license:
+    required: false
+    default: "MIT license"
+    description: License choice.
+  python-version:
+    required: false
+    default: "3.14"
+    description: Python used to run Copier.
 
 runs:
   using: "composite"
@@ -27,32 +50,39 @@ runs:
     - name: Set up python
       uses: actions/setup-python@v7
       with:
-        python-version: 3.14
+        python-version: ${{ inputs.python-version }}
 
     - name: Install Copier
-      run: pip install copier
+      run: pip install copier jinja2-strcase jinja2-time
       shell: bash
 
-    - name: Install Copier Extensions
-      run: pip install jinja2-strcase jinja2-time
-      shell: bash
-
+    # Inputs arrive through env, never inline, because template-setup passes issue-form text.
     - name: Create Copier Template
+      env:
+        LANGUAGE: ${{ inputs.template-language }}
+        CLOUD: ${{ inputs.template-cloud-service }}
+        FIXTURE: ${{ inputs.resources-fixture }}
+        OUTPUT: ${{ inputs.output-dir }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        PROJECT_DESCRIPTION: ${{ inputs.project-description }}
+        PROJECT_ENDPOINT: ${{ inputs.project-endpoint }}
+        AUTHOR: ${{ inputs.author }}
+        LICENSE: ${{ inputs.open-source-license }}
+        FIXTURES: ${{ github.action_path }}/fixtures
       run: |
         extra_args=()
-        if [ "${{ inputs.resources-fixture }}" != "single" ]; then
-          extra_args+=(--data-file "${{ github.action_path }}/fixtures/${{ inputs.resources-fixture }}-resources.yml")
+        if [ "$FIXTURE" != "single" ]; then
+          extra_args+=(--data-file "$FIXTURES/$FIXTURE-resources.yml")
+        fi
+        if [ -n "$PROJECT_ENDPOINT" ]; then
+          extra_args+=(--data project_endpoint="$PROJECT_ENDPOINT")
         fi
         copier copy --defaults --trust \
-          --data project_name="KittenClaws" \
-          --data project_description="Kitties got claws...beware" \
-          --data project_slug="kitty_cats" \
-          --data project_endpoint="kitties" \
-          --data project_lower_camel_name="kittenClaws" \
-          --data project_class_name="KittenClaws" \
-          --data author="Sir Meowsalots" \
-          --data cloud_service="${{ inputs.template-cloud-service }}" \
-          --data open_source_license="MIT license" \
+          --data project_name="$PROJECT_NAME" \
+          --data project_description="$PROJECT_DESCRIPTION" \
+          --data author="$AUTHOR" \
+          --data cloud_service="$CLOUD" \
+          --data open_source_license="$LICENSE" \
           "${extra_args[@]}" \
-          ./${{ inputs.template-language }} ./${{ inputs.output-dir }}
+          "./$LANGUAGE" "./$OUTPUT"
       shell: bash
