@@ -72,7 +72,13 @@ Resource functions use the `function` auth level, so calls need a function key (
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
+Resource routes require an API key, sent as the `x-api-key` header{% if health_endpoint %}; the health check does not{% endif %}. `sam deploy` creates the key, and the stack's `{{ project_class_name }}ApiKeyId` output names it: read the value with `aws apigateway get-api-key --api-key <id> --include-value --query value --output text`. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
+
 API Gateway only forwards the routes declared in `template.yaml`: for any other path or method it answers `403 {"message": "Missing Authentication Token"}` itself, without invoking the function. The function's own 404 and 405 answers apply when it is invoked some other way.
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+The function is deployed with `--no-allow-unauthenticated`, so callers need the Cloud Run Invoker role (`roles/run.invoker`) and must send `Authorization: Bearer $(gcloud auth print-identity-token)`.{% if health_endpoint %} The health check sits behind the same IAM check, because the project exposes a single function.{% endif %}
 {%- endif %}
 
 If the database fails or cannot be reached, the request ends with that 500 within 8 seconds: every database call has a short timeout and a capped retry policy, and `utils/deadline.py` bounds each request's database work as a whole. A request that hits the deadline returns 500, but the write may still complete; retrying a create can therefore store a duplicate.{% if cloud_service == 'GCP Cloud Function' %} WSGI servers such as the Functions Framework are not told when a client disconnects, so an abandoned request keeps running until its database deadline.{% endif %}
@@ -285,10 +291,16 @@ Settings are read from environment variables (case-insensitive).
       --gen2 \
       --runtime python314 \
       --trigger-http \
-      --allow-unauthenticated \
+      --no-allow-unauthenticated \
       --entry-point api \
       --source . \
       --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_name }}={{ c.container }}{% endfor %}
+    ```
+
+    Callers need the Cloud Run Invoker role and an identity token:
+
+    ```console
+    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" https://<function-url>/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
@@ -331,6 +343,13 @@ Settings are read from environment variables (case-insensitive).
     ```console
     sam build
     sam deploy --guided
+    ```
+
+    Resource routes need the API key from the `{{ project_class_name }}ApiKeyId` stack output:
+
+    ```console
+    API_KEY=$(aws apigateway get-api-key --api-key <id> --include-value --query value --output text)
+    curl -H "x-api-key: $API_KEY" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 
     `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `poetry.lock` (run `make install` first), installs them as Linux x86_64 wheels for Python 3.14 with the pip of the Poetry environment (`poetry env info --executable`, override with `make LAMBDA_PYTHON=...`), and copies every project module except the tests. It needs `make` and Poetry, but not Docker.

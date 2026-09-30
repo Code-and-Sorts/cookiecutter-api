@@ -20,8 +20,6 @@ from models import generate_utc_timestamp
 from errors import NotFoundError
 
 _CREATION_FIELDS = ("createdTimestamp", "createdBy")
-# Projects generated before the timestamp rename stored createdDate/updatedDate.
-_LEGACY_FIELDS = {"createdDate": "createdTimestamp", "updatedDate": "updatedTimestamp"}
 
 
 def _user_fields(user_id: str | None, *fields: str) -> dict:
@@ -75,14 +73,6 @@ class BaseRepository[ResponseT: BaseModel]:
 
     def _not_found(self, item_id: str) -> NotFoundError:
         return NotFoundError.for_item(self.resource_name, item_id)
-
-    async def _read_record(self, item_id: str) -> dict:
-        record = await self._get_stored(item_id)
-        for legacy, current in _LEGACY_FIELDS.items():
-            if legacy in record:
-                value = record.pop(legacy)
-                record.setdefault(current, value)
-        return record
 
     async def _get_stored(self, item_id: str) -> dict:
 {%- if cloud_service == 'Azure Function App' %}
@@ -185,7 +175,7 @@ class BaseRepository[ResponseT: BaseModel]:
         return self.response_model.model_validate(record)
 
     async def _update(self, item_id: str, changes: dict, user_id: str | None = None) -> ResponseT:
-        stored = await self._read_record(item_id)
+        stored = await self._get_stored(item_id)
         stored.pop("updatedBy", None)
         record = {
             **stored,
@@ -198,7 +188,7 @@ class BaseRepository[ResponseT: BaseModel]:
         return self.response_model.model_validate(record)
 
     async def _replace(self, item_id: str, fields: dict, user_id: str | None = None) -> ResponseT:
-        stored = await self._read_record(item_id)
+        stored = await self._get_stored(item_id)
         now = generate_utc_timestamp()
         record = {
             "id": item_id,
