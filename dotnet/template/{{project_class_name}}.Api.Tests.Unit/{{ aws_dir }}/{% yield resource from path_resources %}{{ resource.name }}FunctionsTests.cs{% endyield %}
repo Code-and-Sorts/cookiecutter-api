@@ -1,10 +1,10 @@
 {%- set r = resource.name -%}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Amazon.Lambda.APIGatewayEvents;
@@ -15,11 +15,10 @@ using Xunit;
 using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Functions;
 using {{project_class_name}}.Api.Interfaces;
-{%- if uses_body %}
+{%- if resource.has_body %}
 using {{project_class_name}}.Api.Requests;
 {%- endif %}
 using {{project_class_name}}.Api.Utils;
-using Newtonsoft.Json;
 
 public class {{ r }}FunctionsTests
 {
@@ -36,7 +35,6 @@ public class {{ r }}FunctionsTests
 
     private static Dictionary<string, string> IdPath(string id = ItemId) => new() { { "id", id } };
 
-    // Sets the path API Gateway would send for the request's route.
     private static APIGatewayProxyRequest OnRoute(APIGatewayProxyRequest request)
     {
         request.Path = request.PathParameters.TryGetValue("id", out var id) ? $"/{{ resource.endpoint }}/{id}" : "/{{ resource.endpoint }}";
@@ -100,7 +98,7 @@ public class {{ r }}FunctionsTests
             });
 
         var response = await _functions.Get{{ r }}List(OnRoute(Mocks.CreateApiGatewayRequest("GET", queryStringParameters: new() { { "limit", "1" } })));
-        var responseDtos = JsonConvert.DeserializeObject<List<{{ r }}Dto>>(response.Body);
+        var responseDtos = JsonSerializer.Deserialize<List<{{ r }}Dto>>(response.Body, Json.Options);
 
         Assert.Equal(200, response.StatusCode);
         Assert.Equal(2, responseDtos!.Count);
@@ -137,7 +135,7 @@ public class {{ r }}FunctionsTests
             .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
 
         var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
-        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
 
         Assert.Equal(201, response.StatusCode);
         Assert.Equal(ItemId, responseDto!.Id);
@@ -175,7 +173,7 @@ public class {{ r }}FunctionsTests
             .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
 
         var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
-        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
 
         Assert.Equal(200, response.StatusCode);
         Assert.Equal("mockUpdated{{ r }}", responseDto!.Name);
@@ -200,7 +198,7 @@ public class {{ r }}FunctionsTests
             .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
 
         var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
-        var responseDto = JsonConvert.DeserializeObject<{{ r }}Dto>(response.Body);
+        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
 
         Assert.Equal(200, response.StatusCode);
         Assert.Equal("mockReplaced{{ r }}", responseDto!.Name);
@@ -221,7 +219,7 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Delete{{ r }}_ReturnsOk_When{{ r }}IsDeleted()
     {
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
 
         var response = await _functions.Delete{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("DELETE", IdPath())));
 

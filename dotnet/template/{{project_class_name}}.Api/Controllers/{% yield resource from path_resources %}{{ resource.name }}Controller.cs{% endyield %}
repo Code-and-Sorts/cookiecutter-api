@@ -1,27 +1,23 @@
 {%- set r = resource.name -%}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Controllers;
 
 {% if "list" in resource.operations -%}
 using System.Collections.Generic;
 {% endif -%}
-{% if uses_body -%}
+{% if resource.has_body -%}
 using System.IO;
 {% endif -%}
 using System.Threading;
 using System.Threading.Tasks;
-{% if uses_body -%}
-using FluentValidation;
-{% endif -%}
-{% if resource.operations != ["delete"] -%}
+{% if resource.has_dto -%}
 using {{project_class_name}}.Api.Dtos;
 {% endif -%}
 using {{project_class_name}}.Api.Interfaces;
-{% if uses_body -%}
+{% if resource.has_body -%}
 using {{project_class_name}}.Api.Requests;
 {% endif -%}
 using {{project_class_name}}.Api.Utils;
-{% if uses_body -%}
+{% if resource.has_body -%}
 using {{project_class_name}}.Api.Validation;
 {% endif %}
 public class {{ r }}Controller : I{{ r }}Controller
@@ -50,9 +46,8 @@ public class {{ r }}Controller : I{{ r }}Controller
 
     public async Task<{{ r }}Dto> CreateAsync(Stream item, CancellationToken ct = default)
     {
-        var deserializedRequest = await RequestBody.DeserializeAsync<Create{{ r }}Request>(item, ct);
-        await new Create{{ r }}RequestValidator().ValidateAndThrowAsync(deserializedRequest, ct);
-        return await _service.CreateAsync(deserializedRequest, ct);
+        var request = await RequestBody.ReadValidAsync<Create{{ r }}Request, Create{{ r }}RequestValidator>(item, ct);
+        return await _service.CreateAsync(request, ct);
     }
 {%- endif %}
 {%- if "update" in resource.operations %}
@@ -60,10 +55,9 @@ public class {{ r }}Controller : I{{ r }}Controller
     public async Task<{{ r }}Dto> UpdateAsync(string id, Stream item, CancellationToken ct = default)
     {
         ItemIds.EnsureValid(ResourceName, id);
-        var deserializedRequest = await RequestBody.DeserializeAsync<Update{{ r }}Request>(item, ct);
-        deserializedRequest.Id = id;
-        await new Update{{ r }}RequestValidator().ValidateAndThrowAsync(deserializedRequest, ct);
-        return await _service.UpdateAsync(deserializedRequest, ct);
+        var request = await RequestBody.ReadValidAsync<Update{{ r }}Request, Update{{ r }}RequestValidator>(item, ct);
+        request.Id = id;
+        return await _service.UpdateAsync(request, ct);
     }
 {%- endif %}
 {%- if "replace" in resource.operations %}
@@ -71,18 +65,18 @@ public class {{ r }}Controller : I{{ r }}Controller
     public async Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, CancellationToken ct = default)
     {
         ItemIds.EnsureValid(ResourceName, id);
-        var deserializedRequest = await RequestBody.DeserializeAsync<Replace{{ r }}Request>(item, ct);
-        deserializedRequest.Id = id;
-        await new Replace{{ r }}RequestValidator().ValidateAndThrowAsync(deserializedRequest, ct);
-        return await _service.ReplaceAsync(deserializedRequest, ct);
+        var request = await RequestBody.ReadValidAsync<Replace{{ r }}Request, Replace{{ r }}RequestValidator>(item, ct);
+        request.Id = id;
+        return await _service.ReplaceAsync(request, ct);
     }
 {%- endif %}
 {%- if "delete" in resource.operations %}
 
-    public async Task DeleteAsync(string id, CancellationToken ct = default)
+    public async Task<DeleteOkObjectResult> DeleteAsync(string id, CancellationToken ct = default)
     {
         ItemIds.EnsureValid(ResourceName, id);
         await _service.DeleteAsync(id, ct);
+        return DeleteOkObjectResult.For(ResourceName, id);
     }
 {%- endif %}
 }

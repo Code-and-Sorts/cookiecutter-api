@@ -27,13 +27,12 @@ public class Function : IHttpFunction
         var response = context.Response;
         var ct = context.RequestAborted;
 
-        // Handlers read context.RequestAborted, which now also ends at the request deadline.
+        // Handlers read context.RequestAborted, so it now also ends at the deadline.
         using var deadline = RequestDeadline.Start(ct);
         context.RequestAborted = deadline.Token;
 
         try
         {
-            // Routes are /<endpoint> and /<endpoint>/<id>; any other path is unknown.
             var path = request.Path.Value ?? string.Empty;
             var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
@@ -43,14 +42,14 @@ public class Function : IHttpFunction
                 return;
             }
 
-            await response.WriteErrorAsync(StatusCodes.Status404NotFound, "Not found.", ct);
+            await response.WriteErrorAsync(StatusCodes.Status404NotFound, ErrorMessages.NotFound, ct);
         }
         catch (Exception ex)
         {
-            var errorResult = ErrorDetector.DetectError(ex, _logger, ct);
+            var (statusCode, error) = ErrorDetector.Classify(ex, _logger, ct);
             if (!ct.IsCancellationRequested)
             {
-                await response.WriteJsonAsync(errorResult.StatusCode ?? StatusCodes.Status500InternalServerError, errorResult.Value!, ct);
+                await response.WriteJsonAsync(statusCode, error, ct);
             }
         }
     }

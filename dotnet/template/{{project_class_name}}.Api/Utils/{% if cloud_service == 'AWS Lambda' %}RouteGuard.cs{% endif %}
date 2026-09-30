@@ -4,33 +4,22 @@ using System;
 using System.Linq;
 using Amazon.Lambda.APIGatewayEvents;
 
-/// <summary>
-/// Checks that an API Gateway proxy event is for the route of the Lambda function that
-/// received it. API Gateway only invokes a function for its own route, but an event can
-/// also be sent to the function directly.
-/// </summary>
 public static class RouteGuard
 {
-    /// <summary>
-    /// Returns null when <paramref name="request"/> is <paramref name="method"/> on
-    /// <paramref name="route"/> (a template such as /cats/{id}). Otherwise returns the
-    /// contract answer: 404 for another path and 405 for another method.
-    /// </summary>
     public static APIGatewayProxyResponse? Check(APIGatewayProxyRequest request, string method, string route)
     {
         if (!IsRoute(request, route))
         {
-            return ResponseHelper.WithStatus(404, new BaseError { ErrorMessage = "Not found." });
+            return ResponseHelper.WithStatus(404, new BaseError { ErrorMessage = ErrorMessages.NotFound });
         }
         if (!string.Equals(request.HttpMethod, method, StringComparison.OrdinalIgnoreCase))
         {
-            return ResponseHelper.WithStatus(405, new BaseError { ErrorMessage = "Method not allowed." });
+            return ResponseHelper.WithStatus(405, new BaseError { ErrorMessage = ErrorMessages.MethodNotAllowed });
         }
         return null;
     }
 
-    // API Gateway sets `resource` to the matched route template; without it, match the
-    // request path against the template.
+    // Direct invocations may lack `resource`, the route template API Gateway matched.
     private static bool IsRoute(APIGatewayProxyRequest request, string route)
     {
         if (!string.IsNullOrEmpty(request.Resource))

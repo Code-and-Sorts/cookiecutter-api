@@ -1,7 +1,5 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set has_collection = "list" in ops or "create" in ops -%}
-{%- set has_item = "get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops -%}
 namespace {{project_class_name}}.Api.Handlers;
 
 using System.Threading.Tasks;
@@ -50,24 +48,21 @@ public class {{ r }}Handler(I{{ r }}Controller controller) : IResourceHandler
 {%- endif %}
 {%- if "delete" in ops %}
             case ("DELETE", string itemId):
-                await _controller.DeleteAsync(itemId, ct);
-                await response.WriteJsonAsync(StatusCodes.Status200OK, new DeleteOkObjectResult { Message = $"{{ r }} with id {itemId} was deleted successfully." }, ct);
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.DeleteAsync(itemId, ct), ct);
                 return;
 {%- endif %}
-{%- if not has_collection %}
+{%- if not resource.has_collection %}
             case (_, null):
 {%- endif %}
-{%- if not has_item %}
+{%- if not resource.has_item %}
             case (_, not null):
 {%- endif %}
-{%- if not (has_collection and has_item) %}
-                // No operation of this resource uses this path.
-                await response.WriteErrorAsync(StatusCodes.Status404NotFound, "Not found.", ct);
+{%- if not (resource.has_collection and resource.has_item) %}
+                await response.WriteErrorAsync(StatusCodes.Status404NotFound, ErrorMessages.NotFound, ct);
                 return;
 {%- endif %}
             default:
-                // A path this resource serves, with a method it does not enable.
-                await response.WriteErrorAsync(StatusCodes.Status405MethodNotAllowed, "Method not allowed.", ct);
+                await response.WriteErrorAsync(StatusCodes.Status405MethodNotAllowed, ErrorMessages.MethodNotAllowed, ct);
                 return;
         }
     }

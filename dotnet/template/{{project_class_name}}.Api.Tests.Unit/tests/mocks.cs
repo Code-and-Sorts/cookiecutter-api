@@ -14,11 +14,15 @@ using Microsoft.AspNetCore.Http;
 {%- if cloud_service == 'AWS Lambda' %}
 using Amazon.Lambda.APIGatewayEvents;
 {%- endif %}
+{%- if cloud_service == 'Azure Function App' %}
+using Microsoft.AspNetCore.Mvc;
+{%- endif %}
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 {%- if cloud_service == 'Azure Function App' %}
 using NSubstitute;
+using Xunit;
 {%- endif %}
+using {{project_class_name}}.Api.Utils;
 
 public static class Mocks
 {
@@ -28,7 +32,7 @@ public static class Mocks
     public static HttpRequestData CreateHttpRequestData<T>(T requestBody, string restMethod = "GET")
     {
         var context = Substitute.For<FunctionContext>();
-        var body = JsonConvert.SerializeObject(requestBody);
+        var body = Json.Serialize(requestBody!);
 
         var request = Substitute.For<HttpRequestData>(context);
         request.Body.Returns(CreateStream(body));
@@ -48,6 +52,15 @@ public static class Mocks
         request.Url.Returns(new Uri("http://localhost/api/endpoint" + query));
 
         return request;
+    }
+
+    public static (int StatusCode, string Body) ReadJsonResult(IActionResult result)
+    {
+        var content = Assert.IsType<ContentResult>(result);
+        Assert.Equal("application/json", content.ContentType);
+        Assert.NotNull(content.StatusCode);
+        Assert.NotNull(content.Content);
+        return (content.StatusCode.Value, content.Content);
     }
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
@@ -72,7 +85,7 @@ public static class Mocks
 
     public static HttpContext CreateHttpContext<T>(T requestBody, string method, string path)
     {
-        return CreateHttpContext(method, path, body: JsonConvert.SerializeObject(requestBody));
+        return CreateHttpContext(method, path, body: Json.Serialize(requestBody!));
     }
 
     public static string ReadResponseBody(HttpContext context)
@@ -89,7 +102,7 @@ public static class Mocks
         return new APIGatewayProxyRequest
         {
             HttpMethod = httpMethod,
-            Body = JsonConvert.SerializeObject(requestBody),
+            Body = Json.Serialize(requestBody!),
             PathParameters = pathParameters ?? new Dictionary<string, string>()
         };
     }
@@ -106,7 +119,6 @@ public static class Mocks
 {%- endif %}
 }
 
-/// <summary>An <see cref="ILogger{T}"/> that records every entry, to assert what is logged.</summary>
 public class RecordingLogger<T> : ILogger<T>
 {
     public List<(LogLevel Level, Exception? Exception)> Entries { get; } = [];

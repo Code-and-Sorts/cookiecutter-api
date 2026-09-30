@@ -11,7 +11,6 @@ public class {{ prefix }}{{ r }}RequestValidator : AbstractValidator<{{ prefix }
     public {{ prefix }}{{ r }}RequestValidator()
     {
 {%- if op == 'update' %}
-        // PATCH: name is optional, but must not be empty when present.
         RuleFor(x => x.Name).NotEmpty().When(x => x.Name != null).WithMessage("name must be a non-empty string.");
 {%- else %}
         RuleFor(x => x.Name).NotEmpty().WithMessage("name is required and must be a non-empty string.");

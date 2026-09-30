@@ -3,10 +3,6 @@ namespace {{project_class_name}}.Api.Utils;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-/// <summary>
-/// The JSON settings for request and response bodies: camelCase property names,
-/// no null values, and no coercion between JSON types.
-/// </summary>
 public static class Json
 {
     public static readonly JsonSerializerOptions Options = CreateOptions();

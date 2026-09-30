@@ -1,18 +1,13 @@
 {%- set r = resource.name -%}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
-using System;
 using System.Collections.Generic;
-{%- if "create" in resource.operations %}
-using System.Text.RegularExpressions;
-{%- endif %}
 using System.Threading;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
-{%- if uses_body %}
+{%- if resource.has_body %}
 using {{project_class_name}}.Api.Requests;
 {%- endif %}
 using {{project_class_name}}.Api.Services;
@@ -68,8 +63,7 @@ public class {{ r }}ServiceTests
     public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
     {
         var createRequest = new Create{{ r }}Request { Name = "mockCreate{{ r }}" };
-        var new{{ r }} = new {{ r }}Entity { Id = Guid.NewGuid().ToString(), Name = createRequest.Name };
-        var expectedItem = new {{ r }}Dto { Id = new{{ r }}.Id, Name = new{{ r }}.Name };
+        var expectedItem = new {{ r }}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = createRequest.Name };
         _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}Entity>(), Arg.Any<CancellationToken>())
             .Returns(expectedItem);
 
@@ -77,18 +71,9 @@ public class {{ r }}ServiceTests
 
         Assert.Equal(expectedItem, result);
         await _{{ r | to_lower_camel }}RepositoryMock.Received(1).CreateAsync(
-            Arg.Is<{{ r }}Entity>(entity => IsNewEntity(entity, createRequest.Name)),
+            Arg.Is<{{ r }}Entity>(entity => entity.Name == createRequest.Name && entity.CreatedBy == null && entity.UpdatedBy == null),
             Arg.Any<CancellationToken>());
     }
-
-    private static bool IsNewEntity({{ r }}Entity entity, string name) =>
-        Guid.TryParseExact(entity.Id, "D", out _)
-        && entity.Name == name
-        && !entity.IsDeleted
-        && Regex.IsMatch(entity.CreatedTimestamp, @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
-        && entity.UpdatedTimestamp == entity.CreatedTimestamp
-        && entity.CreatedBy == null
-        && entity.UpdatedBy == null;
 {%- endif %}
 {%- if "update" in resource.operations %}
 

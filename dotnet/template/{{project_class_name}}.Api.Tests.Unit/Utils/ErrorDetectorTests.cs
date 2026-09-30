@@ -5,8 +5,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Utils;
-using FluentValidation;
-using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -45,18 +43,6 @@ public class ErrorDetectorTest
 
         Assert.Equal(400, statusCode);
         Assert.Equal("Request body must be valid JSON.", body.ErrorMessage);
-        Assert.Empty(_logger.Entries);
-    }
-
-    [Fact]
-    public void Classify_WithValidationException_Returns400WithFailureMessagesAndDoesNotLog()
-    {
-        var exception = new ValidationException([new ValidationFailure("Name", "name is required.")]);
-
-        var (statusCode, body) = ErrorDetector.Classify(exception, _logger);
-
-        Assert.Equal(400, statusCode);
-        Assert.Equal("name is required.", body.ErrorMessage);
         Assert.Empty(_logger.Entries);
     }
 
@@ -108,30 +94,18 @@ public class ErrorDetectorTest
         Assert.Equal("Item with id not-a-uuid was not found.", exception.Message);
         ItemIds.EnsureValid("Item", "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c");
     }
-{%- if cloud_service == 'AWS Lambda' %}
 
     [Fact]
-    public void DetectError_ReturnsJsonApiGatewayResponse()
+    public void ItemIds_New_ReturnsAValidUuid()
     {
-        var result = ErrorDetector.DetectError(new NotFoundException("Item", "abc"), _logger);
-
-        Assert.Equal(404, result.StatusCode);
-        Assert.Equal("application/json", result.Headers["Content-Type"]);
-        Assert.Equal("{\"errorMessage\":\"Item with id abc was not found.\"}", result.Body);
+        ItemIds.EnsureValid("Item", ItemIds.New());
     }
-{%- else %}
 
     [Fact]
-    public void DetectError_ReturnsHttpResponseInitWithBaseError()
+    public void DeleteOkObjectResult_For_SerializesTheContractMessage()
     {
-        var result = ErrorDetector.DetectError(new Exception("Mock exception"), _logger);
-
-        Assert.IsType<HttpResponseInit>(result);
-        Assert.Equal(500, result.StatusCode);
-        var baseError = Assert.IsType<BaseError>(result.Value);
-        Assert.Equal("An unexpected error occurred.", baseError.ErrorMessage);
+        Assert.Equal("{\"message\":\"Item with id abc was deleted successfully.\"}", Json.Serialize(DeleteOkObjectResult.For("Item", "abc")));
     }
-{%- endif %}
 }
 
 public class PaginationTests

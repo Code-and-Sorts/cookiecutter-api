@@ -1,8 +1,7 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set uses_body = "create" in ops or "update" in ops or "replace" in ops -%}
-{%- set has_collection = "list" in ops or "create" in ops -%}
-{%- set has_item = "get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops -%}
+{%- set has_collection = resource.has_collection -%}
+{%- set has_item = resource.has_item -%}
 {%- set op_requests = [
     ('list', 'GET', False),
     ('get_by_id', 'GET', True),
@@ -18,7 +17,7 @@ using System;
 {% if "list" in ops -%}
 using System.Collections.Generic;
 {% endif -%}
-{% if uses_body -%}
+{% if resource.has_body -%}
 using System.IO;
 {% endif -%}
 using System.Threading;
@@ -26,13 +25,16 @@ using System.Threading.Tasks;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
-{% if ops != ["delete"] -%}
+{% if resource.has_dto -%}
 using {{project_class_name}}.Api.Dtos;
 {% endif -%}
 using {{project_class_name}}.Api.Handlers;
 using {{project_class_name}}.Api.Interfaces;
-{% if uses_body -%}
+{% if resource.has_body -%}
 using {{project_class_name}}.Api.Requests;
+{% endif -%}
+{% if "delete" in ops -%}
+using {{project_class_name}}.Api.Utils;
 {% endif %}
 public class {{ r }}HandlerTests
 {
@@ -163,7 +165,7 @@ public class {{ r }}HandlerTests
     public async Task HandleAsync_Delete{{ r }}_ReturnsDeleteMessage()
     {
         var httpContext = Mocks.CreateHttpContext("DELETE", "/{{ resource.endpoint }}/" + ItemId);
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
 
         await _handler.HandleAsync(httpContext, ItemId);
 

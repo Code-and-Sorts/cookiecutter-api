@@ -24,6 +24,7 @@ using Amazon.Lambda.Serialization.SystemTextJson;
 namespace {{project_class_name}}.Api;
 
 using Amazon.Lambda.Annotations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -34,7 +35,7 @@ public class Startup
     {
         services.AddLogging(logging => logging.AddConsole());
         services.AddApplication();
-        services.AddPersistence();
+        services.AddPersistence(new ConfigurationBuilder().AddEnvironmentVariables().Build());
     }
 }
 {%- endif %}

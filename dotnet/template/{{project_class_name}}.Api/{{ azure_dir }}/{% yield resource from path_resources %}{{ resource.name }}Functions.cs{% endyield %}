@@ -1,0 +1,62 @@
+{%- set r = resource.name -%}
+namespace {{project_class_name}}.Api.Functions;
+
+using System.Threading;
+using System.Threading.Tasks;
+{%- if "list" in resource.operations %}
+using System.Web;
+{%- endif %}
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
+
+public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Functions> logger)
+{
+    private readonly I{{ r }}Controller _controller = controller;
+    private readonly ILogger<{{ r }}Functions> _logger = logger;
+{%- if "get_by_id" in resource.operations %}
+
+    [Function("Get{{ r }}")]
+    public Task<IActionResult> Get{{ r }}(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "{{ resource.endpoint }}/{id}")] HttpRequestData req, string id, CancellationToken ct = default) =>
+        FunctionRunner.RunAsync(_logger, ct, token => _controller.GetAsync(id, token));
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+    [Function("Get{{ r }}List")]
+    public Task<IActionResult> Get{{ r }}List(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "{{ resource.endpoint }}")] HttpRequestData req, CancellationToken ct = default) =>
+        FunctionRunner.RunAsync(_logger, ct, token => _controller.GetListAsync(HttpUtility.ParseQueryString(req.Url.Query)["limit"], token));
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+    [Function("Create{{ r }}")]
+    public Task<IActionResult> Create{{ r }}(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "{{ resource.endpoint }}")] HttpRequestData req, CancellationToken ct = default) =>
+        FunctionRunner.RunAsync(_logger, ct, token => _controller.CreateAsync(req.Body, token), statusCode: 201);
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+    [Function("Update{{ r }}")]
+    public Task<IActionResult> Update{{ r }}(
+        [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "{{ resource.endpoint }}/{id}")] HttpRequestData req, string id, CancellationToken ct = default) =>
+        FunctionRunner.RunAsync(_logger, ct, token => _controller.UpdateAsync(id, req.Body, token));
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+    [Function("Replace{{ r }}")]
+    public Task<IActionResult> Replace{{ r }}(
+        [HttpTrigger(AuthorizationLevel.Function, "put", Route = "{{ resource.endpoint }}/{id}")] HttpRequestData req, string id, CancellationToken ct = default) =>
+        FunctionRunner.RunAsync(_logger, ct, token => _controller.ReplaceAsync(id, req.Body, token));
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+    [Function("Delete{{ r }}")]
+    public Task<IActionResult> Delete{{ r }}(
+        [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "{{ resource.endpoint }}/{id}")] HttpRequestData req, string id, CancellationToken ct = default) =>
+        FunctionRunner.RunAsync(_logger, ct, token => _controller.DeleteAsync(id, token));
+{%- endif %}
+}

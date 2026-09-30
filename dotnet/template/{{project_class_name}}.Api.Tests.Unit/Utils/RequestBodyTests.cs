@@ -3,6 +3,7 @@ namespace {{project_class_name}}.Api.Tests.Unit;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Utils;
+using FluentValidation;
 using Xunit;
 
 public class RequestBodyTests
@@ -14,6 +15,35 @@ public class RequestBodyTests
 
         [JsonPropertyName("name")]
         public string? Name { get; set; }
+    }
+
+    public class SampleValidator : AbstractValidator<SampleRequest>
+    {
+        public SampleValidator()
+        {
+            RuleFor(x => x.Name).NotEmpty().WithMessage("name is required.");
+            RuleFor(x => x.Name).MaximumLength(3).WithMessage("name is too long.");
+        }
+    }
+
+    [Fact]
+    public async Task ReadValidAsync_ReturnsTheRequest_WhenValid()
+    {
+        var request = await RequestBody.ReadValidAsync<SampleRequest, SampleValidator>(Mocks.CreateStream("{\"name\":\"Tom\"}"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("Tom", request.Name);
+    }
+
+    [Theory]
+    [InlineData("{}", "name is required.")]
+    [InlineData("{\"name\":\"Thomas\"}", "name is too long.")]
+    public async Task ReadValidAsync_ThrowsBadRequestWithTheFailureMessages(string body, string expectedMessage)
+    {
+        var exception = await Assert.ThrowsAsync<BadRequestException>(
+            () => RequestBody.ReadValidAsync<SampleRequest, SampleValidator>(Mocks.CreateStream(body), TestContext.Current.CancellationToken));
+
+        Assert.Equal(400, exception.StatusCode);
+        Assert.Equal(expectedMessage, exception.Message);
     }
 
     [Fact]

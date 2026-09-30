@@ -7,10 +7,10 @@ Globals:
     Runtime: dotnet10
     MemorySize: 256
 Resources:
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 {%- set cn = resource.name %}
-{%- set tableRef = resource.container | to_camel %}
-{%- set tableEnv = 'DYNAMODB_TABLE_NAME_' ~ (resource.container | upper | replace('-', '_')) %}
+{%- set tableRef = resource.container_class %}
+{%- set tableEnv = 'DYNAMODB_TABLE_NAME_' ~ resource.env_key %}
 {%- if "get_by_id" in resource.operations %}
   Get{{ cn }}Function:
     Type: AWS::Serverless::Function
@@ -139,11 +139,11 @@ Resources:
             Path: /{{ health_endpoint }}
             Method: GET
 {%- endif %}
-{%- for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}Table:
+{%- for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{ container }}
+      TableName: {{ c.container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -156,8 +156,8 @@ Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
-{%- for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}TableName:
-    Description: DynamoDB table name for the {{ container }} container
-    Value: !Ref {{ container | to_camel }}Table
+{%- for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}TableName:
+    Description: DynamoDB table name for the {{ c.container }} container
+    Value: !Ref {{ c.container_class }}Table
 {%- endfor %}

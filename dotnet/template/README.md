@@ -1,5 +1,5 @@
 {%- set prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
-{%- set containers = resources | map(attribute='container') | unique | list -%}
+{%- set containers = path_resources | unique(attribute='container') | list -%}
 # {{ project_class_name }} API
 
 [![](https://img.shields.io/badge/made%20using%20cookiecutter%20api-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/Code-and-Sorts/cookiecutter-api)
@@ -107,8 +107,8 @@ Each resource reads and writes the Cosmos DB container configured for its `conta
 
 | Container | Setting | Default value | Resources |
 |---|---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | `CosmosDbContainerName_{{ container | to_camel }}` | `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- for c in containers %}
+| `{{ c.container }}` | `CosmosDbContainerName_{{ c.container_class }}` | `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 
 The Cosmos DB connection string is read from `ConnectionStrings:CosmosDb` and the database name from `CosmosDbDatabaseName`. Containers must use `/id` as their partition key.
@@ -121,8 +121,8 @@ Each resource reads and writes the Firestore collection configured for its `cont
 
 | Container | Environment variable | Default value | Resources |
 |---|---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}` | `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- for c in containers %}
+| `{{ c.container }}` | `FIRESTORE_COLLECTION_{{ c.env_key }}` | `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 
 The Google Cloud project is read from `GCP_PROJECT_ID` (required) and the Firestore database from `FIRESTORE_DATABASE` (defaults to `(default)`).
@@ -133,8 +133,8 @@ Each resource reads and writes the DynamoDB table configured for its `container`
 
 | Container | Environment variable | `template.yaml` table resource | Resources |
 |---|---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | `DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}` | `{{ container | to_camel }}Table` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- for c in containers %}
+| `{{ c.container }}` | `DYNAMODB_TABLE_NAME_{{ c.env_key }}` | `{{ c.container_class }}Table` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 {%- endif %}
 
@@ -381,6 +381,7 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 
 Each resource has its own file in every layer, named after the resource: for example `{{ resources[0].name }}Controller.cs`, `{{ resources[0].name }}Service.cs`, `{{ resources[0].name }}Repository.cs`, `{{ resources[0].name }}{% if cloud_service == 'GCP Cloud Function' %}Handler{% else %}Functions{% endif %}.cs` and their `I{{ resources[0].name }}…` interfaces, DTO, entity, request and validation models, and unit tests.
 {%- if cloud_service == 'GCP Cloud Function' %} `Function.cs` routes each request to the handler whose endpoint matches the first path segment.{% endif %}
+Each repository extends `EntityRepository`, which holds the shared read, list, create, update and soft-delete logic and talks to the database through `IDocumentStore` (`{% if cloud_service == 'Azure Function App' %}Cosmos{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}Dynamo{% endif %}DocumentStore`).
 
 ## License
 

@@ -10,16 +10,23 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using FluentValidation;
 
-/// <summary>
-/// Reads a request body strictly: it must be a JSON object whose fields are the
-/// request type's <see cref="JsonPropertyNameAttribute"/> properties, and string
-/// fields must be JSON strings (no coercion from numbers, booleans or null). Any
-/// other body throws a <see cref="BadRequestException"/>.
-/// </summary>
 public static class RequestBody
 {
     private static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, Type>> FieldsByType = new();
+
+    public static async Task<TRequest> ReadValidAsync<TRequest, TValidator>(Stream body, CancellationToken ct = default)
+        where TValidator : IValidator<TRequest>, new()
+    {
+        var request = await DeserializeAsync<TRequest>(body, ct);
+        var result = await new TValidator().ValidateAsync(request, ct);
+        if (!result.IsValid)
+        {
+            throw new BadRequestException(string.Join(" ", result.Errors.Select(failure => failure.ErrorMessage).Distinct()));
+        }
+        return request;
+    }
 
     public static async Task<T> DeserializeAsync<T>(Stream body, CancellationToken ct = default)
     {

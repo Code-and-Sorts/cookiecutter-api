@@ -1,17 +1,19 @@
 {%- set r = resource.name -%}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Interfaces;
 
 {% if "list" in resource.operations -%}
 using System.Collections.Generic;
 {% endif -%}
-{% if uses_body -%}
+{% if resource.has_body -%}
 using System.IO;
 {% endif -%}
 using System.Threading;
 using System.Threading.Tasks;
-{% if resource.operations != ["delete"] -%}
+{% if resource.has_dto -%}
 using {{project_class_name}}.Api.Dtos;
+{% endif -%}
+{% if "delete" in resource.operations -%}
+using {{project_class_name}}.Api.Utils;
 {% endif %}
 public interface I{{ r }}Controller
 {
@@ -31,6 +33,6 @@ public interface I{{ r }}Controller
     Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, CancellationToken ct = default);
 {%- endif %}
 {%- if "delete" in resource.operations %}
-    Task DeleteAsync(string id, CancellationToken ct = default);
+    Task<DeleteOkObjectResult> DeleteAsync(string id, CancellationToken ct = default);
 {%- endif %}
 }

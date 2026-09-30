@@ -2,7 +2,6 @@ namespace {{project_class_name}}.Api.Dtos;
 
 using System.Text.Json.Serialization;
 
-// The item body returned to clients: exactly {"id", "name"}.
 public class {{ resource.name }}Dto
 {
     [JsonPropertyName("id")]

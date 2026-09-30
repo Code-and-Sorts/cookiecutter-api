@@ -1,16 +1,14 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set uses_body = "create" in ops or "update" in ops or "replace" in ops -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
 {% if "list" in ops -%}
 using System.Collections.Generic;
 {% endif -%}
-{% if uses_body -%}
+{% if resource.has_body -%}
 using System.IO;
 {% endif -%}
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -18,12 +16,12 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
-{% if ops != ["delete"] -%}
+{% if resource.has_dto -%}
 using {{project_class_name}}.Api.Dtos;
 {% endif -%}
 using {{project_class_name}}.Api.Functions;
 using {{project_class_name}}.Api.Interfaces;
-{% if uses_body -%}
+{% if resource.has_body -%}
 using {{project_class_name}}.Api.Requests;
 {% endif -%}
 using {{project_class_name}}.Api.Utils;
@@ -43,10 +41,7 @@ public class {{ r }}FunctionsTests
 
     private void AssertUnexpectedError(IActionResult result)
     {
-        var errorResult = Assert.IsType<HttpResponseInit>(result);
-        var error = Assert.IsType<BaseError>(errorResult.Value);
-        Assert.Equal(500, errorResult.StatusCode);
-        Assert.Equal("An unexpected error occurred.", error.ErrorMessage);
+        Assert.Equal((500, "{\"errorMessage\":\"An unexpected error occurred.\"}"), Mocks.ReadJsonResult(result));
         Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Error && entry.Exception?.Message == "Mock exception");
     }
 {%- if "get_by_id" in ops %}
@@ -54,14 +49,11 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Get{{ r }}_ReturnsCamelCaseItem_When{{ r }}IsFound()
     {
-        var dto = new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" };
-        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(dto);
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
 
         var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId, TestContext.Current.CancellationToken);
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(200, okResult.StatusCode);
-        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", JsonSerializer.Serialize(okResult.Value));
+        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -71,9 +63,7 @@ public class {{ r }}FunctionsTests
 
         var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), "not-a-uuid", TestContext.Current.CancellationToken);
 
-        var errorResult = Assert.IsType<HttpResponseInit>(result);
-        Assert.Equal(404, errorResult.StatusCode);
-        Assert.Equal("{\"errorMessage\":\"{{ r }} with id not-a-uuid was not found.\"}", JsonSerializer.Serialize(errorResult.Value));
+        Assert.Equal((404, "{\"errorMessage\":\"{{ r }} with id not-a-uuid was not found.\"}"), Mocks.ReadJsonResult(result));
         Assert.Empty(_logger.Entries);
     }
 
@@ -90,20 +80,16 @@ public class {{ r }}FunctionsTests
 {%- if "list" in ops %}
 
     [Fact]
-    public async Task Get{{ r }}List_ReturnsOkResult_WithItems()
+    public async Task Get{{ r }}List_ReturnsItems()
     {
-        var dtos = new List<{{ r }}Dto>
+        _mock{{ r }}Controller.GetListAsync(null, Arg.Any<CancellationToken>()).Returns(new List<{{ r }}Dto>
         {
             new() { Id = ItemId, Name = "mock{{ r }}1" },
-            new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
-        };
-        _mock{{ r }}Controller.GetListAsync(null, Arg.Any<CancellationToken>()).Returns(dtos);
+        });
 
         var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(200, okResult.StatusCode);
-        Assert.Equal(dtos, okResult.Value);
+        Assert.Equal((200, $"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }}]"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -113,23 +99,20 @@ public class {{ r }}FunctionsTests
 
         var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET", "?limit=5"), TestContext.Current.CancellationToken);
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal("[]", JsonSerializer.Serialize(okResult.Value));
+        Assert.Equal((200, "[]"), Mocks.ReadJsonResult(result));
         await _mock{{ r }}Controller.Received(1).GetListAsync("5", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Get{{ r }}List_ReturnsGenericErrorAtTheDeadline_WhenTheDatabaseHangs()
     {
-        // A call that never completes and ignores cancellation, like a hung Cosmos DB gateway.
         _mock{{ r }}Controller.GetListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<IEnumerable<{{ r }}Dto>>().Task);
         var started = DateTime.UtcNow;
 
         var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
 
         Assert.InRange(DateTime.UtcNow - started, RequestDeadline.Timeout - TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
-        var errorResult = Assert.IsType<HttpResponseInit>(result);
-        Assert.Equal(500, errorResult.StatusCode);
+        Assert.Equal(500, Mocks.ReadJsonResult(result).StatusCode);
         Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Error);
     }
 
@@ -146,17 +129,13 @@ public class {{ r }}FunctionsTests
 {%- if "create" in ops %}
 
     [Fact]
-    public async Task Create{{ r }}_ReturnsCreatedResult_When{{ r }}IsCreated()
+    public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
     {
-        var request = new Create{{ r }}Request { Name = "mock{{ r }}" };
-        var dto = new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" };
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
 
-        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"), TestContext.Current.CancellationToken);
+        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"), TestContext.Current.CancellationToken);
 
-        var createdResult = Assert.IsType<CreatedResult>(result);
-        Assert.Equal(201, createdResult.StatusCode);
-        Assert.Equal(dto, createdResult.Value);
+        Assert.Equal((201, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -166,19 +145,16 @@ public class {{ r }}FunctionsTests
 
         var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData("POST"), TestContext.Current.CancellationToken);
 
-        var errorResult = Assert.IsType<HttpResponseInit>(result);
-        Assert.Equal(400, errorResult.StatusCode);
-        Assert.Equal("{\"errorMessage\":\"name must be a string.\"}", JsonSerializer.Serialize(errorResult.Value));
+        Assert.Equal((400, "{\"errorMessage\":\"name must be a string.\"}"), Mocks.ReadJsonResult(result));
         Assert.Empty(_logger.Entries);
     }
 
     [Fact]
     public async Task Create{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        var request = new Create{{ r }}Request { Name = "mock{{ r }}" };
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(request, "POST"), TestContext.Current.CancellationToken);
+        var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"), TestContext.Current.CancellationToken);
 
         AssertUnexpectedError(result);
     }
@@ -186,26 +162,21 @@ public class {{ r }}FunctionsTests
 {%- if "update" in ops %}
 
     [Fact]
-    public async Task Update{{ r }}_ReturnsOkResult_When{{ r }}IsUpdated()
+    public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
     {
-        var request = new Update{{ r }}Request { Name = "mockUpdated{{ r }}" };
-        var dto = new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" };
-        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
 
-        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId, TestContext.Current.CancellationToken);
+        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(200, okResult.StatusCode);
-        Assert.Equal(dto, okResult.Value);
+        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockUpdated{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
     public async Task Update{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        var request = new Update{{ r }}Request { Name = "mockUpdated{{ r }}" };
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(request, "PATCH"), ItemId, TestContext.Current.CancellationToken);
+        var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
         AssertUnexpectedError(result);
     }
@@ -213,26 +184,21 @@ public class {{ r }}FunctionsTests
 {%- if "replace" in ops %}
 
     [Fact]
-    public async Task Replace{{ r }}_ReturnsOkResult_When{{ r }}IsReplaced()
+    public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
     {
-        var request = new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" };
-        var dto = new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" };
-        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(dto);
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
 
-        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId, TestContext.Current.CancellationToken);
+        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(200, okResult.StatusCode);
-        Assert.Equal(dto, okResult.Value);
+        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockReplaced{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
     public async Task Replace{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
     {
-        var request = new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" };
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(request, "PUT"), ItemId, TestContext.Current.CancellationToken);
+        var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
         AssertUnexpectedError(result);
     }
@@ -242,13 +208,11 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Delete{{ r }}_ReturnsDeleteMessage_When{{ r }}IsDeleted()
     {
-        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
 
         var result = await _functions.Delete{{ r }}(Mocks.CreateHttpRequestData("DELETE"), ItemId, TestContext.Current.CancellationToken);
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(200, okResult.StatusCode);
-        Assert.Equal($"{{ '{{' }}\"message\":\"{{ r }} with id {ItemId} was deleted successfully.\"{{ '}}' }}", JsonSerializer.Serialize(okResult.Value));
+        Assert.Equal((200, $"{{ '{{' }}\"message\":\"{{ r }} with id {ItemId} was deleted successfully.\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]

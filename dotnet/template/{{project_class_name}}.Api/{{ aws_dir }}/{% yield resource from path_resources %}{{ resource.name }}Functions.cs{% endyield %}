@@ -1,0 +1,58 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+namespace {{project_class_name}}.Api.Functions;
+
+using System.Threading.Tasks;
+using Amazon.Lambda.Annotations;
+using Amazon.Lambda.APIGatewayEvents;
+using Microsoft.Extensions.Logging;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
+
+public class {{ r }}Functions(I{{ r }}Controller controller, ILogger<{{ r }}Functions> logger)
+{
+{%- if resource.has_collection %}
+    private const string CollectionRoute = "/{{ resource.endpoint }}";
+{%- endif %}
+{%- if resource.has_item %}
+    private const string ItemRoute = "/{{ resource.endpoint }}/{id}";
+{%- endif %}
+    private readonly I{{ r }}Controller _controller = controller;
+    private readonly ILogger<{{ r }}Functions> _logger = logger;
+{%- if "get_by_id" in ops %}
+
+    [LambdaFunction(ResourceName = "Get{{ r }}Function")]
+    public Task<APIGatewayProxyResponse> Get{{ r }}(APIGatewayProxyRequest request) =>
+        FunctionRunner.RunAsync(request, "GET", ItemRoute, _logger, ct => _controller.GetAsync(FunctionRunner.Id(request), ct));
+{%- endif %}
+{%- if "list" in ops %}
+
+    [LambdaFunction(ResourceName = "Get{{ r }}ListFunction")]
+    public Task<APIGatewayProxyResponse> Get{{ r }}List(APIGatewayProxyRequest request) =>
+        FunctionRunner.RunAsync(request, "GET", CollectionRoute, _logger, ct => _controller.GetListAsync(FunctionRunner.Query(request, "limit"), ct));
+{%- endif %}
+{%- if "create" in ops %}
+
+    [LambdaFunction(ResourceName = "Create{{ r }}Function")]
+    public Task<APIGatewayProxyResponse> Create{{ r }}(APIGatewayProxyRequest request) =>
+        FunctionRunner.RunAsync(request, "POST", CollectionRoute, _logger, ct => _controller.CreateAsync(FunctionRunner.BodyStream(request), ct), statusCode: 201);
+{%- endif %}
+{%- if "update" in ops %}
+
+    [LambdaFunction(ResourceName = "Update{{ r }}Function")]
+    public Task<APIGatewayProxyResponse> Update{{ r }}(APIGatewayProxyRequest request) =>
+        FunctionRunner.RunAsync(request, "PATCH", ItemRoute, _logger, ct => _controller.UpdateAsync(FunctionRunner.Id(request), FunctionRunner.BodyStream(request), ct));
+{%- endif %}
+{%- if "replace" in ops %}
+
+    [LambdaFunction(ResourceName = "Replace{{ r }}Function")]
+    public Task<APIGatewayProxyResponse> Replace{{ r }}(APIGatewayProxyRequest request) =>
+        FunctionRunner.RunAsync(request, "PUT", ItemRoute, _logger, ct => _controller.ReplaceAsync(FunctionRunner.Id(request), FunctionRunner.BodyStream(request), ct));
+{%- endif %}
+{%- if "delete" in ops %}
+
+    [LambdaFunction(ResourceName = "Delete{{ r }}Function")]
+    public Task<APIGatewayProxyResponse> Delete{{ r }}(APIGatewayProxyRequest request) =>
+        FunctionRunner.RunAsync(request, "DELETE", ItemRoute, _logger, ct => _controller.DeleteAsync(FunctionRunner.Id(request), ct));
+{%- endif %}
+}

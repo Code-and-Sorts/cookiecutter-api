@@ -1,27 +1,20 @@
 {%- set r = resource.name -%}
-{%- set uses_body = "create" in resource.operations or "update" in resource.operations or "replace" in resource.operations -%}
 namespace {{project_class_name}}.Api.Services;
 
-{% if "create" in resource.operations -%}
-using System;
-{% endif -%}
 {% if "list" in resource.operations -%}
 using System.Collections.Generic;
 {% endif -%}
 using System.Threading;
 using System.Threading.Tasks;
-{% if resource.operations != ["delete"] -%}
+{% if resource.has_dto -%}
 using {{project_class_name}}.Api.Dtos;
 {% endif -%}
-{% if uses_body -%}
+{% if resource.has_body -%}
 using {{project_class_name}}.Api.Entities;
 {% endif -%}
 using {{project_class_name}}.Api.Interfaces;
-{% if uses_body -%}
+{% if resource.has_body -%}
 using {{project_class_name}}.Api.Requests;
-{% endif -%}
-{% if "create" in resource.operations -%}
-using {{project_class_name}}.Api.Utils;
 {% endif %}
 public class {{ r }}Service : I{{ r }}Service
 {
@@ -41,18 +34,8 @@ public class {{ r }}Service : I{{ r }}Service
 {%- endif %}
 {%- if "create" in resource.operations %}
 
-    public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default)
-    {
-        var now = Timestamps.Now();
-        var new{{ r }} = new {{ r }}Entity
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = item.Name,
-            CreatedTimestamp = now,
-            UpdatedTimestamp = now,
-        };
-        return await _repository.CreateAsync(new{{ r }}, ct);
-    }
+    public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, CancellationToken ct = default) =>
+        await _repository.CreateAsync(new {{ r }}Entity { Name = item.Name }, ct);
 {%- endif %}
 {%- if "update" in resource.operations %}
 

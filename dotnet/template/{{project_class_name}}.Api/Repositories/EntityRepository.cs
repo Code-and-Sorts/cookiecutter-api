@@ -1,0 +1,63 @@
+namespace {{project_class_name}}.Api.Repositories;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using {{project_class_name}}.Api.Entities;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
+
+public abstract class EntityRepository<TEntity, TDto>(IDocumentStore<TEntity> store, string resourceName)
+    where TEntity : BaseEntity
+{
+    protected abstract TDto ToDto(TEntity item);
+
+    protected async Task<TDto> GetDtoAsync(string id, CancellationToken ct) => ToDto(await GetLiveAsync(id, ct));
+
+    protected async Task<IEnumerable<TDto>> ListAsync(int limit, CancellationToken ct)
+    {
+        var items = await store.GetLiveListAsync(limit, ct);
+        return items.Take(limit).Select(ToDto).ToList();
+    }
+
+    protected async Task<TDto> InsertAsync(TEntity item, CancellationToken ct)
+    {
+        var now = Timestamps.Now();
+        item.Id = ItemIds.New();
+        item.IsDeleted = false;
+        item.CreatedTimestamp = now;
+        item.UpdatedTimestamp = now;
+        await store.CreateAsync(item, ct);
+        return ToDto(item);
+    }
+
+    protected async Task<TDto> MergeAsync(TEntity changes, Action<TEntity, TEntity> applyFields, CancellationToken ct)
+    {
+        var current = await GetLiveAsync(changes.Id, ct);
+        applyFields(current, changes);
+        current.UpdatedBy = changes.UpdatedBy ?? current.UpdatedBy;
+        current.UpdatedTimestamp = Timestamps.Now();
+        await store.SaveAsync(current, ct);
+        return ToDto(current);
+    }
+
+    protected async Task SoftDeleteAsync(string id, CancellationToken ct)
+    {
+        var current = await GetLiveAsync(id, ct);
+        current.IsDeleted = true;
+        current.UpdatedTimestamp = Timestamps.Now();
+        await store.SaveAsync(current, ct);
+    }
+
+    private async Task<TEntity> GetLiveAsync(string id, CancellationToken ct)
+    {
+        var item = await store.GetAsync(id, ct);
+        if (item == null || item.IsDeleted)
+        {
+            throw new NotFoundException(resourceName, id);
+        }
+        return item;
+    }
+}

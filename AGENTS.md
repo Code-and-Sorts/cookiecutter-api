@@ -66,9 +66,11 @@ The default is a single resource derived from the project name with `list`, `get
   so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
   still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
 - Controllers, services, routes and repositories expose only the resource's `operations`
-  (`update` is PATCH, `replace` is PUT). Where a shared base repository holds the database
-  code (TypeScript, Python), it keeps all six operations and its own tests, so coverage
-  holds when no resource uses one.
+  (`update` is PATCH, `replace` is PUT). Database code lives once per cloud, never per
+  resource: a shared base repository (TypeScript `BaseRepository`, Python `BaseRepository`,
+  .NET `EntityRepository`, Go `store[T]`) holds the CRUD, merging and not-found logic, and a
+  per-cloud store does the SDK calls. The base keeps all six operations and its own tests,
+  so coverage holds when no resource uses one.
 - Resources with the same `container` share one store and see each other's records; there
   is no type discriminator.
 - GCP and AWS read per-container settings named `FIRESTORE_COLLECTION_<CONTAINER>` and
@@ -131,8 +133,8 @@ To add a new cloud provider to an existing language template:
 2. **Create the entry point** — Add the cloud-specific function entry point file(s) and any per-resource handlers (TypeScript `functions/` or `routes/`, Python `blueprints/`, .NET `Functions/` or `Handlers/`, Go `handlers/`), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
 3. **Add Jinja2 conditionals** to these files:
    - `package.json` / `pyproject.toml` / `.csproj` / `go.mod` — Cloud-specific dependencies
-   - `repositories/base.repository` — Database client implementation
-   - the per-resource repository files (e.g. `repositories/cat.repository.ts`) — DI binding for the database client
+   - The per-cloud store (TypeScript `repositories/*.store.ts`, .NET `Repositories/*DocumentStore.cs`,
+     Go `repositories/store.go`, Python `repositories/base_repository.py`) — Database client implementation
    - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` / `function.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
 4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds

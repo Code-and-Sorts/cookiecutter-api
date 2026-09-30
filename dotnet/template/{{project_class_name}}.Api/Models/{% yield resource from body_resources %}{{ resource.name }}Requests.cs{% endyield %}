@@ -4,9 +4,7 @@ namespace {{project_class_name}}.Api.Requests;
 
 using System.Text.Json.Serialization;
 
-// Request bodies accept only the properties marked with [JsonPropertyName]; any other
-// field (including id, isDeleted, timestamps, createdBy and updatedBy) is rejected with
-// 400 by RequestBody, so clients can never set ids or system fields.
+// RequestBody rejects fields without [JsonPropertyName], so clients can never set ids or system fields.
 {%- for op, prefix in request_ops %}
 
 public class {{ prefix }}{{ r }}Request
