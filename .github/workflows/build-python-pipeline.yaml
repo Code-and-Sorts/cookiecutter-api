@@ -18,9 +18,7 @@ jobs:
   build-python:
     runs-on: ${{ matrix.os }}
     strategy:
-      # Ubuntu covers every cloud with the default single resource and the edge fixture, which
-      # holds every other resource shape. Windows (path length, checkout) and macOS (BSD tools)
-      # risks don't depend on the cloud, so each runs once, on a different cloud.
+      # Windows and macOS risks don't depend on the cloud, so each runs once.
       matrix:
         os:
           - ubuntu-latest

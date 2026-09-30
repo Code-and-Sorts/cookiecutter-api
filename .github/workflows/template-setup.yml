@@ -186,15 +186,12 @@ jobs:
             exit 1
           fi
 
-          # Remove everything except .git and the generated project directory
           find . -maxdepth 1 \
             ! -name '.' \
             ! -name '.git' \
             ! -name "$PROJECT_CLASS_NAME" \
             -exec rm -rf {} +
 
-          # Copy generated project files to repo root (including hidden files),
-          # then remove the generated project directory.
           cp -a -- "$PROJECT_CLASS_NAME"/. .
           rm -rf -- "$PROJECT_CLASS_NAME"
 

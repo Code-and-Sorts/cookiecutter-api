@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// discardLogs silences the default logger for the rest of the test.
 func discardLogs(t *testing.T) {
 	t.Helper()
 	previous := slog.Default()

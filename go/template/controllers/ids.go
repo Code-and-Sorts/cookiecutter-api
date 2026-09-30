@@ -2,9 +2,7 @@ package controllers
 
 import "github.com/google/uuid"
 
-// IsValidID reports whether id is a canonical UUID string, the only form of
-// id the API issues. Anything else is answered with a 404 without touching
-// the database.
+// The API only issues UUIDs, so any other id is a 404 without a database read.
 func IsValidID(id string) bool {
 	if len(id) != 36 {
 		return false

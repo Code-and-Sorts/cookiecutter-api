@@ -12,14 +12,10 @@ import (
 	"{{project_endpoint}}/utils"
 )
 
-// RequestTimeout bounds each request, including every database call and the
-// SDK's retries, so a failing database answers with the JSON 500 well inside
-// the platform's own timeout instead of hanging.
+// Covers every database call and SDK retry, so a failing database answers 500 inside the platform timeout.
 const RequestTimeout = 8 * time.Second
 {%- if cloud_service != 'AWS Lambda' %}
 
-// NewRouter returns a ServeMux that answers any request no route matches with
-// the JSON 404 body. Each Register*Route(s) function adds its routes to it.
 func NewRouter() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -28,14 +24,11 @@ func NewRouter() *http.ServeMux {
 	return mux
 }
 
-// methodNotAllowed answers a known path requested with a method it does not
-// serve. Routes register it on their paths without a method, so it only runs
-// when no method-specific pattern matches.
+// Registered without a method, so ServeMux only runs it when no method-specific pattern matches.
 func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 	utils.WriteError(w, http.StatusMethodNotAllowed, utils.MethodNotAllowedMessage)
 }
 
-// WithRequestTimeout gives each request's context the RequestTimeout deadline.
 func WithRequestTimeout(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), RequestTimeout)
@@ -44,8 +37,7 @@ func WithRequestTimeout(next http.Handler) http.Handler {
 	})
 }
 
-// Recover answers a panic in next with the JSON 500 body instead of dropping
-// the connection.
+// Without this, net/http drops the connection on a panic instead of answering 500.
 func Recover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -62,29 +54,20 @@ func Recover(next http.Handler) http.Handler {
 }
 {%- else %}
 
-// RouteHandler serves the API Gateway requests for one resource path.
 type RouteHandler func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse
 
-// Router dispatches API Gateway requests by their exact resource path, such as
-// "/cats" or "/cats/{id}".
 type Router struct {
 	routes map[string]RouteHandler
 }
 
-// NewRouter returns an empty Router. Each Register*Route(s) function adds its
-// routes to it.
 func NewRouter() *Router {
 	return &Router{routes: make(map[string]RouteHandler)}
 }
 
-// Handle registers handler for the API Gateway resource path.
 func (router *Router) Handle(resource string, handler RouteHandler) {
 	router.routes[resource] = handler
 }
 
-// ServeRequest is the Lambda handler. Each request gets the RequestTimeout
-// deadline, unknown resource paths get the JSON 404 body, and a panic gets the
-// JSON 500 body.
 func (router *Router) ServeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (response events.APIGatewayProxyResponse, err error) {
 	ctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
@@ -102,8 +85,6 @@ func (router *Router) ServeRequest(ctx context.Context, request events.APIGatewa
 	return handler(ctx, request), nil
 }
 
-// methodNotAllowed answers a known path requested with a method it does not
-// serve.
 func methodNotAllowed() events.APIGatewayProxyResponse {
 	return utils.GenerateErrorResponse(utils.MethodNotAllowedMessage, http.StatusMethodNotAllowed)
 }

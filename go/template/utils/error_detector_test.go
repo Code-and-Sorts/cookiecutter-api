@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// captureLogs sends the default logger to a buffer for the rest of the test.
 func captureLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var logs bytes.Buffer

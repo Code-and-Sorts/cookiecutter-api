@@ -1,5 +1,4 @@
-// Command main runs the Cloud Run function locally with the Functions
-// Framework. Set FUNCTION_TARGET=api to serve it at every path.
+// Command main runs the function locally; set FUNCTION_TARGET=api to serve it at every path.
 package main
 
 import (

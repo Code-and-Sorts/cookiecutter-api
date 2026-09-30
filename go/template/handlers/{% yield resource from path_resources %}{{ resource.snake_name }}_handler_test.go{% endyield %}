@@ -37,10 +37,9 @@ import (
 
 const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 
-// fake{{ r }}Controller records what it is called with and returns err, or a
-// fixed {{ r }} when err is nil.
 {%- set fields = [('err', 'error', true), ('id', 'string', uses_id), ('limit', 'int', 'list' in ops), ('body', 'string', uses_body)] | selectattr(2) | list %}
 {%- set width = fields | map(attribute=0) | map('length') | max %}
+
 type fake{{ r }}Controller struct {
 {%- for name, type, _ in fields %}
 	{{ name ~ ' ' * (width - name | length) }} {{ type }}
@@ -108,8 +107,6 @@ func (f *fake{{ r }}Controller) Delete(ctx context.Context, id string) error {
 {%- endif %}
 {%- if cloud_service != 'AWS Lambda' %}
 
-// call{{ r }} sends a request to {{ route_prefix }}/{{ ep }}, or to {{ route_prefix }}/{{ ep }}/{id}
-// when item is true, and returns the status code and body.
 func call{{ r }}(t *testing.T, controller *fake{{ r }}Controller, method string, item bool, query, body string) (int, string) {
 	t.Helper()
 	target := "{{ route_prefix }}/{{ ep }}"
@@ -138,8 +135,6 @@ func Test{{ r }}Routes_UnknownPath_Returns404(t *testing.T) {
 }
 {%- else %}
 
-// call{{ r }} sends an API Gateway request for /{{ ep }}, or for /{{ ep }}/{id}
-// when item is true, and returns the status code and body.
 func call{{ r }}(t *testing.T, controller *fake{{ r }}Controller, method string, item bool, query, body string) (int, string) {
 	t.Helper()
 	request := events.APIGatewayProxyRequest{HTTPMethod: method, Resource: "/{{ ep }}", Body: body}

@@ -50,8 +50,7 @@ func main() {
 	}
 {%- endfor %}
 
-	// The Functions host forwards each request to the port it passes in
-	// FUNCTIONS_CUSTOMHANDLER_PORT.
+	// The Functions host forwards requests to the port it passes in FUNCTIONS_CUSTOMHANDLER_PORT.
 	listenAddr := ":80"
 	if port, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
 		listenAddr = ":" + port
@@ -61,8 +60,6 @@ func main() {
 	exitOnError("Server stopped", http.ListenAndServe(listenAddr, handlers.Recover(handlers.WithRequestTimeout(router))))
 }
 
-// newCosmosClient connects to the Cosmos DB account named by the
-// CosmosDbEndpoint, CosmosDbKey and CosmosDbDatabaseName settings.
 func newCosmosClient() (*azcosmos.Client, string) {
 	endpoint := os.Getenv("CosmosDbEndpoint")
 	key := os.Getenv("CosmosDbKey")
@@ -74,10 +71,7 @@ func newCosmosClient() (*azcosmos.Client, string) {
 	cred, err := azcosmos.NewKeyCredential(key)
 	exitOnError("Failed to create Cosmos DB credential", err)
 
-	// Bound every HTTP try and the retries. Requests already have a deadline
-	// (handlers.RequestTimeout), but the SDK reads the account properties on
-	// the first request without it, which would otherwise wait up to a minute
-	// when Cosmos DB is unreachable.
+	// The SDK's first account read ignores the request deadline and could wait a minute on an unreachable Cosmos DB.
 	options := &azcosmos.ClientOptions{ClientOptions: azcore.ClientOptions{
 		Retry: policy.RetryOptions{
 			MaxRetries: 1,
@@ -91,8 +85,6 @@ func newCosmosClient() (*azcosmos.Client, string) {
 	return client, databaseName
 }
 
-// cosmosContainer opens the container named by the setting, or by
-// defaultName when the setting is unset.
 func cosmosContainer(client *azcosmos.Client, databaseName, setting, defaultName string) *azcosmos.ContainerClient {
 	name := os.Getenv(setting)
 	if name == "" {
@@ -124,8 +116,6 @@ func cosmosContainer(client *azcosmos.Client, databaseName, setting, defaultName
 	lambda.Start(router.ServeRequest)
 }
 
-// tableName returns the DynamoDB table named by the setting, or defaultName
-// when the setting is unset.
 func tableName(setting, defaultName string) string {
 	if name := os.Getenv(setting); name != "" {
 		return name
@@ -140,7 +130,6 @@ func newValidator() services.SchemaValidator {
 	return validator
 }
 
-// exitOnError logs err at error level and exits when err is not nil.
 func exitOnError(message string, err error) {
 	if err != nil {
 		slog.Error(message, "error", err)

@@ -7,9 +7,7 @@ import (
 	"os"
 )
 
-// NewLogger returns a logger that writes records below error level to stdout
-// and error records to stderr, so hosts that read stderr as failures (such as
-// the Azure Functions host) only see real errors there.
+// Hosts such as Azure Functions treat stderr as failures, so only error records go there.
 func NewLogger() *slog.Logger {
 	return newSplitLogger(os.Stdout, os.Stderr)
 }

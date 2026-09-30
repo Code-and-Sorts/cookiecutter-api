@@ -101,7 +101,6 @@ func newTest{{ r }}Controller(mockService *Mock{{ r }}Service) {{ r }}Controller
 
 {%- if uses_id %}
 
-// assert{{ r }}NotFound checks that err is the 404 for invalid{{ r }}ID.
 func assert{{ r }}NotFound(t *testing.T, err error) {
 	t.Helper()
 	var notFound *models.NotFoundError
@@ -112,7 +111,6 @@ func assert{{ r }}NotFound(t *testing.T, err error) {
 {%- endif %}
 {%- if uses_body %}
 
-// assert{{ r }}BadRequest checks that err is a 400 validation error.
 func assert{{ r }}BadRequest(t *testing.T, err error) {
 	t.Helper()
 	assert.ErrorAs(t, err, new(*models.ValidationError))

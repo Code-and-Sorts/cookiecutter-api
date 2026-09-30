@@ -17,18 +17,13 @@ import (
 	"{{project_endpoint}}/models"
 )
 
-// Response messages for errors that do not come from a resource.
 const (
 	NotFoundMessage         = "Not found."
 	MethodNotAllowedMessage = "Method not allowed."
 	UnexpectedErrorMessage  = "An unexpected error occurred."
 )
 
-// errorStatus maps err to its HTTP status and the message sent to the client.
-// Unexpected errors, including a database call that ran out of time, are
-// logged with a stack trace and never shown to clients. A request the client
-// cancelled (for example by disconnecting) is not an error and is logged at
-// info level.
+// Unexpected errors are logged with a stack trace and never shown to clients.
 func errorStatus(ctx context.Context, err error) (int, string) {
 	var notFound *models.NotFoundError
 	var validation *models.ValidationError
@@ -46,13 +41,11 @@ func errorStatus(ctx context.Context, err error) (int, string) {
 	}
 }
 
-// LogUnexpected logs err at error level with the current stack trace.
 func LogUnexpected(err any) {
 	slog.Error("Unexpected error", "error", err, "stack", string(debug.Stack()))
 }
 {%- if cloud_service != 'AWS Lambda' %}
 
-// WriteJSON writes body as a JSON response with the given status code.
 func WriteJSON(w http.ResponseWriter, statusCode int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -61,19 +54,16 @@ func WriteJSON(w http.ResponseWriter, statusCode int, body any) {
 	}
 }
 
-// WriteError writes the JSON error body {"errorMessage": message}.
 func WriteError(w http.ResponseWriter, statusCode int, message string) {
 	WriteJSON(w, statusCode, models.BaseError{ErrorMessage: message})
 }
 
-// DetectError writes the error response that matches err.
 func DetectError(ctx context.Context, w http.ResponseWriter, err error) {
 	statusCode, message := errorStatus(ctx, err)
 	WriteError(w, statusCode, message)
 }
 {%- else %}
 
-// JSONResponse builds an API Gateway response with a JSON body.
 func JSONResponse(statusCode int, body any) events.APIGatewayProxyResponse {
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -87,7 +77,6 @@ func JSONResponse(statusCode int, body any) events.APIGatewayProxyResponse {
 	}
 }
 
-// GenerateErrorResponse builds the JSON error body {"errorMessage": message}.
 func GenerateErrorResponse(message string, statusCode int) events.APIGatewayProxyResponse {
 	body, _ := json.Marshal(models.BaseError{ErrorMessage: message})
 	return events.APIGatewayProxyResponse{
@@ -97,7 +86,6 @@ func GenerateErrorResponse(message string, statusCode int) events.APIGatewayProx
 	}
 }
 
-// DetectError builds the error response that matches err.
 func DetectError(ctx context.Context, err error) events.APIGatewayProxyResponse {
 	statusCode, message := errorStatus(ctx, err)
 	return GenerateErrorResponse(message, statusCode)

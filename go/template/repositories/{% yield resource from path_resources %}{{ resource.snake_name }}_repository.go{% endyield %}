@@ -71,7 +71,6 @@ func New{{ r }}Repository(container *azcosmos.ContainerClient) {{ r }}Repository
 }
 {%- if needs_get_item %}
 
-// getItem reads a record that exists and is not soft-deleted.
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	resp, err := repo.container.ReadItem(ctx, azcosmos.NewPartitionKeyString(id), id, nil)
 	if err != nil {
@@ -95,9 +94,7 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 {%- endif %}
 {%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
 
-// write stores item. Writes don't request the item back from Cosmos DB (the
-// SDK returns no body unless EnableContentResponseOnWrite is set), so callers
-// build their response from the item they wrote.
+// The SDK returns no body unless EnableContentResponseOnWrite is set, so callers respond with the item they wrote.
 func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
 	data, err := json.Marshal(item)
 	if err != nil {
@@ -124,7 +121,6 @@ func New{{ r }}Repository(collection *firestore.CollectionRef) {{ r }}Repository
 }
 {%- if needs_get_item %}
 
-// getItem reads a record that exists and is not soft-deleted.
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	doc, err := repo.collection.Doc(id).Get(ctx)
 	if err != nil {
@@ -148,7 +144,6 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 {%- endif %}
 {%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
 
-// write stores item as the whole document.
 func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
 	doc := repo.collection.Doc(item.Id)
 	var err error
@@ -172,7 +167,6 @@ func New{{ r }}Repository(client *dynamodb.Client, tableName string) {{ r }}Repo
 }
 {%- if needs_get_item %}
 
-// getItem reads a record that exists and is not soft-deleted.
 func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
@@ -205,8 +199,6 @@ func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models
 {%- endif %}
 {%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
 
-// write stores item as the whole record. A create fails instead of
-// overwriting an existing id.
 func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
@@ -239,7 +231,6 @@ func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ 
 {%- endif %}
 {%- if 'list' in ops %}
 
-// GetList returns up to limit records that are not soft-deleted.
 func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	results := make([]models.{{ r }}Dto, 0)
 {%- if cloud_service == 'Azure Function App' %}
@@ -334,8 +325,6 @@ func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }})
 {%- endif %}
 {%- if 'update' in ops %}
 
-// Update changes the name when one is given and refreshes updatedTimestamp,
-// keeping every other stored field.
 func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	updated, err := repo.getItem(ctx, item.Id)
 	if err != nil {
@@ -360,8 +349,6 @@ func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }})
 {%- endif %}
 {%- if 'replace' in ops %}
 
-// Replace overwrites the client-settable fields, keeping id, createdTimestamp
-// and createdBy, and refreshes updatedTimestamp.
 func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
 	current, err := repo.getItem(ctx, item.Id)
 	if err != nil {
@@ -389,7 +376,6 @@ func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}
 {%- endif %}
 {%- if 'delete' in ops %}
 
-// Delete soft-deletes the record: it is kept with isDeleted set to true.
 func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
 	item, err := repo.getItem(ctx, id)
 	if err != nil {

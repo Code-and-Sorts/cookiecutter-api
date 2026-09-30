@@ -1,7 +1,4 @@
-# Every resource shape the default single resource doesn't cover, in one render:
-# each operation subset (full CRUD, list-only, delete-only, update-only, replace-only,
-# create-only), containers shared across resources, a hyphenated container and endpoint,
-# names of differing lengths, and no health check (health_endpoint left empty).
+# Every resource shape the default single resource doesn't cover, in one CI render.
 health_endpoint: ""
 resources:
   - name: "Cat"

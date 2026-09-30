@@ -59,8 +59,7 @@ func (c *{{ lc }}Controller) Get(ctx context.Context, id string) (*models.{{ r }
 {%- endif %}
 {%- if "list" in ops %}
 
-// GetList returns at most limit records (see CoerceLimit), never nil, so an
-// empty list is encoded as [].
+// Never returns nil, so an empty list encodes as [] rather than null.
 func (c *{{ lc }}Controller) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
 	items, err := c.service.GetList(ctx, CoerceLimit(limit))
 	if err != nil {

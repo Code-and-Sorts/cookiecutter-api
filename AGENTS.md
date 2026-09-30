@@ -230,4 +230,5 @@ Azure Functions, Cloud Run functions and AWS Lambda all support the new version 
 - **.NET**: NuGet for packages, xUnit v3 for tests, solution/project structure
 - **Go**: Go modules, `go test`, gofmt enforced through golangci-lint
 - Template files use `{{ variable_name }}` in both filenames and content
+- Comments only record a reason the code can't show (a platform or SDK quirk, a workaround, a security choice), in one short line; never restate what the code does
 - Keep controllers, services, and error types cloud-agnostic — only repositories and entry points should contain cloud-specific code

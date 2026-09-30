@@ -15,24 +15,20 @@ import (
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' %}
 {%- if cloud_service != 'AWS Lambda' %}
 
-// RegisterHealthRoute serves the health check at GET {{ route_prefix }}/{{ health_endpoint }}.
 func RegisterHealthRoute(mux *http.ServeMux) {
 	mux.HandleFunc("GET {{ route_prefix }}/{{ health_endpoint }}", handleHealth)
 	mux.HandleFunc("{{ route_prefix }}/{{ health_endpoint }}", methodNotAllowed)
 }
 
-// handleHealth reports that the API is up.
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 {%- else %}
 
-// RegisterHealthRoute serves the health check at GET /{{ health_endpoint }}.
 func RegisterHealthRoute(router *Router) {
 	router.Handle("/{{ health_endpoint }}", handleHealth)
 }
 
-// handleHealth reports that the API is up.
 func handleHealth(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 	if request.HTTPMethod != http.MethodGet {
 		return methodNotAllowed()

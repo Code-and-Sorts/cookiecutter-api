@@ -22,8 +22,6 @@ var {{ schema | to_lower_camel }}Schema string
 {%- endfor %}
 {%- endif %}
 
-// RequestSchemas returns the JSON schemas that validate request bodies, keyed
-// by the name each controller passes to SchemaValidator.Validate.
 func RequestSchemas() map[string]string {
 	schemas := make(map[string]string)
 {%- for schema in ns.schemas %}
@@ -33,9 +31,7 @@ func RequestSchemas() map[string]string {
 }
 {%- if ns.schemas %}
 
-// decodeRequest validates the raw request body against the named schema, so
-// unknown fields and wrongly typed values are rejected, then decodes it into
-// target.
+// Validating the raw body first rejects unknown fields and wrongly typed values.
 func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaName string, target any) error {
 	data, err := io.ReadAll(body)
 	if err != nil {

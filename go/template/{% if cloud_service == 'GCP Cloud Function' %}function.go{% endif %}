@@ -1,5 +1,4 @@
-// Package function is the Cloud Run function. Deploy it with --entry-point
-// api; cmd/main.go runs it locally with the Functions Framework.
+// Package function is the Cloud Run function; deploy it with --entry-point api.
 package function
 
 import (
@@ -24,8 +23,6 @@ func init() {
 	functions.HTTP("api", newAPI().ServeHTTP)
 }
 
-// newAPI wires every resource's repository, service, controller and routes
-// into one handler that routes by path.
 func newAPI() http.Handler {
 	validator, err := services.NewSchemaValidator(controllers.RequestSchemas())
 	exitOnError("Failed to initialize schema validator", err)
@@ -47,8 +44,6 @@ func newAPI() http.Handler {
 	return handlers.Recover(handlers.WithRequestTimeout(router))
 }
 
-// newFirestoreClient connects to the database named by FIRESTORE_DATABASE
-// (default "(default)") in the GCP_PROJECT_ID project.
 func newFirestoreClient() *firestore.Client {
 	projectID := os.Getenv("GCP_PROJECT_ID")
 	if projectID == "" {
@@ -64,8 +59,6 @@ func newFirestoreClient() *firestore.Client {
 	return client
 }
 
-// firestoreCollection returns the collection named by the setting, or by
-// defaultName when the setting is unset.
 func firestoreCollection(client *firestore.Client, setting, defaultName string) *firestore.CollectionRef {
 	name := os.Getenv(setting)
 	if name == "" {
@@ -74,7 +67,6 @@ func firestoreCollection(client *firestore.Client, setting, defaultName string) 
 	return client.Collection(name)
 }
 
-// exitOnError logs err at error level and exits when err is not nil.
 func exitOnError(message string, err error) {
 	if err != nil {
 		slog.Error(message, "error", err)

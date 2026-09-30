@@ -13,10 +13,8 @@ import (
 	"{{project_endpoint}}/models"
 )
 
-// SchemaValidator validates raw JSON request bodies against named JSON schemas.
 type SchemaValidator interface {
-	// Validate returns a *models.ValidationError when body is not valid JSON or
-	// does not match the schema.
+	// Validate returns a *models.ValidationError for invalid JSON or a schema mismatch.
 	Validate(body []byte, schemaName string) error
 }
 
@@ -71,8 +69,6 @@ func (v *schemaValidator) Validate(body []byte, schemaName string) error {
 	return nil
 }
 
-// describe turns the leaf schema failures into one readable message, for
-// example "name: got number, want string."
 func (v *schemaValidator) describe(err *jsonschema.ValidationError) string {
 	var problems []string
 	var collect func(e *jsonschema.ValidationError)

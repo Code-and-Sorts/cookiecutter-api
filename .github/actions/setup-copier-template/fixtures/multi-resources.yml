@@ -1,9 +1,4 @@
-# Multi-resource showcase for the published example branches.
-#
-# Two resources sharing a single storage container ("animals") with different
-# operation subsets — Cat exposes PATCH (update) while Dog exposes PUT
-# (replace) — to demonstrate configurable endpoints, shared storage, and
-# per-operation method subsetting in one generated project.
+# Showcase for the published example branches only; CI uses edge.
 resources:
   - name: "Cat"
     endpoint: "cats"
