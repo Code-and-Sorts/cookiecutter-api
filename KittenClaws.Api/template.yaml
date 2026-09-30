@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+Metadata:
+  cfn-lint:
+    config:
+      # SAM's generated usage plan resources carry a redundant DependsOn.
+      ignore_checks:
+        - W3005
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: dotnet10
+    MemorySize: 256
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
+Resources:
+  GetKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.KittenClawsFunctions_GetKittenClaws_Generated::GetKittenClaws
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTENCLAWS: !Ref KittenclawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenclawsTable
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /kittenclaws/{id}
+            Method: GET
+  GetKittenClawsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.KittenClawsFunctions_GetKittenClawsList_Generated::GetKittenClawsList
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTENCLAWS: !Ref KittenclawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenclawsTable
+      Events:
+        GetList:
+          Type: Api
+          Properties:
+            Path: /kittenclaws
+            Method: GET
+  CreateKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.KittenClawsFunctions_CreateKittenClaws_Generated::CreateKittenClaws
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTENCLAWS: !Ref KittenclawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenclawsTable
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /kittenclaws
+            Method: POST
+  UpdateKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.KittenClawsFunctions_UpdateKittenClaws_Generated::UpdateKittenClaws
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTENCLAWS: !Ref KittenclawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenclawsTable
+      Events:
+        Update:
+          Type: Api
+          Properties:
+            Path: /kittenclaws/{id}
+            Method: PATCH
+  DeleteKittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.KittenClawsFunctions_DeleteKittenClaws_Generated::DeleteKittenClaws
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_KITTENCLAWS: !Ref KittenclawsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KittenclawsTable
+      Events:
+        Delete:
+          Type: Api
+          Properties:
+            Path: /kittenclaws/{id}
+            Method: DELETE
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.HealthFunctions_Health_Generated::Health
+      CodeUri: ./
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+            Auth:
+              ApiKeyRequired: false
+  KittenclawsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kittenclaws
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  ApiKeyId:
+    Description: API key id; read its value with aws apigateway get-api-key --api-key <id> --include-value --query value --output text
+    Value: !Ref ServerlessRestApiApiKey
+  KittenclawsTableName:
+    Description: DynamoDB table name for the kittenclaws container
+    Value: !Ref KittenclawsTable
