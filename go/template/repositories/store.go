@@ -2,19 +2,15 @@
 {%- set need_get = path_resources | selectattr('has_id') | list | length > 0 -%}
 {%- set need_write = all_ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 {%- set need_one = all_ops | select('in', ['get_by_id', 'create', 'update', 'replace']) | list | length > 0 -%}
-{%- set need_decode = cloud_service == 'GCP Cloud Function' and (need_get or 'list' in all_ops) -%}
 package repositories
 
 import (
 	"context"
-{%- if cloud_service == 'Azure Function App' or need_decode %}
+{%- if cloud_service == 'Azure Function App' %}
 	"encoding/json"
-{%- endif %}
-{%- if cloud_service == 'Azure Function App' and 'list' in all_ops %}
+{%- if 'list' in all_ops %}
 	"fmt"
 {%- endif %}
-{%- if need_decode %}
-	"time"
 {%- endif %}
 {% if cloud_service == 'Azure Function App' %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -68,22 +64,6 @@ type store[T any, P record[T]] struct {
 func newStore[T any, P record[T]](resource string, container Container) *store[T, P] {
 	return &store[T, P]{resource: resource, container: container}
 }
-{%- if need_decode %}
-
-// Projects generated before the string timestamps stored native Firestore Timestamps.
-func decode(data map[string]any, item any) error {
-	for key, value := range data {
-		if t, ok := value.(time.Time); ok {
-			data[key] = t.UTC().Format(models.TimestampLayout)
-		}
-	}
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(raw, item)
-}
-{%- endif %}
 {%- if need_get %}
 
 func (s *store[T, P]) get(ctx context.Context, id string) (*T, error) {
@@ -107,7 +87,7 @@ func (s *store[T, P]) get(ctx context.Context, id string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := decode(doc.Data(), item); err != nil {
+	if err := doc.DataTo(item); err != nil {
 		return nil, err
 	}
 {%- elif cloud_service == 'AWS Lambda' %}
@@ -223,7 +203,7 @@ func (s *store[T, P]) list(ctx context.Context, limit int) ([]T, error) {
 		}
 
 		var item T
-		if err := decode(doc.Data(), &item); err != nil {
+		if err := doc.DataTo(&item); err != nil {
 			return nil, err
 		}
 		results = append(results, item)

@@ -41,14 +41,17 @@ The REST API exposes the following resources and operations:
 
 {%- if health_endpoint %}
 
-A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and answers `200 {"status":"ok"}`{% if cloud_service == 'Azure Function App' %} without a function key{% endif %}.
+A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and answers `200 {"status":"ok"}`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% endif %}.
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 
 Routes are served under the Functions host's default `/api` prefix. The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed){% if health_endpoint %}; the health check function is anonymous{% endif %}.
 {%- elif cloud_service == 'AWS Lambda' %}
 
-API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`).
+API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`). Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires an API key sent as `x-api-key: <value>`; step 5 of [Setup and Installation](#setup-and-installation) shows how to read it after deploying. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+
+The deployed function requires IAM: callers need the Cloud Run Invoker role and send `Authorization: Bearer $(gcloud auth print-identity-token)`.{% if health_endpoint %} The health check sits behind the same check, because the project exposes one function.{% endif %}
 {%- endif %}
 
 ### Responses
@@ -241,11 +244,16 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
       --source . \
       --entry-point api \
       --trigger-http \
-      --allow-unauthenticated \
+      --no-allow-unauthenticated \
       --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_key }}={{ c.container }}{% endfor %}
     ```
 
-    The function's routes have no prefix: `https://<function-url>/{{ resources[0].endpoint }}`.
+    The function's routes have no prefix, and callers need the Cloud Run Invoker role:
+
+    ```console
+    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+      https://<function-url>/{{ resources[0].endpoint }}
+    ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 1. Install AWS SAM CLI
@@ -270,10 +278,24 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     make run
     ```
 
-    This command builds the Go binary using SAM and starts the local API Gateway, where you can interact with your API endpoints.
+    This command builds the Go binary using SAM and starts the local API Gateway, where you can interact with your API endpoints. The local API does not enforce API keys.
+
+5. Deploy to AWS
+
+    ```console
+    sam build
+    sam deploy --guided
+    ```
+
+    SAM creates an API key and usage plan for the API. Read the key's value from the `{{ project_class_name }}ApiKeyId` stack output and send it in an `x-api-key` header:
+
+    ```console
+    aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
+    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}
+    ```
 {%- endif %}
 
-{{ 7 if cloud_service == 'GCP Cloud Function' else 5 }}. Thunderclient
+{{ {'GCP Cloud Function': 7, 'AWS Lambda': 6}.get(cloud_service, 5) }}. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 
