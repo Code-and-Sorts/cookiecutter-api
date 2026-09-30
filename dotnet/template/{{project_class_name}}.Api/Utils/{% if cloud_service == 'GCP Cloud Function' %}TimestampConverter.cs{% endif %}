@@ -1,0 +1,11 @@
+namespace {{project_class_name}}.Api.Utils;
+
+using Google.Cloud.Firestore;
+
+public class TimestampConverter : IFirestoreConverter<string>
+{
+    public object ToFirestore(string value) => value;
+
+    // Projects generated before timestamps were strings stored native Firestore Timestamps.
+    public string FromFirestore(object value) => value is Timestamp timestamp ? Timestamps.Format(timestamp.ToDateTime()) : (string)value;
+}

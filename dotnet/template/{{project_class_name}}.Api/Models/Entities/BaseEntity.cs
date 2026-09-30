@@ -3,6 +3,7 @@ namespace {{project_class_name}}.Api.Entities;
 
 using System.Collections.Generic;
 using Google.Cloud.Firestore;
+using {{project_class_name}}.Api.Utils;
 {%- elif cloud_service == 'AWS Lambda' %}
 
 using System.Collections.Generic;
@@ -22,11 +23,11 @@ public class BaseEntity
 {%- endif %}
     public bool IsDeleted { get; set; } = false;
 {% if cloud_service == 'GCP Cloud Function' %}
-    [FirestoreProperty("createdTimestamp")]
+    [FirestoreProperty("createdTimestamp", ConverterType = typeof(TimestampConverter))]
 {%- endif %}
     public string CreatedTimestamp { get; set; } = default!;
 {% if cloud_service == 'GCP Cloud Function' %}
-    [FirestoreProperty("updatedTimestamp")]
+    [FirestoreProperty("updatedTimestamp", ConverterType = typeof(TimestampConverter))]
 {%- endif %}
     public string UpdatedTimestamp { get; set; } = default!;
 {% if cloud_service == 'GCP Cloud Function' %}

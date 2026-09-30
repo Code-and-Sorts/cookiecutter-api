@@ -1,9 +1,19 @@
 {%- set r = resources[0].name -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
+using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Google.Api.Gax.Grpc;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
+using Grpc.Core;
 using {{project_class_name}}.Api.Entities;
+using {{project_class_name}}.Api.Repositories;
+using NSubstitute;
 using Xunit;
+using ProtoTimestamp = Google.Protobuf.WellKnownTypes.Timestamp;
 
 public class FirestoreDocumentTests
 {
@@ -15,5 +25,51 @@ public class FirestoreDocumentTests
         Assert.Equal(new[] { "createdTimestamp", "id", "isDeleted", "name", "updatedTimestamp" }, item.ToDocument().Keys.Order().ToArray());
         item.CreatedBy = "User2";
         Assert.Equal("User2", item.ToDocument()["createdBy"]);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReadsNativeTimestampsAsStrings()
+    {
+        const string id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+        var created = ProtoTimestamp.FromDateTime(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddTicks(1234567));
+        var client = Substitute.For<FirestoreClient>();
+        client.Settings.Returns(FirestoreSettings.GetDefault());
+        var document = new Document
+        {
+            Name = $"projects/p/databases/(default)/documents/c/{id}",
+            Fields =
+            {
+                { "id", new Value { StringValue = id } },
+                { "name", new Value { StringValue = "mock" } },
+                { "isDeleted", new Value { BooleanValue = false } },
+                { "createdTimestamp", new Value { TimestampValue = created } },
+                { "updatedTimestamp", new Value { StringValue = "2026-02-01T00:00:00.000Z" } },
+            },
+            CreateTime = created,
+            UpdateTime = created,
+        };
+        client.BatchGetDocuments(Arg.Any<BatchGetDocumentsRequest>(), Arg.Any<CallSettings>())
+            .Returns(new Stream(new BatchGetDocumentsResponse { Found = document, ReadTime = document.UpdateTime }));
+        var store = new FirestoreDocumentStore<{{ r }}Entity>(FirestoreDb.Create("p", client), "c");
+
+        var item = await store.GetAsync(id, TestContext.Current.CancellationToken);
+
+        Assert.Equal("2026-01-01T00:00:00.123Z", item!.CreatedTimestamp);
+        Assert.Equal("2026-02-01T00:00:00.000Z", item.UpdatedTimestamp);
+    }
+
+    private sealed class Stream(BatchGetDocumentsResponse response) : FirestoreClient.BatchGetDocumentsStream
+    {
+        public override AsyncServerStreamingCall<BatchGetDocumentsResponse> GrpcCall =>
+            new(new Reader(response), Task.FromResult(new Metadata()), () => Status.DefaultSuccess, () => [], () => { });
+    }
+
+    private sealed class Reader(BatchGetDocumentsResponse response) : IAsyncStreamReader<BatchGetDocumentsResponse>
+    {
+        private bool _read;
+
+        public BatchGetDocumentsResponse Current => response;
+
+        public Task<bool> MoveNext(CancellationToken cancellationToken) => Task.FromResult(!_read && (_read = true));
     }
 }

@@ -72,6 +72,7 @@ public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : 
         return item;
     }
 
+    // Projects generated before createdBy/updatedBy were optional stored empty strings.
     private static T FromItem(Dictionary<string, AttributeValue> item)
     {
         var entity = new T
@@ -80,8 +81,8 @@ public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : 
             IsDeleted = item.TryGetValue("isDeleted", out var isDeleted) && isDeleted.BOOL == true,
             CreatedTimestamp = item.TryGetValue("createdTimestamp", out var createdTimestamp) ? createdTimestamp.S : string.Empty,
             UpdatedTimestamp = item.TryGetValue("updatedTimestamp", out var updatedTimestamp) ? updatedTimestamp.S : string.Empty,
-            CreatedBy = item.TryGetValue("createdBy", out var createdBy) ? createdBy.S : null,
-            UpdatedBy = item.TryGetValue("updatedBy", out var updatedBy) ? updatedBy.S : null,
+            CreatedBy = item.TryGetValue("createdBy", out var createdBy) && !string.IsNullOrEmpty(createdBy.S) ? createdBy.S : null,
+            UpdatedBy = item.TryGetValue("updatedBy", out var updatedBy) && !string.IsNullOrEmpty(updatedBy.S) ? updatedBy.S : null,
         };
         entity.ReadAttributes(item);
         return entity;
