@@ -34,9 +34,9 @@ export class {{ r }}Controller {
   }
 {%- if "create" in ops %}
 
-  post = async (body: unknown): Promise<{{ r }}Response> => {
+  post = async (body: unknown, userId?: string): Promise<{{ r }}Response> => {
     const item = this._validator.validate(body, {{ r }}RequestSchema);
-    return this._service.create(item);
+    return this._service.create(item, userId);
   };
 {%- endif %}
 {%- if "get_by_id" in ops %}
@@ -53,25 +53,25 @@ export class {{ r }}Controller {
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = async (id: string, body: unknown): Promise<{{ r }}Response> => {
+  update = async (id: string, body: unknown, userId?: string): Promise<{{ r }}Response> => {
     assertUuid('{{ r }}', id);
     const item = this._validator.validate(body, {{ r }}UpdateSchema);
-    return this._service.update(id, item);
+    return this._service.update(id, item, userId);
   };
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = async (id: string, body: unknown): Promise<{{ r }}Response> => {
+  replace = async (id: string, body: unknown, userId?: string): Promise<{{ r }}Response> => {
     assertUuid('{{ r }}', id);
     const item = this._validator.validate(body, {{ r }}RequestSchema);
-    return this._service.replace(id, item);
+    return this._service.replace(id, item, userId);
   };
 {%- endif %}
 {%- if "delete" in ops %}
 
-  delete = async (id: string): Promise<{ message: string }> => {
+  delete = async (id: string, userId?: string): Promise<{ message: string }> => {
     assertUuid('{{ r }}', id);
-    await this._service.delete(id);
+    await this._service.delete(id, userId);
     return { message: `{{ r }} with id ${id} was deleted successfully.` };
   };
 {%- endif %}

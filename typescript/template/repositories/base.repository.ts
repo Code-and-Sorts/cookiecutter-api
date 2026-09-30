@@ -5,6 +5,9 @@ import { DocumentStore } from './document.store';
 
 export type RecordFields<T extends BaseItemRecord> = Omit<T, keyof BaseItemRecord>;
 
+// updatedBy names the latest writer, so a write without a user id drops any earlier value.
+const updatedBy = (userId?: string): Pick<BaseItemRecord, 'updatedBy'> => (userId === undefined ? {} : { updatedBy: userId });
+
 // Protected so each resource repository exposes only the operations its resource declares.
 export abstract class BaseRepository<T extends BaseItemRecord> {
   constructor(
@@ -21,10 +24,18 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
 
   protected notFound = (id: string): NotFoundError => NotFoundError.forItem(this.resourceName, id);
 
-  protected addRecord = (fields: RecordFields<T>): Promise<T> =>
+  protected addRecord = (fields: RecordFields<T>, userId?: string): Promise<T> =>
     this.guard('Error creating item in database.', async () => {
       const now = nowIso();
-      const record = { ...fields, id: newId(), isDeleted: false, createdTimestamp: now, updatedTimestamp: now } as T;
+      const record = {
+        ...fields,
+        id: newId(),
+        isDeleted: false,
+        createdTimestamp: now,
+        updatedTimestamp: now,
+        ...(userId !== undefined && { createdBy: userId }),
+        ...updatedBy(userId),
+      } as T;
       await this.store.create(record);
       return record;
     });
@@ -35,12 +46,13 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
   protected getRecords = (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> =>
     this.guard('Error retrieving items from database.', () => this.store.query(limit));
 
-  protected updateRecord = (id: string, fields: Partial<RecordFields<T>>): Promise<T> =>
-    this.guard(`Error upserting item with id ${id}.`, async () =>
-      this.save({ ...(await this.findLive(id)), ...fields, id, updatedTimestamp: nowIso() }),
-    );
+  protected updateRecord = (id: string, fields: Partial<RecordFields<T>>, userId?: string): Promise<T> =>
+    this.guard(`Error upserting item with id ${id}.`, async () => {
+      const { updatedBy: _previous, ...current } = await this.findLive(id);
+      return this.save({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T);
+    });
 
-  protected replaceRecord = (id: string, fields: RecordFields<T>): Promise<T> =>
+  protected replaceRecord = (id: string, fields: RecordFields<T>, userId?: string): Promise<T> =>
     this.guard(`Error replacing item with id ${id}.`, async () => {
       const { createdTimestamp, createdBy } = await this.findLive(id);
       return this.save({
@@ -51,12 +63,13 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
         updatedTimestamp: nowIso(),
         // Omitted, never stored as undefined, when the record has none.
         ...(createdBy !== undefined && { createdBy }),
+        ...updatedBy(userId),
       } as T);
     });
 
-  protected deleteRecord = (id: string): Promise<void> =>
+  protected deleteRecord = (id: string, userId?: string): Promise<void> =>
     this.guard(`Error deleting record with id ${id}.`, async () => {
-      if (!(await this.store.softDelete(id, nowIso()))) {
+      if (!(await this.store.softDelete(id, nowIso(), userId))) {
         throw this.notFound(id);
       }
     });

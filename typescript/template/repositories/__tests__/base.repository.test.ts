@@ -9,12 +9,12 @@ type Item = BaseItemRecord & { name: string };
 
 // Exposes the protected methods so they are tested whichever operations resources use.
 class TestRepository extends BaseRepository<Item> {
-    declare public addRecord: (fields: { name: string }) => Promise<Item>;
+    declare public addRecord: (fields: { name: string }, userId?: string) => Promise<Item>;
     declare public getRecord: (id: string) => Promise<Item>;
     declare public getRecords: (limit?: number) => Promise<Item[]>;
-    declare public updateRecord: (id: string, fields: { name?: string }) => Promise<Item>;
-    declare public replaceRecord: (id: string, fields: { name: string }) => Promise<Item>;
-    declare public deleteRecord: (id: string) => Promise<void>;
+    declare public updateRecord: (id: string, fields: { name?: string }, userId?: string) => Promise<Item>;
+    declare public replaceRecord: (id: string, fields: { name: string }, userId?: string) => Promise<Item>;
+    declare public deleteRecord: (id: string, userId?: string) => Promise<void>;
 }
 
 const id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
@@ -52,20 +52,27 @@ describe('BaseRepository', () => {
     };
 
     describe('addRecord', () => {
-        it('should store a new live record with a UUID and one timestamp for both fields', async () => {
+        it('should store a new live record with a UUID, one timestamp and the user id for both fields', async () => {
             // A second clock reading would differ, so equal timestamps prove the clock was read once.
             jest.spyOn(Date.prototype, 'toISOString')
                 .mockReturnValueOnce('2026-01-01T00:00:00.000Z')
                 .mockReturnValueOnce('2026-01-01T00:00:00.001Z');
-            const result = await repository.addRecord({ name: 'new' });
+            const result = await repository.addRecord({ name: 'new' }, 'creator');
             expect(result).toEqual({
                 id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
                 name: 'new',
                 isDeleted: false,
                 createdTimestamp: '2026-01-01T00:00:00.000Z',
                 updatedTimestamp: '2026-01-01T00:00:00.000Z',
+                createdBy: 'creator',
+                updatedBy: 'creator',
             });
             expect(store.create).toHaveBeenCalledWith(result);
+        });
+
+        it('should omit createdBy and updatedBy without a user id', async () => {
+            const result = await repository.addRecord({ name: 'new' });
+            expect('createdBy' in result || 'updatedBy' in result).toBe(false);
         });
 
         it('should wrap a store failure in a proxy error', async () => {
@@ -113,12 +120,19 @@ describe('BaseRepository', () => {
     });
 
     describe('updateRecord', () => {
-        it('should merge the fields and refresh updatedTimestamp only', async () => {
+        it('should merge the fields and refresh updatedTimestamp and updatedBy only', async () => {
             store.read.mockResolvedValue(stored);
-            const result = await repository.updateRecord(id, { name: 'updated' });
-            expect(result).toEqual({ ...stored, name: 'updated', updatedTimestamp: expect.stringMatching(isoTimestamp) });
+            const result = await repository.updateRecord(id, { name: 'updated' }, 'editor');
+            expect(result).toEqual({ ...stored, name: 'updated', updatedBy: 'editor', updatedTimestamp: expect.stringMatching(isoTimestamp) });
             expect(result.updatedTimestamp).not.toEqual(stored.updatedTimestamp);
             expect(store.write).toHaveBeenCalledWith(result);
+        });
+
+        it('should drop the stored updatedBy without a user id', async () => {
+            store.read.mockResolvedValue(stored);
+            const result = await repository.updateRecord(id, { name: 'updated' });
+            expect(result.createdBy).toEqual(stored.createdBy);
+            expect('updatedBy' in result).toBe(false);
         });
 
         it('should report a missing record or one that vanished before the write as not found', async () => {
@@ -140,23 +154,24 @@ describe('BaseRepository', () => {
     describe('replaceRecord', () => {
         it('should write the fields as a live record that keeps the stored created fields', async () => {
             store.read.mockResolvedValue(stored);
-            const result = await repository.replaceRecord(id, { name: 'replaced' });
+            const result = await repository.replaceRecord(id, { name: 'replaced' }, 'editor');
             expect(result).toEqual({
                 id,
                 name: 'replaced',
                 isDeleted: false,
                 createdBy: 'mockUser',
+                updatedBy: 'editor',
                 createdTimestamp: stored.createdTimestamp,
                 updatedTimestamp: expect.stringMatching(isoTimestamp),
             });
             expect(store.write).toHaveBeenCalledWith(result);
         });
 
-        it('should omit createdBy when the stored record has none', async () => {
+        it('should omit createdBy when the stored record has none and updatedBy without a user id', async () => {
             const { createdBy: _createdBy, ...withoutCreatedBy } = stored;
             store.read.mockResolvedValue(withoutCreatedBy);
             const result = await repository.replaceRecord(id, { name: 'replaced' });
-            expect('createdBy' in result).toBe(false);
+            expect('createdBy' in result || 'updatedBy' in result).toBe(false);
         });
 
         it('should report a missing record as not found', async () => {
@@ -174,9 +189,11 @@ describe('BaseRepository', () => {
     });
 
     describe('deleteRecord', () => {
-        it('should soft delete with a fresh updatedTimestamp', async () => {
+        it('should soft delete with a fresh updatedTimestamp and the user id, if any', async () => {
+            await repository.deleteRecord(id, 'deleter');
+            expect(store.softDelete).toHaveBeenCalledWith(id, expect.stringMatching(isoTimestamp), 'deleter');
             await repository.deleteRecord(id);
-            expect(store.softDelete).toHaveBeenCalledWith(id, expect.stringMatching(isoTimestamp));
+            expect(store.softDelete).toHaveBeenLastCalledWith(id, expect.stringMatching(isoTimestamp), undefined);
         });
 
         it('should report a missing or already deleted record as not found', async () => {

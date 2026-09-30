@@ -5,19 +5,22 @@
 {%- set specs = [
     ('get_by_id', 'getById', 'GET', '/{id}', 200, 'get(request.params.id)'),
     ('list', 'list', 'GET', '', 200, "list(request.query.get('limit'))"),
-    ('create', 'create', 'POST', '', 201, 'post(parseJsonBody(await request.text()))'),
-    ('update', 'update', 'PATCH', '/{id}', 200, 'update(request.params.id, parseJsonBody(await request.text()))'),
-    ('replace', 'replace', 'PUT', '/{id}', 200, 'replace(request.params.id, parseJsonBody(await request.text()))'),
-    ('delete', 'delete', 'DELETE', '/{id}', 200, 'delete(request.params.id)'),
+    ('create', 'create', 'POST', '', 201, 'post(parseJsonBody(await request.text()), userId)'),
+    ('update', 'update', 'PATCH', '/{id}', 200, 'update(request.params.id, parseJsonBody(await request.text()), userId)'),
+    ('replace', 'replace', 'PUT', '/{id}', 200, 'replace(request.params.id, parseJsonBody(await request.text()), userId)'),
+    ('delete', 'delete', 'DELETE', '/{id}', 200, 'delete(request.params.id, userIdFrom(request))'),
 ] -%}
 import { app } from '@azure/functions';
 import { {{ c }}Controller } from '@config/container';
 {%- if has_body %}
 import { parseJsonBody } from '@utils';
 {%- endif %}
-import { handle } from './response';
+import { handle{% if ops | reject('in', ['list', 'get_by_id']) | list %}, userIdFrom{% endif %} } from './response';
 
 // Methods and paths with no registered function get the Functions host's own 404.
+{%- if has_body %}
+// Writes read the user id before the body so an invalid header is rejected first.
+{%- endif %}
 {%- for op, prefix, verb, suffix, status, call in specs %}
 {%- if op in ops %}
 
@@ -25,7 +28,14 @@ app.http('{{ prefix }}{{ r }}', {
     methods: ['{{ verb }}'],
     authLevel: 'function',
     route: '{{ resource.endpoint }}{{ suffix }}',
+{%- if op in ['list', 'get_by_id', 'delete'] %}
     handler: handle({{ status }}, async (request) => {{ c }}Controller.{{ call }}),
+{%- else %}
+    handler: handle({{ status }}, async (request) => {
+        const userId = userIdFrom(request);
+        return {{ c }}Controller.{{ call }};
+    }),
+{%- endif %}
 });
 {%- endif %}
 {%- endfor %}

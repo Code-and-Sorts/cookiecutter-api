@@ -14,7 +14,7 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
   }
 {%- if "create" in ops %}
 
-  create = (item: {{ r }}): Promise<{{ r }}Record> => this.addRecord(item);
+  create = (item: {{ r }}, userId?: string): Promise<{{ r }}Record> => this.addRecord(item, userId);
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
@@ -26,14 +26,16 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = (id: string, fields: {{ r }}Update): Promise<{{ r }}Record> => this.updateRecord(id, fields);
+  update = (id: string, fields: {{ r }}Update, userId?: string): Promise<{{ r }}Record> =>
+    this.updateRecord(id, fields, userId);
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = (id: string, item: {{ r }}): Promise<{{ r }}Record> => this.replaceRecord(id, item);
+  replace = (id: string, item: {{ r }}, userId?: string): Promise<{{ r }}Record> =>
+    this.replaceRecord(id, item, userId);
 {%- endif %}
 {%- if "delete" in ops %}
 
-  delete = (id: string): Promise<void> => this.deleteRecord(id);
+  delete = (id: string, userId?: string): Promise<void> => this.deleteRecord(id, userId);
 {%- endif %}
 }

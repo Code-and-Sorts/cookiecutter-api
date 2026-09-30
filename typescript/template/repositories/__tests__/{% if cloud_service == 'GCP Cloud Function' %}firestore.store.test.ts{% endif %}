@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { CollectionReference, Firestore } from '@google-cloud/firestore';
+import { CollectionReference, FieldValue, Firestore } from '@google-cloud/firestore';
 import { FirestoreStore, firestoreStoreFactory } from '@repositories';
 import { MockFn } from '../../test/mocks';
 
@@ -54,10 +54,16 @@ describe('FirestoreStore', () => {
         expect(set).toHaveBeenCalledWith(record);
     });
 
-    it('should soft delete only a live document', async () => {
+    it('should soft delete only a live document, setting or removing updatedBy', async () => {
         get.mockResolvedValue(snapshot(record));
-        expect(await store.softDelete(id, '2025-01-01T00:00:00.000Z')).toBe(true);
-        expect(update).toHaveBeenCalledWith({ isDeleted: true, updatedTimestamp: '2025-01-01T00:00:00.000Z' });
+        expect(await store.softDelete(id, '2025-01-01T00:00:00.000Z', 'deleter')).toBe(true);
+        expect(update).toHaveBeenCalledWith({ isDeleted: true, updatedTimestamp: '2025-01-01T00:00:00.000Z', updatedBy: 'deleter' });
+        await store.softDelete(id, '2025-01-01T00:00:00.000Z');
+        expect(update).toHaveBeenLastCalledWith({
+            isDeleted: true,
+            updatedTimestamp: '2025-01-01T00:00:00.000Z',
+            updatedBy: FieldValue.delete(),
+        });
     });
 
     it('should report a missing or already deleted document as not deleted', async () => {

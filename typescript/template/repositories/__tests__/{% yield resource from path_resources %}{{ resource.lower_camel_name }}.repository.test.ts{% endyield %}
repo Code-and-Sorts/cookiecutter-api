@@ -47,8 +47,8 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate create to the base repository', async () => {
         const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.create(mockFields)).toEqual(mockRecord);
-        expect(spy).toHaveBeenCalledWith(mockFields);
+        expect(await mockRepository.create(mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockFields, 'mockUser');
     });
 {%- endif %}
 {%- if "get_by_id" in ops %}
@@ -71,24 +71,24 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate update to the base repository', async () => {
         const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.update(mockId, mockFields)).toEqual(mockRecord);
-        expect(spy).toHaveBeenCalledWith(mockId, mockFields);
+        expect(await mockRepository.update(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 {%- endif %}
 {%- if "replace" in ops %}
 
     it('should delegate replace to the base repository', async () => {
         const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.replace(mockId, mockFields)).toEqual(mockRecord);
-        expect(spy).toHaveBeenCalledWith(mockId, mockFields);
+        expect(await mockRepository.replace(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 {%- endif %}
 {%- if "delete" in ops %}
 
     it('should delegate delete to the base repository', async () => {
         const spy = jest.spyOn(base, 'deleteRecord').mockResolvedValue(undefined);
-        await mockRepository.delete(mockId);
-        expect(spy).toHaveBeenCalledWith(mockId);
+        await mockRepository.delete(mockId, 'mockUser');
+        expect(spy).toHaveBeenCalledWith(mockId, 'mockUser');
     });
 {%- endif %}
 });

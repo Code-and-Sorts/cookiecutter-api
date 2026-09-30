@@ -66,14 +66,19 @@ describe('DynamoStore', () => {
         expect(input(1)).toEqual({ TableName: 'animals', Item: record });
     });
 
-    it('should soft delete only a live item', async () => {
+    it('should soft delete only a live item, setting or removing updatedBy', async () => {
         send.mockResolvedValue({});
-        expect(await store.softDelete(id, '2025-01-01T00:00:00.000Z')).toBe(true);
+        expect(await store.softDelete(id, '2025-01-01T00:00:00.000Z', 'deleter')).toBe(true);
         expect(input(0)).toEqual({
             TableName: 'animals',
             Key: { id },
             ConditionExpression: 'isDeleted = :live',
-            UpdateExpression: 'SET isDeleted = :deleted, updatedTimestamp = :ts',
+            UpdateExpression: 'SET isDeleted = :deleted, updatedTimestamp = :ts, updatedBy = :by',
+            ExpressionAttributeValues: { ':live': false, ':deleted': true, ':ts': '2025-01-01T00:00:00.000Z', ':by': 'deleter' },
+        });
+        await store.softDelete(id, '2025-01-01T00:00:00.000Z');
+        expect(input(1)).toMatchObject({
+            UpdateExpression: 'SET isDeleted = :deleted, updatedTimestamp = :ts REMOVE updatedBy',
             ExpressionAttributeValues: { ':live': false, ':deleted': true, ':ts': '2025-01-01T00:00:00.000Z' },
         });
     });

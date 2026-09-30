@@ -71,7 +71,7 @@ const mockResponse = () =>
 const send = async (method: string, path: string, body?: unknown) => {
     const res = mockResponse();
     const rawBody = body === undefined ? undefined : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
-    await api({ method, path, rawBody, query: {} }, res);
+    await api({ method, path, rawBody, query: {}, headers: {} }, res);
     return { status: res.status.mock.calls[0][0], body: res.json.mock.calls[0][0] };
 };
 {%- else %}
@@ -184,7 +184,7 @@ describe('client disconnects', () => {
         });
         const res = mockResponse();
         const rawBody = Buffer.from(JSON.stringify({ name: 'mockName' }));
-        const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {} }, res);
+        const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {}, headers: {} }, res);
         await new Promise((resolve) => setImmediate(resolve));
         expect(signal?.aborted).toBe(false);
         res.emit('close');
@@ -203,7 +203,7 @@ describe('client disconnects', () => {
         });
         const res = mockResponse();
         const rawBody = Buffer.from(JSON.stringify({ name: 'mockName' }));
-        const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {} }, res);
+        const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {}, headers: {} }, res);
         await pending;
         res.writableEnded = true;
         res.emit('close');

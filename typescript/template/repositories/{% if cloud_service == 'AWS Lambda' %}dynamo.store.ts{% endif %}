@@ -40,14 +40,21 @@ export class DynamoStore<T extends BaseItemRecord> implements DocumentStore<T> {
     return true;
   };
 
-  softDelete = async (id: string, updatedTimestamp: string): Promise<boolean> => {
+  softDelete = async (id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean> => {
+    const set = 'SET isDeleted = :deleted, updatedTimestamp = :ts';
     try {
       await this.client.send(new UpdateCommand({
         TableName: this.tableName,
         Key: { id },
         ConditionExpression: 'isDeleted = :live',
-        UpdateExpression: 'SET isDeleted = :deleted, updatedTimestamp = :ts',
-        ExpressionAttributeValues: { ':live': false, ':deleted': true, ':ts': updatedTimestamp },
+        UpdateExpression: updatedBy === undefined ? `${set} REMOVE updatedBy` : `${set}, updatedBy = :by`,
+        // DynamoDB rejects expression values the expression does not use.
+        ExpressionAttributeValues: {
+          ':live': false,
+          ':deleted': true,
+          ':ts': updatedTimestamp,
+          ...(updatedBy !== undefined && { ':by': updatedBy }),
+        },
       }));
       return true;
     } catch (error) {

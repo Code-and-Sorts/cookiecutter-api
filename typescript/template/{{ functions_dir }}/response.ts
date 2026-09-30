@@ -1,5 +1,5 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { detectError } from '@utils';
+import { detectError, parseUserId, USER_ID_HEADER } from '@utils';
 
 export const jsonResponse = (status: number, body: unknown): HttpResponseInit => ({
   status,
@@ -21,3 +21,5 @@ export const handle =
       return errorResponse(error, context);
     }
   };
+
+export const userIdFrom = (request: HttpRequest): string | undefined => parseUserId(request.headers.get(USER_ID_HEADER));

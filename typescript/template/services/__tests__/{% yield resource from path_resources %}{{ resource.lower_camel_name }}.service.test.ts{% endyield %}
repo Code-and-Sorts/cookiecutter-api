@@ -33,8 +33,8 @@ describe('{{ r }}Service', () => {
 
     it('should create through the repository and answer with the response fields only', async () => {
         repository.create.mockResolvedValue(mockRecord);
-        expect(await service.create(mockFields)).toEqual(mockResponse);
-        expect(repository.create).toHaveBeenCalledWith(mockFields);
+        expect(await service.create(mockFields, 'mockUser')).toEqual(mockResponse);
+        expect(repository.create).toHaveBeenCalledWith(mockFields, 'mockUser');
     });
 {%- endif %}
 {%- if "get_by_id" in ops %}
@@ -57,8 +57,8 @@ describe('{{ r }}Service', () => {
 
     it('should update through the repository and answer with the response fields only', async () => {
         repository.update.mockResolvedValue(mockRecord);
-        expect(await service.update(mockId, mockFields)).toEqual(mockResponse);
-        expect(repository.update).toHaveBeenCalledWith(mockId, mockFields);
+        expect(await service.update(mockId, mockFields, 'mockUser')).toEqual(mockResponse);
+        expect(repository.update).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 
     it('should propagate not found from update', async () => {
@@ -70,8 +70,8 @@ describe('{{ r }}Service', () => {
 
     it('should replace through the repository and answer with the response fields only', async () => {
         repository.replace.mockResolvedValue(mockRecord);
-        expect(await service.replace(mockId, mockFields)).toEqual(mockResponse);
-        expect(repository.replace).toHaveBeenCalledWith(mockId, mockFields);
+        expect(await service.replace(mockId, mockFields, 'mockUser')).toEqual(mockResponse);
+        expect(repository.replace).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 
     it('should propagate not found from replace', async () => {
@@ -83,8 +83,8 @@ describe('{{ r }}Service', () => {
 
     it('should delete through the repository', async () => {
         repository.delete.mockResolvedValue(undefined);
-        await service.delete(mockId);
-        expect(repository.delete).toHaveBeenCalledWith(mockId);
+        await service.delete(mockId, 'mockUser');
+        expect(repository.delete).toHaveBeenCalledWith(mockId, 'mockUser');
     });
 {%- endif %}
 });

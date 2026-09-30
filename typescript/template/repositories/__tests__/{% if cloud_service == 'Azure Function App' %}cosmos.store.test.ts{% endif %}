@@ -63,15 +63,21 @@ describe('CosmosStore', () => {
         expect(await store.write(record)).toBe(false);
     });
 
-    it('should soft delete only a live item', async () => {
-        expect(await store.softDelete(id, '2025-01-01T00:00:00.000Z')).toBe(true);
+    it('should soft delete only a live item, setting or removing updatedBy', async () => {
+        const operations = [
+            { op: 'set', path: '/isDeleted', value: true },
+            { op: 'set', path: '/updatedTimestamp', value: '2025-01-01T00:00:00.000Z' },
+        ];
+        expect(await store.softDelete(id, '2025-01-01T00:00:00.000Z', 'deleter')).toBe(true);
         expect(item).toHaveBeenCalledWith(id, id);
         expect(patch).toHaveBeenCalledWith({
             condition: 'FROM c WHERE c.isDeleted = false',
-            operations: [
-                { op: 'set', path: '/isDeleted', value: true },
-                { op: 'set', path: '/updatedTimestamp', value: '2025-01-01T00:00:00.000Z' },
-            ],
+            operations: [...operations, { op: 'set', path: '/updatedBy', value: 'deleter' }],
+        });
+        await store.softDelete(id, '2025-01-01T00:00:00.000Z');
+        expect(patch).toHaveBeenLastCalledWith({
+            condition: 'FROM c WHERE c.isDeleted = false',
+            operations: [...operations, { op: 'set', path: '/updatedBy', value: '' }, { op: 'remove', path: '/updatedBy' }],
         });
     });
 

@@ -29,11 +29,16 @@ export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
 
   write = (item: T): Promise<boolean> => this.ifFound(this.container.item(item.id, item.id).replace<T>(item));
 
-  softDelete = (id: string, updatedTimestamp: string): Promise<boolean> => {
+  softDelete = (id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean> => {
     const operations: PatchOperation[] = [
       { op: 'set', path: '/isDeleted', value: true },
       { op: 'set', path: '/updatedTimestamp', value: updatedTimestamp },
+      { op: 'set', path: '/updatedBy', value: updatedBy ?? '' },
     ];
+    if (updatedBy === undefined) {
+      // Patch remove fails on a missing path, so the set above guarantees one exists.
+      operations.push({ op: 'remove', path: '/updatedBy' });
+    }
     return this.ifFound(this.container.item(id, id).patch({ condition: 'FROM c WHERE c.isDeleted = false', operations }));
   };
 

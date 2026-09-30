@@ -45,10 +45,10 @@ describe('{{ r }}Controller', () => {
 {%- if "create" in ops %}
 
     describe('post', () => {
-        it('should pass the validated body to the service', async () => {
+        it('should pass the validated body and user id to the service', async () => {
             mockCreate.mockResolvedValue({ id: mockValidGuid, ...mockBody });
-            expect(await mockController.post(mockBody)).toEqual({ id: mockValidGuid, ...mockBody });
-            expect(mockCreate).toHaveBeenCalledWith(mockBody);
+            expect(await mockController.post(mockBody, 'mockUser')).toEqual({ id: mockValidGuid, ...mockBody });
+            expect(mockCreate).toHaveBeenCalledWith(mockBody, 'mockUser');
         });
 
         it('should return 400 when name is missing', async () => {
@@ -118,14 +118,14 @@ describe('{{ r }}Controller', () => {
 {%- if "update" in ops %}
 
     describe('update', () => {
-        it('should pass the path id and validated body to the service', async () => {
-            await mockController.update(mockValidGuid, mockBody);
-            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, mockBody);
+        it('should pass the path id, validated body and user id to the service', async () => {
+            await mockController.update(mockValidGuid, mockBody, 'mockUser');
+            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, mockBody, 'mockUser');
         });
 
         it('should accept an empty body', async () => {
             await mockController.update(mockValidGuid, {});
-            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, {});
+            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, {}, undefined);
         });
 
         it('should return 400 when name is present but empty or not a string', async () => {
@@ -152,9 +152,9 @@ describe('{{ r }}Controller', () => {
 {%- if "replace" in ops %}
 
     describe('replace', () => {
-        it('should pass the path id and validated body to the service', async () => {
-            await mockController.replace(mockValidGuid, mockBody);
-            expect(mockReplace).toHaveBeenCalledWith(mockValidGuid, mockBody);
+        it('should pass the path id, validated body and user id to the service', async () => {
+            await mockController.replace(mockValidGuid, mockBody, 'mockUser');
+            expect(mockReplace).toHaveBeenCalledWith(mockValidGuid, mockBody, 'mockUser');
         });
 
         it('should return 400 when name is missing', async () => {
@@ -177,10 +177,10 @@ describe('{{ r }}Controller', () => {
 
     describe('delete', () => {
         it('should call the service and return the confirmation message', async () => {
-            expect(await mockController.delete(mockValidGuid)).toEqual({
+            expect(await mockController.delete(mockValidGuid, 'mockUser')).toEqual({
                 message: `{{ r }} with id ${mockValidGuid} was deleted successfully.`,
             });
-            expect(mockDelete).toHaveBeenCalledWith(mockValidGuid);
+            expect(mockDelete).toHaveBeenCalledWith(mockValidGuid, 'mockUser');
         });
 
         it('should return 404 for an id that is not a UUID', async () => {

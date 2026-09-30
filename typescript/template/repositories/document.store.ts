@@ -7,8 +7,8 @@ export interface DocumentStore<T extends BaseItemRecord> {
   create(item: T): Promise<void>;
   /** Resolves false when the item no longer exists. */
   write(item: T): Promise<boolean>;
-  /** Resolves false when the item is missing or already deleted. */
-  softDelete(id: string, updatedTimestamp: string): Promise<boolean>;
+  /** Resolves false when the item is missing or already deleted; removes updatedBy when none is given. */
+  softDelete(id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean>;
 }
 
 export type StoreFactory = <T extends BaseItemRecord>(name: string) => DocumentStore<T>;

@@ -25,7 +25,8 @@ export class {{ r }}Service {
   }
 {%- if "create" in ops %}
 
-  create = async (item: {{ r }}): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.create(item));
+  create = async (item: {{ r }}, userId?: string): Promise<{{ r }}Response> =>
+    to{{ r }}Response(await this._repo.create(item, userId));
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
@@ -37,14 +38,16 @@ export class {{ r }}Service {
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = async (id: string, fields: {{ r }}Update): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.update(id, fields));
+  update = async (id: string, fields: {{ r }}Update, userId?: string): Promise<{{ r }}Response> =>
+    to{{ r }}Response(await this._repo.update(id, fields, userId));
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = async (id: string, item: {{ r }}): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.replace(id, item));
+  replace = async (id: string, item: {{ r }}, userId?: string): Promise<{{ r }}Response> =>
+    to{{ r }}Response(await this._repo.replace(id, item, userId));
 {%- endif %}
 {%- if "delete" in ops %}
 
-  delete = (id: string): Promise<void> => this._repo.delete(id);
+  delete = (id: string, userId?: string): Promise<void> => this._repo.delete(id, userId);
 {%- endif %}
 }

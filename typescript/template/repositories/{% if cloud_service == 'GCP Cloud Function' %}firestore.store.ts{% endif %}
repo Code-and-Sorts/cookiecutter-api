@@ -1,4 +1,4 @@
-import { CollectionReference, Firestore } from '@google-cloud/firestore';
+import { CollectionReference, FieldValue, Firestore } from '@google-cloud/firestore';
 import { BaseItemRecord } from '@models';
 import { DocumentStore, StoreFactory } from './document.store';
 
@@ -24,12 +24,12 @@ export class FirestoreStore<T extends BaseItemRecord> implements DocumentStore<T
     return true;
   };
 
-  softDelete = async (id: string, updatedTimestamp: string): Promise<boolean> => {
+  softDelete = async (id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean> => {
     const current = await this.read(id);
     if (!current || current.isDeleted) {
       return false;
     }
-    await this.collection.doc(id).update({ isDeleted: true, updatedTimestamp });
+    await this.collection.doc(id).update({ isDeleted: true, updatedTimestamp, updatedBy: updatedBy ?? FieldValue.delete() });
     return true;
   };
 }
