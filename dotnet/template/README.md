@@ -280,10 +280,16 @@ Resources that use the same container share its records: there is no type discri
 5. Deploy
 
     ```console
-    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
+    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --no-allow-unauthenticated --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
     ```
 
     The whole API is one HTTP function. The .NET Functions Framework names the entry point by its type, so `--entry-point` is the `{{ project_class_name }}.Api.Function` class, which routes every request by its path.
+
+    The function is private: callers need the Cloud Run Invoker role and send `Authorization: Bearer $(gcloud auth print-identity-token)`. Because the whole API is one function, the health check sits behind the same IAM check.
+
+    ```console
+    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" <function-url>/{{ resources[0].endpoint }}
+    ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
@@ -309,10 +315,27 @@ Resources that use the same container share its records: there is no type discri
     make run
     ```
 
-    This command builds the project and starts a local API Gateway using SAM CLI, where you can interact with your API endpoints.
+    This command builds the project and starts a local API Gateway using SAM CLI, where you can interact with your API endpoints. `sam local start-api` does not enforce API keys.
+
+5. Deploy
+
+    ```console
+    cd {{ project_class_name }}.Api
+    sam build
+    sam deploy --guided
+    ```
+
+    Resource routes require an API key{% if health_endpoint %}; the health check does not{% endif %}. SAM creates the key and a usage plan, and the `ApiKeyId` stack output holds its id. Read the value and send it as the `x-api-key` header:
+
+    ```console
+    aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
+    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}
+    ```
+
+    An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
 {%- endif %}
 
-{% if cloud_service == 'GCP Cloud Function' %}6{% else %}5{% endif %}. Thunderclient
+{% if cloud_service == 'Azure Function App' %}5{% else %}6{% endif %}. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 

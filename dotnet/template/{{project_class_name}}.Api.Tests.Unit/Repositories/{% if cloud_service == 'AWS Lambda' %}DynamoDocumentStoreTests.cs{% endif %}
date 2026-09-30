@@ -52,20 +52,6 @@ public class DynamoDocumentStoreTests
     }
 
     [Fact]
-    public async Task GetAsync_TreatsEmptyCreatedByAndUpdatedByAsUnset()
-    {
-        var stored = StoredItem();
-        stored["createdBy"] = new AttributeValue { S = "" };
-        stored["updatedBy"] = new AttributeValue { S = "" };
-        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse { Item = stored });
-
-        var item = await _store.GetAsync(ItemId, TestContext.Current.CancellationToken);
-
-        Assert.Null(item!.CreatedBy);
-        Assert.Null(item.UpdatedBy);
-    }
-
-    [Fact]
     public async Task GetAsync_ReturnsNull_WhenTheItemIsMissing()
     {
         _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse());

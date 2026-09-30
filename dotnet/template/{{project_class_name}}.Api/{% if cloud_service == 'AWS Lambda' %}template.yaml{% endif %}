@@ -1,11 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: {{project_description}}
+Metadata:
+  cfn-lint:
+    config:
+      # SAM's generated usage plan resources carry a redundant DependsOn.
+      ignore_checks:
+        - W3005
 Globals:
   Function:
     Timeout: 30
     Runtime: dotnet10
     MemorySize: 256
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
 Resources:
 {%- for resource in path_resources %}
 {%- set cn = resource.name %}
@@ -138,6 +149,8 @@ Resources:
           Properties:
             Path: /{{ health_endpoint }}
             Method: GET
+            Auth:
+              ApiKeyRequired: false
 {%- endif %}
 {%- for c in path_resources | unique(attribute='container') %}
   {{ c.container_class }}Table:
@@ -156,6 +169,9 @@ Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  ApiKeyId:
+    Description: API key id; read its value with aws apigateway get-api-key --api-key <id> --include-value --query value --output text
+    Value: !Ref ServerlessRestApiApiKey
 {%- for c in path_resources | unique(attribute='container') %}
   {{ c.container_class }}TableName:
     Description: DynamoDB table name for the {{ c.container }} container
