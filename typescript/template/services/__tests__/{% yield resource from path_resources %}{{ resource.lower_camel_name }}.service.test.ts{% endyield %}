@@ -115,6 +115,21 @@ describe('{{ r }}Service', () => {
             expect('updatedBy' in written).toBe(false);
             expect(result).toEqual({ id: written.id, ...mockCreateRequest });
         });
+
+        it('should use one clock reading for both timestamps', async () => {
+            mockCreate.mockImplementation(async (entity) => entity);
+            const clock = jest.spyOn(Date.prototype, 'toISOString')
+                .mockReturnValueOnce('2026-01-01T00:00:00.000Z')
+                .mockReturnValueOnce('2026-01-01T00:00:00.001Z');
+            try {
+                await mockService.create(mockCreateRequest);
+            } finally {
+                clock.mockRestore();
+            }
+            const written = mockCreate.mock.calls[0][0];
+            expect(written.createdTimestamp).toBe('2026-01-01T00:00:00.000Z');
+            expect(written.updatedTimestamp).toBe(written.createdTimestamp);
+        });
     });
 {%- endif %}
 {%- if "get_by_id" in resource.operations %}

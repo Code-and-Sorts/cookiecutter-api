@@ -127,6 +127,16 @@ def describe_base_repository_records():
             }
             assert result == _ItemResponse(id=record["id"], name="mockName1")
 
+        def test_uses_one_clock_reading_for_both_timestamps():
+            repository = _offline_repository()
+            ticks = iter(["2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.001Z"])
+            with patch(_TIMESTAMP, side_effect=lambda: next(ticks)) as clock:
+                asyncio.run(repository._create({"name": "mockName1"}))
+
+            record = _written(repository)
+            assert record["createdTimestamp"] == record["updatedTimestamp"] == "2026-01-01T00:00:00.000Z"
+            assert clock.call_count == 1
+
         def test_generates_a_new_id_each_time():
             repository = _offline_repository()
             asyncio.run(repository._create({"name": "a"}))

@@ -99,7 +99,9 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   and never echoed to the client. API Gateway (403) and the Azure host (404) answer some unmapped methods
   before app code runs.
 - **Storage:** `id`, `name`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
-  `Z`), plus `createdBy`/`updatedBy` only when set. Update and replace keep the created fields; delete is soft.
+  `Z`), plus `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both
+  `createdTimestamp` and `updatedTimestamp` (never a separate default per field, which can differ by a
+  millisecond). Update and replace keep the created fields; delete is soft.
 - **Azure auth:** resource functions use function keys; the health function is anonymous.
 - `?limit=` on list is honoured everywhere.
 - A failing database yields the generic 500 within 10 seconds: database calls use a per-request deadline or

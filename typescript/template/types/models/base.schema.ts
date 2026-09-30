@@ -7,8 +7,10 @@ export const BaseIdentifier = z.object({
 
 export const BaseSchema = BaseIdentifier.extend({
     isDeleted: z.boolean().default(false),
-    createdTimestamp: z.string().default(() => new Date().toISOString()),
-    updatedTimestamp: z.string().default(() => new Date().toISOString()),
+    // No per-field defaults: the service sets both from one clock reading so a new record's
+    // createdTimestamp and updatedTimestamp are always identical.
+    createdTimestamp: z.string(),
+    updatedTimestamp: z.string(),
     createdBy: z.string().optional(),
     updatedBy: z.string().optional(),
 });

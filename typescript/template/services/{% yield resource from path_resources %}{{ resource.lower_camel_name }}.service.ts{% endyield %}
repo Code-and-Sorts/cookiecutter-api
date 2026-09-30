@@ -28,9 +28,10 @@ export class {{ r }}Service {
   }
 {%- if "create" in ops %}
 
-  // Assigns a new id and both timestamps; createdBy/updatedBy are omitted when unset.
+  // Assigns a new id and both timestamps from one clock reading; createdBy/updatedBy are omitted when unset.
   create = async (item: {{ r }}): Promise<{{ r }}Response> => {
-    const newItem = {{ r }}EntitySchema.parse(item);
+    const now = new Date().toISOString();
+    const newItem = {{ r }}EntitySchema.parse({ ...item, createdTimestamp: now, updatedTimestamp: now });
     const createdItem = await this._repo.create(newItem);
     return {{ r }}ResponseSchema.parse(createdItem);
   };
@@ -60,12 +61,14 @@ export class {{ r }}Service {
 {%- if "replace" in ops %}
 
   replace = async (id: string, item: {{ r }}): Promise<{{ r }}Response> => {
-    // The repository keeps the stored createdTimestamp and createdBy.
+    // The repository replaces createdTimestamp and createdBy with the stored values.
+    const now = new Date().toISOString();
     const entity = {{ r }}EntitySchema.parse({
       ...item,
       id,
       isDeleted: false,
-      updatedTimestamp: new Date().toISOString(),
+      createdTimestamp: now,
+      updatedTimestamp: now,
     });
     const replacedItem = await this._repo.replace(entity);
     return {{ r }}ResponseSchema.parse(replacedItem);
