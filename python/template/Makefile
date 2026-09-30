@@ -46,6 +46,12 @@ build-{{ project_class_name }}Function:
 		mkdir -p "$(ARTIFACTS_DIR)/$$(dirname "$$file")" && cp "$$file" "$(ARTIFACTS_DIR)/$$file"; \
 	done
 {%- else -%}
+.PHONY: requirements
+requirements: ## Export the main dependencies from poetry.lock to requirements.txt for deployment
+	@poetry export --help >/dev/null 2>&1 || { echo "Run 'make install' first: it installs the poetry-plugin-export plugin declared in pyproject.toml." >&2; exit 1; }
+	@poetry export --only main --format requirements.txt --output requirements.txt
+	@echo "📦 Wrote requirements.txt"
+
 .PHONY: build
 build: clean-build ## Build wheel file using poetry
 	@echo "🎡 Creating wheel file"

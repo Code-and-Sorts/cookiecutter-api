@@ -5,11 +5,24 @@ import azure.functions as func
 from azure.cosmos.aio import ContainerProxy, CosmosClient
 from config import get_settings
 from utils import detect_error, response_generator
+from utils.deadline import within_deadline
 
 # One client for the life of the worker, as the Cosmos DB SDK recommends: the
 # Functions worker runs every async function on the same event loop.
 _client: CosmosClient | None = None
 _client_lock = asyncio.Lock()
+
+# Keep each Cosmos DB call short and its retries few, so a failing database
+# answers quickly; utils/deadline.py bounds the whole request on top of this.
+CLIENT_OPTIONS = {
+    "timeout": 5,
+    "connection_timeout": 2,
+    "read_timeout": 3,
+    "retry_total": 2,
+    "retry_connect": 1,
+    "retry_read": 1,
+    "retry_backoff_max": 1,
+}
 
 
 async def get_container(container_id: str) -> ContainerProxy:
@@ -18,7 +31,7 @@ async def get_container(container_id: str) -> ContainerProxy:
     settings = get_settings()
     async with _client_lock:
         if _client is None:
-            client = CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key)
+            client = CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key, **CLIENT_OPTIONS)
             await client.__aenter__()
             _client = client
     database = _client.get_database_client(settings.cosmos_db_database_name)
@@ -28,9 +41,11 @@ async def get_container(container_id: str) -> ContainerProxy:
 async def handle(container_id, build_controller, operation, status_code: int = 200) -> func.HttpResponse:
     """Build the controller for ``container_id``, run ``operation`` against it
     and answer with its result as JSON, or with the error it raised."""
+    async def run():
+        return await operation(build_controller(await get_container(container_id)))
+
     try:
-        controller = build_controller(await get_container(container_id))
-        return response_generator(await operation(controller), status_code)
+        return response_generator(await within_deadline(run()), status_code)
     except Exception as error:
         return detect_error(error)
 {%- endif %}
@@ -48,6 +63,7 @@ import asyncio
 import threading
 from google.cloud import firestore
 from config import get_settings
+from utils.deadline import DATABASE_TIMEOUT_SECONDS, within_deadline
 
 _lock = threading.Lock()
 _loop: asyncio.AbstractEventLoop | None = None
@@ -78,14 +94,24 @@ def run(container_id, build_controller, operation):
     """Build the controller for ``container_id`` and run ``operation`` against it
     on the Firestore event loop, returning its result."""
     async def _run():
-        return await operation(build_controller(_collection(container_id)))
+        return await within_deadline(operation(build_controller(_collection(container_id))))
 
-    return asyncio.run_coroutine_threadsafe(_run(), _event_loop()).result()
+    future = asyncio.run_coroutine_threadsafe(_run(), _event_loop())
+    # The coroutine enforces the deadline itself; this only guards the thread.
+    return future.result(timeout=DATABASE_TIMEOUT_SECONDS + 1)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' -%}
 """DynamoDB wiring shared by every resource's handlers."""
+import asyncio
+from collections.abc import Coroutine
 import aioboto3
+from utils.deadline import within_deadline
 
 # Sessions are not tied to an event loop, so one serves every invocation.
 session = aioboto3.Session()
+
+
+def run[T](operation: Coroutine[object, object, T]) -> T:
+    """Run one invocation's database work to completion, within the deadline."""
+    return asyncio.run(within_deadline(operation))
 {%- endif %}

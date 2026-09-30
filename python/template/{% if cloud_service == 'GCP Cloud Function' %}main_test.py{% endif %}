@@ -170,6 +170,26 @@ def describe_database_run():
         assert first[1] is second[1]
         assert first[1].is_running()
 
+    def test_slow_database_times_out(caplog):
+        real_within_deadline = database.within_deadline
+
+        async def hang(controller):
+            await asyncio.sleep(60)
+
+        with patch.object(database.firestore, "AsyncClient"), \
+                patch.object(database, "within_deadline", lambda work: real_within_deadline(work, 0.05)):
+            with pytest.raises(TimeoutError, match="did not answer within"):
+                database.run("container", lambda collection: collection, hang)
+
+    def test_slow_database_ends_in_500(caplog):
+        module, method, path, data, *_ = _ROUTES[0]
+        with patch.object(module, "run", side_effect=TimeoutError("The database did not answer within 8 seconds.")):
+            with caplog.at_level(logging.ERROR):
+                response = _call(method, path, data)
+
+        assert response == (500, "application/json", {"errorMessage": "An unexpected error occurred."})
+        assert "did not answer within" in caplog.text
+
     def test_propagates_errors():
         async def operation(controller):
             raise RuntimeError("boom")

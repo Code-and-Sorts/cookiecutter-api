@@ -4,11 +4,13 @@ from azure.cosmos.aio import ContainerProxy
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosResourceNotFoundError
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
+from google.api_core.retry_async import AsyncRetry
 from google.cloud.firestore import AsyncCollectionReference, FieldFilter
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 import aioboto3
 from boto3.dynamodb.conditions import Attr
+from botocore.config import Config
 from botocore.exceptions import ClientError
 {%- endif %}
 from typing import ClassVar, List
@@ -22,6 +24,26 @@ DEFAULT_LIST_LIMIT = 100
 
 # Stored fields that describe the record's creation: update and replace keep them.
 _CREATION_FIELDS = ("createdTimestamp", "createdBy")
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+# Bound every Firestore call (by default the SDK retries for up to 300 s): each
+# attempt gets 3 s and transient errors are retried for at most 5 s in total.
+# utils/deadline.py bounds the whole request on top of this.
+FIRESTORE_CALL_OPTIONS = {
+    "retry": AsyncRetry(initial=0.1, maximum=1.0, multiplier=2.0, timeout=5.0),
+    "timeout": 3.0,
+}
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+
+# Bound every DynamoDB call: 1 s to connect, 2 s to read, at most 2 attempts.
+# utils/deadline.py bounds the whole request on top of this.
+DYNAMODB_CONFIG = Config(
+    connect_timeout=1,
+    read_timeout=2,
+    retries={"total_max_attempts": 2, "mode": "standard"},
+)
+{%- endif %}
 
 
 class BaseRepository[ResponseT: BaseModel]:
@@ -55,6 +77,9 @@ class BaseRepository[ResponseT: BaseModel]:
         self.session = session
         self.table_name = table_name
         self.region = region
+
+    def _dynamodb(self):
+        return self.session.resource("dynamodb", region_name=self.region, config=DYNAMODB_CONFIG)
 {%- endif %}
 
     def _not_found(self, item_id: str) -> NotFoundError:
@@ -75,7 +100,7 @@ class BaseRepository[ResponseT: BaseModel]:
         raise self._not_found(item_id)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        doc = await self.collection.document(item_id).get()
+        doc = await self.collection.document(item_id).get(**FIRESTORE_CALL_OPTIONS)
         if not doc.exists:
             raise self._not_found(item_id)
 
@@ -86,7 +111,7 @@ class BaseRepository[ResponseT: BaseModel]:
         return data
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+        async with self._dynamodb() as dynamodb:
             table = await dynamodb.Table(self.table_name)
             response = await table.get_item(Key={"id": item_id})
         item = response.get("Item")
@@ -103,10 +128,10 @@ class BaseRepository[ResponseT: BaseModel]:
         await self.container_client.upsert_item(record)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-        await self.collection.document(record["id"]).set(record)
+        await self.collection.document(record["id"]).set(record, **FIRESTORE_CALL_OPTIONS)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+        async with self._dynamodb() as dynamodb:
             table = await dynamodb.Table(self.table_name)
             await table.put_item(Item=record)
 {%- endif %}
@@ -127,7 +152,7 @@ class BaseRepository[ResponseT: BaseModel]:
 {%- if cloud_service == 'GCP Cloud Function' %}
         query = self.collection.where(filter=FieldFilter("isDeleted", "==", False)).limit(limit)
         items = []
-        async for doc in query.stream():
+        async for doc in query.stream(**FIRESTORE_CALL_OPTIONS):
             items.append(self.response_model.model_validate(doc.to_dict()))
         return items
 {%- endif %}
@@ -136,7 +161,7 @@ class BaseRepository[ResponseT: BaseModel]:
         # reading pages until enough undeleted items are found.
         items = []
         filter_exp = Attr("isDeleted").eq(False) | Attr("isDeleted").not_exists()
-        async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+        async with self._dynamodb() as dynamodb:
             table = await dynamodb.Table(self.table_name)
             response = await table.scan(FilterExpression=filter_exp, Limit=limit)
             items.extend(response.get("Items", []))
@@ -211,16 +236,18 @@ class BaseRepository[ResponseT: BaseModel]:
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         doc_ref = self.collection.document(item_id)
-        doc = await doc_ref.get()
+        doc = await doc_ref.get(**FIRESTORE_CALL_OPTIONS)
 
         if not doc.exists or doc.to_dict().get('isDeleted', False):
             raise self._not_found(item_id)
 
-        await doc_ref.update({'isDeleted': True, 'updatedTimestamp': generate_utc_timestamp()})
+        await doc_ref.update(
+            {'isDeleted': True, 'updatedTimestamp': generate_utc_timestamp()}, **FIRESTORE_CALL_OPTIONS
+        )
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         try:
-            async with self.session.resource("dynamodb", region_name=self.region) as dynamodb:
+            async with self._dynamodb() as dynamodb:
                 table = await dynamodb.Table(self.table_name)
                 await table.update_item(
                     Key={"id": item_id},

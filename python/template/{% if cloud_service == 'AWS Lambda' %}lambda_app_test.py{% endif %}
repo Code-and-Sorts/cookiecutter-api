@@ -1,6 +1,7 @@
 {%- set routes = [('list', 'get_list', 'GET', False, 200), ('get_by_id', 'get_by_id', 'GET', True, 200), ('create', 'create', 'POST', False, 201), ('update', 'update', 'PATCH', True, 200), ('replace', 'replace', 'PUT', True, 200), ('delete', 'delete', 'DELETE', True, 200)] -%}
 """Unit tests for lambda_app.lambda_handler: routing, status codes and JSON
 responses. The database is replaced by mock controllers."""
+import asyncio
 import base64
 import json
 import logging
@@ -8,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from lambda_app import lambda_handler
 import blueprints
+from blueprints import database
 from controllers import ({% for resource in resources %}{{ resource.name }}Controller{% if not loop.last %}, {% endif %}{% endfor %})
 from repositories import ({% for resource in resources %}{{ resource.name }}Repository{% if not loop.last %}, {% endif %}{% endfor %})
 
@@ -159,6 +161,24 @@ def describe_lambda_handler():
 
         assert response == (500, "application/json", {"errorMessage": "An unexpected error occurred."})
         assert "secret detail" in caplog.text
+
+
+    def test_slow_database_ends_in_500_within_the_deadline(caplog):
+        module, method, resource, item_id, body, query, action, *_ = _ROUTES[0]
+        real_within_deadline = database.within_deadline
+
+        async def hang(*args):
+            await asyncio.sleep(60)
+
+        controller = MagicMock()
+        getattr(controller, action).side_effect = hang
+        with patch.object(module, "_controller", return_value=controller), \
+                patch.object(database, "within_deadline", lambda work: real_within_deadline(work, 0.05)):
+            with caplog.at_level(logging.ERROR):
+                response = _call(_event(method, resource, item_id, body, query))
+
+        assert response == (500, "application/json", {"errorMessage": "An unexpected error occurred."})
+        assert "did not answer within" in caplog.text
 
 
 def describe_controllers():

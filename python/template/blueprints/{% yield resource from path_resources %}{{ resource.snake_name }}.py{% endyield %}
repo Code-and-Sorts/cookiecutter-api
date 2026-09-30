@@ -92,7 +92,6 @@ def _build_controller(collection) -> {{ r }}Controller:
 Each handler takes the API Gateway event and the path's item id, and returns
 the status code and payload; lambda_app.py turns them into a JSON response.
 """
-import asyncio
 from functools import cache
 from config import get_settings
 from controllers import {{ r }}Controller
@@ -101,7 +100,7 @@ from repositories import {{ r }}Repository
 {%- if ('create' in ops) or ('update' in ops) or ('replace' in ops) %}
 from utils.routing import event_body
 {%- endif %}
-from .database import session
+from .database import run, session
 
 ENDPOINT = "{{ resource.endpoint }}"
 CONTAINER = "{{ resource.container }}"
@@ -126,12 +125,12 @@ def _controller() -> {{ r }}Controller:
 } %}
 {%- else %}
 {%- set call = {
-    'list': 'asyncio.run(_controller().get_list((event.get("queryStringParameters") or {}).get("limit")))',
-    'get_by_id': 'asyncio.run(_controller().get_by_id(item_id))',
-    'create': 'asyncio.run(_controller().create(event_body(event)))',
-    'update': 'asyncio.run(_controller().update(item_id, event_body(event)))',
-    'replace': 'asyncio.run(_controller().replace(item_id, event_body(event)))',
-    'delete': 'asyncio.run(_controller().delete(item_id))',
+    'list': 'run(_controller().get_list((event.get("queryStringParameters") or {}).get("limit")))',
+    'get_by_id': 'run(_controller().get_by_id(item_id))',
+    'create': 'run(_controller().create(event_body(event)))',
+    'update': 'run(_controller().update(item_id, event_body(event)))',
+    'replace': 'run(_controller().replace(item_id, event_body(event)))',
+    'delete': 'run(_controller().delete(item_id))',
 } %}
 {%- endif %}
 {%- set routes = [('list', 'get_list', 'GET', False, 200), ('get_by_id', 'get_by_id', 'GET', True, 200), ('create', 'create', 'POST', False, 201), ('update', 'update', 'PATCH', True, 200), ('replace', 'replace', 'PUT', True, 200), ('delete', 'delete', 'DELETE', True, 200)] %}

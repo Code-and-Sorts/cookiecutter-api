@@ -17,6 +17,12 @@ from google.cloud.firestore import FieldFilter
 from botocore.exceptions import ClientError
 {%- endif %}
 from repositories import BaseRepository
+{%- if cloud_service == 'GCP Cloud Function' %}
+from repositories.base_repository import FIRESTORE_CALL_OPTIONS
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+from repositories.base_repository import DYNAMODB_CONFIG
+{%- endif %}
 from errors import NotFoundError
 
 
@@ -283,12 +289,19 @@ def describe_firestore_storage():
     def collection():
         return MagicMock()
 
+    def test_calls_are_bounded():
+        retry = FIRESTORE_CALL_OPTIONS["retry"]
+        assert FIRESTORE_CALL_OPTIONS["timeout"] <= 3
+        assert retry._timeout <= 5
+        assert retry._maximum <= 1
+
     def describe_get_stored():
         def test_reads_document(collection):
             _doc_ref(collection, dict(_stored_item))
             result = asyncio.run(_ItemRepository(collection)._get_by_id(_ID))
 
             collection.document.assert_called_once_with(_ID)
+            collection.document.return_value.get.assert_awaited_once_with(**FIRESTORE_CALL_OPTIONS)
             assert result == _responses[0]
 
         @pytest.mark.parametrize("data", [None, {**_stored_item, "isDeleted": True}])
@@ -304,7 +317,7 @@ def describe_firestore_storage():
             asyncio.run(_ItemRepository(collection)._write(_stored_item))
 
             collection.document.assert_called_once_with(_ID)
-            doc_ref.set.assert_awaited_once_with(_stored_item)
+            doc_ref.set.assert_awaited_once_with(_stored_item, **FIRESTORE_CALL_OPTIONS)
 
     def describe_get_list():
         def test_filters_undeleted_with_limit(collection):
@@ -322,6 +335,7 @@ def describe_firestore_storage():
             assert isinstance(filter_arg, FieldFilter)
             assert (filter_arg.field_path, filter_arg.op_string, filter_arg.value) == ("isDeleted", "==", False)
             query.limit.assert_called_once_with(7)
+            query.stream.assert_called_once_with(**FIRESTORE_CALL_OPTIONS)
             assert result == _responses
 
         def test_empty_result(collection):
@@ -340,7 +354,9 @@ def describe_firestore_storage():
                 asyncio.run(_ItemRepository(collection)._delete(_ID))
 
             collection.document.assert_called_once_with(_ID)
-            doc_ref.update.assert_awaited_once_with({'isDeleted': True, 'updatedTimestamp': _NOW})
+            doc_ref.update.assert_awaited_once_with(
+                {'isDeleted': True, 'updatedTimestamp': _NOW}, **FIRESTORE_CALL_OPTIONS
+            )
 
         @pytest.mark.parametrize("data", [None, {**_stored_item, "isDeleted": True}])
         def test_missing_or_deleted_is_not_found(collection, data):
@@ -364,6 +380,15 @@ def describe_dynamodb_storage():
 
     def _repository(table):
         return _ItemRepository(_make_session(table), "items", "us-east-1")
+
+    def test_calls_are_bounded(table):
+        repository = _repository(table)
+        asyncio.run(repository._write(_stored_item))
+
+        repository.session.resource.assert_called_once_with("dynamodb", region_name="us-east-1", config=DYNAMODB_CONFIG)
+        assert DYNAMODB_CONFIG.connect_timeout <= 1
+        assert DYNAMODB_CONFIG.read_timeout <= 2
+        assert DYNAMODB_CONFIG.retries == {"total_max_attempts": 2, "mode": "standard"}
 
     def describe_get_stored():
         def test_reads_item(table):

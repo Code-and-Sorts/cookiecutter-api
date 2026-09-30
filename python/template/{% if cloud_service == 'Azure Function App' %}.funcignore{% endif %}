@@ -1,0 +1,16 @@
+.git*
+.vscode
+.venv
+.poetry
+.pytest_cache
+.ruff_cache
+.coverage
+.thunderclient
+__pycache__
+local.settings.json
+*_test.py
+Makefile
+poetry.lock
+poetry.toml
+pyproject.toml
+README.md

@@ -71,6 +71,8 @@ Resource functions use the `function` auth level, so calls need a function key (
 API Gateway only forwards the routes declared in `template.yaml`: for any other path or method it answers `403 {"message": "Missing Authentication Token"}` itself, without invoking the function. The function's own 404 and 405 answers apply when it is invoked some other way.
 {%- endif %}
 
+If the database fails or cannot be reached, the request ends with that 500 within 8 seconds: every database call has a short timeout and a capped retry policy, and `utils/deadline.py` bounds each request's database work as a whole.
+
 Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Update and replace keep the creation fields; delete sets `isDeleted` and refreshes `updatedTimestamp`.
 
 {% if cloud_service == 'Azure Function App' -%}
@@ -218,6 +220,20 @@ Settings are read from environment variables (case-insensitive).
 5. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
+
+6. Deploy to Azure
+
+    Azure Functions installs Python dependencies from a `requirements.txt`. Generate it from `poetry.lock` (it is gitignored, so regenerate it before every publish):
+
+    ```console
+    make requirements
+    ```
+
+    This runs `poetry export --only main --output requirements.txt`; the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin is declared in `pyproject.toml` and installed by `make install`. Then publish with a remote build (`.funcignore` keeps the virtual environment, tests and Poetry files out of the package), and set the settings listed under [Configuration](#configuration) as application settings:
+
+    ```console
+    func azure functionapp publish <FunctionAppName> --python
+    ```
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
 1. Install Google Cloud SDK
@@ -250,11 +266,13 @@ Settings are read from environment variables (case-insensitive).
 
 6. Deploy to GCP
 
-    Cloud Run functions install dependencies from a `requirements.txt`. Export one from Poetry first (the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin is declared in `pyproject.toml`, so Poetry installs it on first use):
+    Cloud Run functions install dependencies from a `requirements.txt`. Generate it from `poetry.lock` (it is gitignored, so regenerate it before every deploy):
 
     ```console
-    poetry export --only main --output requirements.txt
+    make requirements
     ```
+
+    This runs `poetry export --only main --output requirements.txt`; the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin is declared in `pyproject.toml` and installed by `make install`.
 
     Then deploy the single `api` entry point:
 
@@ -311,7 +329,7 @@ Settings are read from environment variables (case-insensitive).
     sam deploy --guided
     ```
 
-    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `poetry.lock` (run `make install` first), installs them as Linux x86_64 wheels for Python 3.14 with `python3 -m pip` (override with `make PYTHON=...`), and copies every project module except the tests. It needs `make`, Poetry and `python3` with pip, but not Docker.
+    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `poetry.lock` (run `make install` first), installs them as Linux x86_64 wheels for Python 3.14 with the pip of the Poetry environment (`poetry env info --executable`, override with `make LAMBDA_PYTHON=...`), and copies every project module except the tests. It needs `make` and Poetry, but not Docker.
 {%- endif %}
 
 ## Development Workflow
@@ -385,7 +403,7 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
 {%- endfor %}
-{{ "%-34s" | format("├── utils") }}- JSON responses, error handling{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
+{{ "%-34s" | format("├── utils") }}- JSON responses, error handling, database deadline{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
 {%- if health_endpoint %}
 {{ "%-34s" | format("├── health_test.py") }}- Health check unit tests
 {%- endif %}
