@@ -2,8 +2,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field
 from errors import NotFoundError, ValidationError
 from .validation import parse_body, require_uuid
-
-_ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
+from conftest import ITEM_ID
 
 
 class _Body(BaseModel):
@@ -14,7 +13,7 @@ class _Body(BaseModel):
 
 def describe_require_uuid():
     def test_returns_valid_uuid():
-        assert require_uuid(_ID, "Thing") == _ID
+        assert require_uuid(ITEM_ID, "Thing") == ITEM_ID
 
     @pytest.mark.parametrize("item_id", ["not-a-uuid", "", None, "123"])
     def test_raises_not_found_for_non_uuid(item_id):
@@ -43,7 +42,7 @@ def describe_parse_body():
         assert str(error.value) == "Request body must be a JSON object."
 
     @pytest.mark.parametrize("raw, problem", [
-        (b'{"name": "Tom", "id": "' + _ID.encode() + b'"}', "'id' is not an allowed field"),
+        (b'{"name": "Tom", "id": "' + ITEM_ID.encode() + b'"}', "'id' is not an allowed field"),
         (b'{"name": "Tom", "isDeleted": true}', "'isDeleted' is not an allowed field"),
         (b'{"name": "Tom", "createdTimestamp": "2026-01-01T00:00:00.000Z"}', "'createdTimestamp' is not an allowed field"),
         (b'{"name": 42}', "'name' must be a string"),

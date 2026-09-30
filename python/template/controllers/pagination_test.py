@@ -1,5 +1,4 @@
-from repositories import DEFAULT_LIST_LIMIT
-from .pagination import MAX_LIST_LIMIT, coerce_limit
+from .pagination import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, coerce_limit
 
 
 def describe_coerce_limit():

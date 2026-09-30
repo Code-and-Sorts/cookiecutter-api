@@ -2,35 +2,18 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Base{{ resource.name }}(BaseModel):
-    """The client-editable {{ resource.name }} fields: the create (POST) and replace (PUT) body.
-
-    Unknown fields, including ``id`` and the stored system fields, are rejected,
-    and values are never coerced: ``name`` must be a non-empty JSON string.
-    """
-
     model_config = ConfigDict(extra="forbid", strict=True)
 
     name: str = Field(min_length=1)
 
 
 class {{ resource.name }}Update(BaseModel):
-    """The PATCH body: any subset of the client-editable {{ resource.name }} fields.
-
-    Defaults are not validated, so an absent ``name`` stays unset while an
-    explicit ``null`` is rejected like any other non-string value.
-    """
-
     model_config = ConfigDict(extra="forbid", strict=True)
 
+    # Defaults skip validation: an absent name stays unset, an explicit null is rejected.
     name: str = Field(default=None, min_length=1)
 
 
 class {{ resource.name }}Response(BaseModel):
-    """A {{ resource.name }} as returned to clients: exactly ``id`` and ``name``.
-
-    Stored records carry more fields (``isDeleted``, timestamps, and the
-    database's own metadata); they are dropped here.
-    """
-
     id: str
     name: str

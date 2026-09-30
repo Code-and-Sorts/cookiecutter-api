@@ -1,15 +1,13 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set models = [] -%}
-{%- if ('create' in ops) or ('replace' in ops) %}{% set _ = models.append('Base' ~ r) %}{% endif -%}
-{%- if 'update' in ops %}{% set _ = models.append(r ~ 'Update') %}{% endif -%}
-{%- if ops | reject('equalto', 'delete') | list %}{% set _ = models.append(r ~ 'Response') %}{% endif -%}
+{%- from '_macros.jinja' import model_names -%}
+{%- set models = model_names(resource) -%}
 {% if 'list' in ops -%}
 from typing import List
 {% endif -%}
-from repositories import {% if 'list' in ops %}DEFAULT_LIST_LIMIT, {% endif %}{{ r }}Repository
+from repositories import {{ r }}Repository
 {%- if models %}
-from models import {{ models | join(', ') }}
+from models import {{ models }}
 {%- endif %}
 
 
@@ -23,7 +21,7 @@ class {{ r }}Service:
 {%- endif %}
 {%- if "list" in ops %}
 
-    async def get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[{{ r }}Response]:
+    async def get_list(self, limit: int) -> List[{{ r }}Response]:
         return await self.repository.get_list(limit)
 {%- endif %}
 {%- if "create" in ops %}

@@ -8,6 +8,7 @@ from google.api_core.retry_async import AsyncRetry
 from google.cloud.firestore import AsyncCollectionReference, FieldFilter
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+from contextlib import asynccontextmanager
 import aioboto3
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
@@ -18,17 +19,10 @@ from pydantic import BaseModel
 from models import generate_utc_timestamp
 from errors import NotFoundError
 
-# Default cap on the number of items returned by list endpoints to avoid
-# unbounded reads. Callers may request a smaller page via the `limit` argument.
-DEFAULT_LIST_LIMIT = 100
-
-# Stored fields that describe the record's creation: update and replace keep them.
 _CREATION_FIELDS = ("createdTimestamp", "createdBy")
 {%- if cloud_service == 'GCP Cloud Function' %}
 
-# Bound every Firestore call (by default the SDK retries for up to 300 s): each
-# attempt gets 3 s and transient errors are retried for at most 5 s in total.
-# utils/deadline.py bounds the whole request on top of this.
+# The SDK retries for up to 300 s by default; keep each call inside the request deadline.
 FIRESTORE_CALL_OPTIONS = {
     "retry": AsyncRetry(initial=0.1, maximum=1.0, multiplier=2.0, timeout=5.0),
     "timeout": 3.0,
@@ -36,8 +30,7 @@ FIRESTORE_CALL_OPTIONS = {
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-# Bound every DynamoDB call: 1 s to connect, 2 s to read, at most 2 attempts.
-# utils/deadline.py bounds the whole request on top of this.
+# Keep each DynamoDB call inside the request deadline.
 DYNAMODB_CONFIG = Config(
     connect_timeout=1,
     read_timeout=2,
@@ -47,17 +40,7 @@ DYNAMODB_CONFIG = Config(
 
 
 class BaseRepository[ResponseT: BaseModel]:
-    """Storage operations shared by every resource repository.
-
-    The operations are protected: each resource repository exposes publicly
-    only the operations its resource supports, delegating to these methods.
-    Subclasses set ``resource_name`` (used in not-found messages) and
-    ``response_model`` (what callers get back).
-
-    A stored record holds the client fields plus ``id``, ``isDeleted``,
-    ``createdTimestamp`` and ``updatedTimestamp`` (ISO-8601 UTC with
-    milliseconds), and ``createdBy``/``updatedBy`` only when they are set.
-    """
+    """Protected so each resource repository exposes only its enabled operations."""
 
     resource_name: ClassVar[str]
     response_model: ClassVar[type[BaseModel]]
@@ -78,8 +61,10 @@ class BaseRepository[ResponseT: BaseModel]:
         self.table_name = table_name
         self.region = region
 
-    def _dynamodb(self):
-        return self.session.resource("dynamodb", region_name=self.region, config=DYNAMODB_CONFIG)
+    @asynccontextmanager
+    async def _table(self):
+        async with self.session.resource("dynamodb", region_name=self.region, config=DYNAMODB_CONFIG) as dynamodb:
+            yield await dynamodb.Table(self.table_name)
 {%- endif %}
 
     def _not_found(self, item_id: str) -> NotFoundError:
@@ -111,8 +96,7 @@ class BaseRepository[ResponseT: BaseModel]:
         return data
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        async with self._dynamodb() as dynamodb:
-            table = await dynamodb.Table(self.table_name)
+        async with self._table() as table:
             response = await table.get_item(Key={"id": item_id})
         item = response.get("Item")
 
@@ -123,7 +107,6 @@ class BaseRepository[ResponseT: BaseModel]:
 {%- endif %}
 
     async def _write(self, record: dict) -> None:
-        """Store ``record`` under its id, replacing any existing record."""
 {%- if cloud_service == 'Azure Function App' %}
         await self.container_client.upsert_item(record)
 {%- endif %}
@@ -131,15 +114,14 @@ class BaseRepository[ResponseT: BaseModel]:
         await self.collection.document(record["id"]).set(record, **FIRESTORE_CALL_OPTIONS)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        async with self._dynamodb() as dynamodb:
-            table = await dynamodb.Table(self.table_name)
+        async with self._table() as table:
             await table.put_item(Item=record)
 {%- endif %}
 
     async def _get_by_id(self, item_id: str) -> ResponseT:
         return self.response_model.model_validate(await self._get_stored(item_id))
 
-    async def _get_list(self, limit: int = DEFAULT_LIST_LIMIT) -> List[ResponseT]:
+    async def _get_list(self, limit: int) -> List[ResponseT]:
         limit = int(limit)
 {%- if cloud_service == 'Azure Function App' %}
         query = f"SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT {limit}"
@@ -157,12 +139,10 @@ class BaseRepository[ResponseT: BaseModel]:
         return items
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-        # A scan's Limit counts items read before the filter applies, so keep
-        # reading pages until enough undeleted items are found.
+        # Scan's Limit counts items before the filter applies, so page until enough are found.
         items = []
         filter_exp = Attr("isDeleted").eq(False) | Attr("isDeleted").not_exists()
-        async with self._dynamodb() as dynamodb:
-            table = await dynamodb.Table(self.table_name)
+        async with self._table() as table:
             response = await table.scan(FilterExpression=filter_exp, Limit=limit)
             items.extend(response.get("Items", []))
 
@@ -178,7 +158,6 @@ class BaseRepository[ResponseT: BaseModel]:
 {%- endif %}
 
     async def _create(self, fields: dict) -> ResponseT:
-        """Store a new record with a server-generated id."""
         now = generate_utc_timestamp()
         record = {
             "id": str(uuid.uuid4()),
@@ -191,7 +170,6 @@ class BaseRepository[ResponseT: BaseModel]:
         return self.response_model.model_validate(record)
 
     async def _update(self, item_id: str, changes: dict) -> ResponseT:
-        """Merge ``changes`` into the stored record."""
         stored = await self._get_stored(item_id)
         record = {
             **stored,
@@ -203,7 +181,6 @@ class BaseRepository[ResponseT: BaseModel]:
         return self.response_model.model_validate(record)
 
     async def _replace(self, item_id: str, fields: dict) -> ResponseT:
-        """Replace the stored record's client fields, keeping its creation fields."""
         stored = await self._get_stored(item_id)
         now = generate_utc_timestamp()
         record = {
@@ -218,7 +195,6 @@ class BaseRepository[ResponseT: BaseModel]:
         return self.response_model.model_validate(record)
 
     async def _delete(self, item_id: str) -> None:
-        """Soft delete: flag the record as deleted and refresh ``updatedTimestamp``."""
 {%- if cloud_service == 'Azure Function App' %}
         operations: list[dict] = [
             { 'op': 'set', 'path': '/isDeleted', 'value': True },
@@ -235,10 +211,7 @@ class BaseRepository[ResponseT: BaseModel]:
             # 412: the filter predicate failed, so the item is already deleted.
             raise self._not_found(item_id) from None
         except CosmosResourceNotFoundError as error:
-            # Only a missing item is a 404. A missing database or container is a
-            # configuration error that must reach the generic 500: Cosmos DB marks
-            # it with a sub-status (for example 1003), and where none is sent (the
-            # emulator) reading the container raises it instead.
+            # A missing database/container is a 500: it has a sub-status, or read() raises (emulator).
             if error.sub_status:
                 raise
             await self.container_client.read()
@@ -257,8 +230,7 @@ class BaseRepository[ResponseT: BaseModel]:
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         try:
-            async with self._dynamodb() as dynamodb:
-                table = await dynamodb.Table(self.table_name)
+            async with self._table() as table:
                 await table.update_item(
                     Key={"id": item_id},
                     UpdateExpression="SET isDeleted = :val, updatedTimestamp = :updated",

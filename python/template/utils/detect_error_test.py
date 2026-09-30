@@ -6,7 +6,6 @@ from .detect_error import detect_error
 
 
 def _parts(response):
-    """(status, content type, parsed body) of this cloud's response."""
 {%- if cloud_service == 'Azure Function App' %}
     return response.status_code, response.mimetype, json.loads(response.get_body())
 {%- endif %}

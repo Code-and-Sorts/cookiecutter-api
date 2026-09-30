@@ -1,3 +1,4 @@
+{%- set containers = path_resources | unique(attribute='container') | list -%}
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: {{ project_description }}
@@ -10,8 +11,7 @@ Globals:
 Resources:
   {{ project_class_name }}Function:
     Type: AWS::Serverless::Function
-    # `sam build` runs the Makefile's build-{{ project_class_name }}Function target, which
-    # packages the Poetry main dependencies (from poetry.lock) with the code.
+    # SAM can't build from Poetry; the Makefile's build target packages poetry.lock.
     Metadata:
       BuildMethod: makefile
     Properties:
@@ -22,13 +22,13 @@ Resources:
         - x86_64
       Environment:
         Variables:
-{%- for container in resources | map(attribute='container') | unique %}
-          DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}: !Ref {{ container | to_camel }}Table
+{%- for c in containers %}
+          DYNAMODB_TABLE_NAME_{{ c.env_name }}: !Ref {{ c.table_id }}Table
 {%- endfor %}
       Policies:
-{%- for container in resources | map(attribute='container') | unique %}
+{%- for c in containers %}
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{ container | to_camel }}Table
+            TableName: !Ref {{ c.table_id }}Table
 {%- endfor %}
       Events:
 {%- if health_endpoint %}
@@ -84,11 +84,11 @@ Resources:
 {%- endif %}
 {%- endfor %}
 
-{% for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}Table:
+{% for c in containers %}
+  {{ c.table_id }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{ container }}
+      TableName: {{ c.container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S

@@ -1,9 +1,18 @@
+{%- from '_macros.jinja' import routes -%}
 {%- set r = resource.name -%}
 {%- set slug = r | to_snake -%}
 {%- set ops = resource.operations -%}
-{%- set labels = {'list': 'List', 'get_by_id': 'Get', 'create': 'Create', 'update': 'Update', 'replace': 'Replace', 'delete': 'Delete'} -%}
+{%- set labels = {'list': 'List', 'get_by_id': 'Get', 'create': 'Create', 'update': 'Patch', 'replace': 'Replace', 'delete': 'Delete'} -%}
+{%- set request = {
+    'Azure Function App': {'id': 'req.route_params.get("id")', 'limit': 'req.params.get("limit")', 'body': 'req.get_body()'},
+    'GCP Cloud Function': {'id': 'item_id', 'limit': 'request.args.get("limit")', 'body': 'request.get_data()'},
+    'AWS Lambda': {'id': 'item_id', 'limit': '(event.get("queryStringParameters") or {}).get("limit")', 'body': 'event_body(event)'},
+}[cloud_service] -%}
+{%- macro call(op, fn, with_id) -%}
+{%- set args = ([request.id] if with_id else []) + ([request.limit] if op == 'list' else []) + ([request.body] if op in ['create', 'update', 'replace'] else []) -%}
+{{ fn }}({{ args | join(', ') }})
+{%- endmacro -%}
 {%- if cloud_service == 'Azure Function App' -%}
-"""{{ r }} functions: /api/{{ resource.endpoint }} (function_app.py registers ``bp``)."""
 import logging
 import azure.functions as func
 from controllers import {{ r }}Controller
@@ -18,61 +27,16 @@ bp = func.Blueprint()
 
 def _build_controller(container_client) -> {{ r }}Controller:
     return {{ r }}Controller({{ r }}Service({{ r }}Repository(container_client)))
-{%- if "list" in ops %}
+{%- for op, fn, method, with_id, status in routes if op in ops %}
 
 
-@bp.route(route="{{ resource.endpoint }}", methods=[func.HttpMethod.GET])
-async def get_list_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("List {{ resource.endpoint }} processed a request.")
-    return await handle(CONTAINER, _build_controller, lambda c: c.get_list(req.params.get("limit")))
-{%- endif %}
-{%- if "get_by_id" in ops %}
-
-
-@bp.route(route="{{ resource.endpoint }}/{id}", methods=[func.HttpMethod.GET])
-async def get_by_id_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Get {{ resource.endpoint }} by ID processed a request.")
-    return await handle(CONTAINER, _build_controller, lambda c: c.get_by_id(req.route_params.get("id")))
-{%- endif %}
-{%- if "create" in ops %}
-
-
-@bp.route(route="{{ resource.endpoint }}", methods=[func.HttpMethod.POST])
-async def create_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Create {{ resource.endpoint }} processed a request.")
-    return await handle(CONTAINER, _build_controller, lambda c: c.create(req.get_body()), 201)
-{%- endif %}
-{%- if "update" in ops %}
-
-
-@bp.route(route="{{ resource.endpoint }}/{id}", methods=[func.HttpMethod.PATCH])
-async def update_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Patch {{ resource.endpoint }} processed a request.")
-    return await handle(CONTAINER, _build_controller, lambda c: c.update(req.route_params.get("id"), req.get_body()))
-{%- endif %}
-{%- if "replace" in ops %}
-
-
-@bp.route(route="{{ resource.endpoint }}/{id}", methods=[func.HttpMethod.PUT])
-async def replace_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Replace {{ resource.endpoint }} processed a request.")
-    return await handle(CONTAINER, _build_controller, lambda c: c.replace(req.route_params.get("id"), req.get_body()))
-{%- endif %}
-{%- if "delete" in ops %}
-
-
-@bp.route(route="{{ resource.endpoint }}/{id}", methods=[func.HttpMethod.DELETE])
-async def delete_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Delete {{ resource.endpoint }} processed a request.")
-    return await handle(CONTAINER, _build_controller, lambda c: c.delete(req.route_params.get("id")))
-{%- endif %}
+@bp.route(route="{{ resource.endpoint }}{% if with_id %}/{id}{% endif %}", methods=[func.HttpMethod.{{ method }}])
+async def {{ fn }}_{{ slug }}(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("{{ labels[op] }} {{ resource.endpoint }}{% if op == 'get_by_id' %} by ID{% endif %} processed a request.")
+    return await handle(CONTAINER, _build_controller, lambda c: c.{{ call(op, fn, with_id) }}{% if status != 200 %}, {{ status }}{% endif %})
+{%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' -%}
-"""{{ r }} routes: main.py's ``api`` function sends /{{ resource.endpoint }} requests here.
-
-Each handler takes the Flask request and the path's item id, and returns the
-status code and payload; main.py turns them into a JSON response.
-"""
 from flask import Request
 from controllers import {{ r }}Controller
 from services import {{ r }}Service
@@ -87,11 +51,6 @@ def _build_controller(collection) -> {{ r }}Controller:
     return {{ r }}Controller({{ r }}Service({{ r }}Repository(collection)))
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' -%}
-"""{{ r }} routes: lambda_app.py sends /{{ resource.endpoint }} events here.
-
-Each handler takes the API Gateway event and the path's item id, and returns
-the status code and payload; lambda_app.py turns them into a JSON response.
-"""
 from functools import cache
 from config import get_settings
 from controllers import {{ r }}Controller
@@ -113,33 +72,11 @@ def _controller() -> {{ r }}Controller:
     return {{ r }}Controller({{ r }}Service(repository))
 {%- endif %}
 {%- if cloud_service != 'Azure Function App' %}
-{%- set req = 'request: Request' if cloud_service == 'GCP Cloud Function' else 'event: dict' %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-{%- set call = {
-    'list': 'run(CONTAINER, _build_controller, lambda c: c.get_list(request.args.get("limit")))',
-    'get_by_id': 'run(CONTAINER, _build_controller, lambda c: c.get_by_id(item_id))',
-    'create': 'run(CONTAINER, _build_controller, lambda c: c.create(request.get_data()))',
-    'update': 'run(CONTAINER, _build_controller, lambda c: c.update(item_id, request.get_data()))',
-    'replace': 'run(CONTAINER, _build_controller, lambda c: c.replace(item_id, request.get_data()))',
-    'delete': 'run(CONTAINER, _build_controller, lambda c: c.delete(item_id))',
-} %}
-{%- else %}
-{%- set call = {
-    'list': 'run(_controller().get_list((event.get("queryStringParameters") or {}).get("limit")))',
-    'get_by_id': 'run(_controller().get_by_id(item_id))',
-    'create': 'run(_controller().create(event_body(event)))',
-    'update': 'run(_controller().update(item_id, event_body(event)))',
-    'replace': 'run(_controller().replace(item_id, event_body(event)))',
-    'delete': 'run(_controller().delete(item_id))',
-} %}
-{%- endif %}
-{%- set routes = [('list', 'get_list', 'GET', False, 200), ('get_by_id', 'get_by_id', 'GET', True, 200), ('create', 'create', 'POST', False, 201), ('update', 'update', 'PATCH', True, 200), ('replace', 'replace', 'PUT', True, 200), ('delete', 'delete', 'DELETE', True, 200)] %}
 {%- for op, fn, method, with_id, status in routes if op in ops %}
 
 
-def {{ fn }}({{ req }}, item_id: str | None) -> tuple[int, object]:
-    """{{ method }} /{{ resource.endpoint }}{% if with_id %}/{id}{% endif %}"""
-    return {{ status }}, {{ call[op] }}
+def {{ fn }}({% if cloud_service == 'GCP Cloud Function' %}request: Request{% else %}event: dict{% endif %}, item_id: str | None) -> tuple[int, object]:
+    return {{ status }}, {% if cloud_service == 'GCP Cloud Function' %}run(CONTAINER, _build_controller, lambda c: c.{{ call(op, fn, with_id) }}){% else %}run(_controller().{{ call(op, fn, with_id) }}){% endif %}
 {%- endfor %}
 
 

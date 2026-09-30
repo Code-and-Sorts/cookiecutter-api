@@ -2,10 +2,8 @@
 {%- set ops = resource.operations -%}
 {%- set with_id = ('get_by_id' in ops) or ('update' in ops) or ('replace' in ops) or ('delete' in ops) -%}
 {%- set with_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set models = [] -%}
-{%- if ('create' in ops) or ('replace' in ops) %}{% set _ = models.append('Base' ~ r) %}{% endif -%}
-{%- if 'update' in ops %}{% set _ = models.append(r ~ 'Update') %}{% endif -%}
-{%- if ops | reject('equalto', 'delete') | list %}{% set _ = models.append(r ~ 'Response') %}{% endif -%}
+{%- from '_macros.jinja' import model_names -%}
+{%- set models = model_names(resource) -%}
 {%- set helpers = [] -%}
 {%- if with_body %}{% set _ = helpers.append('parse_body') %}{% endif -%}
 {%- if with_id %}{% set _ = helpers.append('require_uuid') %}{% endif -%}
@@ -13,7 +11,7 @@
 from typing import List
 {% endif -%}
 {% if models -%}
-from models import {{ models | join(', ') }}
+from models import {{ models }}
 {% endif -%}
 from services import {{ r }}Service
 {%- if 'list' in ops %}
@@ -27,12 +25,6 @@ RESOURCE = "{{ r }}"
 
 
 class {{ r }}Controller:
-    """Validates {{ r }} requests before they reach the service.
-
-    Cloud-agnostic: each entry point passes in the plain values it read from its
-    own request type (path id, raw body, ``limit`` query parameter).
-    """
-
     def __init__(self, service: {{ r }}Service):
         self.service = service
 {%- if "get_by_id" in ops %}

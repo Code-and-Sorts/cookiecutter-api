@@ -12,14 +12,12 @@ def _plain(value):
 
 
 def to_json(payload) -> str:
-    """Serialize a model, a list of models, or plain JSON data."""
     if isinstance(payload, list):
         return json.dumps([_plain(item) for item in payload])
     return json.dumps(_plain(payload))
 
 
 def response_generator(payload, status_code: int = 200):
-    """Build a JSON response (``Content-Type: application/json``) for this cloud."""
     body = to_json(payload)
 {%- if cloud_service == 'Azure Function App' %}
     return HttpResponse(body=body, status_code=status_code, mimetype=JSON_CONTENT_TYPE)

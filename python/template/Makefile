@@ -25,11 +25,8 @@ build: install ## Build the Lambda package with SAM
 	@echo "🎡 Building the Lambda package"
 	@sam build
 
-# `sam build` runs this target (template.yaml sets BuildMethod: makefile) to
-# package the function into $(ARTIFACTS_DIR): the Poetry main dependencies,
-# exported from poetry.lock and installed as wheels for the Lambda platform, and
-# every module of this project except the tests. pip runs on the project's
-# Poetry environment (Python 3.14), which dependency markers are evaluated for.
+# SAM's builder can't read Poetry, so `sam build` runs this target (BuildMethod: makefile).
+# pip runs on the Poetry env's Python so dependency markers match the Lambda runtime.
 LAMBDA_PYTHON = $(shell poetry env info --executable)
 LAMBDA_PLATFORMS := manylinux2014_x86_64 manylinux_2_17_x86_64 manylinux_2_28_x86_64 manylinux_2_34_x86_64
 
@@ -42,7 +39,7 @@ build-{{ project_class_name }}Function:
 		--implementation cp --python-version 3.14 --only-binary=:all: \
 		$(addprefix --platform ,$(LAMBDA_PLATFORMS))
 	rm "$(ARTIFACTS_DIR)/requirements.txt"
-	find . -name '*.py' ! -name '*_test.py' ! -path './.*' | while read -r file; do \
+	find . -name '*.py' ! -name '*_test.py' ! -name conftest.py ! -path './.*' | while read -r file; do \
 		mkdir -p "$(ARTIFACTS_DIR)/$$(dirname "$$file")" && cp "$$file" "$(ARTIFACTS_DIR)/$$file"; \
 	done
 {%- else -%}

@@ -1,26 +1,19 @@
-# The {% yield %} path tag, which renders one file per resource (for example
-# controllers/cat_controller.py and controllers/dog_controller.py), needs a
-# recent Copier; we track the latest release.
+# The {% yield %} path tag needs Copier 9.18.2+.
 _min_copier_version: "9.18.2"
 
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
 
-# Render every file as a template (Cookiecutter-style) instead of requiring a
-# .jinja suffix on each file.
+# Render every file as a template, not only *.jinja files.
 _templates_suffix: ""
 
-# The template content lives in template/; its contents are rendered directly
-# into the destination directory.
 _subdirectory: template
 
 project_name:
   type: str
   default: "Cookiecutter API"
-  # Validation runs against the values derived from the project name. Copier
-  # only evaluates validators for prompted questions, so the checks that
-  # Cookiecutter's pre_gen hook ran on the derived slug/endpoint/class live here.
+  # Copier skips validators on derived (when: false) values, so check them here.
   validator: >-
     {%- set project_slug = project_name.lower().replace(' ', '_') -%}
     {%- set project_endpoint = project_name.lower().replace(' ', '-') -%}
@@ -60,7 +53,6 @@ open_source_license:
     - "GNU General Public License v3"
     - "Not open source"
 
-# ---- Derived values (never prompted) ----
 project_slug:
   type: str
   when: false
@@ -76,9 +68,6 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
-# ---- Health check ----
-# The URL segment the liveness probe is served at, using the same path prefix
-# as the resource routes. Leave it empty to generate no health check at all.
 health_endpoint:
   type: str
   default: "health"
@@ -88,12 +77,6 @@ health_endpoint:
     The health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
     {%- endif -%}
 
-# ---- REST resources ----
-# A list of resources to generate. Each resource gets its own URL endpoint, a
-# storage container (resources sharing a container id share storage), and a
-# chosen subset of operations. The default is a single resource matching the
-# project name with today's CRUD behaviour, so answering only project_name
-# reproduces the original single-resource project.
 resources:
   type: yaml
   multiline: true
@@ -110,9 +93,7 @@ resources:
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
     {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
     {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
-    {#- Every resource defines these module-level Python names (see models/, controllers/,
-        services/ and repositories/); the resource name itself is included so that, for
-        example, Cat and BaseCat or Cat and CatResponse are rejected before they can collide. -#}
+    {#- Reject names whose generated identifiers collide, e.g. Cat and BaseCat. -#}
     {%- set generated_prefixes = ["Base"] -%}
     {%- set generated_suffixes = ["Controller", "Repository", "Response", "Service", "Update"] -%}
     {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[], idents={}, own=[], clash="") -%}
@@ -171,14 +152,13 @@ resources:
     {%- endif -%}
     {{ ns.err }}
 
-# ---- Path-safe resource names (never prompted) ----
-# Git for Windows refuses to check out paths containing "|", so per-resource
-# template paths can't apply Jinja filters. They yield from this copy of
-# `resources` instead, which adds the file-name stems each path needs.
+# Git for Windows can't check out paths containing "|", so paths yield from this
+# copy of `resources`, which adds the derived names, instead of using filters.
 path_resources:
   type: yaml
   when: false
   default: >-
     [{%- for r in resources -%}
-    {{ dict(r, snake_name=(r.name | to_snake), lower_camel_name=(r.name | to_lower_camel)) | tojson }}{{ "," if not loop.last }}
+    {%- set container_key = r.container | replace('-', '_') -%}
+    {{ dict(r, snake_name=(r.name | to_snake), lower_camel_name=(r.name | to_lower_camel), container_key=container_key, env_key=(container_key | lower), env_name=(container_key | upper), table_id=(r.container | to_camel)) | tojson }}{{ "," if not loop.last }}
     {%- endfor -%}]

@@ -1,5 +1,4 @@
 {%- if cloud_service == 'Azure Function App' -%}
-"""Cosmos DB wiring shared by every resource's functions."""
 import asyncio
 import azure.functions as func
 from azure.cosmos.aio import ContainerProxy, CosmosClient
@@ -7,13 +6,11 @@ from config import get_settings
 from utils import detect_error, response_generator
 from utils.deadline import within_deadline
 
-# One client for the life of the worker, as the Cosmos DB SDK recommends: the
-# Functions worker runs every async function on the same event loop.
+# One client per worker, as the SDK recommends; all functions share one event loop.
 _client: CosmosClient | None = None
 _client_lock = asyncio.Lock()
 
-# Keep each Cosmos DB call short and its retries few, so a failing database
-# answers quickly; utils/deadline.py bounds the whole request on top of this.
+# Few, short retries so a failing database answers inside the request deadline.
 CLIENT_OPTIONS = {
     "timeout": 5,
     "connection_timeout": 2,
@@ -26,7 +23,6 @@ CLIENT_OPTIONS = {
 
 
 async def get_container(container_id: str) -> ContainerProxy:
-    """The Cosmos DB container for ``container_id``, opening the client on first use."""
     global _client
     settings = get_settings()
     async with _client_lock:
@@ -39,8 +35,6 @@ async def get_container(container_id: str) -> ContainerProxy:
 
 
 async def handle(container_id, build_controller, operation, status_code: int = 200) -> func.HttpResponse:
-    """Build the controller for ``container_id``, run ``operation`` against it
-    and answer with its result as JSON, or with the error it raised."""
     async def run():
         return await operation(build_controller(await get_container(container_id)))
 
@@ -50,15 +44,8 @@ async def handle(container_id, build_controller, operation, status_code: int = 2
         return detect_error(error)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' -%}
-"""Firestore wiring shared by every resource's routes.
-
-The Functions Framework serves each request on a worker thread, while the async
-Firestore client (built on grpc.aio) is bound to the event loop it was created
-on. So one background event loop runs for the life of the process and owns a
-single ``AsyncClient``; each request submits its coroutine to that loop and
-waits for the result. (Creating a client and an event loop per request leaves
-gRPC channels to be cleaned up on a closed loop: "Event loop is closed".)
-"""
+# Requests run on worker threads but the async Firestore client is bound to its event
+# loop, so one background loop owns it; a loop per request fails with "Event loop is closed".
 import asyncio
 import threading
 from google.cloud import firestore
@@ -81,8 +68,7 @@ def _event_loop() -> asyncio.AbstractEventLoop:
 
 
 def _collection(container_id: str) -> firestore.AsyncCollectionReference:
-    """The Firestore collection for ``container_id``. Runs on the background
-    loop, which creates the client on first use."""
+    # Runs on the background loop, so the client is created there.
     global _client
     settings = get_settings()
     if _client is None:
@@ -91,8 +77,6 @@ def _collection(container_id: str) -> firestore.AsyncCollectionReference:
 
 
 def run(container_id, build_controller, operation):
-    """Build the controller for ``container_id`` and run ``operation`` against it
-    on the Firestore event loop, returning its result."""
     async def _run():
         return await within_deadline(operation(build_controller(_collection(container_id))))
 
@@ -101,7 +85,6 @@ def run(container_id, build_controller, operation):
     return future.result(timeout=DATABASE_TIMEOUT_SECONDS + 1)
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' -%}
-"""DynamoDB wiring shared by every resource's handlers."""
 import asyncio
 from collections.abc import Coroutine
 import aioboto3
@@ -112,6 +95,5 @@ session = aioboto3.Session()
 
 
 def run[T](operation: Coroutine[object, object, T]) -> T:
-    """Run one invocation's database work to completion, within the deadline."""
     return asyncio.run(within_deadline(operation))
 {%- endif %}

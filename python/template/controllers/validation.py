@@ -1,4 +1,3 @@
-"""Request validation shared by every resource controller."""
 import json
 from uuid import UUID
 from pydantic import BaseModel
@@ -7,11 +6,7 @@ from errors import NotFoundError, ValidationError
 
 
 def require_uuid(item_id: str | None, resource: str) -> str:
-    """Return ``item_id`` when it is a UUID.
-
-    Every id is a UUID, so any other value cannot name an item: it is answered
-    as not found (404) rather than as a validation error.
-    """
+    """A non-UUID can never name an item, so it is a 404 rather than a 400."""
     try:
         UUID(str(item_id))
     except ValueError:
@@ -19,8 +14,6 @@ def require_uuid(item_id: str | None, resource: str) -> str:
     return str(item_id)
 
 
-# Plain wording for the validation errors a request body can hit; any other
-# error keeps pydantic's own message.
 _PROBLEMS = {
     "extra_forbidden": "is not an allowed field",
     "missing": "is required",
@@ -38,11 +31,6 @@ def _describe(error: PydanticValidationError) -> str:
 
 
 def parse_body[ModelT: BaseModel](raw: bytes | str | None, model: type[ModelT]) -> ModelT:
-    """Parse a raw request body as a JSON object and validate it against ``model``.
-
-    Raises ``ValidationError`` (400) when the body is not valid JSON, is not a
-    JSON object, or has unknown, missing or wrongly typed fields.
-    """
     try:
         data = json.loads(raw or b"")
     except ValueError:  # includes JSONDecodeError and UnicodeDecodeError

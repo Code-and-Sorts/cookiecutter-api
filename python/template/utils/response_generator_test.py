@@ -7,7 +7,6 @@ _item = {{ resources[0].name }}Response(id=_ID, name="mockName")
 
 
 def _parts(response):
-    """(status, content type, body) of this cloud's response."""
 {%- if cloud_service == 'Azure Function App' %}
     return response.status_code, response.mimetype, response.get_body().decode()
 {%- endif %}

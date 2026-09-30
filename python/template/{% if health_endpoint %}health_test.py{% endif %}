@@ -1,4 +1,3 @@
-"""Unit tests for blueprints/health.py."""
 import json
 {%- if cloud_service == 'Azure Function App' %}
 import asyncio

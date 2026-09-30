@@ -1,11 +1,3 @@
-"""Entry point for GCP Cloud Run functions.
-
-One HTTP function, ``api``, serves every route: it matches the request's path
-and method against each endpoint's route table in blueprints/.
-
-    Local:  poetry run functions-framework --target=api --port=8080
-    Deploy: gcloud functions deploy <name> --entry-point api --trigger-http ...
-"""
 import functions_framework
 from flask import Request
 from blueprints import ROUTES

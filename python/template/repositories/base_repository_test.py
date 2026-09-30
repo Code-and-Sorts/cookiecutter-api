@@ -24,6 +24,7 @@ from repositories.base_repository import FIRESTORE_CALL_OPTIONS
 from repositories.base_repository import DYNAMODB_CONFIG
 {%- endif %}
 from errors import NotFoundError
+from conftest import ITEM_ID
 
 
 class _ItemResponse(BaseModel):
@@ -39,10 +40,9 @@ class _ItemRepository(BaseRepository[_ItemResponse]):
 _TIMESTAMP = "repositories.base_repository.generate_utc_timestamp"
 _NOW = "2026-01-01T00:00:00.000Z"
 _CREATED = "2024-08-10T20:41:30.123Z"
-_ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
 _ID2 = "de6cbc87-5969-458c-8444-3512a82250bc"
 _stored_item = {
-    "id": _ID,
+    "id": ITEM_ID,
     "name": "mockName1",
     "isDeleted": False,
     "createdTimestamp": _CREATED,
@@ -50,16 +50,12 @@ _stored_item = {
     "createdBy": "creator",
 }
 _responses = [
-    _ItemResponse(id=_ID, name="mockName1"),
+    _ItemResponse(id=ITEM_ID, name="mockName1"),
     _ItemResponse(id=_ID2, name="mockName2"),
 ]
 
 
 class _AsyncIterator:
-    """Minimal async-iterable wrapper so mocks can stand in for the
-    async iterators returned by the cloud SDKs (Cosmos query_items,
-    Firestore stream)."""
-
     def __init__(self, items):
         self._items = list(items)
 
@@ -76,8 +72,6 @@ class _AsyncIterator:
 
 
 def _make_session(table_mock):
-    """Build a mock aioboto3 Session whose ``resource(...)`` async context
-    manager yields a DynamoDB resource exposing the given table mock."""
     session = MagicMock()
     dynamodb = MagicMock()
     dynamodb.Table = AsyncMock(return_value=table_mock)
@@ -90,7 +84,6 @@ def _make_session(table_mock):
 
 
 def _offline_repository(stored=None):
-    """A repository whose storage reads return ``stored`` and whose writes are recorded."""
 {%- if cloud_service == 'AWS Lambda' %}
     repository = _ItemRepository(MagicMock(), "items", "us-east-1")
 {%- else %}
@@ -140,7 +133,7 @@ def describe_base_repository_records():
         def test_merges_changes_and_keeps_creation_fields():
             repository = _offline_repository({**_stored_item, "extra": "kept"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._update(_ID, {"name": "mockName1-Update"}))
+                result = asyncio.run(repository._update(ITEM_ID, {"name": "mockName1-Update"}))
 
             assert _written(repository) == {
                 **_stored_item,
@@ -148,49 +141,49 @@ def describe_base_repository_records():
                 "name": "mockName1-Update",
                 "updatedTimestamp": _NOW,
             }
-            assert result == _ItemResponse(id=_ID, name="mockName1-Update")
+            assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Update")
 
         def test_no_changes_only_refreshes_updated_timestamp():
             repository = _offline_repository(_stored_item)
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository._update(_ID, {}))
+                asyncio.run(repository._update(ITEM_ID, {}))
 
             assert _written(repository) == {**_stored_item, "updatedTimestamp": _NOW}
 
         def test_not_found_error():
             repository = _offline_repository()
             with pytest.raises(NotFoundError):
-                asyncio.run(repository._update(_ID, {"name": "mockName1-Update"}))
+                asyncio.run(repository._update(ITEM_ID, {"name": "mockName1-Update"}))
             repository._write.assert_not_called()
 
     def describe_replace():
         def test_overwrites_fields_and_keeps_creation_fields():
             repository = _offline_repository({**_stored_item, "extra": "dropped", "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._replace(_ID, {"name": "mockName1-Replace"}))
+                result = asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
 
             assert _written(repository) == {
-                "id": _ID,
+                "id": ITEM_ID,
                 "name": "mockName1-Replace",
                 "isDeleted": False,
                 "createdTimestamp": _CREATED,
                 "createdBy": "creator",
                 "updatedTimestamp": _NOW,
             }
-            assert result == _ItemResponse(id=_ID, name="mockName1-Replace")
+            assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Replace")
 
         def test_omits_unset_created_by():
             stored = {key: value for key, value in _stored_item.items() if key != "createdBy"}
             repository = _offline_repository(stored)
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository._replace(_ID, {"name": "mockName1-Replace"}))
+                asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
 
             assert "createdBy" not in _written(repository)
 
         def test_not_found_error():
             repository = _offline_repository()
             with pytest.raises(NotFoundError):
-                asyncio.run(repository._replace(_ID, {"name": "mockName1-Replace"}))
+                asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
             repository._write.assert_not_called()
 {%- if cloud_service == 'Azure Function App' %}
 
@@ -207,19 +200,19 @@ def describe_cosmos_storage():
     def describe_get_stored():
         def test_queries_undeleted_item(container):
             container.query_items.return_value = _AsyncIterator([_stored_item])
-            result = asyncio.run(_ItemRepository(container)._get_by_id(_ID))
+            result = asyncio.run(_ItemRepository(container)._get_by_id(ITEM_ID))
 
             container.query_items.assert_called_once_with(
                 query="SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false",
-                parameters=[{"name": "@id", "value": _ID}]
+                parameters=[{"name": "@id", "value": ITEM_ID}]
             )
             assert result == _responses[0]
 
         def test_not_found_error(container):
             container.query_items.return_value = _AsyncIterator([])
             with pytest.raises(NotFoundError) as error:
-                asyncio.run(_ItemRepository(container)._get_by_id(_ID))
-            assert str(error.value) == f"Item with id {_ID} was not found."
+                asyncio.run(_ItemRepository(container)._get_by_id(ITEM_ID))
+            assert str(error.value) == f"Item with id {ITEM_ID} was not found."
 
     def describe_write():
         def test_upserts_record(container):
@@ -241,16 +234,16 @@ def describe_cosmos_storage():
 
         def test_empty_result(container):
             container.query_items.return_value = _AsyncIterator([])
-            assert asyncio.run(_ItemRepository(container)._get_list()) == []
+            assert asyncio.run(_ItemRepository(container)._get_list(100)) == []
 
     def describe_delete():
         def test_patches_is_deleted_and_updated_timestamp(container):
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(_ItemRepository(container)._delete(_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
 
             container.patch_item.assert_awaited_once_with(
-                item=_ID,
-                partition_key=_ID,
+                item=ITEM_ID,
+                partition_key=ITEM_ID,
                 patch_operations=[
                     { 'op': 'set', 'path': '/isDeleted', 'value': True },
                     { 'op': 'set', 'path': '/updatedTimestamp', 'value': _NOW }
@@ -265,7 +258,7 @@ def describe_cosmos_storage():
         def test_missing_or_deleted_is_not_found(container, error):
             container.patch_item.side_effect = error
             with pytest.raises(NotFoundError):
-                asyncio.run(_ItemRepository(container)._delete(_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
 
         @pytest.mark.parametrize("sub_status", [1003, 1008])
         def test_missing_container_or_database_propagates(container, sub_status):
@@ -273,24 +266,24 @@ def describe_cosmos_storage():
                 status_code=404, message="Owner resource does not exist", sub_status=sub_status
             )
             with pytest.raises(CosmosResourceNotFoundError):
-                asyncio.run(_ItemRepository(container)._delete(_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
             container.read.assert_not_called()
 
         def test_missing_container_without_sub_status_propagates(container):
             container.patch_item.side_effect = CosmosResourceNotFoundError(status_code=404, message="missing")
             container.read.side_effect = CosmosResourceNotFoundError(status_code=404, message="Collection not found")
             with pytest.raises(CosmosResourceNotFoundError, match="Collection not found"):
-                asyncio.run(_ItemRepository(container)._delete(_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
 
         def test_missing_item_with_zero_sub_status_is_not_found(container):
             container.patch_item.side_effect = CosmosResourceNotFoundError(status_code=404, message="missing", sub_status=0)
             with pytest.raises(NotFoundError):
-                asyncio.run(_ItemRepository(container)._delete(_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
 
         def test_other_errors_propagate(container):
             container.patch_item.side_effect = CosmosHttpResponseError(status_code=503, message="down")
             with pytest.raises(CosmosHttpResponseError):
-                asyncio.run(_ItemRepository(container)._delete(_ID))
+                asyncio.run(_ItemRepository(container)._delete(ITEM_ID))
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
@@ -321,9 +314,9 @@ def describe_firestore_storage():
     def describe_get_stored():
         def test_reads_document(collection):
             _doc_ref(collection, dict(_stored_item))
-            result = asyncio.run(_ItemRepository(collection)._get_by_id(_ID))
+            result = asyncio.run(_ItemRepository(collection)._get_by_id(ITEM_ID))
 
-            collection.document.assert_called_once_with(_ID)
+            collection.document.assert_called_once_with(ITEM_ID)
             collection.document.return_value.get.assert_awaited_once_with(**FIRESTORE_CALL_OPTIONS)
             assert result == _responses[0]
 
@@ -331,15 +324,15 @@ def describe_firestore_storage():
         def test_missing_or_deleted_is_not_found(collection, data):
             _doc_ref(collection, data)
             with pytest.raises(NotFoundError) as error:
-                asyncio.run(_ItemRepository(collection)._get_by_id(_ID))
-            assert str(error.value) == f"Item with id {_ID} was not found."
+                asyncio.run(_ItemRepository(collection)._get_by_id(ITEM_ID))
+            assert str(error.value) == f"Item with id {ITEM_ID} was not found."
 
     def describe_write():
         def test_sets_document_by_id(collection):
             doc_ref = _doc_ref(collection, None)
             asyncio.run(_ItemRepository(collection)._write(_stored_item))
 
-            collection.document.assert_called_once_with(_ID)
+            collection.document.assert_called_once_with(ITEM_ID)
             doc_ref.set.assert_awaited_once_with(_stored_item, **FIRESTORE_CALL_OPTIONS)
 
     def describe_get_list():
@@ -367,16 +360,16 @@ def describe_firestore_storage():
             query.stream.return_value = _AsyncIterator([])
             collection.where.return_value = query
 
-            assert asyncio.run(_ItemRepository(collection)._get_list()) == []
+            assert asyncio.run(_ItemRepository(collection)._get_list(100)) == []
             query.limit.assert_called_once_with(100)
 
     def describe_delete():
         def test_flags_document_deleted(collection):
             doc_ref = _doc_ref(collection, dict(_stored_item))
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(_ItemRepository(collection)._delete(_ID))
+                asyncio.run(_ItemRepository(collection)._delete(ITEM_ID))
 
-            collection.document.assert_called_once_with(_ID)
+            collection.document.assert_called_once_with(ITEM_ID)
             doc_ref.update.assert_awaited_once_with(
                 {'isDeleted': True, 'updatedTimestamp': _NOW}, **FIRESTORE_CALL_OPTIONS
             )
@@ -385,7 +378,7 @@ def describe_firestore_storage():
         def test_missing_or_deleted_is_not_found(collection, data):
             doc_ref = _doc_ref(collection, data)
             with pytest.raises(NotFoundError):
-                asyncio.run(_ItemRepository(collection)._delete(_ID))
+                asyncio.run(_ItemRepository(collection)._delete(ITEM_ID))
             doc_ref.update.assert_not_called()
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -416,17 +409,17 @@ def describe_dynamodb_storage():
     def describe_get_stored():
         def test_reads_item(table):
             table.get_item.return_value = {"Item": dict(_stored_item)}
-            result = asyncio.run(_repository(table)._get_by_id(_ID))
+            result = asyncio.run(_repository(table)._get_by_id(ITEM_ID))
 
-            table.get_item.assert_awaited_once_with(Key={"id": _ID})
+            table.get_item.assert_awaited_once_with(Key={"id": ITEM_ID})
             assert result == _responses[0]
 
         @pytest.mark.parametrize("response", [{}, {"Item": {**_stored_item, "isDeleted": True}}])
         def test_missing_or_deleted_is_not_found(table, response):
             table.get_item.return_value = response
             with pytest.raises(NotFoundError) as error:
-                asyncio.run(_repository(table)._get_by_id(_ID))
-            assert str(error.value) == f"Item with id {_ID} was not found."
+                asyncio.run(_repository(table)._get_by_id(ITEM_ID))
+            assert str(error.value) == f"Item with id {ITEM_ID} was not found."
 
     def describe_write():
         def test_puts_item(table):
@@ -446,7 +439,7 @@ def describe_dynamodb_storage():
 
         def test_reads_more_pages_until_limit(table):
             table.scan.side_effect = [
-                {"Items": [dict(_stored_item)], "LastEvaluatedKey": {"id": _ID}},
+                {"Items": [dict(_stored_item)], "LastEvaluatedKey": {"id": ITEM_ID}},
                 {"Items": [
                     {**_stored_item, "id": _ID2, "name": "mockName2"},
                     {**_stored_item, "id": "third", "name": "mockName3"},
@@ -455,20 +448,20 @@ def describe_dynamodb_storage():
             result = asyncio.run(_repository(table)._get_list(2))
 
             assert table.scan.await_count == 2
-            assert table.scan.await_args.kwargs["ExclusiveStartKey"] == {"id": _ID}
+            assert table.scan.await_args.kwargs["ExclusiveStartKey"] == {"id": ITEM_ID}
             assert result == _responses
 
         def test_empty_result(table):
             table.scan.return_value = {"Items": []}
-            assert asyncio.run(_repository(table)._get_list()) == []
+            assert asyncio.run(_repository(table)._get_list(100)) == []
 
     def describe_delete():
         def test_flags_item_deleted(table):
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(_repository(table)._delete(_ID))
+                asyncio.run(_repository(table)._delete(ITEM_ID))
 
             table.update_item.assert_awaited_once_with(
-                Key={"id": _ID},
+                Key={"id": ITEM_ID},
                 UpdateExpression="SET isDeleted = :val, updatedTimestamp = :updated",
                 ConditionExpression="attribute_exists(id) AND (attribute_not_exists(isDeleted) OR isDeleted = :false)",
                 ExpressionAttributeValues={":val": True, ":false": False, ":updated": _NOW}
@@ -479,12 +472,12 @@ def describe_dynamodb_storage():
                 {"Error": {"Code": "ConditionalCheckFailedException", "Message": "failed"}}, "UpdateItem"
             )
             with pytest.raises(NotFoundError):
-                asyncio.run(_repository(table)._delete(_ID))
+                asyncio.run(_repository(table)._delete(ITEM_ID))
 
         def test_other_errors_propagate(table):
             table.update_item.side_effect = ClientError(
                 {"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "slow down"}}, "UpdateItem"
             )
             with pytest.raises(ClientError):
-                asyncio.run(_repository(table)._delete(_ID))
+                asyncio.run(_repository(table)._delete(ITEM_ID))
 {%- endif %}

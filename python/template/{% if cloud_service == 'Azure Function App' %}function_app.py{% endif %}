@@ -1,10 +1,7 @@
 import azure.functions as func
 from blueprints import BLUEPRINTS
 
-# Resource functions need a function key.
-{%- if health_endpoint %} The health check (GET /api/{{ health_endpoint }})
-# sets its own anonymous auth level.
-{%- endif %}
+# Resource functions require a function key{% if health_endpoint %}; the health check opts out{% endif %}.
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 for blueprint in BLUEPRINTS:

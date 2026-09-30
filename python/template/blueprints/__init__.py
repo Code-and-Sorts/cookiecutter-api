@@ -1,5 +1,4 @@
 {%- if cloud_service == 'Azure Function App' -%}
-# Each module owns one Blueprint (``bp``); function_app.py registers every one.
 from . import (
 {%- if health_endpoint %}
     health,
@@ -20,8 +19,6 @@ BLUEPRINTS = [
 
 __all__ = ["BLUEPRINTS"]
 {%- else -%}
-# Each module holds one endpoint's route table; {% if cloud_service == 'GCP Cloud Function' %}main.py{% else %}lambda_app.py{% endif %} dispatches every
-# request through ROUTES.
 from . import (
 {%- if health_endpoint %}
     health,

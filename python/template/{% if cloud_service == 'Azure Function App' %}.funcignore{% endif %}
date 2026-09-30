@@ -9,6 +9,7 @@
 __pycache__
 local.settings.json
 *_test.py
+conftest.py
 Makefile
 poetry.lock
 poetry.toml

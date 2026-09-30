@@ -14,7 +14,7 @@ This project is a Python-based REST API built using [Google Cloud Functions](htt
 This project is a Python-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with API Gateway. The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered Lambda functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 
-{%- set containers = resources | map(attribute='container') | unique | list %}
+{%- set containers = path_resources | unique(attribute='container') | list %}
 {%- set prefix = '/api/' if cloud_service == 'Azure Function App' else '/' %}
 The REST API exposes the following resources and operations:
 {%- if cloud_service == 'GCP Cloud Function' %}
@@ -33,7 +33,8 @@ A single HTTP Cloud Run function with the entry point `api` (in `main.py`) serve
 
 A health check is available at `GET {{ prefix }}{{ health_endpoint }}` and answers `{"status": "ok"}`.
 {%- endif %}
-{%- for container in containers %}
+{%- for c in containers %}
+{%- set container = c.container %}
 {%- set sharing = resources | selectattr('container', 'equalto', container) | map(attribute='name') | list %}
 {%- if sharing | length > 1 %}
 
@@ -165,21 +166,21 @@ Settings are read from environment variables (case-insensitive).
 | `Cosmos_Db_Uri` | Cosmos DB account endpoint | required |
 | `Cosmos_Db_Key` | Cosmos DB account key | required |
 | `Cosmos_Db_Database_Name` | Cosmos DB database name | required |
-{%- for container in containers %}
-| `Container_Name_{{ container | replace('-', '_') }}` | Cosmos DB container for `{{ container }}` | `{{ container }}` |
+{%- for c in containers %}
+| `Container_Name_{{ c.container_key }}` | Cosmos DB container for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 | `GCP_PROJECT_ID` | GCP project ID | required |
 | `FIRESTORE_DATABASE` | Firestore database name | `(default)` |
-{%- for container in containers %}
-| `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}` | Firestore collection for `{{ container }}` | `{{ container }}` |
+{%- for c in containers %}
+| `FIRESTORE_COLLECTION_{{ c.env_name }}` | Firestore collection for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 | `AWS_REGION` | AWS region | `us-east-1` |
-{%- for container in containers %}
-| `DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}` | DynamoDB table for `{{ container }}` | `{{ container }}` |
+{%- for c in containers %}
+| `DYNAMODB_TABLE_NAME_{{ c.env_name }}` | DynamoDB table for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
 {%- endif %}
 
@@ -284,7 +285,7 @@ Settings are read from environment variables (case-insensitive).
       --allow-unauthenticated \
       --entry-point api \
       --source . \
-      --set-env-vars GCP_PROJECT_ID=your-project-id{% for container in containers %},FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}={{ container }}{% endfor %}
+      --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_name }}={{ c.container }}{% endfor %}
     ```
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
@@ -316,8 +317,8 @@ Settings are read from environment variables (case-insensitive).
     > For local development, you can use [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
     > or connect to deployed DynamoDB tables by configuring your AWS credentials and setting the
     > per-container table variables in `template.yaml`:
-{%- for container in containers %}
-    > `DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}`{% if not loop.last %},{% else %}.{% endif %}
+{%- for c in containers %}
+    > `DYNAMODB_TABLE_NAME_{{ c.env_name }}`{% if not loop.last %},{% else %}.{% endif %}
 {%- endfor %}
 
 5. Deploy to AWS
@@ -404,6 +405,7 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
 {%- endfor %}
 {{ "%-34s" | format("├── utils") }}- JSON responses, error handling, database deadline{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
+{{ "%-34s" | format("├── conftest.py") }}- Constants shared by the unit tests
 {%- if health_endpoint %}
 {{ "%-34s" | format("├── health_test.py") }}- Health check unit tests
 {%- endif %}

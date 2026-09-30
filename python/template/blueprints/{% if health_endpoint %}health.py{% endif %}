@@ -1,10 +1,8 @@
-"""Liveness probe served at the ``{{ health_endpoint }}`` URL segment."""
-{%- if cloud_service == 'Azure Function App' %}
+{%- if cloud_service == 'Azure Function App' -%}
 import azure.functions as func
 from utils import response_generator
-{%- endif %}
 
-# URL segment the health check is served at (the health_endpoint answer).
+{% endif -%}
 ENDPOINT = "{{ health_endpoint }}"
 BODY = {"status": "ok"}
 {%- if cloud_service == 'Azure Function App' %}
@@ -16,13 +14,11 @@ bp = func.Blueprint()
 # call it without a function key.
 @bp.route(route=ENDPOINT, methods=[func.HttpMethod.GET], auth_level=func.AuthLevel.ANONYMOUS)
 async def health(req: func.HttpRequest) -> func.HttpResponse:
-    """GET /api/{{ health_endpoint }}"""
     return response_generator(BODY)
 {%- else %}
 
 
 def health({% if cloud_service == 'GCP Cloud Function' %}request{% else %}event{% endif %}, item_id: str | None) -> tuple[int, dict]:
-    """GET /{{ health_endpoint }}"""
     return 200, BODY
 
 
