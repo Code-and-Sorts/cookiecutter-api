@@ -14,7 +14,7 @@ inputs:
     description: >-
       Which resources fixture to render: "single" renders the default single
       resource derived from the project name; any other value renders
-      fixtures/<value>-resources.yml (e.g. "multi", "edge").
+      fixtures/<value>-resources.yml ("edge" in CI, "multi" for the example branches).
   output-dir:
     required: false
     default: "KittenClaws"

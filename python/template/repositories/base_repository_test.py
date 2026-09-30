@@ -111,9 +111,11 @@ def _written(repository) -> dict:
 
 def describe_base_repository_records():
     def describe_create():
-        def test_stores_new_record_with_server_id_and_timestamps():
+        def test_stores_new_record_with_server_id_and_one_timestamp():
             repository = _offline_repository()
-            with patch(_TIMESTAMP, return_value=_NOW):
+            # A second clock reading would differ, so both fields equal _NOW proves one reading.
+            ticks = iter([_NOW, "2099-01-01T00:00:00.000Z"])
+            with patch(_TIMESTAMP, side_effect=lambda: next(ticks)):
                 result = asyncio.run(repository._create({"name": "mockName1"}))
 
             record = _written(repository)
@@ -126,16 +128,6 @@ def describe_base_repository_records():
                 "updatedTimestamp": _NOW,
             }
             assert result == _ItemResponse(id=record["id"], name="mockName1")
-
-        def test_uses_one_clock_reading_for_both_timestamps():
-            repository = _offline_repository()
-            ticks = iter(["2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.001Z"])
-            with patch(_TIMESTAMP, side_effect=lambda: next(ticks)) as clock:
-                asyncio.run(repository._create({"name": "mockName1"}))
-
-            record = _written(repository)
-            assert record["createdTimestamp"] == record["updatedTimestamp"] == "2026-01-01T00:00:00.000Z"
-            assert clock.call_count == 1
 
         def test_generates_a_new_id_each_time():
             repository = _offline_repository()

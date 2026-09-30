@@ -181,16 +181,16 @@ Each language has a GitHub Actions workflow that:
 4. Runs unit tests
 
 The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
-Its `resources-fixture` input renders `fixtures/<name>-resources.yml`: `multi` (two
-resources sharing a container), `edge` (list-only, delete-only, hyphenated and shared
-containers, names of differing lengths, and the health check at `/status`) and `minimal`
-(update-only, replace-only and create-only resources, no health check).
+Its `resources-fixture` input renders `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
+shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
+names of differing lengths) and no health check. `multi` only feeds the published example branches.
 
-Pipelines use a matrix strategy to test across:
-- Multiple operating systems (ubuntu, macOS, Windows) with the default single resource
-- The `multi`, `edge` and `minimal` fixtures on ubuntu
-- All supported cloud services
+Pipelines use a small matrix, one job per distinct risk rather than every combination:
+- Ubuntu: every cloud service, with the default single resource and with `edge`
+- Windows (path length, checkout) and macOS (BSD tools) once each, on different clouds
 - The newest GA runtime each cloud supports: Node 24 (Node 22 on Azure Functions), Python 3.14, .NET 10, Go 1.27
+
+Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
 
 ### Local Verification
 

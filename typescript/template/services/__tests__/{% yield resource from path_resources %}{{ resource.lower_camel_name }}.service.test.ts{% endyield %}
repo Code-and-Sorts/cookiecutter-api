@@ -103,32 +103,26 @@ describe('{{ r }}Service', () => {
             expect(repository).toHaveBeenCalledWith(mockCreateSchema);
         });
 
-        it('should store a new record with a UUID, ISO timestamps and no audit fields', async () => {
+        it('should store a new record with a UUID, one timestamp for both fields and no audit fields', async () => {
             mockCreate.mockImplementation(async (entity) => entity);
-            const result = await mockService.create(mockCreateRequest);
-            const written = mockCreate.mock.calls[0][0];
-            expect(written.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-            expect(written.isDeleted).toBe(false);
-            expect(written.createdTimestamp).toMatch(isoTimestamp);
-            expect(written.updatedTimestamp).toMatch(isoTimestamp);
-            expect('createdBy' in written).toBe(false);
-            expect('updatedBy' in written).toBe(false);
-            expect(result).toEqual({ id: written.id, ...mockCreateRequest });
-        });
-
-        it('should use one clock reading for both timestamps', async () => {
-            mockCreate.mockImplementation(async (entity) => entity);
+            // A second clock reading would differ, so equal timestamps prove the clock was read once.
             const clock = jest.spyOn(Date.prototype, 'toISOString')
                 .mockReturnValueOnce('2026-01-01T00:00:00.000Z')
                 .mockReturnValueOnce('2026-01-01T00:00:00.001Z');
+            let result;
             try {
-                await mockService.create(mockCreateRequest);
+                result = await mockService.create(mockCreateRequest);
             } finally {
                 clock.mockRestore();
             }
             const written = mockCreate.mock.calls[0][0];
+            expect(written.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+            expect(written.isDeleted).toBe(false);
             expect(written.createdTimestamp).toBe('2026-01-01T00:00:00.000Z');
             expect(written.updatedTimestamp).toBe(written.createdTimestamp);
+            expect('createdBy' in written).toBe(false);
+            expect('updatedBy' in written).toBe(false);
+            expect(result).toEqual({ id: written.id, ...mockCreateRequest });
         });
     });
 {%- endif %}
