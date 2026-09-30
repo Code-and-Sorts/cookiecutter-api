@@ -85,7 +85,7 @@ Every response the app sends is JSON (`Content-Type: application/json`), errors 
 {%- endif %}
 | 500 | anything unexpected, such as a database failure | `{"errorMessage": "An unexpected error occurred."}` |
 
-Expected 4xx outcomes are not logged as errors. Unexpected errors are logged at error level with their stack trace (a database failure carries the SDK error as its `cause`); exception text never reaches the client.
+Expected 4xx outcomes are not logged as errors. Unexpected errors are logged at error level with their stack trace (a database failure carries the SDK error as its `cause`); exception text never reaches the client. A failing or unreachable database answers with that 500 within about 8 seconds: every repository operation is bounded by `DATABASE_DEADLINE_MS` (`utils/deadline.util.ts`), and the database client in `config/container.ts` uses short per-attempt timeouts and capped retries. A cancelled request is logged as a warning, not an error.
 {%- if cloud_service == 'Azure Function App' %}
 
 Requests for a method or path that has no registered function never reach the app: the Functions host answers them itself with its own 404 (not JSON, and not a 405). That covers unknown paths and operations that were not generated for a resource.

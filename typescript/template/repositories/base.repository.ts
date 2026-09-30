@@ -4,6 +4,12 @@ import { ProxyError, NotFoundError } from '@errors';
 import { BaseItemRecord } from '@models';
 import { DEFAULT_LIST_LIMIT } from '@utils';
 
+// Only an item-level 404 (no substatus) means the record is missing. Any other 404, such as
+// substatus 1003 for a container that does not exist, is a configuration failure: it stays
+// unexpected, so it is logged and answered with the generic 500.
+export const isMissingItem = (error: { code?: unknown; substatus?: unknown } | undefined): boolean =>
+  error?.code === 404 && !error?.substatus;
+
 // Shared data access for every resource. Timestamps are ISO-8601 UTC with milliseconds.
 // createdBy/updatedBy are only stored when set. The CRUD methods are protected: each resource
 // repository exposes public methods only for the operations its resource declares.
@@ -71,7 +77,7 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
       if (error instanceof NotFoundError) {
         throw error;
       }
-      if (error?.code === 404) {
+      if (isMissingItem(error)) {
         throw this.notFound(updates.id);
       }
       throw new ProxyError(`Error upserting item with id ${updates.id}.`, error);
@@ -112,7 +118,8 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
 
       await this._container.item(id, id).patch({ condition, operations });
     } catch (error) {
-      if (error?.code === 404 || error?.code === 412) {
+      // 412: the isDeleted = false precondition failed, so the record is already deleted.
+      if (isMissingItem(error) || error?.code === 412) {
         throw this.notFound(id);
       }
       throw new ProxyError(`Error deleting record with id ${id}.`, error);

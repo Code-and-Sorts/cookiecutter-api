@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { BaseRepository } from '@repositories';
+import { BaseRepository{% if cloud_service == 'Azure Function App' %}, isMissingItem{% endif %} } from '@repositories';
 {% if cloud_service == 'Azure Function App' -%}
 import { Container } from '@azure/cosmos';
 {%- endif %}
@@ -361,6 +361,56 @@ describe('BaseRepository', () => {
                 expect(error.statusCode).toEqual(502);
                 expect(error.message).toEqual(`Error deleting record with id ${mock{{project_class_name}}Id}.`);
             }
+        });
+    });
+
+    // Cosmos answers a missing container with 404 substatus 1003: that is a configuration
+    // failure (generic 500, logged), never "<Name> with id … was not found."
+    describe('Cosmos 404 substatus', () => {
+        const containerMissing = () => Object.assign(new Error('Resource Not Found'), { code: 404, substatus: 1003 });
+        const itemMissing = () => Object.assign(new Error('Resource Not Found'), { code: 404, substatus: 0 });
+
+        it('should only treat an item-level 404 as a missing record', () => {
+            expect(isMissingItem({ code: 404 })).toBe(true);
+            expect(isMissingItem(itemMissing())).toBe(true);
+            expect(isMissingItem(containerMissing())).toBe(false);
+            expect(isMissingItem({ code: 412 })).toBe(false);
+            expect(isMissingItem(undefined)).toBe(false);
+        });
+
+        it('should fail get with a proxy error when the container is missing', async () => {
+            mockFetchAll.mockRejectedValueOnce(containerMissing());
+            await expect(mockBaseRepository.getRecord(mock{{project_class_name}}Id)).rejects.toBeInstanceOf(ProxyError);
+        });
+
+        it('should fail update with a proxy error when the container is missing', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
+            mockReplace.mockRejectedValueOnce(containerMissing());
+            await expect(mockBaseRepository.updateRecord(mock{{project_class_name}}Update)).rejects.toBeInstanceOf(ProxyError);
+        });
+
+        it('should report update of a vanished item as not found', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
+            mockReplace.mockRejectedValueOnce(itemMissing());
+            await expect(mockBaseRepository.updateRecord(mock{{project_class_name}}Update)).rejects.toBeInstanceOf(NotFoundError);
+        });
+
+        it('should fail replace with a proxy error when the container is missing', async () => {
+            jest.spyOn(mockBaseRepository, 'getRecord').mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
+            mockReplace.mockRejectedValueOnce(containerMissing());
+            await expect(mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0])).rejects.toBeInstanceOf(ProxyError);
+        });
+
+        it('should fail delete with a proxy error when the container is missing', async () => {
+            mockPatch.mockRejectedValueOnce(containerMissing());
+            await expect(mockBaseRepository.deleteRecord(mock{{project_class_name}}Id)).rejects.toBeInstanceOf(ProxyError);
+        });
+
+        it('should report delete of a missing or already deleted item as not found', async () => {
+            mockPatch.mockRejectedValueOnce(itemMissing());
+            await expect(mockBaseRepository.deleteRecord(mock{{project_class_name}}Id)).rejects.toBeInstanceOf(NotFoundError);
+            mockPatch.mockRejectedValueOnce(Object.assign(new Error('Precondition Failed'), { code: 412 }));
+            await expect(mockBaseRepository.deleteRecord(mock{{project_class_name}}Id)).rejects.toBeInstanceOf(NotFoundError);
         });
     });
 });

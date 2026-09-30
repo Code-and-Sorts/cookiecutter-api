@@ -13,8 +13,10 @@ import { Firestore } from '@google-cloud/firestore';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 {%- endif %}
 import { env, {{ r }}Record } from '@models';
+import { withDeadline } from '@utils';
 import { BaseRepository{% if cloud_service == 'AWS Lambda' %}, DocumentClient{% endif %} } from './base.repository';
 
+// Every operation is bounded by withDeadline, so a failing database answers within seconds.
 @injectable()
 export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 {%- if cloud_service == 'Azure Function App' %}
@@ -35,26 +37,26 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 
 {%- if "create" in ops %}
 
-  create = async (newItem: {{ r }}Record): Promise<{{ r }}Record> => this.addRecord(newItem);
+  create = async (newItem: {{ r }}Record): Promise<{{ r }}Record> => withDeadline(this.addRecord(newItem));
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
-  get = async (id: string): Promise<{{ r }}Record> => this.getRecord(id);
+  get = async (id: string): Promise<{{ r }}Record> => withDeadline(this.getRecord(id));
 {%- endif %}
 {%- if "list" in ops %}
 
-  list = async (limit?: number): Promise<{{ r }}Record[]> => this.getRecords(limit);
+  list = async (limit?: number): Promise<{{ r }}Record[]> => withDeadline(this.getRecords(limit));
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = async (item: Partial<{{ r }}Record> & { id: string }): Promise<{{ r }}Record> => this.updateRecord(item);
+  update = async (item: Partial<{{ r }}Record> & { id: string }): Promise<{{ r }}Record> => withDeadline(this.updateRecord(item));
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = async (item: {{ r }}Record): Promise<{{ r }}Record> => this.replaceRecord(item);
+  replace = async (item: {{ r }}Record): Promise<{{ r }}Record> => withDeadline(this.replaceRecord(item));
 {%- endif %}
 {%- if "delete" in ops %}
 
-  delete = async (id: string): Promise<void> => this.deleteRecord(id);
+  delete = async (id: string): Promise<void> => withDeadline(this.deleteRecord(id));
 {%- endif %}
 }

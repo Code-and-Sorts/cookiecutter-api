@@ -64,3 +64,16 @@ describe('parseJsonBody', () => {
         expect(() => parseJsonBody(raw)).toThrow('Request body must be valid JSON.');
     });
 });
+
+describe('cancelled requests', () => {
+    it('should not log an aborted request at error level', () => {
+        const log = jest.fn<MockFn>();
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const aborted = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+        expect(detectError(aborted, log).status).toEqual(500);
+        expect(detectError(Object.assign(new Error('aborted'), { code: 'ABORT_ERR' }), log).status).toEqual(500);
+        expect(log).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledTimes(2);
+        warn.mockRestore();
+    });
+});
