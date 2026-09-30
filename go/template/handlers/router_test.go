@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 {%- if cloud_service == 'AWS Lambda' %}
 	"context"
 {%- endif %}
-	"io"
 	"log/slog"
 	"net/http"
 {%- if cloud_service != 'AWS Lambda' %}
@@ -20,11 +20,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func discardLogs(t *testing.T) {
+func captureLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
+	var logs bytes.Buffer
 	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &logs
 }
 {%- if cloud_service != 'AWS Lambda' %}
 
@@ -51,8 +53,21 @@ func TestWithRequestTimeout_SetsDeadline(t *testing.T) {
 	assert.WithinDuration(t, time.Now().Add(RequestTimeout), deadline, time.Second)
 }
 
+func TestMiddleware_LogsRequestAndSetsDeadline(t *testing.T) {
+	logs := captureLogs(t)
+	var hasDeadline bool
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, hasDeadline = r.Context().Deadline()
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/items", nil))
+
+	assert.True(t, hasDeadline)
+	assert.Contains(t, logs.String(), "method=GET path=/items")
+}
+
 func TestRecover_Panic_ReturnsJSON500(t *testing.T) {
-	discardLogs(t)
+	captureLogs(t)
 	handler := Recover(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		panic("boom")
 	}))
@@ -103,8 +118,21 @@ func TestRouter_SetsRequestDeadline(t *testing.T) {
 	assert.WithinDuration(t, time.Now().Add(RequestTimeout), deadline, time.Second)
 }
 
+func TestRouter_LogsRequest(t *testing.T) {
+	logs := captureLogs(t)
+
+	_, err := NewRouter().ServeRequest(context.Background(), events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Resource:   "/unknown",
+		Path:       "/unknown",
+	})
+
+	assert.NoError(t, err)
+	assert.Contains(t, logs.String(), "method=GET path=/unknown")
+}
+
 func TestRouter_Panic_ReturnsJSON500(t *testing.T) {
-	discardLogs(t)
+	captureLogs(t)
 	router := NewRouter()
 	router.Handle("/boom", func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 		panic("boom")

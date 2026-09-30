@@ -1,8 +1,8 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set ep = resource.endpoint -%}
-{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set uses_id = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
+{%- set uses_body = resource.has_body -%}
+{%- set uses_id = resource.has_id -%}
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set routes = [
   ('list', 'MethodGet', false), ('create', 'MethodPost', false),
@@ -100,9 +100,12 @@ func (f *fake{{ r }}Controller) Replace(ctx context.Context, id string, body io.
 {%- endif %}
 {%- if "delete" in ops %}
 
-func (f *fake{{ r }}Controller) Delete(ctx context.Context, id string) error {
+func (f *fake{{ r }}Controller) Delete(ctx context.Context, id string) (map[string]string, error) {
 	f.id = id
-	return f.err
+	if f.err != nil {
+		return nil, f.err
+	}
+	return map[string]string{"message": "Fake deleted."}, nil
 }
 {%- endif %}
 {%- if cloud_service != 'AWS Lambda' %}
@@ -234,7 +237,7 @@ func TestDelete{{ r }}_ReturnsMessage(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodDelete, true, "", "")
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"message": "{{ r }} with id `+test{{ r }}ID+` was deleted successfully."}`, body)
+	assert.JSONEq(t, `{"message": "Fake deleted."}`, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 }
 {%- endif %}

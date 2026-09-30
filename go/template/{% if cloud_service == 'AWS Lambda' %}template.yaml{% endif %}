@@ -20,13 +20,13 @@ Resources:
         - x86_64
       Environment:
         Variables:
-{%- for container in resources | map(attribute='container') | unique %}
-          DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}: !Ref {{ container | to_camel }}Table
+{%- for c in path_resources | unique(attribute='container') %}
+          DYNAMODB_TABLE_NAME_{{ c.env_key }}: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Policies:
-{%- for container in resources | map(attribute='container') | unique %}
+{%- for c in path_resources | unique(attribute='container') %}
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{ container | to_camel }}Table
+            TableName: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Events:
 {%- for resource in resources %}
@@ -80,11 +80,11 @@ Resources:
             Path: /{{ health_endpoint }}
             Method: get
 {%- endif %}
-{% for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}Table:
+{% for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{ container }}
+      TableName: {{ c.container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -100,8 +100,8 @@ Outputs:
   {{ project_class_name }}Function:
     Description: Lambda Function ARN
     Value: !GetAtt {{ project_class_name }}Function.Arn
-{%- for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}TableName:
-    Description: DynamoDB table name for the {{ container }} container
-    Value: !Ref {{ container | to_camel }}Table
+{%- for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}TableName:
+    Description: DynamoDB table name for the {{ c.container }} container
+    Value: !Ref {{ c.container_class }}Table
 {%- endfor %}

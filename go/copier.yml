@@ -145,11 +145,17 @@ resources:
     {%- endif -%}
     {{ ns.err }}
 
-# Git for Windows cannot check out paths containing "|", so paths yield from this copy with precomputed stems.
+# Git for Windows cannot check out paths containing "|", so templates read precomputed values from this copy.
 path_resources:
   type: yaml
   when: false
   default: >-
     [{%- for r in resources -%}
-    {{ dict(r, snake_name=(r.name | to_snake), lower_camel_name=(r.name | to_lower_camel)) | tojson }}{{ "," if not loop.last }}
+    {{ dict(r,
+    snake_name=(r.name | to_snake),
+    lower_camel_name=(r.name | to_lower_camel),
+    env_key=(r.container | string | upper | replace('-', '_')),
+    container_class=(r.container | string | to_camel),
+    has_id=(r.operations | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0),
+    has_body=(r.operations | select('in', ['create', 'update', 'replace']) | list | length > 0)) | tojson }}{{ "," if not loop.last }}
     {%- endfor -%}]

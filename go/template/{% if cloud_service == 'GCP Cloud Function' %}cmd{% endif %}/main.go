@@ -9,13 +9,11 @@ import (
 
 	// Registers the "api" function.
 	_ "{{project_endpoint}}"
+	"{{project_endpoint}}/utils"
 )
 
 func main() {
-	port := "8080"
-	if envPort := os.Getenv("PORT"); envPort != "" {
-		port = envPort
-	}
+	port := utils.Getenv("PORT", "8080")
 
 	slog.Info("Listening for requests", "port", port)
 	if err := funcframework.Start(port); err != nil {

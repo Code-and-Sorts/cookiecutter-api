@@ -41,9 +41,9 @@ func main() {
 {%- if health_endpoint %}
 	handlers.RegisterHealthRoute(router)
 {%- endif %}
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 	{
-		container := cosmosContainer(client, databaseName, "CosmosDbContainerName_{{ resource.container | to_camel }}", "{{ resource.container }}")
+		container := cosmosContainer(client, databaseName, "CosmosDbContainerName_{{ resource.container_class }}", "{{ resource.container }}")
 		repository := repositories.New{{ resource.name }}Repository(container)
 		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
 		handlers.Register{{ resource.name }}Routes(router, controller)
@@ -51,13 +51,10 @@ func main() {
 {%- endfor %}
 
 	// The Functions host forwards requests to the port it passes in FUNCTIONS_CUSTOMHANDLER_PORT.
-	listenAddr := ":80"
-	if port, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
-		listenAddr = ":" + port
-	}
+	listenAddr := ":" + utils.Getenv("FUNCTIONS_CUSTOMHANDLER_PORT", "80")
 
 	slog.Info("Listening for requests", "address", listenAddr)
-	exitOnError("Server stopped", http.ListenAndServe(listenAddr, handlers.Recover(handlers.WithRequestTimeout(router))))
+	exitOnError("Server stopped", http.ListenAndServe(listenAddr, handlers.Middleware(router)))
 }
 
 func newCosmosClient() (*azcosmos.Client, string) {
@@ -86,11 +83,7 @@ func newCosmosClient() (*azcosmos.Client, string) {
 }
 
 func cosmosContainer(client *azcosmos.Client, databaseName, setting, defaultName string) *azcosmos.ContainerClient {
-	name := os.Getenv(setting)
-	if name == "" {
-		name = defaultName
-	}
-
+	name := utils.Getenv(setting, defaultName)
 	container, err := client.NewContainer(databaseName, name)
 	exitOnError("Failed to open Cosmos DB container "+name, err)
 	return container
@@ -104,23 +97,16 @@ func cosmosContainer(client *azcosmos.Client, databaseName, setting, defaultName
 {%- if health_endpoint %}
 	handlers.RegisterHealthRoute(router)
 {%- endif %}
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 	{
-		table := tableName("DYNAMODB_TABLE_NAME_{{ resource.container | upper | replace('-', '_') }}", "{{ resource.container }}")
-		repository := repositories.New{{ resource.name }}Repository(client, table)
+		table := utils.Getenv("DYNAMODB_TABLE_NAME_{{ resource.env_key }}", "{{ resource.container }}")
+		repository := repositories.New{{ resource.name }}Repository(repositories.Container{Client: client, TableName: table})
 		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
 		handlers.Register{{ resource.name }}Routes(router, controller)
 	}
 {%- endfor %}
 
 	lambda.Start(router.ServeRequest)
-}
-
-func tableName(setting, defaultName string) string {
-	if name := os.Getenv(setting); name != "" {
-		return name
-	}
-	return defaultName
 }
 {%- endif %}
 

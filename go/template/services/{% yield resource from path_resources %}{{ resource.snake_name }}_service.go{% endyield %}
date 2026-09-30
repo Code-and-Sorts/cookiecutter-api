@@ -1,17 +1,11 @@
 {%- set r = resource.name -%}
-{%- set lc = resource.name | to_lower_camel -%}
+{%- set lc = resource.lower_camel_name -%}
 {%- set ops = resource.operations -%}
-{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set uses_models = uses_body or ('get_by_id' in ops) or ('list' in ops) -%}
 package services
 
 import (
 	"context"
-{%- if 'create' in ops %}
-
-	"github.com/google/uuid"
-{%- endif %}
-{%- if uses_models %}
+{%- if resource.has_body or 'get_by_id' in ops or 'list' in ops %}
 
 	"{{project_endpoint}}/models"
 {%- endif %}
@@ -61,16 +55,7 @@ func (s *{{ lc }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r
 {%- if "create" in ops %}
 
 func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error) {
-	now := models.Now()
-	new{{ r }} := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               uuid.New().String(),
-			CreatedTimestamp: now,
-			UpdatedTimestamp: now,
-		},
-		Name: req.Name,
-	}
-	return s.repository.Create(ctx, new{{ r }})
+	return s.repository.Create(ctx, models.{{ r }}{BaseEntity: models.NewBaseEntity(), Name: req.Name})
 }
 {%- endif %}
 {%- if "update" in ops %}

@@ -4,7 +4,7 @@ package services
 import (
 	"context"
 	"testing"
-{%- if resource.operations | reject('equalto', 'delete') | list | length > 0 %}
+{%- if resource.has_body or 'get_by_id' in resource.operations or 'list' in resource.operations %}
 
 	"{{project_endpoint}}/models"
 {%- endif %}

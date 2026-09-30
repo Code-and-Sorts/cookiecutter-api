@@ -1,7 +1,7 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set uses_id = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
+{%- set uses_body = resource.has_body -%}
+{%- set uses_id = resource.has_id -%}
 package controllers
 
 import (
@@ -9,7 +9,7 @@ import (
 {%- if "list" in ops %}
 	"encoding/json"
 {%- endif %}
-{%- if "list" in ops or "create" in ops %}
+{%- if "list" in ops or "create" in ops or "delete" in ops %}
 	"errors"
 {%- endif %}
 {%- if uses_body %}
@@ -359,18 +359,31 @@ func TestDelete{{ r }}_CallsDeleteOnService(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	mockService.On("Delete", mock.Anything, test{{ r }}ID).Return(nil)
 
-	err := controller.Delete(context.Background(), test{{ r }}ID)
+	result, err := controller.Delete(context.Background(), test{{ r }}ID)
 
 	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"message": "{{ r }} with id " + test{{ r }}ID + " was deleted successfully."}, result)
 	mockService.AssertCalled(t, "Delete", mock.Anything, test{{ r }}ID)
+}
+
+func TestDelete{{ r }}_ReturnsServiceError(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("Delete", mock.Anything, test{{ r }}ID).Return(errors.New("boom"))
+
+	result, err := controller.Delete(context.Background(), test{{ r }}ID)
+
+	assert.Nil(t, result)
+	assert.EqualError(t, err, "boom")
 }
 
 func TestDelete{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
 
-	err := controller.Delete(context.Background(), invalid{{ r }}ID)
+	result, err := controller.Delete(context.Background(), invalid{{ r }}ID)
 
+	assert.Nil(t, result)
 	assert{{ r }}NotFound(t, err)
 	mockService.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
 }

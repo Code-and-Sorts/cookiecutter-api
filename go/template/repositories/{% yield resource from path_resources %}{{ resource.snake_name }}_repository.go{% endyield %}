@@ -1,41 +1,10 @@
 {%- set r = resource.name -%}
-{%- set lc = resource.name | to_lower_camel -%}
+{%- set lc = resource.lower_camel_name -%}
 {%- set ops = resource.operations -%}
-{%- set needs_get_item = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
 package repositories
 
 import (
 	"context"
-{%- if cloud_service == 'Azure Function App' %}
-	"encoding/json"
-{%- endif %}
-{%- if cloud_service == 'Azure Function App' and 'list' in ops %}
-	"fmt"
-{%- endif %}
-{% if cloud_service == 'Azure Function App' %}
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-	"cloud.google.com/go/firestore"
-{%- if 'list' in ops %}
-	"google.golang.org/api/iterator"
-{%- endif %}
-{%- if needs_get_item %}
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-{%- endif %}
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-{%- if 'list' in ops %}
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
-{%- endif %}
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-{%- if 'list' in ops %}
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-{%- endif %}
-{%- endif %}
 
 	"{{project_endpoint}}/models"
 )
@@ -60,330 +29,51 @@ type {{ r }}Repository interface {
 	Delete(ctx context.Context, id string) error
 {%- endif %}
 }
-{%- if cloud_service == 'Azure Function App' %}
 
 type {{ lc }}Repository struct {
-	container *azcosmos.ContainerClient
+	store *store[models.{{ r }}, *models.{{ r }}]
 }
 
-func New{{ r }}Repository(container *azcosmos.ContainerClient) {{ r }}Repository {
-	return &{{ lc }}Repository{container: container}
+func New{{ r }}Repository(container Container) {{ r }}Repository {
+	return &{{ lc }}Repository{store: newStore[models.{{ r }}]("{{ r }}", container)}
 }
-{%- if needs_get_item %}
-
-func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
-	resp, err := repo.container.ReadItem(ctx, azcosmos.NewPartitionKeyString(id), id, nil)
-	if err != nil {
-		if IsItemNotFound(err) {
-			return nil, models.NewNotFoundError("{{ r }}", id)
-		}
-		return nil, err
-	}
-
-	var item models.{{ r }}
-	if err := json.Unmarshal(resp.Value, &item); err != nil {
-		return nil, err
-	}
-
-	if item.IsDeleted {
-		return nil, models.NewNotFoundError("{{ r }}", id)
-	}
-
-	return &item, nil
-}
-{%- endif %}
-{%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
-
-// The SDK returns no body unless EnableContentResponseOnWrite is set, so callers respond with the item they wrote.
-func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
-	data, err := json.Marshal(item)
-	if err != nil {
-		return err
-	}
-
-	pk := azcosmos.NewPartitionKeyString(item.Id)
-	if create {
-		_, err = repo.container.CreateItem(ctx, pk, data, nil)
-	} else {
-		_, err = repo.container.ReplaceItem(ctx, pk, item.Id, data, nil)
-	}
-	return err
-}
-{%- endif %}
-{%- elif cloud_service == 'GCP Cloud Function' %}
-
-type {{ lc }}Repository struct {
-	collection *firestore.CollectionRef
-}
-
-func New{{ r }}Repository(collection *firestore.CollectionRef) {{ r }}Repository {
-	return &{{ lc }}Repository{collection: collection}
-}
-{%- if needs_get_item %}
-
-func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
-	doc, err := repo.collection.Doc(id).Get(ctx)
-	if err != nil {
-		if status.Code(err) == codes.NotFound {
-			return nil, models.NewNotFoundError("{{ r }}", id)
-		}
-		return nil, err
-	}
-
-	var item models.{{ r }}
-	if err := doc.DataTo(&item); err != nil {
-		return nil, err
-	}
-
-	if item.IsDeleted {
-		return nil, models.NewNotFoundError("{{ r }}", id)
-	}
-
-	return &item, nil
-}
-{%- endif %}
-{%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
-
-func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
-	doc := repo.collection.Doc(item.Id)
-	var err error
-	if create {
-		_, err = doc.Create(ctx, item)
-	} else {
-		_, err = doc.Set(ctx, item)
-	}
-	return err
-}
-{%- endif %}
-{%- elif cloud_service == 'AWS Lambda' %}
-
-type {{ lc }}Repository struct {
-	client    *dynamodb.Client
-	tableName string
-}
-
-func New{{ r }}Repository(client *dynamodb.Client, tableName string) {{ r }}Repository {
-	return &{{ lc }}Repository{client: client, tableName: tableName}
-}
-{%- if needs_get_item %}
-
-func (repo *{{ lc }}Repository) getItem(ctx context.Context, id string) (*models.{{ r }}, error) {
-	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := repo.client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(repo.tableName),
-		Key:       key,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.Item == nil {
-		return nil, models.NewNotFoundError("{{ r }}", id)
-	}
-
-	var item models.{{ r }}
-	if err := attributevalue.UnmarshalMap(resp.Item, &item); err != nil {
-		return nil, err
-	}
-
-	if item.IsDeleted {
-		return nil, models.NewNotFoundError("{{ r }}", id)
-	}
-
-	return &item, nil
-}
-{%- endif %}
-{%- if 'create' in ops or 'update' in ops or 'replace' in ops or 'delete' in ops %}
-
-func (repo *{{ lc }}Repository) write(ctx context.Context, item models.{{ r }}, create bool) error {
-	av, err := attributevalue.MarshalMap(item)
-	if err != nil {
-		return err
-	}
-
-	input := &dynamodb.PutItemInput{
-		TableName: aws.String(repo.tableName),
-		Item:      av,
-	}
-	if create {
-		input.ConditionExpression = aws.String("attribute_not_exists(id)")
-	}
-	_, err = repo.client.PutItem(ctx, input)
-	return err
-}
-{%- endif %}
-{%- endif %}
 {%- if 'get_by_id' in ops %}
 
 func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
-	item, err := repo.getItem(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	dto := models.To{{ r }}Dto(*item)
-	return &dto, nil
+	return toDto(models.To{{ r }}Dto)(repo.store.get(ctx, id))
 }
 {%- endif %}
 {%- if 'list' in ops %}
 
 func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
-	results := make([]models.{{ r }}Dto, 0)
-{%- if cloud_service == 'Azure Function App' %}
-	query := fmt.Sprintf("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT %d", limit)
-	pager := repo.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
-
-	for pager.More() && len(results) < limit {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, data := range resp.Items {
-			var item models.{{ r }}
-			if err := json.Unmarshal(data, &item); err != nil {
-				return nil, err
-			}
-			results = append(results, models.To{{ r }}Dto(item))
-		}
-	}
-{%- elif cloud_service == 'GCP Cloud Function' %}
-	iter := repo.collection.Where("isDeleted", "==", false).Limit(limit).Documents(ctx)
-	defer iter.Stop()
-
-	for {
-		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		var item models.{{ r }}
-		if err := doc.DataTo(&item); err != nil {
-			return nil, err
-		}
-		results = append(results, models.To{{ r }}Dto(item))
-	}
-{%- elif cloud_service == 'AWS Lambda' %}
-	filter := expression.Equal(expression.Name("isDeleted"), expression.Value(false))
-	expr, err := expression.NewBuilder().WithFilter(filter).Build()
-	if err != nil {
-		return nil, err
-	}
-
-	var lastKey map[string]types.AttributeValue
-	for {
-		resp, err := repo.client.Scan(ctx, &dynamodb.ScanInput{
-			TableName:                 aws.String(repo.tableName),
-			FilterExpression:          expr.Filter(),
-			ExpressionAttributeNames:  expr.Names(),
-			ExpressionAttributeValues: expr.Values(),
-			ExclusiveStartKey:         lastKey,
-			Limit:                     aws.Int32(int32(limit)),
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, data := range resp.Items {
-			var item models.{{ r }}
-			if err := attributevalue.UnmarshalMap(data, &item); err != nil {
-				return nil, err
-			}
-			results = append(results, models.To{{ r }}Dto(item))
-		}
-
-		if resp.LastEvaluatedKey == nil || len(results) >= limit {
-			break
-		}
-		lastKey = resp.LastEvaluatedKey
-	}
-{%- endif %}
-
-	if len(results) > limit {
-		results = results[:limit]
-	}
-	return results, nil
+	return toDtos(models.To{{ r }}Dto)(repo.store.list(ctx, limit))
 }
 {%- endif %}
 {%- if 'create' in ops %}
 
 func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	if err := repo.write(ctx, item, true); err != nil {
-		return nil, err
-	}
-
-	dto := models.To{{ r }}Dto(item)
-	return &dto, nil
+	return toDto(models.To{{ r }}Dto)(repo.store.create(ctx, &item))
 }
 {%- endif %}
 {%- if 'update' in ops %}
 
 func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	updated, err := repo.getItem(ctx, item.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	if item.Name != "" {
-		updated.Name = item.Name
-	}
-	if item.UpdatedBy != "" {
-		updated.UpdatedBy = item.UpdatedBy
-	}
-	updated.UpdatedTimestamp = models.Now()
-
-	if err := repo.write(ctx, *updated, false); err != nil {
-		return nil, err
-	}
-
-	dto := models.To{{ r }}Dto(*updated)
-	return &dto, nil
+	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, &item, func(stored *models.{{ r }}) {
+		if item.Name != "" {
+			stored.Name = item.Name
+		}
+	}))
 }
 {%- endif %}
 {%- if 'replace' in ops %}
 
 func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	current, err := repo.getItem(ctx, item.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	replacement := models.{{ r }}{
-		BaseEntity: models.BaseEntity{
-			Id:               current.Id,
-			CreatedTimestamp: current.CreatedTimestamp,
-			UpdatedTimestamp: models.Now(),
-			CreatedBy:        current.CreatedBy,
-			UpdatedBy:        item.UpdatedBy,
-		},
-		Name: item.Name,
-	}
-
-	if err := repo.write(ctx, replacement, false); err != nil {
-		return nil, err
-	}
-
-	dto := models.To{{ r }}Dto(replacement)
-	return &dto, nil
+	return toDto(models.To{{ r }}Dto)(repo.store.replace(ctx, &item))
 }
 {%- endif %}
 {%- if 'delete' in ops %}
 
 func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
-	item, err := repo.getItem(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	item.IsDeleted = true
-	item.UpdatedTimestamp = models.Now()
-	return repo.write(ctx, *item, false)
+	return repo.store.softDelete(ctx, id)
 }
 {%- endif %}

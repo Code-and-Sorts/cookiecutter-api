@@ -1,18 +1,18 @@
 {%- set r = resource.name -%}
-{%- set lc = resource.name | to_lower_camel -%}
-{%- set snake = resource.name | to_snake -%}
+{%- set lc = resource.lower_camel_name -%}
+{%- set snake = resource.snake_name -%}
 {%- set ops = resource.operations -%}
-{%- set uses_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- set uses_id = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0 -%}
-{%- set uses_models = uses_body or uses_id or ('list' in ops) -%}
 package controllers
 
 import (
 	"context"
-{%- if uses_body %}
+{%- if 'delete' in ops %}
+	"fmt"
+{%- endif %}
+{%- if resource.has_body %}
 	"io"
 {%- endif %}
-{%- if uses_models %}
+{%- if ops != ['delete'] %}
 
 	"{{project_endpoint}}/models"
 {%- endif %}
@@ -36,7 +36,7 @@ type {{ r }}Controller interface {
 	Replace(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if "delete" in ops %}
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) (map[string]string, error)
 {%- endif %}
 }
 
@@ -51,8 +51,8 @@ func New{{ r }}Controller(service services.{{ r }}Service, schemaValidator servi
 {%- if "get_by_id" in ops %}
 
 func (c *{{ lc }}Controller) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
-	if !IsValidID(id) {
-		return nil, models.NewNotFoundError("{{ r }}", id)
+	if err := requireID("{{ r }}", id); err != nil {
+		return nil, err
 	}
 	return c.service.Get(ctx, id)
 }
@@ -85,8 +85,8 @@ func (c *{{ lc }}Controller) Create(ctx context.Context, body io.Reader) (*model
 {%- if "update" in ops %}
 
 func (c *{{ lc }}Controller) Update(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
-	if !IsValidID(id) {
-		return nil, models.NewNotFoundError("{{ r }}", id)
+	if err := requireID("{{ r }}", id); err != nil {
+		return nil, err
 	}
 
 	var req models.Update{{ r }}Request
@@ -101,8 +101,8 @@ func (c *{{ lc }}Controller) Update(ctx context.Context, id string, body io.Read
 {%- if "replace" in ops %}
 
 func (c *{{ lc }}Controller) Replace(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
-	if !IsValidID(id) {
-		return nil, models.NewNotFoundError("{{ r }}", id)
+	if err := requireID("{{ r }}", id); err != nil {
+		return nil, err
 	}
 
 	var req models.Replace{{ r }}Request
@@ -116,10 +116,13 @@ func (c *{{ lc }}Controller) Replace(ctx context.Context, id string, body io.Rea
 {%- endif %}
 {%- if "delete" in ops %}
 
-func (c *{{ lc }}Controller) Delete(ctx context.Context, id string) error {
-	if !IsValidID(id) {
-		return models.NewNotFoundError("{{ r }}", id)
+func (c *{{ lc }}Controller) Delete(ctx context.Context, id string) (map[string]string, error) {
+	if err := requireID("{{ r }}", id); err != nil {
+		return nil, err
 	}
-	return c.service.Delete(ctx, id)
+	if err := c.service.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	return map[string]string{"message": fmt.Sprintf("{{ r }} with id %s was deleted successfully.", id)}, nil
 }
 {%- endif %}

@@ -78,12 +78,7 @@ func JSONResponse(statusCode int, body any) events.APIGatewayProxyResponse {
 }
 
 func GenerateErrorResponse(message string, statusCode int) events.APIGatewayProxyResponse {
-	body, _ := json.Marshal(models.BaseError{ErrorMessage: message})
-	return events.APIGatewayProxyResponse{
-		StatusCode: statusCode,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       string(body),
-	}
+	return JSONResponse(statusCode, models.BaseError{ErrorMessage: message})
 }
 
 func DetectError(ctx context.Context, err error) events.APIGatewayProxyResponse {

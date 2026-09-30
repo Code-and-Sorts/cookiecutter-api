@@ -14,7 +14,7 @@ This project is a Go-based REST API built using [AWS Lambda](https://docs.aws.am
 {%- endif %}
 
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' %}
-{%- set containers = resources | map(attribute='container') | unique | list %}
+{%- set containers = path_resources | unique(attribute='container') | list %}
 
 The REST API exposes the following resources and operations:
 {% for resource in resources %}
@@ -82,7 +82,7 @@ Records are stored with `id`, `name`, `isDeleted`, `createdTimestamp` and `updat
 
 ### Logging
 
-Logs are written with `log/slog`. Records below error level go to stdout; unexpected errors are logged at error level, with a stack trace, to stderr. Expected 4xx outcomes, and requests the client cancels by disconnecting, are not logged as errors.
+Logs are written with `log/slog`. Each request is logged once at info level with its method and path. Records below error level go to stdout; unexpected errors are logged at error level, with a stack trace, to stderr. Expected 4xx outcomes, and requests the client cancels by disconnecting, are not logged as errors.
 
 ### Storage containers
 
@@ -90,8 +90,8 @@ Each container is configured by its own setting. When the setting is unset, the 
 
 | Container | Resources | Setting |
 |---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} | `{% if cloud_service == 'Azure Function App' %}CosmosDbContainerName_{{ container | to_camel }}{% elif cloud_service == 'GCP Cloud Function' %}FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}{% else %}DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}{% endif %}` |
+{%- for c in containers %}
+| `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} | `{% if cloud_service == 'Azure Function App' %}CosmosDbContainerName_{{ c.container_class }}{% elif cloud_service == 'GCP Cloud Function' %}FIRESTORE_COLLECTION_{{ c.env_key }}{% else %}DYNAMODB_TABLE_NAME_{{ c.env_key }}{% endif %}` |
 {%- endfor %}
 
 Resources that share a container share its records: there is no type discriminator, so every resource mapped to a container reads, lists, updates and deletes all records in it. Give resources separate containers unless they are meant to operate on the same data.
@@ -215,8 +215,8 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
     - `GCP_PROJECT_ID`: Your GCP project ID
     - `FIRESTORE_DATABASE`: Firestore database name (defaults to "(default)")
-{%- for container in containers %}
-    - `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}`: Firestore collection for the `{{ container }}` container (defaults to `{{ container }}`)
+{%- for c in containers %}
+    - `FIRESTORE_COLLECTION_{{ c.env_key }}`: Firestore collection for the `{{ c.container }}` container (defaults to `{{ c.container }}`)
 {%- endfor %}
 
 5. Run the API Locally
@@ -240,7 +240,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
       --entry-point api \
       --trigger-http \
       --allow-unauthenticated \
-      --set-env-vars GCP_PROJECT_ID=your-project-id{% for container in containers %},FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}={{ container }}{% endfor %}
+      --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_key }}={{ c.container }}{% endfor %}
     ```
 
     The function's routes have no prefix: `https://<function-url>/{{ resources[0].endpoint }}`.
@@ -310,7 +310,7 @@ This is also run automatically in CI on every PR and push to main.
 ## Repository structure
 
 Every resource has its own file in each layer. Shared code (routing, list pagination, id
-checks, the schema validator, the base entity, error types, logging and the wiring in
+checks, the schema validator, the generic database store, the base entity, error types, logging and the wiring in
 `{{ 'function.go' if cloud_service == 'GCP Cloud Function' else 'main.go' }}`) lives in one file per package.
 
 ```text
@@ -342,22 +342,24 @@ checks, the schema validator, the base entity, error types, logging and the wiri
 │   ├── health_handler.go
 │   ├── health_handler_test.go
 {%- endif %}
-│   ├── router.go                  # request deadline and JSON 404, 405 and 500 responses
+│   ├── router.go                  # request log and deadline, JSON responses and 404, 405 and 500 errors
 │   └── router_test.go
 ├── models                         # each resource's entity, DTO and request types
 {%- for resource in resources %}
 │   ├── {{ resource.name | to_snake }}_model.go
 {%- endfor %}
 │   ├── entity.go                  # BaseEntity
+│   ├── entity_test.go
 │   └── errors.go
 ├── repositories
 {%- for resource in resources %}
-│   {{ '└──' if loop.last and cloud_service != 'Azure Function App' else '├──' }} {{ resource.name | to_snake }}_repository.go
+│   ├── {{ resource.name | to_snake }}_repository.go
 {%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
 │   ├── cosmos.go                  # tells a missing item from a missing container
-│   └── cosmos_test.go
+│   ├── cosmos_test.go
 {%- endif %}
+│   └── store.go                   # generic database access and the shared update, replace and soft delete
 ├── services
 {%- for resource in resources %}
 │   ├── {{ resource.name | to_snake }}_service.go
@@ -368,6 +370,8 @@ checks, the schema validator, the base entity, error types, logging and the wiri
 ├── utils
 │   ├── error_detector.go          # maps errors to JSON error responses
 │   ├── error_detector_test.go
+│   ├── env.go                     # setting or default
+│   ├── env_test.go
 │   ├── logger.go                  # info logs to stdout, errors to stderr
 │   └── logger_test.go
 {%- if cloud_service == 'Azure Function App' %}

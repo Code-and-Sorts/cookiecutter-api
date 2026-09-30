@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 const TimestampLayout = "2006-01-02T15:04:05.000Z"
 
@@ -11,6 +15,16 @@ type BaseEntity struct {
 	UpdatedTimestamp string `json:"updatedTimestamp" dynamodbav:"updatedTimestamp" firestore:"updatedTimestamp"`
 	CreatedBy        string `json:"createdBy,omitempty" dynamodbav:"createdBy,omitempty" firestore:"createdBy,omitempty"`
 	UpdatedBy        string `json:"updatedBy,omitempty" dynamodbav:"updatedBy,omitempty" firestore:"updatedBy,omitempty"`
+}
+
+func NewBaseEntity() BaseEntity {
+	now := Now()
+	return BaseEntity{Id: uuid.New().String(), CreatedTimestamp: now, UpdatedTimestamp: now}
+}
+
+// Promoted to every record type, so generic repository code can reach the shared fields.
+func (b *BaseEntity) Base() *BaseEntity {
+	return b
 }
 
 func Now() string {
