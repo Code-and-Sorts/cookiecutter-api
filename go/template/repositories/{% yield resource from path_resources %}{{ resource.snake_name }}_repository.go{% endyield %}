@@ -17,16 +17,16 @@ type {{ r }}Repository interface {
 	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'create' in ops %}
-	Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+	Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'update' in ops %}
-	Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+	Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'replace' in ops %}
-	Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error)
+	Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'delete' in ops %}
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id, userID string) error
 {%- endif %}
 }
 
@@ -51,14 +51,14 @@ func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]model
 {%- endif %}
 {%- if 'create' in ops %}
 
-func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	return toDto(models.To{{ r }}Dto)(repo.store.create(ctx, &item))
+func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.create(ctx, &item, userID))
 }
 {%- endif %}
 {%- if 'update' in ops %}
 
-func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, &item, func(stored *models.{{ r }}) {
+func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, item.Id, userID, func(stored *models.{{ r }}) {
 		if item.Name != "" {
 			stored.Name = item.Name
 		}
@@ -67,13 +67,13 @@ func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }})
 {%- endif %}
 {%- if 'replace' in ops %}
 
-func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	return toDto(models.To{{ r }}Dto)(repo.store.replace(ctx, &item))
+func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.replace(ctx, &item, userID))
 }
 {%- endif %}
 {%- if 'delete' in ops %}
 
-func (repo *{{ lc }}Repository) Delete(ctx context.Context, id string) error {
-	return repo.store.softDelete(ctx, id)
+func (repo *{{ lc }}Repository) Delete(ctx context.Context, id, userID string) error {
+	return repo.store.softDelete(ctx, id, userID)
 }
 {%- endif %}

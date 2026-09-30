@@ -38,22 +38,30 @@ func Register{{ r }}Routes(mux *http.ServeMux, controller controllers.{{ r }}Con
 {%- endif %}
 {%- if "create" in ops %}
 	mux.HandleFunc("POST {{ route_prefix }}/{{ ep }}", func(w http.ResponseWriter, r *http.Request) {
-		serve(w, r, http.StatusCreated, func() (any, error) { return controller.Create(r.Context(), r.Body) })
+		serve(w, r, http.StatusCreated, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Create(r.Context(), userID, r.Body)
+		}))
 	})
 {%- endif %}
 {%- if "update" in ops %}
 	mux.HandleFunc("PATCH {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
-		serve(w, r, http.StatusOK, func() (any, error) { return controller.Update(r.Context(), r.PathValue("id"), r.Body) })
+		serve(w, r, http.StatusOK, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Update(r.Context(), r.PathValue("id"), userID, r.Body)
+		}))
 	})
 {%- endif %}
 {%- if "replace" in ops %}
 	mux.HandleFunc("PUT {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
-		serve(w, r, http.StatusOK, func() (any, error) { return controller.Replace(r.Context(), r.PathValue("id"), r.Body) })
+		serve(w, r, http.StatusOK, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Replace(r.Context(), r.PathValue("id"), userID, r.Body)
+		}))
 	})
 {%- endif %}
 {%- if "delete" in ops %}
 	mux.HandleFunc("DELETE {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
-		serve(w, r, http.StatusOK, func() (any, error) { return controller.Delete(r.Context(), r.PathValue("id")) })
+		serve(w, r, http.StatusOK, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Delete(r.Context(), r.PathValue("id"), userID)
+		}))
 	})
 {%- endif %}
 	mux.HandleFunc("{{ route_prefix }}/{{ ep }}", methodNotAllowed)
@@ -84,19 +92,27 @@ func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 {%- endif %}
 {%- if "create" in ops %}
 		case "POST /{{ ep }}":
-			return serve(ctx, http.StatusCreated, func() (any, error) { return controller.Create(ctx, strings.NewReader(request.Body)) })
+			return serve(ctx, http.StatusCreated, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Create(ctx, userID, strings.NewReader(request.Body))
+			}))
 {%- endif %}
 {%- if "update" in ops %}
 		case "PATCH /{{ ep }}/{id}":
-			return serve(ctx, http.StatusOK, func() (any, error) { return controller.Update(ctx, id, strings.NewReader(request.Body)) })
+			return serve(ctx, http.StatusOK, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Update(ctx, id, userID, strings.NewReader(request.Body))
+			}))
 {%- endif %}
 {%- if "replace" in ops %}
 		case "PUT /{{ ep }}/{id}":
-			return serve(ctx, http.StatusOK, func() (any, error) { return controller.Replace(ctx, id, strings.NewReader(request.Body)) })
+			return serve(ctx, http.StatusOK, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Replace(ctx, id, userID, strings.NewReader(request.Body))
+			}))
 {%- endif %}
 {%- if "delete" in ops %}
 		case "DELETE /{{ ep }}/{id}":
-			return serve(ctx, http.StatusOK, func() (any, error) { return controller.Delete(ctx, id) })
+			return serve(ctx, http.StatusOK, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Delete(ctx, id, userID)
+			}))
 {%- endif %}
 		default:
 			return methodNotAllowed()

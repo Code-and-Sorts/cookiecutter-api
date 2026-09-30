@@ -1,3 +1,4 @@
+{%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
 package models
 
 import (
@@ -26,6 +27,22 @@ func NewBaseEntity() BaseEntity {
 func (b *BaseEntity) Base() *BaseEntity {
 	return b
 }
+
+{%- if 'create' in all_ops %}
+
+func (b *BaseEntity) StampCreate(userID string) {
+	b.CreatedBy = userID
+	b.UpdatedBy = userID
+}
+{%- endif %}
+{%- if all_ops | select('in', ['update', 'replace', 'delete']) | list %}
+
+// An empty userID removes updatedBy, so it always describes the latest write.
+func (b *BaseEntity) StampWrite(userID string) {
+	b.UpdatedTimestamp = Now()
+	b.UpdatedBy = userID
+}
+{%- endif %}
 
 func Now() string {
 	return time.Now().UTC().Format(TimestampLayout)

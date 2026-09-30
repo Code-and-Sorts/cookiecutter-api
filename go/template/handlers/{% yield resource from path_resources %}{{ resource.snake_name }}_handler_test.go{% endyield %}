@@ -3,6 +3,7 @@
 {%- set ep = resource.endpoint -%}
 {%- set uses_body = resource.has_body -%}
 {%- set uses_id = resource.has_id -%}
+{%- set uses_user = ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set routes = [
   ('list', 'MethodGet', false), ('create', 'MethodPost', false),
@@ -37,7 +38,7 @@ import (
 
 const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 
-{%- set fields = [('err', 'error', true), ('id', 'string', uses_id), ('limit', 'int', 'list' in ops), ('body', 'string', uses_body)] | selectattr(2) | list %}
+{%- set fields = [('err', 'error', true), ('id', 'string', uses_id), ('limit', 'int', 'list' in ops), ('body', 'string', uses_body), ('userID', 'string', uses_user)] | selectattr(2) | list %}
 {%- set width = fields | map(attribute=0) | map('length') | max %}
 
 type fake{{ r }}Controller struct {
@@ -67,9 +68,9 @@ func (f *fake{{ r }}Controller) GetList(ctx context.Context, limit int) ([]model
 {%- endif %}
 {%- if "create" in ops %}
 
-func (f *fake{{ r }}Controller) Create(ctx context.Context, body io.Reader) (*models.{{ r }}Dto, error) {
+func (f *fake{{ r }}Controller) Create(ctx context.Context, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
 	data, _ := io.ReadAll(body)
-	f.body = string(data)
+	f.body, f.userID = string(data), userID
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -78,9 +79,9 @@ func (f *fake{{ r }}Controller) Create(ctx context.Context, body io.Reader) (*mo
 {%- endif %}
 {%- if "update" in ops %}
 
-func (f *fake{{ r }}Controller) Update(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
+func (f *fake{{ r }}Controller) Update(ctx context.Context, id, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
 	data, _ := io.ReadAll(body)
-	f.id, f.body = id, string(data)
+	f.id, f.body, f.userID = id, string(data), userID
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -89,9 +90,9 @@ func (f *fake{{ r }}Controller) Update(ctx context.Context, id string, body io.R
 {%- endif %}
 {%- if "replace" in ops %}
 
-func (f *fake{{ r }}Controller) Replace(ctx context.Context, id string, body io.Reader) (*models.{{ r }}Dto, error) {
+func (f *fake{{ r }}Controller) Replace(ctx context.Context, id, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
 	data, _ := io.ReadAll(body)
-	f.id, f.body = id, string(data)
+	f.id, f.body, f.userID = id, string(data), userID
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -100,8 +101,8 @@ func (f *fake{{ r }}Controller) Replace(ctx context.Context, id string, body io.
 {%- endif %}
 {%- if "delete" in ops %}
 
-func (f *fake{{ r }}Controller) Delete(ctx context.Context, id string) (map[string]string, error) {
-	f.id = id
+func (f *fake{{ r }}Controller) Delete(ctx context.Context, id, userID string) (map[string]string, error) {
+	f.id, f.userID = id, userID
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -119,8 +120,10 @@ func call{{ r }}(t *testing.T, controller *fake{{ r }}Controller, method string,
 	mux := NewRouter()
 	Register{{ r }}Routes(mux, controller)
 	w := httptest.NewRecorder()
+	request := httptest.NewRequest(method, target+query, strings.NewReader(body))
+	request.Header.Set("X-User-Id", "alice")
 
-	Recover(mux).ServeHTTP(w, httptest.NewRequest(method, target+query, strings.NewReader(body)))
+	Recover(mux).ServeHTTP(w, request)
 
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 	return w.Code, w.Body.String()
@@ -140,7 +143,12 @@ func Test{{ r }}Routes_UnknownPath_Returns404(t *testing.T) {
 
 func call{{ r }}(t *testing.T, controller *fake{{ r }}Controller, method string, item bool, query, body string) (int, string) {
 	t.Helper()
-	request := events.APIGatewayProxyRequest{HTTPMethod: method, Resource: "/{{ ep }}", Body: body}
+	request := events.APIGatewayProxyRequest{
+		HTTPMethod: method,
+		Resource:   "/{{ ep }}",
+		Headers:    map[string]string{"x-user-id": "alice"},
+		Body:       body,
+	}
 	if item {
 		request.Resource = "/{{ ep }}/{id}"
 		request.PathParameters = map[string]string{"id": test{{ r }}ID}
@@ -201,6 +209,7 @@ func TestCreate{{ r }}_Returns201WithItem(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, status)
 	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
 	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
 {%- if "update" in ops %}
@@ -214,6 +223,7 @@ func TestUpdate{{ r }}_ReturnsItem(t *testing.T) {
 	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
 {%- if "replace" in ops %}
@@ -227,6 +237,7 @@ func TestReplace{{ r }}_ReturnsItem(t *testing.T) {
 	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -239,6 +250,7 @@ func TestDelete{{ r }}_ReturnsMessage(t *testing.T) {
 	assert.Equal(t, http.StatusOK, status)
 	assert.JSONEq(t, `{"message": "Fake deleted."}`, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
+	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
 

@@ -1,3 +1,4 @@
+{%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
 package models
 
 import (
@@ -30,3 +31,31 @@ func TestBase_ReturnsTheEmbeddedFields(t *testing.T) {
 
 	assert.True(t, entity.IsDeleted)
 }
+{%- if 'create' in all_ops %}
+
+func TestStampCreate_SetsBothUserFields(t *testing.T) {
+	entity := NewBaseEntity()
+
+	entity.StampCreate("alice")
+
+	assert.Equal(t, "alice", entity.CreatedBy)
+	assert.Equal(t, "alice", entity.UpdatedBy)
+}
+{%- endif %}
+{%- if all_ops | select('in', ['update', 'replace', 'delete']) | list %}
+
+func TestStampWrite_SetsOrRemovesUpdatedByAndKeepsCreatedBy(t *testing.T) {
+	entity := BaseEntity{CreatedBy: "alice", UpdatedBy: "alice", UpdatedTimestamp: "2026-01-01T00:00:00.000Z"}
+
+	entity.StampWrite("bob")
+
+	assert.Equal(t, "alice", entity.CreatedBy)
+	assert.Equal(t, "bob", entity.UpdatedBy)
+	assert.NotEqual(t, "2026-01-01T00:00:00.000Z", entity.UpdatedTimestamp)
+
+	entity.StampWrite("")
+
+	assert.Equal(t, "alice", entity.CreatedBy)
+	assert.Empty(t, entity.UpdatedBy)
+}
+{%- endif %}

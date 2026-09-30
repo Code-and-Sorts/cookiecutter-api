@@ -1,20 +1,60 @@
+{%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
+{%- set need_write = all_ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 package handlers
 
 import (
 	"context"
 	"log/slog"
 	"net/http"
+{%- if need_write %}
+	"strings"
+{%- endif %}
 	"time"
+{%- if need_write %}
+	"unicode/utf8"
+{%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
 	"github.com/aws/aws-lambda-go/events"
 {%- endif %}
-
+{% if need_write %}
+	"{{project_endpoint}}/models"
+{%- endif %}
 	"{{project_endpoint}}/utils"
 )
 
 // Covers every database call and SDK retry, so a failing database answers 500 inside the platform timeout.
 const RequestTimeout = 8 * time.Second
+{%- if need_write %}
+
+const (
+	UserIDHeader         = "X-User-Id"
+	MaxUserIDLength      = 256
+	UserIDTooLongMessage = "X-User-Id must be at most 256 characters."
+)
+
+// Checked before the body is read, so an oversized header never reaches the controller or the database.
+func withUserID({% if cloud_service == 'AWS Lambda' %}headers map[string]string{% else %}header http.Header{% endif %}, call func(userID string) (any, error)) func() (any, error) {
+	return func() (any, error) {
+{%- if cloud_service == 'AWS Lambda' %}
+		var userID string
+		// API Gateway keeps the client's header casing.
+		for name, value := range headers {
+			if strings.EqualFold(name, UserIDHeader) {
+				userID = value
+			}
+		}
+		userID = strings.TrimSpace(userID)
+{%- else %}
+		userID := strings.TrimSpace(header.Get(UserIDHeader))
+{%- endif %}
+		if utf8.RuneCountInString(userID) > MaxUserIDLength {
+			return nil, &models.ValidationError{Message: UserIDTooLongMessage}
+		}
+		return call(userID)
+	}
+}
+{%- endif %}
 {%- if cloud_service != 'AWS Lambda' %}
 
 func NewRouter() *http.ServeMux {

@@ -252,7 +252,8 @@ func (s *store[T, P]) list(ctx context.Context, limit int) ([]T, error) {
 {%- endif %}
 {%- if 'create' in all_ops %}
 
-func (s *store[T, P]) create(ctx context.Context, item *T) (*T, error) {
+func (s *store[T, P]) create(ctx context.Context, item *T, userID string) (*T, error) {
+	P(item).Base().StampCreate(userID)
 	if err := s.write(ctx, item, true); err != nil {
 		return nil, err
 	}
@@ -261,18 +262,14 @@ func (s *store[T, P]) create(ctx context.Context, item *T) (*T, error) {
 {%- endif %}
 {%- if 'update' in all_ops %}
 
-func (s *store[T, P]) update(ctx context.Context, changes *T, merge func(stored *T)) (*T, error) {
-	stored, err := s.get(ctx, P(changes).Base().Id)
+func (s *store[T, P]) update(ctx context.Context, id, userID string, merge func(stored *T)) (*T, error) {
+	stored, err := s.get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	merge(stored)
-	base := P(stored).Base()
-	if updatedBy := P(changes).Base().UpdatedBy; updatedBy != "" {
-		base.UpdatedBy = updatedBy
-	}
-	base.UpdatedTimestamp = models.Now()
+	P(stored).Base().StampWrite(userID)
 
 	if err := s.write(ctx, stored, false); err != nil {
 		return nil, err
@@ -282,7 +279,7 @@ func (s *store[T, P]) update(ctx context.Context, changes *T, merge func(stored 
 {%- endif %}
 {%- if 'replace' in all_ops %}
 
-func (s *store[T, P]) replace(ctx context.Context, replacement *T) (*T, error) {
+func (s *store[T, P]) replace(ctx context.Context, replacement *T, userID string) (*T, error) {
 	base := P(replacement).Base()
 	current, err := s.get(ctx, base.Id)
 	if err != nil {
@@ -293,10 +290,9 @@ func (s *store[T, P]) replace(ctx context.Context, replacement *T) (*T, error) {
 	*base = models.BaseEntity{
 		Id:               kept.Id,
 		CreatedTimestamp: kept.CreatedTimestamp,
-		UpdatedTimestamp: models.Now(),
 		CreatedBy:        kept.CreatedBy,
-		UpdatedBy:        base.UpdatedBy,
 	}
+	base.StampWrite(userID)
 
 	if err := s.write(ctx, replacement, false); err != nil {
 		return nil, err
@@ -306,7 +302,7 @@ func (s *store[T, P]) replace(ctx context.Context, replacement *T) (*T, error) {
 {%- endif %}
 {%- if 'delete' in all_ops %}
 
-func (s *store[T, P]) softDelete(ctx context.Context, id string) error {
+func (s *store[T, P]) softDelete(ctx context.Context, id, userID string) error {
 	item, err := s.get(ctx, id)
 	if err != nil {
 		return err
@@ -314,7 +310,7 @@ func (s *store[T, P]) softDelete(ctx context.Context, id string) error {
 
 	base := P(item).Base()
 	base.IsDeleted = true
-	base.UpdatedTimestamp = models.Now()
+	base.StampWrite(userID)
 	return s.write(ctx, item, false)
 }
 {%- endif %}

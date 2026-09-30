@@ -38,8 +38,8 @@ func (m *mock{{ r }}Repository) GetList(ctx context.Context, limit int) ([]model
 {%- endif %}
 {%- if "create" in resource.operations %}
 
-func (m *mock{{ r }}Repository) Create(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, item)
+func (m *mock{{ r }}Repository) Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, item, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -48,8 +48,8 @@ func (m *mock{{ r }}Repository) Create(ctx context.Context, item models.{{ r }})
 {%- endif %}
 {%- if "update" in resource.operations %}
 
-func (m *mock{{ r }}Repository) Update(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, item)
+func (m *mock{{ r }}Repository) Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, item, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -58,8 +58,8 @@ func (m *mock{{ r }}Repository) Update(ctx context.Context, item models.{{ r }})
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
-func (m *mock{{ r }}Repository) Replace(ctx context.Context, item models.{{ r }}) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, item)
+func (m *mock{{ r }}Repository) Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, item, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -68,8 +68,8 @@ func (m *mock{{ r }}Repository) Replace(ctx context.Context, item models.{{ r }}
 {%- endif %}
 {%- if "delete" in resource.operations %}
 
-func (m *mock{{ r }}Repository) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
+func (m *mock{{ r }}Repository) Delete(ctx context.Context, id, userID string) error {
+	args := m.Called(ctx, id, userID)
 	return args.Error(0)
 }
 {%- endif %}
@@ -117,9 +117,9 @@ func TestCreate{{ r }}_ShouldReturnCreated{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
 	createRequest := models.Create{{ r }}Request{Name: "mockCreate{{ r }}"}
 	expected := &models.{{ r }}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockCreate{{ r }}"}
-	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("models.{{ r }}")).Return(expected, nil)
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("models.{{ r }}"), "alice").Return(expected, nil)
 
-	result, err := service.Create(context.Background(), createRequest)
+	result, err := service.Create(context.Background(), createRequest, "alice")
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
@@ -129,8 +129,6 @@ func TestCreate{{ r }}_ShouldReturnCreated{{ r }}Dto(t *testing.T) {
 	assert.Len(t, stored.Id, 36)
 	assert.Equal(t, "mockCreate{{ r }}", stored.Name)
 	assert.False(t, stored.IsDeleted)
-	assert.Empty(t, stored.CreatedBy)
-	assert.Empty(t, stored.UpdatedBy)
 	assert.Equal(t, stored.CreatedTimestamp, stored.UpdatedTimestamp)
 	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$`, stored.CreatedTimestamp)
 }
@@ -141,9 +139,9 @@ func TestUpdate{{ r }}_ShouldReturnUpdated{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
 	updateRequest := models.Update{{ r }}Request{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockUpdate{{ r }}"}
 	expected := &models.{{ r }}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockUpdate{{ r }}"}
-	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("models.{{ r }}")).Return(expected, nil)
+	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("models.{{ r }}"), "alice").Return(expected, nil)
 
-	result, err := service.Update(context.Background(), updateRequest)
+	result, err := service.Update(context.Background(), updateRequest, "alice")
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
@@ -156,9 +154,9 @@ func TestReplace{{ r }}_ShouldReturnReplaced{{ r }}Dto(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
 	replaceRequest := models.Replace{{ r }}Request{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockReplace{{ r }}"}
 	expected := &models.{{ r }}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockReplace{{ r }}"}
-	mockRepo.On("Replace", mock.Anything, mock.AnythingOfType("models.{{ r }}")).Return(expected, nil)
+	mockRepo.On("Replace", mock.Anything, mock.AnythingOfType("models.{{ r }}"), "alice").Return(expected, nil)
 
-	result, err := service.Replace(context.Background(), replaceRequest)
+	result, err := service.Replace(context.Background(), replaceRequest, "alice")
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
@@ -170,11 +168,11 @@ func TestReplace{{ r }}_ShouldReturnReplaced{{ r }}Dto(t *testing.T) {
 func TestDelete{{ r }}_ShouldCallRepositoryDelete(t *testing.T) {
 	mockRepo, service := setup{{ r }}ServiceTest()
 	id := "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
-	mockRepo.On("Delete", mock.Anything, id).Return(nil)
+	mockRepo.On("Delete", mock.Anything, id, "alice").Return(nil)
 
-	err := service.Delete(context.Background(), id)
+	err := service.Delete(context.Background(), id, "alice")
 
 	assert.NoError(t, err)
-	mockRepo.AssertCalled(t, "Delete", mock.Anything, id)
+	mockRepo.AssertCalled(t, "Delete", mock.Anything, id, "alice")
 }
 {%- endif %}

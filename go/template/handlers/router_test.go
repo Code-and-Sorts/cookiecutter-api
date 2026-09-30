@@ -1,3 +1,5 @@
+{%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
+{%- set need_write = all_ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 package handlers
 
 import (
@@ -10,6 +12,9 @@ import (
 {%- if cloud_service != 'AWS Lambda' %}
 	"net/http/httptest"
 {%- endif %}
+{%- if need_write %}
+	"strings"
+{%- endif %}
 	"testing"
 	"time"
 {%- if cloud_service == 'AWS Lambda' %}
@@ -17,8 +22,65 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 {%- endif %}
 
+{%- if need_write %}
+
+	"{{project_endpoint}}/models"
+{%- endif %}
+
 	"github.com/stretchr/testify/assert"
 )
+
+{%- if need_write %}
+
+func TestWithUserID(t *testing.T) {
+	cases := map[string]struct {
+		value   string
+		userID  string
+		message string
+	}{
+		"present":        {value: "  alice  ", userID: "alice"},
+		"absent":         {},
+		"blank":          {value: "   "},
+		"at the limit":   {value: strings.Repeat("é", MaxUserIDLength), userID: strings.Repeat("é", MaxUserIDLength)},
+		"over the limit": {value: strings.Repeat("a", MaxUserIDLength+1), message: UserIDTooLongMessage},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+{%- if cloud_service == 'AWS Lambda' %}
+			headers := map[string]string{}
+			if c.value != "" {
+				headers["x-user-id"] = c.value
+			}
+{%- else %}
+			headers := http.Header{}
+			if c.value != "" {
+				headers.Set("x-user-id", c.value)
+			}
+{%- endif %}
+			var got *string
+
+			_, err := withUserID(headers, func(userID string) (any, error) {
+				got = &userID
+				return nil, nil
+			})()
+
+			if c.message != "" {
+				var validation *models.ValidationError
+				if assert.ErrorAs(t, err, &validation) {
+					assert.Equal(t, c.message, validation.Message)
+				}
+				assert.Nil(t, got)
+				return
+			}
+			assert.NoError(t, err)
+			if assert.NotNil(t, got) {
+				assert.Equal(t, c.userID, *got)
+			}
+		})
+	}
+}
+{%- endif %}
 
 func captureLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()

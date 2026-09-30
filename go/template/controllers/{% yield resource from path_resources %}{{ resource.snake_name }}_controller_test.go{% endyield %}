@@ -58,8 +58,8 @@ func (m *Mock{{ r }}Service) GetList(ctx context.Context, limit int) ([]models.{
 {%- endif %}
 {%- if "create" in ops %}
 
-func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }}Request) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, req)
+func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, req, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -68,8 +68,8 @@ func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }
 {%- endif %}
 {%- if "update" in ops %}
 
-func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }}Request) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, req)
+func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, req, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -78,8 +78,8 @@ func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }
 {%- endif %}
 {%- if "replace" in ops %}
 
-func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, req)
+func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, req, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -88,8 +88,8 @@ func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r
 {%- endif %}
 {%- if "delete" in ops %}
 
-func (m *Mock{{ r }}Service) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
+func (m *Mock{{ r }}Service) Delete(ctx context.Context, id, userID string) error {
+	args := m.Called(ctx, id, userID)
 	return args.Error(0)
 }
 {%- endif %}
@@ -199,13 +199,13 @@ func TestCreate{{ r }}_ReturnsCreated{{ r }}Dto(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	createReq := models.Create{{ r }}Request{Name: "mockCreate{{ r }}"}
 	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockCreate{{ r }}"}
-	mockService.On("Create", mock.Anything, createReq).Return(expected, nil)
+	mockService.On("Create", mock.Anything, createReq, "alice").Return(expected, nil)
 
-	result, err := controller.Create(context.Background(), strings.NewReader(`{"name": "mockCreate{{ r }}"}`))
+	result, err := controller.Create(context.Background(), "alice", strings.NewReader(`{"name": "mockCreate{{ r }}"}`))
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "Create", mock.Anything, createReq)
+	mockService.AssertCalled(t, "Create", mock.Anything, createReq, "alice")
 }
 
 func TestCreate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
@@ -225,11 +225,11 @@ func TestCreate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
 			mockService := new(Mock{{ r }}Service)
 			controller := newTest{{ r }}Controller(mockService)
 
-			result, err := controller.Create(context.Background(), strings.NewReader(body))
+			result, err := controller.Create(context.Background(), "", strings.NewReader(body))
 
 			assert.Nil(t, result)
 			assert{{ r }}BadRequest(t, err)
-			mockService.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+			mockService.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -238,7 +238,7 @@ func TestCreate{{ r }}_ReturnsValidationError_WhenBodyCannotBeRead(t *testing.T)
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
 
-	result, err := controller.Create(context.Background(), iotest.ErrReader(errors.New("broken")))
+	result, err := controller.Create(context.Background(), "", iotest.ErrReader(errors.New("broken")))
 
 	assert.Nil(t, result)
 	assert{{ r }}BadRequest(t, err)
@@ -251,13 +251,13 @@ func TestUpdate{{ r }}_ReturnsUpdated{{ r }}Dto(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	expectedReq := models.Update{{ r }}Request{Id: test{{ r }}ID, Name: "mockUpdated{{ r }}"}
 	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockUpdated{{ r }}"}
-	mockService.On("Update", mock.Anything, expectedReq).Return(expected, nil)
+	mockService.On("Update", mock.Anything, expectedReq, "alice").Return(expected, nil)
 
-	result, err := controller.Update(context.Background(), test{{ r }}ID, strings.NewReader(`{"name": "mockUpdated{{ r }}"}`))
+	result, err := controller.Update(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{"name": "mockUpdated{{ r }}"}`))
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "Update", mock.Anything, expectedReq)
+	mockService.AssertCalled(t, "Update", mock.Anything, expectedReq, "alice")
 }
 
 func TestUpdate{{ r }}_AllowsBodyWithoutName(t *testing.T) {
@@ -265,9 +265,9 @@ func TestUpdate{{ r }}_AllowsBodyWithoutName(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	expectedReq := models.Update{{ r }}Request{Id: test{{ r }}ID}
 	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "unchanged"}
-	mockService.On("Update", mock.Anything, expectedReq).Return(expected, nil)
+	mockService.On("Update", mock.Anything, expectedReq, "alice").Return(expected, nil)
 
-	result, err := controller.Update(context.Background(), test{{ r }}ID, strings.NewReader(`{}`))
+	result, err := controller.Update(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{}`))
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
@@ -288,7 +288,7 @@ func TestUpdate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
 			mockService := new(Mock{{ r }}Service)
 			controller := newTest{{ r }}Controller(mockService)
 
-			result, err := controller.Update(context.Background(), test{{ r }}ID, strings.NewReader(body))
+			result, err := controller.Update(context.Background(), test{{ r }}ID, "", strings.NewReader(body))
 
 			assert.Nil(t, result)
 			assert{{ r }}BadRequest(t, err)
@@ -300,7 +300,7 @@ func TestUpdate{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
 
-	result, err := controller.Update(context.Background(), invalid{{ r }}ID, strings.NewReader(`{"name": "a"}`))
+	result, err := controller.Update(context.Background(), invalid{{ r }}ID, "", strings.NewReader(`{"name": "a"}`))
 
 	assert.Nil(t, result)
 	assert{{ r }}NotFound(t, err)
@@ -313,13 +313,13 @@ func TestReplace{{ r }}_ReturnsReplaced{{ r }}Dto(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	expectedReq := models.Replace{{ r }}Request{Id: test{{ r }}ID, Name: "mockReplaced{{ r }}"}
 	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockReplaced{{ r }}"}
-	mockService.On("Replace", mock.Anything, expectedReq).Return(expected, nil)
+	mockService.On("Replace", mock.Anything, expectedReq, "alice").Return(expected, nil)
 
-	result, err := controller.Replace(context.Background(), test{{ r }}ID, strings.NewReader(`{"name": "mockReplaced{{ r }}"}`))
+	result, err := controller.Replace(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{"name": "mockReplaced{{ r }}"}`))
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "Replace", mock.Anything, expectedReq)
+	mockService.AssertCalled(t, "Replace", mock.Anything, expectedReq, "alice")
 }
 
 func TestReplace{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
@@ -334,7 +334,7 @@ func TestReplace{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
 			mockService := new(Mock{{ r }}Service)
 			controller := newTest{{ r }}Controller(mockService)
 
-			result, err := controller.Replace(context.Background(), test{{ r }}ID, strings.NewReader(body))
+			result, err := controller.Replace(context.Background(), test{{ r }}ID, "", strings.NewReader(body))
 
 			assert.Nil(t, result)
 			assert{{ r }}BadRequest(t, err)
@@ -346,7 +346,7 @@ func TestReplace{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
 
-	result, err := controller.Replace(context.Background(), invalid{{ r }}ID, strings.NewReader(`{"name": "a"}`))
+	result, err := controller.Replace(context.Background(), invalid{{ r }}ID, "", strings.NewReader(`{"name": "a"}`))
 
 	assert.Nil(t, result)
 	assert{{ r }}NotFound(t, err)
@@ -357,21 +357,21 @@ func TestReplace{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 func TestDelete{{ r }}_CallsDeleteOnService(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
-	mockService.On("Delete", mock.Anything, test{{ r }}ID).Return(nil)
+	mockService.On("Delete", mock.Anything, test{{ r }}ID, "alice").Return(nil)
 
-	result, err := controller.Delete(context.Background(), test{{ r }}ID)
+	result, err := controller.Delete(context.Background(), test{{ r }}ID, "alice")
 
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"message": "{{ r }} with id " + test{{ r }}ID + " was deleted successfully."}, result)
-	mockService.AssertCalled(t, "Delete", mock.Anything, test{{ r }}ID)
+	mockService.AssertCalled(t, "Delete", mock.Anything, test{{ r }}ID, "alice")
 }
 
 func TestDelete{{ r }}_ReturnsServiceError(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
-	mockService.On("Delete", mock.Anything, test{{ r }}ID).Return(errors.New("boom"))
+	mockService.On("Delete", mock.Anything, test{{ r }}ID, "").Return(errors.New("boom"))
 
-	result, err := controller.Delete(context.Background(), test{{ r }}ID)
+	result, err := controller.Delete(context.Background(), test{{ r }}ID, "")
 
 	assert.Nil(t, result)
 	assert.EqualError(t, err, "boom")
@@ -381,10 +381,10 @@ func TestDelete{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
 
-	result, err := controller.Delete(context.Background(), invalid{{ r }}ID)
+	result, err := controller.Delete(context.Background(), invalid{{ r }}ID, "")
 
 	assert.Nil(t, result)
 	assert{{ r }}NotFound(t, err)
-	mockService.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+	mockService.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything, mock.Anything)
 }
 {%- endif %}
