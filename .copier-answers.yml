@@ -1,0 +1,19 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_src_path: ./go
+author: Sir Meowsalots
+cloud_service: AWS Lambda
+health_endpoint: health
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: kittenclaws
+    endpoint: kittenclaws
+    name: KittenClaws
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - delete
+
