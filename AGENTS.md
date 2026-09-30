@@ -106,7 +106,9 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   millisecond). Update and replace keep the created fields; delete is soft.
 - **User id:** the optional `X-User-Id` header (trimmed, at most 256 characters, else 400) is the only source of
   `createdBy`/`updatedBy`. Create sets both; update, replace and delete set `updatedBy`, and a write without the
-  header removes it. Bodies still reject both fields.
+  header removes it. Bodies still reject both fields. The header is not authenticated; every generated README says so.
+- **Existing data:** records written by projects generated from `main` must still read and update: Firestore
+  Timestamps (Go, .NET) and Python's `createdDate`/`updatedDate` are normalised on read.
 - **Azure auth:** resource functions use function keys; the health function is anonymous.
 - `?limit=` on list is honoured everywhere.
 - A failing database yields the generic 500 within 10 seconds: database calls use a per-request deadline or
