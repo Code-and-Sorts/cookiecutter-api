@@ -1,16 +1,15 @@
 import { BaseError } from '../types/errors/base.error';
 
 export const UNEXPECTED_ERROR_MESSAGE = 'An unexpected error occurred.';
+export const NOT_FOUND_MESSAGE = 'Not found.';
+export const METHOD_NOT_ALLOWED_MESSAGE = 'Method not allowed.';
 
-// An aborted or cancelled request (AbortController, closed client connection).
 export const isCancellation = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || (error as { code?: unknown }).code === 'ABORT_ERR');
 
 export type ErrorResponse = { status: number; body: { errorMessage: string } };
 
-// Maps an error to a JSON error response. Expected client errors (4xx) carry their message;
-// anything else is logged with its stack trace and answered with a generic 500, so exception
-// text and SDK diagnostics never reach the client.
+// Anything but a 4xx gets a generic 500 so exception text and SDK diagnostics never reach the client.
 export const detectError = (
   error: unknown,
   logError: (...args: unknown[]) => void = console.error,
@@ -22,7 +21,7 @@ export const detectError = (
     };
   }
   if (isCancellation(error)) {
-    // The client went away or the request was aborted: not an application failure.
+    // A client that went away is not an application failure.
     console.warn('Request was cancelled before it completed.');
   } else {
     logError('Unexpected error while handling the request.', error);

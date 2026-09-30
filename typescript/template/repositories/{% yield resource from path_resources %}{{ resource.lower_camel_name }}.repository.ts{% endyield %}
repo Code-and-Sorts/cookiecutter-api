@@ -1,62 +1,39 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set key = resource.container | upper | replace('-', '_') -%}
+{%- set setting = {'Azure Function App': 'COSMOS_CONTAINER_', 'GCP Cloud Function': 'FIRESTORE_COLLECTION_', 'AWS Lambda': 'DYNAMODB_TABLE_NAME_'}[cloud_service] ~ (resource.container | upper | replace('-', '_')) -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
-{% if cloud_service == 'Azure Function App' -%}
-import { Database } from '@azure/cosmos';
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-import { Firestore } from '@google-cloud/firestore';
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-{%- endif %}
-import { env, {{ r }}Record } from '@models';
-import { withDeadline } from '@utils';
-import { BaseRepository{% if cloud_service == 'AWS Lambda' %}, DocumentClient{% endif %} } from './base.repository';
+import { env, {% if "create" in ops or "replace" in ops %}{{ r }}, {% endif %}{% if "update" in ops %}{{ r }}Update, {% endif %}{{ r }}Record } from '@models';
+import { BaseRepository } from './base.repository';
+import { StoreFactory } from './document.store';
 
-// Every operation is bounded by withDeadline, so a failing database answers within seconds.
 @injectable()
 export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
-{%- if cloud_service == 'Azure Function App' %}
-  constructor(@inject(Database) database: Database) {
-    super(database.container(env.COSMOS_CONTAINER_{{ key }}), '{{ r }}');
+  constructor(@inject(StoreFactory) openStore: StoreFactory) {
+    super(openStore(env.{{ setting }}), '{{ r }}');
   }
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-  constructor(@inject(Firestore) client: Firestore) {
-    super(client.collection(env.FIRESTORE_COLLECTION_{{ key }}), '{{ r }}');
-  }
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-  constructor(@inject(DocumentClient) client: DynamoDBDocumentClient) {
-    super(client, env.DYNAMODB_TABLE_NAME_{{ key }}, '{{ r }}');
-  }
-{%- endif %}
-
 {%- if "create" in ops %}
 
-  create = async (newItem: {{ r }}Record): Promise<{{ r }}Record> => withDeadline(this.addRecord(newItem));
+  create = (item: {{ r }}): Promise<{{ r }}Record> => this.addRecord(item);
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
-  get = async (id: string): Promise<{{ r }}Record> => withDeadline(this.getRecord(id));
+  get = (id: string): Promise<{{ r }}Record> => this.getRecord(id);
 {%- endif %}
 {%- if "list" in ops %}
 
-  list = async (limit?: number): Promise<{{ r }}Record[]> => withDeadline(this.getRecords(limit));
+  list = (limit?: number): Promise<{{ r }}Record[]> => this.getRecords(limit);
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = async (item: Partial<{{ r }}Record> & { id: string }): Promise<{{ r }}Record> => withDeadline(this.updateRecord(item));
+  update = (id: string, fields: {{ r }}Update): Promise<{{ r }}Record> => this.updateRecord(id, fields);
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = async (item: {{ r }}Record): Promise<{{ r }}Record> => withDeadline(this.replaceRecord(item));
+  replace = (id: string, item: {{ r }}): Promise<{{ r }}Record> => this.replaceRecord(id, item);
 {%- endif %}
 {%- if "delete" in ops %}
 
-  delete = async (id: string): Promise<void> => withDeadline(this.deleteRecord(id));
+  delete = (id: string): Promise<void> => this.deleteRecord(id);
 {%- endif %}
 }

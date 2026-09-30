@@ -16,9 +16,8 @@ import { INVALID_JSON_MESSAGE, runWithSignal } from '@utils';
 type Next = (error?: unknown) => void;
 type ExpressApplication = { handle(req: ff.Request, res: ff.Response, next?: Next): void };
 
-// The Functions Framework parses bodies with Express's body-parser before the function runs,
-// and Express answers a parse failure (for example malformed JSON) with an HTML error page.
-// This final handler answers anything that never reached the function in JSON instead.
+// Express parses bodies before the function runs and answers parse failures with an HTML page;
+// this final handler answers them in JSON instead.
 export const frameworkFinalHandler = (req: ff.Request, res: ff.Response): Next => (error?: unknown) => {
   if (res.headersSent) {
     return;
@@ -33,8 +32,7 @@ export const frameworkFinalHandler = (req: ff.Request, res: ff.Response): Next =
   return errorResponse(res, error);
 };
 
-// Install it on the Express copy the framework itself loads; the framework builds its app
-// after loading this module.
+// Patch the framework's own Express copy; the framework builds its app after loading this module.
 const frameworkRequire = createRequire(createRequire(import.meta.url).resolve('@google-cloud/functions-framework'));
 const express = frameworkRequire('express') as { application: ExpressApplication };
 const handle = express.application.handle;
@@ -42,7 +40,6 @@ express.application.handle = function (this: ExpressApplication, req, res, next)
   return handle.call(this, req, res, next ?? frameworkFinalHandler(req, res));
 };
 
-// Routes /<endpoint> and /<endpoint>/<id> by exact path.
 const route = async (req: ff.Request, res: ff.Response): Promise<void> => {
   const segments = req.path.split('/').filter(Boolean);
   const [endpoint, id] = segments;
@@ -68,8 +65,7 @@ const route = async (req: ff.Request, res: ff.Response): Promise<void> => {
   }
 };
 
-// The single HTTP function. A client that disconnects before the response is sent aborts the
-// request's signal, which ends pending database work as a cancellation (logged as a warning).
+// A client that disconnects early aborts the signal, cancelling pending database work.
 export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
   const controller = new AbortController();
   const onClose = () => {

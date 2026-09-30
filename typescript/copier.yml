@@ -1,25 +1,19 @@
-# Per-resource files are generated with the `yield` tag in path names, which
-# needs a recent Copier; the template tracks the latest Copier release.
+# Per-resource paths use the `yield` tag, which needs this Copier version.
 _min_copier_version: "9.18.2"
 
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
 
-# Render every file as a template (Cookiecutter-style) instead of requiring a
-# .jinja suffix on each file.
+# Render every file as a template, not only *.jinja files.
 _templates_suffix: ""
 
-# The template content lives in template/; its contents are rendered directly
-# into the destination directory.
 _subdirectory: template
 
 project_name:
   type: str
   default: "Cookiecutter API"
-  # Validation runs against the values derived from the project name. Copier
-  # only evaluates validators for prompted questions, so the checks that
-  # Cookiecutter's pre_gen hook ran on the derived names live here.
+  # Copier skips validators on derived (when: false) values, so the derived names are checked here.
   validator: >-
     {%- set project_lower_camel_name = project_name | to_lower_camel -%}
     {%- set project_class_name = project_name | to_camel -%}
@@ -59,7 +53,6 @@ open_source_license:
     - "GNU General Public License v3"
     - "Not open source"
 
-# ---- Derived values (never prompted) ----
 project_lower_camel_name:
   type: str
   when: false
@@ -75,8 +68,7 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
-# Directory names for cloud-specific code: empty on the other clouds, so Copier skips the
-# whole directory. They keep template paths short enough for Git for Windows.
+# Empty on the other clouds so Copier skips the directory; keeps paths short for Git for Windows.
 functions_dir:
   type: str
   when: false
@@ -87,7 +79,6 @@ routes_dir:
   when: false
   default: "{{ 'routes' if cloud_service != 'Azure Function App' else '' }}"
 
-# ---- Health check ----
 health_endpoint:
   type: str
   default: "health"
@@ -97,12 +88,6 @@ health_endpoint:
     Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to skip the health check.
     {%- endif -%}
 
-# ---- REST resources ----
-# A list of resources to generate. Each resource gets its own URL endpoint, a
-# storage container (resources sharing a container id share storage), and a
-# chosen subset of operations. The default is a single resource matching the
-# project name with today's CRUD behaviour, so answering only project_name
-# reproduces the original single-resource project.
 resources:
   type: yaml
   multiline: true
@@ -177,10 +162,8 @@ resources:
     {%- endif -%}
     {{ ns.err }}
 
-# ---- Path-safe resource names (never prompted) ----
-# Git for Windows refuses to check out paths containing "|", so per-resource
-# template paths can't apply Jinja filters. They yield from this copy of
-# `resources` instead, which adds the file-name stems each path needs.
+# Git for Windows can't check out paths containing "|", so per-resource paths yield from
+# this copy, which precomputes the filtered file-name stems.
 path_resources:
   type: yaml
   when: false

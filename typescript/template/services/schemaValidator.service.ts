@@ -7,7 +7,6 @@ type Issue = z.core.$ZodIssue;
 
 const article = (word: string): string => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
-// Turns a Zod issue into a short client-facing sentence.
 const describeIssue = (issue: Issue): string => {
   const field = issue.path.join('.');
   switch (issue.code) {
@@ -32,7 +31,6 @@ const describeIssue = (issue: Issue): string => {
 
 @injectable()
 export class SchemaValidator {
-  // Parses obj with schema, throwing a ValidationError (400) that says what is wrong.
   validate<T>(obj: unknown, schema: z.ZodType<T>): T {
     const result = schema.safeParse(obj, { reportInput: true });
     if (result.success) {

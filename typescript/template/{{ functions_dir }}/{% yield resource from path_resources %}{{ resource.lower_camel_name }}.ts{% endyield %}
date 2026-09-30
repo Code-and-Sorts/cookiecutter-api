@@ -2,46 +2,30 @@
 {%- set c = resource.name | to_lower_camel -%}
 {%- set ops = resource.operations -%}
 {%- set has_body = ops | select('in', ['create', 'update', 'replace']) | list -%}
-{#- Each operation: function name prefix, method, route suffix, status, log verb. -#}
 {%- set specs = [
-    ('get_by_id', 'getById', 'GET', '/{id}', 200, 'Get', 'get(request.params.id)'),
-    ('list', 'list', 'GET', '', 200, 'List', "list(request.query.get('limit'))"),
-    ('create', 'create', 'POST', '', 201, 'Create', 'post(parseJsonBody(await request.text()))'),
-    ('update', 'update', 'PATCH', '/{id}', 200, 'Update', 'update(request.params.id, parseJsonBody(await request.text()))'),
-    ('replace', 'replace', 'PUT', '/{id}', 200, 'Replace', 'replace(request.params.id, parseJsonBody(await request.text()))'),
-    ('delete', 'delete', 'DELETE', '/{id}', 200, 'Delete', 'delete(request.params.id)'),
+    ('get_by_id', 'getById', 'GET', '/{id}', 200, 'get(request.params.id)'),
+    ('list', 'list', 'GET', '', 200, "list(request.query.get('limit'))"),
+    ('create', 'create', 'POST', '', 201, 'post(parseJsonBody(await request.text()))'),
+    ('update', 'update', 'PATCH', '/{id}', 200, 'update(request.params.id, parseJsonBody(await request.text()))'),
+    ('replace', 'replace', 'PUT', '/{id}', 200, 'replace(request.params.id, parseJsonBody(await request.text()))'),
+    ('delete', 'delete', 'DELETE', '/{id}', 200, 'delete(request.params.id)'),
 ] -%}
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { app } from '@azure/functions';
 import { {{ c }}Controller } from '@config/container';
-import { detectError{% if has_body %}, parseJsonBody{% endif %} } from '@utils';
+{%- if has_body %}
+import { parseJsonBody } from '@utils';
+{%- endif %}
+import { handle } from './response';
 
-// Every response is JSON, errors included. Methods and paths without a registered function
-// are answered by the Functions host itself (404).
-const jsonResponse = (status: number, body: unknown): HttpResponseInit => ({
-    status,
-    body: JSON.stringify(body, null, 2),
-    headers: { 'Content-Type': 'application/json' },
-});
-
-const errorResponse = (error: unknown, context: InvocationContext): HttpResponseInit => {
-    const { status, body } = detectError(error, (...args: unknown[]) => context.error(...args));
-    return jsonResponse(status, body);
-};
-{%- for op, prefix, verb, suffix, status, label, call in specs %}
+// Methods and paths with no registered function get the Functions host's own 404.
+{%- for op, prefix, verb, suffix, status, call in specs %}
 {%- if op in ops %}
 
 app.http('{{ prefix }}{{ r }}', {
     methods: ['{{ verb }}'],
     authLevel: 'function',
     route: '{{ resource.endpoint }}{{ suffix }}',
-    handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
-        context.log(`{{ label }} {{ resource.endpoint }}: '${request.url}'`);
-        try {
-            return jsonResponse({{ status }}, await {{ c }}Controller.{{ call }});
-        } catch (error) {
-            return errorResponse(error, context);
-        }
-    },
+    handler: handle({{ status }}, async (request) => {{ c }}Controller.{{ call }}),
 });
 {%- endif %}
 {%- endfor %}

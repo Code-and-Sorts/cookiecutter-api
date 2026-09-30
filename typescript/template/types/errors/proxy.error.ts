@@ -1,7 +1,6 @@
 import { BaseError } from './base.error';
 
-// A failed call to the database. The original SDK error is kept as `cause` so it is
-// logged with the stack trace; clients only ever see a generic 500 response.
+// `cause` keeps the SDK error for the logs; clients only ever see a generic 500.
 export class ProxyError extends BaseError {
   constructor(message: string, cause?: unknown) {
     super(message, undefined, cause === undefined ? undefined : { cause });

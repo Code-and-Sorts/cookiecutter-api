@@ -1,7 +1,6 @@
 {%- if cloud_service == 'GCP Cloud Function' -%}
 import { describe, it, expect, beforeAll, jest } from '@jest/globals';
-
-type MockFn = (...args: any[]) => any;
+import { MockFn } from '../../test/mocks';
 
 let routes: (req: unknown, res: unknown) => Promise<void>;
 

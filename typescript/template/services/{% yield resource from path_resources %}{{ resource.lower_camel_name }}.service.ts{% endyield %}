@@ -9,13 +9,10 @@ import {
     {{ r }},
 {%- endif %}
     {{ r }}Response,
-    {{ r }}ResponseSchema,
-{%- if "create" in ops or "replace" in ops %}
-    {{ r }}EntitySchema,
-{%- endif %}
 {%- if "update" in ops %}
     {{ r }}Update,
 {%- endif %}
+    to{{ r }}Response,
 } from '@models';
 {%- endif %}
 
@@ -28,54 +25,26 @@ export class {{ r }}Service {
   }
 {%- if "create" in ops %}
 
-  // Assigns a new id and both timestamps from one clock reading; createdBy/updatedBy are omitted when unset.
-  create = async (item: {{ r }}): Promise<{{ r }}Response> => {
-    const now = new Date().toISOString();
-    const newItem = {{ r }}EntitySchema.parse({ ...item, createdTimestamp: now, updatedTimestamp: now });
-    const createdItem = await this._repo.create(newItem);
-    return {{ r }}ResponseSchema.parse(createdItem);
-  };
+  create = async (item: {{ r }}): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.create(item));
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
-  get = async (id: string): Promise<{{ r }}Response> => {
-    const item = await this._repo.get(id);
-    return {{ r }}ResponseSchema.parse(item);
-  };
+  get = async (id: string): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.get(id));
 {%- endif %}
 {%- if "list" in ops %}
 
-  list = async (limit?: number): Promise<{{ r }}Response[]> => {
-    const items = await this._repo.list(limit);
-    return items.map((item) => {{ r }}ResponseSchema.parse(item));
-  };
+  list = async (limit?: number): Promise<{{ r }}Response[]> => (await this._repo.list(limit)).map(to{{ r }}Response);
 {%- endif %}
 {%- if "update" in ops %}
 
-  // Merges the given fields into the stored record and refreshes updatedTimestamp.
-  update = async (id: string, item: {{ r }}Update): Promise<{{ r }}Response> => {
-    const updatedItem = await this._repo.update({ ...item, id, updatedTimestamp: new Date().toISOString() });
-    return {{ r }}ResponseSchema.parse(updatedItem);
-  };
+  update = async (id: string, fields: {{ r }}Update): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.update(id, fields));
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = async (id: string, item: {{ r }}): Promise<{{ r }}Response> => {
-    // The repository replaces createdTimestamp and createdBy with the stored values.
-    const now = new Date().toISOString();
-    const entity = {{ r }}EntitySchema.parse({
-      ...item,
-      id,
-      isDeleted: false,
-      createdTimestamp: now,
-      updatedTimestamp: now,
-    });
-    const replacedItem = await this._repo.replace(entity);
-    return {{ r }}ResponseSchema.parse(replacedItem);
-  };
+  replace = async (id: string, item: {{ r }}): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.replace(id, item));
 {%- endif %}
 {%- if "delete" in ops %}
 
-  delete = async (id: string): Promise<void> => this._repo.delete(id);
+  delete = (id: string): Promise<void> => this._repo.delete(id);
 {%- endif %}
 }

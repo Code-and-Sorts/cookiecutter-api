@@ -1,20 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-
-type MockFn = (...args: any[]) => any;
+import { mockController } from '../test/mocks';
 
 jest.unstable_mockModule('@config/container', () => ({
 {%- for resource in resources %}
-    {{ resource.name | to_lower_camel }}Controller: {
-        list: jest.fn<MockFn>().mockResolvedValue([]),
-        post: jest.fn<MockFn>().mockResolvedValue({}),
-    },
+    {{ resource.name | to_lower_camel }}Controller: mockController(),
 {%- endfor %}
 }));
 
-// Runs the function behind the real Functions Framework server, so requests pass through
-// its Express body parsers exactly as they do when deployed.
+// Uses the real framework server so bodies pass through its Express parsers, as when deployed.
 let server: Server;
 let baseUrl: string;
 

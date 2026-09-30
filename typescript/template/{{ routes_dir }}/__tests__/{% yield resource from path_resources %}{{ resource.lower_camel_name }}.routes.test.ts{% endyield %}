@@ -8,26 +8,14 @@ import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 {%- endif %}
 import { NotFoundError, ValidationError } from '@errors';
+import { MockFn, mockController } from '../../test/mocks';
 
-type MockFn = (...args: any[]) => any;
-
-jest.unstable_mockModule('@config/container', () => ({
-    {{ c }}Controller: {
-        list: jest.fn<MockFn>().mockResolvedValue([]),
-        get: jest.fn<MockFn>().mockResolvedValue({}),
-        post: jest.fn<MockFn>().mockResolvedValue({}),
-        update: jest.fn<MockFn>().mockResolvedValue({}),
-        replace: jest.fn<MockFn>().mockResolvedValue({}),
-        delete: jest.fn<MockFn>().mockResolvedValue({ message: 'deleted' }),
-    },
-}));
+jest.unstable_mockModule('@config/container', () => ({ {{ c }}Controller: mockController() }));
 
 const mockId = '91ed1c70-5412-449a-b949-80542a4eb3d5';
 const mockBody = { name: 'mockName' };
 let controller: Record<string, jest.Mock<MockFn>>;
-
-// body: an object is sent as JSON, a string is sent as-is (for malformed bodies).
-{%- if cloud_service == 'GCP Cloud Function' %}
+{% if cloud_service == 'GCP Cloud Function' %}
 let routes: (req: unknown, res: unknown, id?: string) => Promise<void>;
 
 beforeAll(async () => {

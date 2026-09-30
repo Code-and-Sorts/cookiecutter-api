@@ -2,7 +2,6 @@
 import * as ff from '@google-cloud/functions-framework';
 import { jsonResponse, notAllowed } from './response';
 
-// Handles exactly /{{ health_endpoint }}: an unauthenticated liveness probe.
 export const healthRoutes = async (req: ff.Request, res: ff.Response): Promise<void> => {
   if (req.method !== 'GET') return notAllowed(res);
   return jsonResponse(res, 200, { status: 'ok' });
@@ -11,7 +10,6 @@ export const healthRoutes = async (req: ff.Request, res: ff.Response): Promise<v
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { jsonResponse, notAllowed } from './response';
 
-// Handles exactly /{{ health_endpoint }}: an unauthenticated liveness probe.
 export const healthRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (event.httpMethod !== 'GET') {
     return notAllowed();

@@ -7,7 +7,7 @@ export default {
     rootDir: '.',
     testMatch: ['**/__tests__/*.test.ts'],
     setupFiles: ['<rootDir>/jest.setup.ts'],
-    coveragePathIgnorePatterns: ['/node_modules/'],
+    coveragePathIgnorePatterns: ['/node_modules/', '<rootDir>/test/'],
     coverageThreshold: {
         global: {
             statements: 85,

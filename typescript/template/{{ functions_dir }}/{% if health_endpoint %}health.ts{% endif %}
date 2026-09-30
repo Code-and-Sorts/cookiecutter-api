@@ -1,13 +1,9 @@
-import { app, HttpResponseInit } from '@azure/functions';
+import { app } from '@azure/functions';
+import { handle } from './response';
 
-// Anonymous liveness probe at /api/{{ health_endpoint }}.
 app.http('health', {
     methods: ['GET'],
     authLevel: 'anonymous',
     route: '{{ health_endpoint }}',
-    handler: async (): Promise<HttpResponseInit> => ({
-        status: 200,
-        body: JSON.stringify({ status: 'ok' }, null, 2),
-        headers: { 'Content-Type': 'application/json' },
-    }),
+    handler: handle(200, async () => ({ status: 'ok' })),
 });

@@ -4,29 +4,22 @@
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
 import { {{ r }}Service, SchemaValidator } from '@services';
+{%- if ops | reject('equalto', 'delete') | list %}
 import {
-{%- if ops | select('in', ['list', 'get_by_id', 'create', 'update', 'replace']) | list %}
     {{ r }}Response,
-{%- endif %}
 {%- if "create" in ops or "replace" in ops %}
     {{ r }}RequestSchema,
 {%- endif %}
 {%- if "update" in ops %}
     {{ r }}UpdateSchema,
 {%- endif %}
-{%- if by_id %}
-    GuidSchema,
-{%- endif %}
 } from '@models';
-{%- if by_id %}
-import { NotFoundError } from '@errors';
 {%- endif %}
-{%- if "list" in ops %}
-import { coerceLimit } from '@utils';
+{%- if by_id or "list" in ops %}
+import { {% if by_id %}assertUuid{% endif %}{% if by_id and "list" in ops %}, {% endif %}{% if "list" in ops %}coerceLimit{% endif %} } from '@utils';
 {%- endif %}
 
-// Validates requests for /{{ resource.endpoint }}. Bodies are the parsed JSON exactly as the
-// client sent it; ids come from the path only, so a body can never set one.
+// Ids come only from the path, so a body can never set one.
 @injectable()
 export class {{ r }}Controller {
   private _service: {{ r }}Service;
@@ -39,15 +32,6 @@ export class {{ r }}Controller {
     this._service = service;
     this._validator = validator;
   }
-{%- if by_id %}
-
-  // An id that is not a UUID can never exist, so it is reported as not found.
-  private assertId = (id: string): void => {
-    if (!GuidSchema.safeParse(id).success) {
-      throw new NotFoundError(`{{ r }} with id ${id} was not found.`);
-    }
-  };
-{%- endif %}
 {%- if "create" in ops %}
 
   post = async (body: unknown): Promise<{{ r }}Response> => {
@@ -58,7 +42,7 @@ export class {{ r }}Controller {
 {%- if "get_by_id" in ops %}
 
   get = async (id: string): Promise<{{ r }}Response> => {
-    this.assertId(id);
+    assertUuid('{{ r }}', id);
     return this._service.get(id);
   };
 {%- endif %}
@@ -70,7 +54,7 @@ export class {{ r }}Controller {
 {%- if "update" in ops %}
 
   update = async (id: string, body: unknown): Promise<{{ r }}Response> => {
-    this.assertId(id);
+    assertUuid('{{ r }}', id);
     const item = this._validator.validate(body, {{ r }}UpdateSchema);
     return this._service.update(id, item);
   };
@@ -78,7 +62,7 @@ export class {{ r }}Controller {
 {%- if "replace" in ops %}
 
   replace = async (id: string, body: unknown): Promise<{{ r }}Response> => {
-    this.assertId(id);
+    assertUuid('{{ r }}', id);
     const item = this._validator.validate(body, {{ r }}RequestSchema);
     return this._service.replace(id, item);
   };
@@ -86,7 +70,7 @@ export class {{ r }}Controller {
 {%- if "delete" in ops %}
 
   delete = async (id: string): Promise<{ message: string }> => {
-    this.assertId(id);
+    assertUuid('{{ r }}', id);
     await this._service.delete(id);
     return { message: `{{ r }} with id ${id} was deleted successfully.` };
   };

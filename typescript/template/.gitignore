@@ -5,14 +5,9 @@
 !.yarn/sdks
 !.yarn/versions
 
-# Swap the comments on the following lines if you wish to use zero-installs
-# In that case, don't forget to run `yarn config set enableGlobalCache false`!
-# Documentation here: https://yarnpkg.com/features/caching#zero-installs
-
+# For zero-installs, swap the comments below and run `yarn config set enableGlobalCache false`.
 #!.yarn/cache
 .pnp.*
-
-# build
 
 bin
 obj
@@ -40,10 +35,8 @@ appsettings.json
 node_modules
 dist
 
-# Local python packages
 .python_packages/
 
-# Python Environments
 .env
 .env.local
 .venv
@@ -53,7 +46,6 @@ ENV/
 env.bak/
 venv.bak/
 
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class

@@ -1,14 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 export const BaseIdentifier = z.object({
-    id: z.string().default(() => randomUUID()),
+    id: z.string(),
 });
 
 export const BaseSchema = BaseIdentifier.extend({
-    isDeleted: z.boolean().default(false),
-    // No per-field defaults: the service sets both from one clock reading so a new record's
-    // createdTimestamp and updatedTimestamp are always identical.
+    isDeleted: z.boolean(),
     createdTimestamp: z.string(),
     updatedTimestamp: z.string(),
     createdBy: z.string().optional(),
@@ -16,3 +13,8 @@ export const BaseSchema = BaseIdentifier.extend({
 });
 
 export type BaseItemRecord = z.infer<typeof BaseSchema>;
+
+export const responseMapper =
+    <R>(schema: z.ZodType<R>) =>
+    (record: BaseItemRecord): R =>
+        schema.parse(record);

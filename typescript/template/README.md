@@ -277,12 +277,15 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- if health_endpoint %}
 │   ├── health.ts
 {%- endif %}
+│   ├── response.ts                 - JSON responses and the shared handler wrapper
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.ts
 {%- endfor %}
 {%- endif %}
-├── repositories                    - {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} access
-│   ├── base.repository.ts
+├── repositories                    - Data access
+│   ├── base.repository.ts          - CRUD, timestamps and soft deletes over a document store
+│   ├── document.store.ts           - Store interface
+│   ├── {% if cloud_service == 'Azure Function App' %}cosmos.store.ts             - Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}firestore.store.ts          - Firestore{% else %}dynamo.store.ts             - DynamoDB{% endif %} store
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.repository.ts
 {%- endfor %}
@@ -307,7 +310,8 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- for resource in resources %}
 │       {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.schema.ts
 {%- endfor %}
-├── utils                           - Error to JSON response mapping, JSON body parsing, list limits
+├── test                            - Shared test mocks
+├── utils                           - Error mapping, JSON body parsing, list limits, clock and ids
 {%- if cloud_service == 'GCP Cloud Function' %}
 ├── main.ts                         - Functions Framework entry point and JSON final handler
 {%- endif %}

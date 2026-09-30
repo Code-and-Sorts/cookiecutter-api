@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, jest } from '@jest/globals';
 import { HttpResponseInit } from '@azure/functions';
-
-type MockFn = (...args: any[]) => any;
+import { MockFn } from '../../test/mocks';
 
 jest.unstable_mockModule('@azure/functions', () => ({ app: { http: jest.fn<MockFn>() } }));
 
@@ -17,6 +16,10 @@ beforeAll(async () => {
 describe('health', () => {
     it('should register an anonymous health check', async () => {
         expect(registrations.health).toMatchObject({ methods: ['GET'], route: '{{ health_endpoint }}', authLevel: 'anonymous' });
-        expect((await registrations.health.handler()).status).toEqual(200);
+        expect(await registrations.health.handler()).toEqual({
+            status: 200,
+            body: JSON.stringify({ status: 'ok' }),
+            headers: { 'Content-Type': 'application/json' },
+        });
     });
 });

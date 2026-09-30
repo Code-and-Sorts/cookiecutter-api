@@ -10,8 +10,7 @@ import {
 {%- endfor %}
 } from '@routes';
 
-// Routes by the API Gateway resource (/<endpoint> or /<endpoint>/{id}); template.yaml maps
-// only the enabled operations, so API Gateway answers other paths and methods itself.
+// template.yaml maps only the enabled operations; API Gateway answers other paths and methods itself.
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const segments = (event.resource || event.path || '').split('/').filter(Boolean);
   const endpoint = segments[0];

@@ -1,4 +1,4 @@
-{#- For each operation: HTTP method, whether the path carries an id, success status, controller method. -#}
+{#- [method, has id, status, controller method] -#}
 {%- set probes = {
     'list': ['GET', false, 200, 'list'],
     'get_by_id': ['GET', true, 200, 'get'],
@@ -29,27 +29,16 @@ import { NotFoundError, ValidationError } from '@errors';
 import { EventEmitter } from 'node:events';
 import { currentSignal } from '@utils';
 {%- endif %}
-
-type MockFn = (...args: any[]) => any;
+import { MockFn, mockController } from '../test/mocks';
 
 {% if gcp -%}
 jest.unstable_mockModule('@google-cloud/functions-framework', () => ({ http: jest.fn<MockFn>() }));
 {% endif -%}
-jest.unstable_mockModule('@config/container', () => {
-    const mockController = () => ({
-        list: jest.fn<MockFn>().mockResolvedValue([]),
-        get: jest.fn<MockFn>().mockResolvedValue({}),
-        post: jest.fn<MockFn>().mockResolvedValue({}),
-        update: jest.fn<MockFn>().mockResolvedValue({}),
-        replace: jest.fn<MockFn>().mockResolvedValue({}),
-        delete: jest.fn<MockFn>().mockResolvedValue({ message: 'deleted' }),
-    });
-    return {
+jest.unstable_mockModule('@config/container', () => ({
 {%- for resource in resources %}
-        {{ resource.name | to_lower_camel }}Controller: mockController(),
+    {{ resource.name | to_lower_camel }}Controller: mockController(),
 {%- endfor %}
-    };
-});
+}));
 
 const mockId = '91ed1c70-5412-449a-b949-80542a4eb3d5';
 let controllers: Record<string, Record<string, jest.Mock<MockFn>>>;
@@ -57,8 +46,6 @@ let controllers: Record<string, Record<string, jest.Mock<MockFn>>>;
 beforeAll(async () => {
     controllers = (await import('@config/container')) as unknown as Record<string, Record<string, jest.Mock<MockFn>>>;
 });
-
-// body: an object is sent as JSON, a string is sent as-is (for malformed bodies).
 {%- if gcp %}
 
 type Handler = (req: unknown, res: unknown) => Promise<void>;

@@ -1,190 +1,94 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{#- The first operation: repository method, base method, call argument. -#}
-{%- set probe = {
-    'list': ['list', 'getRecords', ''],
-    'get_by_id': ['get', 'getRecord', 'mockId'],
-    'create': ['create', 'addRecord', 'mockItem'],
-    'update': ['update', 'updateRecord', 'mockItem'],
-    'replace': ['replace', 'replaceRecord', 'mockItem'],
-    'delete': ['delete', 'deleteRecord', 'mockId'],
-}[ops[0]] -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-{% if cloud_service == 'Azure Function App' -%}
-import { CosmosClient } from "@azure/cosmos";
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-import { Firestore } from "@google-cloud/firestore";
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-{%- endif %}
-import { {{ r }}Repository } from "@repositories";
-import { ProxyError } from '@errors';
-import { DATABASE_DEADLINE_MS } from '@utils';
-
-type MockFn = (...args: any[]) => any;
-
-const mockResult = {};
-{% if cloud_service == 'Azure Function App' %}
-class MockCosmosClient {
-    public database = jest.fn<MockFn>().mockImplementation(() => ({
-        container: jest.fn<MockFn>(() => mockResult),
-    }));
-}
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-class MockFirestore {
-    public collection = jest.fn<MockFn>().mockImplementation(() => mockResult);
-}
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-class MockDynamoDBDocumentClient {
-    public send = jest.fn<MockFn>().mockImplementation(() => mockResult);
-}
-{%- endif %}
+import { {{ r }}Repository, StoreFactory } from '@repositories';
+import { MockFn, mockStore } from '../../test/mocks';
 
 describe('{{ r }}Repository', () => {
-    beforeEach(() => {
-        jest.resetAllMocks();
-    });
-{%- if cloud_service == 'Azure Function App' %}
-
-    const mockCosmosClient = new MockCosmosClient() as unknown as CosmosClient;
-    const mockRepository = new {{ r }}Repository(mockCosmosClient.database('mock-db'));
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-
-    const mockFirestore = new MockFirestore() as unknown as Firestore;
-    const mockRepository = new {{ r }}Repository(mockFirestore);
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-
-    const mockDocClient = new MockDynamoDBDocumentClient() as unknown as DynamoDBDocumentClient;
-    const mockRepository = new {{ r }}Repository(mockDocClient);
-{%- endif %}
+    const opened: string[] = [];
+    const openStore = (name: string) => {
+        opened.push(name);
+        return mockStore();
+    };
+    const mockRepository = new {{ r }}Repository(openStore as unknown as StoreFactory);
+    // Untyped view, since the base methods are protected.
+    const base = mockRepository as unknown as Record<string, MockFn>;
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockItem = {
+    const mockFields = { name: 'mock{{ r }}' };
+    const mockRecord = {
         id: mockId,
-        name: 'mock{{ r }}',
+        ...mockFields,
         isDeleted: false,
         createdTimestamp: '2024-03-24T00:00:00.000Z',
         updatedTimestamp: '2024-03-24T00:00:00.000Z',
     };
-    const mockRepositoryResponse = [
-        {
-            id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-            name: 'mock{{ r }}1',
-            isDeleted: false,
-            createdTimestamp: '2024-03-24T00:00:00.000Z',
-            updatedTimestamp: '2024-03-24T00:00:00.000Z',
-            createdBy: 'mockUser',
-            updatedBy: 'mockUser',
-        },
-        {
-            id: '8123e7f0-b294-4b55-9bd6-d87734d5ad21',
-            name: 'mock{{ r }}2',
-            isDeleted: false,
-            createdTimestamp: '2024-03-24T00:00:00.000Z',
-            updatedTimestamp: '2024-03-24T00:00:00.000Z',
-            createdBy: 'mockUser',
-            updatedBy: 'mockUser',
-        }
-    ];
-    const mockItemUpdate = { id: mockId, name: 'mock{{ r }}Update' };
 
-    // The base CRUD methods are protected; spy on them through an untyped view.
-    const base = mockRepository as unknown as Record<string, MockFn>;
-    const operations = ['create', 'get', 'list', 'update', 'replace', 'delete'];
-{%- set exposed = [] %}
-{%- for op, needed in [('create', 'create' in ops), ('get', 'get_by_id' in ops), ('list', 'list' in ops), ('update', 'update' in ops), ('replace', 'replace' in ops), ('delete', 'delete' in ops)] if needed %}{% set _ = exposed.append(op) %}{% endfor %}
-    const exposed = [{% for op in exposed %}'{{ op }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+    beforeEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('should open the store named by its container setting', () => {
+        expect(opened).toEqual(['{{ resource.container }}']);
+    });
 
     it('should expose only its resource operations', () => {
+        const operations = ['create', 'get', 'list', 'update', 'replace', 'delete'];
         const actual = operations.filter((operation) => typeof base[operation] === 'function');
-        expect(actual).toEqual(exposed);
+{%- set exposed = [] %}
+{%- for op, needed in [('create', 'create' in ops), ('get', 'get_by_id' in ops), ('list', 'list' in ops), ('update', 'update' in ops), ('replace', 'replace' in ops), ('delete', 'delete' in ops)] if needed %}{% set _ = exposed.append(op) %}{% endfor %}
+        expect(actual).toEqual([{% for op in exposed %}'{{ op }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
     });
 
     it('should name the resource in not found errors', () => {
         const error = (base['notFound'] as (id: string) => Error)(mockId);
         expect(error.message).toEqual(`{{ r }} with id ${mockId} was not found.`);
     });
-
-    it('should fail an operation that outlives the database deadline', async () => {
-        jest.useFakeTimers();
-        try {
-            jest.spyOn(base, '{{ probe[1] }}').mockReturnValue(new Promise(() => undefined));
-            const pending = (mockRepository as unknown as Record<string, MockFn>)['{{ probe[0] }}']({{ probe[2] }});
-            const assertion = expect(pending).rejects.toBeInstanceOf(ProxyError);
-            jest.advanceTimersByTime(DATABASE_DEADLINE_MS);
-            await assertion;
-        } finally {
-            jest.useRealTimers();
-        }
-    });
 {%- if "create" in ops %}
 
-    describe('create', () => {
-        it('should delegate to the base repository', async () => {
-            const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRepositoryResponse[0]);
-            await mockRepository.create(mockItem);
-            expect(spy).toHaveBeenCalledTimes(1);
-            expect(spy).toHaveBeenCalledWith(mockItem);
-        });
+    it('should delegate create to the base repository', async () => {
+        const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.create(mockFields)).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockFields);
     });
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
-    describe('get', () => {
-        it('should delegate to the base repository', async () => {
-            const spy = jest.spyOn(base, 'getRecord').mockResolvedValue(mockRepositoryResponse[0]);
-            await mockRepository.get(mockId);
-            expect(spy).toHaveBeenCalledTimes(1);
-            expect(spy).toHaveBeenCalledWith(mockId);
-        });
+    it('should delegate get to the base repository', async () => {
+        const spy = jest.spyOn(base, 'getRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.get(mockId)).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId);
     });
 {%- endif %}
 {%- if "list" in ops %}
 
-    describe('list', () => {
-        it('should delegate to the base repository', async () => {
-            const spy = jest.spyOn(base, 'getRecords').mockResolvedValue(mockRepositoryResponse);
-            await mockRepository.list();
-            expect(spy).toHaveBeenCalledTimes(1);
-        });
+    it('should delegate list to the base repository', async () => {
+        const spy = jest.spyOn(base, 'getRecords').mockResolvedValue([mockRecord]);
+        expect(await mockRepository.list(5)).toEqual([mockRecord]);
+        expect(spy).toHaveBeenCalledWith(5);
     });
 {%- endif %}
 {%- if "update" in ops %}
 
-    describe('update', () => {
-        it('should delegate to the base repository', async () => {
-            const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRepositoryResponse[0]);
-            await mockRepository.update(mockItemUpdate);
-            expect(spy).toHaveBeenCalledTimes(1);
-            expect(spy).toHaveBeenCalledWith(mockItemUpdate);
-        });
+    it('should delegate update to the base repository', async () => {
+        const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.update(mockId, mockFields)).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields);
     });
 {%- endif %}
 {%- if "replace" in ops %}
 
-    describe('replace', () => {
-        it('should delegate to the base repository', async () => {
-            const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRepositoryResponse[0]);
-            await mockRepository.replace(mockRepositoryResponse[0]);
-            expect(spy).toHaveBeenCalledTimes(1);
-            expect(spy).toHaveBeenCalledWith(mockRepositoryResponse[0]);
-        });
+    it('should delegate replace to the base repository', async () => {
+        const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.replace(mockId, mockFields)).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields);
     });
 {%- endif %}
 {%- if "delete" in ops %}
 
-    describe('delete', () => {
-        it('should delegate to the base repository', async () => {
-            const spy = jest.spyOn(base, 'deleteRecord').mockResolvedValue(undefined);
-            await mockRepository.delete(mockId);
-            expect(spy).toHaveBeenCalledTimes(1);
-            expect(spy).toHaveBeenCalledWith(mockId);
-        });
+    it('should delegate delete to the base repository', async () => {
+        const spy = jest.spyOn(base, 'deleteRecord').mockResolvedValue(undefined);
+        await mockRepository.delete(mockId);
+        expect(spy).toHaveBeenCalledWith(mockId);
     });
 {%- endif %}
 });

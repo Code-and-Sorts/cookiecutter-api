@@ -1,8 +1,7 @@
 import { describe, it, expect, jest } from '@jest/globals';
 import { NotFoundError, ProxyError, ValidationError } from '@errors';
 import { cancellationError, detectError, isCancellation, parseJsonBody } from '@utils';
-
-type MockFn = (...args: any[]) => any;
+import { MockFn } from '../../test/mocks';
 
 describe('detectError', () => {
     it('should return 400 with the message for ValidationError', () => {

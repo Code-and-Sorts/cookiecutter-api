@@ -25,7 +25,6 @@ describe('container', () => {
     });
 {%- endfor %}
 
-    // A failing database must end in a 500 within 10 seconds: the client gives up early too.
     it('should cap database client timeouts and retries', () => {
         expect(DATABASE_DEADLINE_MS).toBeLessThan(10000);
 {%- if cloud_service == 'Azure Function App' %}

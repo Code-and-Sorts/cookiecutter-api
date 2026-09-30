@@ -16,10 +16,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 {%- endif %}
 import { {{ c }}Controller } from '@config/container';
 import { jsonResponse, notAllowed{% if ops | select('in', ['create', 'update', 'replace']) | list %}, readBody{% endif %} } from './response';
-
-// Handles /{{ resource.endpoint }} and /{{ resource.endpoint }}/{id}. Methods that are not enabled on
-// a path answer 405; errors propagate to the entry point.
-{%- if gcp %}
+{% if gcp %}
 export const {{ c }}Routes = async (req: ff.Request, res: ff.Response, id?: string): Promise<void> => {
 {%- else %}
 export const {{ c }}Routes = async (event: APIGatewayProxyEvent, id?: string): Promise<APIGatewayProxyResult> => {

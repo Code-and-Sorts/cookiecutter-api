@@ -3,223 +3,88 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Service } from '@services';
 import { {{ r }}Repository } from '@repositories';
-import { {{ r }}EntitySchema } from '@models';
 import { NotFoundError } from '@errors';
-
-type MockFn = (...args: any[]) => any;
+import { MockFn } from '../../test/mocks';
 
 describe('{{ r }}Service', () => {
-    const mockGet = jest.fn<MockFn>();
-    const mockList = jest.fn<MockFn>();
-    const mockCreate = jest.fn<MockFn>();
-    const mockUpdate = jest.fn<MockFn>();
-    const mockReplace = jest.fn<MockFn>();
-    const mockDelete = jest.fn<MockFn>();
-
-    // Mirrors the repository's surface: only this resource's operations.
-    class Mock{{ r }}Repository {
-{%- if "get_by_id" in ops %}
-        get = mockGet;
-{%- endif %}
-{%- if "list" in ops %}
-        list = mockList;
-{%- endif %}
-{%- if "create" in ops %}
-        create = mockCreate;
-{%- endif %}
-{%- if "update" in ops %}
-        update = mockUpdate;
-{%- endif %}
-{%- if "replace" in ops %}
-        replace = mockReplace;
-{%- endif %}
-{%- if "delete" in ops %}
-        delete = mockDelete;
-{%- endif %}
-    }
-
-    beforeEach(() => {
-        jest.restoreAllMocks();
-        jest.resetAllMocks();
-    });
-
-    const mockRepository = new Mock{{ r }}Repository() as unknown as {{ r }}Repository;
-    const mockService = new {{ r }}Service(mockRepository);
-    const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockCreateRequest = { name: 'mock{{ r }}1' };
-    const mockCreateSchema = {
-        id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-        isDeleted: false,
-        name: 'mock{{ r }}1',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+    const repository = {
+{%- for op in [('create', 'create'), ('get', 'get_by_id'), ('list', 'list'), ('update', 'update'), ('replace', 'replace'), ('delete', 'delete')] if op[1] in ops %}
+        {{ op[0] }}: jest.fn<MockFn>(),
+{%- endfor %}
     };
-    const mockUpdateRequest = { name: 'mock{{ r }}1-updated' };
-    const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-    const mockUpdateResponse = { id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0', name: 'mock{{ r }}1-updated' };
-    const mockResponse = [
-        { id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0', name: 'mock{{ r }}1' },
-        { id: '8123e7f0-b294-4b55-9bd6-d87734d5ad21', name: 'mock{{ r }}2' },
-    ];
-    const mockRepositoryResponse = [
-        {
-            id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-            name: 'mock{{ r }}1',
-            isDeleted: false,
-            createdTimestamp: '2024-03-24T00:00:00.000Z',
-            updatedTimestamp: '2024-03-24T00:00:00.000Z',
-            createdBy: 'mockUser',
-            updatedBy: 'mockUser',
-        },
-        {
-            id: '8123e7f0-b294-4b55-9bd6-d87734d5ad21',
-            name: 'mock{{ r }}2',
-            isDeleted: false,
-            createdTimestamp: '2024-03-24T00:00:00.000Z',
-            updatedTimestamp: '2024-03-24T00:00:00.000Z',
-            createdBy: 'mockUser',
-            updatedBy: 'mockUser',
-        },
-    ];
-    const mockRepositoryUpdateResponse = {
-        id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-        name: 'mock{{ r }}1-updated',
+    const service = new {{ r }}Service(repository as unknown as {{ r }}Repository);
+    const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+    const mockFields = { name: 'mock{{ r }}1' };
+    const mockRecord = {
+        id: mockId,
+        ...mockFields,
         isDeleted: false,
         createdTimestamp: '2024-03-24T00:00:00.000Z',
         updatedTimestamp: '2024-03-24T00:00:00.000Z',
         createdBy: 'mockUser',
         updatedBy: 'mockUser',
     };
-{%- if "create" in resource.operations %}
+    const mockResponse = { id: mockId, ...mockFields };
 
-    describe('create', () => {
-        it('should successfully call repository', async () => {
-            const repository = jest.spyOn(mockRepository, 'create').mockReturnValue(Promise.resolve(mockRepositoryResponse[0]));
-            jest.spyOn({{ r }}EntitySchema, 'parse').mockReturnValue(mockCreateSchema);
-            const result = await mockService.create(mockCreateRequest);
-            expect(mockCreate).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mockResponse[0]);
-            expect(repository).toHaveBeenCalledTimes(1);
-            expect(repository).toHaveBeenCalledWith(mockCreateSchema);
-        });
+    beforeEach(() => {
+        jest.resetAllMocks();
+    });
+{%- if "create" in ops %}
 
-        it('should store a new record with a UUID, one timestamp for both fields and no audit fields', async () => {
-            mockCreate.mockImplementation(async (entity) => entity);
-            // A second clock reading would differ, so equal timestamps prove the clock was read once.
-            const clock = jest.spyOn(Date.prototype, 'toISOString')
-                .mockReturnValueOnce('2026-01-01T00:00:00.000Z')
-                .mockReturnValueOnce('2026-01-01T00:00:00.001Z');
-            let result;
-            try {
-                result = await mockService.create(mockCreateRequest);
-            } finally {
-                clock.mockRestore();
-            }
-            const written = mockCreate.mock.calls[0][0];
-            expect(written.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-            expect(written.isDeleted).toBe(false);
-            expect(written.createdTimestamp).toBe('2026-01-01T00:00:00.000Z');
-            expect(written.updatedTimestamp).toBe(written.createdTimestamp);
-            expect('createdBy' in written).toBe(false);
-            expect('updatedBy' in written).toBe(false);
-            expect(result).toEqual({ id: written.id, ...mockCreateRequest });
-        });
+    it('should create through the repository and answer with the response fields only', async () => {
+        repository.create.mockResolvedValue(mockRecord);
+        expect(await service.create(mockFields)).toEqual(mockResponse);
+        expect(repository.create).toHaveBeenCalledWith(mockFields);
     });
 {%- endif %}
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
-    describe('get', () => {
-        it('should successfully call repository', async () => {
-            const repository = jest.spyOn(mockRepository, 'get').mockReturnValue(Promise.resolve(mockRepositoryResponse[0]));
-            const result = await mockService.get(mockId);
-            expect(mockGet).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mockResponse[0]);
-            expect(repository).toHaveBeenCalledTimes(1);
-            expect(repository).toHaveBeenCalledWith(mockId);
-        });
+    it('should get through the repository and answer with the response fields only', async () => {
+        repository.get.mockResolvedValue(mockRecord);
+        expect(await service.get(mockId)).toEqual(mockResponse);
+        expect(repository.get).toHaveBeenCalledWith(mockId);
     });
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
-    describe('list', () => {
-        it('should successfully call repository', async () => {
-            const repository = jest.spyOn(mockRepository, 'list').mockReturnValue(Promise.resolve(mockRepositoryResponse));
-            const result = await mockService.list();
-            expect(mockList).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mockResponse);
-            expect(repository).toHaveBeenCalledTimes(1);
-        });
+    it('should list through the repository and answer with the response fields only', async () => {
+        repository.list.mockResolvedValue([mockRecord, { ...mockRecord, id: 'other' }]);
+        expect(await service.list(5)).toEqual([mockResponse, { ...mockResponse, id: 'other' }]);
+        expect(repository.list).toHaveBeenCalledWith(5);
     });
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- if "update" in ops %}
 
-    describe('update', () => {
-        it('should successfully call repository', async () => {
-            const repository = jest.spyOn(mockRepository, 'update').mockReturnValue(Promise.resolve(mockRepositoryUpdateResponse));
-            const result = await mockService.update(mockId, mockUpdateRequest);
-            expect(mockUpdate).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mockUpdateResponse);
-            expect(repository).toHaveBeenCalledTimes(1);
-        });
+    it('should update through the repository and answer with the response fields only', async () => {
+        repository.update.mockResolvedValue(mockRecord);
+        expect(await service.update(mockId, mockFields)).toEqual(mockResponse);
+        expect(repository.update).toHaveBeenCalledWith(mockId, mockFields);
+    });
 
-        it('should refresh updatedTimestamp without sending audit fields', async () => {
-            mockUpdate.mockResolvedValue(mockRepositoryUpdateResponse);
-            await mockService.update(mockId, mockUpdateRequest);
-            const written = mockUpdate.mock.calls[0][0];
-            expect(written).toEqual(expect.objectContaining({ ...mockUpdateRequest, id: mockId }));
-            expect(written.createdBy).toBeUndefined();
-            expect(written.createdTimestamp).toBeUndefined();
-            expect(written.updatedTimestamp).toMatch(isoTimestamp);
-            expect(Date.parse(written.updatedTimestamp)).toBeGreaterThan(Date.parse(mockRepositoryUpdateResponse.updatedTimestamp));
-        });
-
-        it('should propagate not found for missing or soft-deleted records', async () => {
-            mockUpdate.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
-            await expect(mockService.update(mockId, mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
-        });
+    it('should propagate not found from update', async () => {
+        repository.update.mockRejectedValue(new NotFoundError('missing'));
+        await expect(service.update(mockId, mockFields)).rejects.toBeInstanceOf(NotFoundError);
     });
 {%- endif %}
-{%- if "replace" in resource.operations %}
+{%- if "replace" in ops %}
 
-    describe('replace', () => {
-        it('should successfully call repository', async () => {
-            const repository = jest.spyOn(mockRepository, 'replace').mockReturnValue(Promise.resolve(mockRepositoryUpdateResponse));
-            const result = await mockService.replace(mockId, mockUpdateRequest);
-            expect(mockReplace).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mockUpdateResponse);
-            expect(repository).toHaveBeenCalledTimes(1);
-        });
+    it('should replace through the repository and answer with the response fields only', async () => {
+        repository.replace.mockResolvedValue(mockRecord);
+        expect(await service.replace(mockId, mockFields)).toEqual(mockResponse);
+        expect(repository.replace).toHaveBeenCalledWith(mockId, mockFields);
+    });
 
-        it('should write the request as a live entity with a refreshed updatedTimestamp', async () => {
-            const before = Date.now();
-            mockReplace.mockImplementation(async (entity) => entity);
-            await mockService.replace(mockId, mockUpdateRequest);
-            const written = mockReplace.mock.calls[0][0];
-            expect(written).toEqual(expect.objectContaining({
-                id: mockId,
-                name: 'mock{{ r }}1-updated',
-                isDeleted: false,
-            }));
-            expect(written.updatedBy).toBeUndefined();
-            expect(written.updatedTimestamp).toMatch(isoTimestamp);
-            expect(Date.parse(written.updatedTimestamp)).toBeGreaterThanOrEqual(before);
-        });
-
-        it('should propagate not found for missing or soft-deleted records', async () => {
-            mockReplace.mockRejectedValue(new NotFoundError(`Record not found for ID ${mockId}.`));
-            await expect(mockService.replace(mockId, mockUpdateRequest)).rejects.toBeInstanceOf(NotFoundError);
-        });
+    it('should propagate not found from replace', async () => {
+        repository.replace.mockRejectedValue(new NotFoundError('missing'));
+        await expect(service.replace(mockId, mockFields)).rejects.toBeInstanceOf(NotFoundError);
     });
 {%- endif %}
-{%- if "delete" in resource.operations %}
+{%- if "delete" in ops %}
 
-    describe('delete', () => {
-        it('should successfully call repository', async () => {
-            const repository = jest.spyOn(mockRepository, 'delete');
-            await mockService.delete(mockId);
-            expect(repository).toHaveBeenCalledTimes(1);
-            expect(repository).toHaveBeenCalledWith(mockId);
-        });
+    it('should delete through the repository', async () => {
+        repository.delete.mockResolvedValue(undefined);
+        await service.delete(mockId);
+        expect(repository.delete).toHaveBeenCalledWith(mockId);
     });
 {%- endif %}
 });
