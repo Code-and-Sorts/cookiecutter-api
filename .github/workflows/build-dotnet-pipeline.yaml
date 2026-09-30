@@ -35,6 +35,7 @@ jobs:
           - single
           - multi
           - edge
+          - minimal
         exclude:
           - os: macos-latest
             fixture: multi
@@ -44,6 +45,10 @@ jobs:
             fixture: multi
           - os: windows-latest
             fixture: edge
+          - os: macos-latest
+            fixture: minimal
+          - os: windows-latest
+            fixture: minimal
       fail-fast: false
     steps:
       - name: Check out

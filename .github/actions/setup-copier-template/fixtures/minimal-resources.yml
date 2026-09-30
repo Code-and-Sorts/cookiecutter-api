@@ -1,0 +1,16 @@
+# Narrow operation subsets and no health check: an update-only, a replace-only and a
+# create-only resource sharing one container, with health_endpoint left empty.
+health_endpoint: ""
+resources:
+  - name: "Lynx"
+    endpoint: "lynxes"
+    container: "cats"
+    operations: ["update"]
+  - name: "Puma"
+    endpoint: "pumas"
+    container: "cats"
+    operations: ["replace"]
+  - name: "OrderItem"
+    endpoint: "order-items"
+    container: "orders"
+    operations: ["create"]
