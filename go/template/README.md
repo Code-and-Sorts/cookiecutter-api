@@ -252,7 +252,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
     ```console
     curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
-      https://<function-url>/{{ resources[0].endpoint }}
+      https://<function-url>/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -291,7 +291,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
     ```console
     aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
-    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}
+    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 {%- endif %}
 

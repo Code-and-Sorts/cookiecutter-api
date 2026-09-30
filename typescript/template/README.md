@@ -238,7 +238,7 @@ The function is not public. Grant callers the Cloud Run Invoker role (`gcloud fu
 
 ```console
 curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
-  https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}/{{ resources[0].endpoint }}
+  https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
 ```
 {%- else -%}
 `template.yaml` defines the Lambda function (Node.js 24, `nodejs24.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
@@ -253,7 +253,7 @@ SAM creates an API key and usage plan for the API. Every route{% if health_endpo
 
 ```console
 aws apigateway get-api-key --api-key <api-key-id> --include-value --query value --output text
-curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}
+curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
 ```
 
 `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.

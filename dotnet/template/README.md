@@ -278,7 +278,7 @@ Resources that use the same container share its records: there is no type discri
     The function is private: callers need the Cloud Run Invoker role and send `Authorization: Bearer $(gcloud auth print-identity-token)`. Because the whole API is one function, the health check sits behind the same IAM check.
 
     ```console
-    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" <function-url>/{{ resources[0].endpoint }}
+    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" <function-url>/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -319,7 +319,7 @@ Resources that use the same container share its records: there is no type discri
 
     ```console
     aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
-    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}
+    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 
     An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
