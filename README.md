@@ -83,6 +83,27 @@ Each resource gets its own files in every layer, for example `CatController.cs` 
 `DogController.cs` in .NET, or `controllers/cat.controller.ts` and
 `controllers/dog.controller.ts` in TypeScript.
 
+### OpenAPI
+
+Every generated project includes an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0)
+document, `openapi.json`, that describes exactly the routes it exposes: each resource's
+`operations`, the health check and the document itself, with the request and response
+schemas, the `X-User-Id` header, `?limit=` on list and the cloud's servers and
+authentication. It sits at the project root (`<Project>.Api/openapi.json` in .NET), is
+rendered from the same answers as the routes (so `copier update` refreshes both), and is
+served by the API at `GET /openapi.json` (`/api/openapi.json` on Azure Functions) with the
+health check's authentication. Each language's unit tests fail if the document and the
+registered routes or request validators disagree.
+
+Lint it, or build an HTML reference, with [Redocly CLI](https://redocly.com/docs/cli/):
+
+```console
+npx @redocly/cli lint openapi.json
+npx @redocly/cli build-docs openapi.json
+```
+
+All four languages render the same document for the same answers; CI checks this.
+
 ## Supported Templates
 
 <table width="100%">
@@ -169,6 +190,10 @@ Below are the SDKs and frameworks used in the various templates.
 - [testing](https://pkg.go.dev/testing) and [testify](https://github.com/stretchr/testify) for testing
 - [jsonschema](https://github.com/santhosh-tekuri/jsonschema) for schema validation
 - [Azure SDK for Go (azcosmos)](https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/data/azcosmos) for Cosmos DB
+
+### OpenAPI
+- [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) for each project's `openapi.json`
+- [Redocly CLI](https://redocly.com/docs/cli/) for linting the spec in CI and building reference docs
 
 ### Azure
 - [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs

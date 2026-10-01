@@ -15,8 +15,8 @@ cookiecutter-api/
 ├── dotnet/                  # .NET/C# template (Azure + GCP + AWS)
 ├── go/                      # Go template (Azure + GCP + AWS)
 ├── .github/
-│   ├── actions/             # Shared composite actions and resource fixtures
-│   └── workflows/           # CI pipelines per language, example publishing
+│   ├── actions/             # Shared composite actions, resource fixtures and the OpenAPI lint rules
+│   └── workflows/           # CI pipelines per language, OpenAPI consistency, example publishing
 ├── .docs/                   # Documentation assets (images, SVGs)
 └── README.md                # Support matrix and usage docs
 ```
@@ -25,6 +25,9 @@ Each language directory contains:
 - `copier.yml` — Questions, derived values, validators, and Jinja extension config
 - `template/` — The template project root (declared via `_subdirectory: template`); its
   contents are rendered directly into the destination directory
+- `_openapi.yaml.jinja` — The OpenAPI document as YAML, included by `template/openapi.json`
+  (`template/<Project>.Api/openapi.json` in .NET). Copier cannot share files between
+  templates, so every language keeps a byte-identical copy; edit all four together
 
 ## Template Architecture
 
@@ -44,6 +47,13 @@ Entry Point (Azure functions, GCP main, or AWS Lambda handler)
 - **Schema Validation**: TypeScript uses [Zod](https://zod.dev/), Python uses [Pydantic](https://docs.pydantic.dev/), .NET uses [FluentValidation](https://docs.fluentvalidation.net/), Go uses JSON Schema
 - **Soft Deletes**: All templates use an `isDeleted` flag rather than hard deletes
 - **Base Records**: All entities extend a base schema with `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp`
+- **OpenAPI**: Every project has an OpenAPI 3.1 `openapi.json`, rendered from `_openapi.yaml.jinja` (the
+  `from_yaml` and `to_json` filters convert it, so no project needs a YAML parser) and served at
+  `GET {prefix}/openapi.json`.
+  A contract test per language (Go `handlers/openapi_test.go`, Python `openapi_test.py`, TypeScript
+  `__tests__/openapi.test.ts`, .NET `OpenApi/OpenApiSpecTests.cs`) fails when the spec's (method, path) set
+  differs from the registered routes, or its request schemas from the validator's field names and required
+  fields
 
 ### Resources
 
@@ -78,6 +88,10 @@ The default is a single resource derived from the project name with `list`, `get
   follow each language's existing convention.
 - The health check is its own handler file per cloud, served at `health_endpoint` (default
   `health`) and generated only when that answer is non-empty.
+- `openapi.json` lists exactly the generated routes: per resource a `{Name}` schema and a
+  `{Name}CreateRequest`/`UpdateRequest`/`ReplaceRequest` schema for each body operation it enables.
+  The spec route has its own handler file per cloud too (Go keeps it in `handlers/openapi.go`, which no
+  resource file name can collide with).
 - The `resources` validator rejects an endpoint equal to `health_endpoint`, the name `Health`, duplicate
   operations, names or containers that collide after case and separator normalization, and
   per-language reserved names. Only add a reserved name after rendering it and watching
@@ -91,6 +105,11 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   Functions (the host default) and empty on GCP and AWS. The health check is `GET {prefix}/<health_endpoint>`,
   matched exactly. SAM path parameters are named `{id}`. GCP projects expose one HTTP function: entry point `api`, or the `Function` class in .NET, whose
   Functions Framework resolves entry points by type name.
+- **OpenAPI:** `GET {prefix}/openapi.json` serves the project's `openapi.json` and has the health check's auth
+  (anonymous on Azure, no API key on AWS, IAM on GCP), whether or not the health check exists. The spec's
+  paths carry no prefix; its `servers` add `/api` on Azure. A change to any route (path, method, status,
+  body or header) must update the loop in `_openapi.yaml.jinja` in the same change; the contract tests and
+  the `openapi-consistency` workflow fail otherwise.
 - **Responses:** always JSON. Create 201; get, update, replace 200 with `{"id", "name"}`; list 200 with an array
   (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
   with `{"status": "ok"}`.
@@ -142,9 +161,11 @@ To add a new cloud provider to an existing language template:
      Go `repositories/store.go`, Python `repositories/base_repository.py`) — Database client implementation
    - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` / `function.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
-4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
-5. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
-6. **Update `README.md`** — Change the support table cell from planned to complete
+   - `_openapi.yaml.jinja` (all four copies) — the cloud's `servers`, security scheme and route prefix
+4. **Serve the spec** — Route `GET {prefix}/openapi.json` with the health check's auth, and extend the contract test so it reads the new cloud's registered routes
+5. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
+6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML and to the render loop in `openapi-consistency.yaml`
+7. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
 
@@ -153,8 +174,9 @@ To add a new cloud provider to an existing language template:
 3. Put the template project under `template/`
 4. Add input validation as a `validator:` on the prompted `project_name` and `resources` questions (Copier only runs validators for prompted questions, not for `when: false` derived values)
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Create `.github/workflows/build-{language}-pipeline.yaml`
-7. Update the root `README.md` support table
+6. Copy `_openapi.yaml.jinja` and `template/openapi.json` unchanged, serve the spec at `GET {prefix}/openapi.json`, and add a contract test that compares the spec with the registered routes and the request validators
+7. Create `.github/workflows/build-{language}-pipeline.yaml` with the `lint-openapi` step, and add the language to `openapi-consistency.yaml`
+8. Update the root `README.md` support table
 
 ## Template Variables
 
@@ -184,8 +206,9 @@ tag used in `LICENSE`.
 Each language has a GitHub Actions workflow that:
 1. Generates a project with `copier copy --defaults --trust`
 2. Installs dependencies
-3. Builds and lints the project
-4. Runs unit tests
+3. Builds and lints the project, and lints `openapi.json` with the shared `.github/actions/lint-openapi` action
+   (Redocly `recommended-strict`, see its `redocly.yaml`)
+4. Runs unit tests, including the OpenAPI contract test
 
 The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
 Its `resources-fixture` input renders `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
@@ -198,6 +221,11 @@ Pipelines use a small matrix, one job per distinct risk rather than every combin
 - The newest GA runtime each cloud supports: Node 24 (Node 22 on Azure Functions), Python 3.14, .NET 10, Go 1.27
 
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
+
+`openapi-consistency.yaml` renders every language, cloud and fixture (`single`, `multi`, `edge`) in one
+job, checks that the four `_openapi.yaml.jinja` copies are identical, that every language renders the
+same document for a cloud and that clouds differ only in `servers` and security, and lints each distinct
+document once.
 
 ### Local Verification
 
