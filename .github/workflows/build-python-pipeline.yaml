@@ -6,6 +6,7 @@ on:
       - python/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/lint-openapi/**
     branches:
       - main
   pull_request:
@@ -13,6 +14,7 @@ on:
       - python/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/lint-openapi/**
 
 jobs:
   build-python:
@@ -56,6 +58,11 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
           python-version: ${{ matrix.python-version }}
+
+      - name: Lint the OpenAPI spec
+        uses: ./.github/actions/lint-openapi
+        with:
+          specs: KittenClaws/openapi.json
 
       - name: Install Poetry
         env:

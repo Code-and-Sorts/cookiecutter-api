@@ -1,0 +1,8 @@
+# Lint config for every generated openapi.json; recommended-strict turns warnings into errors.
+extends:
+  - recommended-strict
+rules:
+  # List, the health check and GET /openapi.json have no client error to document.
+  operation-4xx-response: off
+  # The spec lists the local development server next to the deployed one on purpose.
+  no-server-example.com: off

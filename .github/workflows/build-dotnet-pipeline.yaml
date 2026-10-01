@@ -6,6 +6,7 @@ on:
       - dotnet/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/lint-openapi/**
     branches:
       - main
   pull_request:
@@ -13,6 +14,7 @@ on:
       - dotnet/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/lint-openapi/**
 
 jobs:
   build-dotnet:
@@ -55,6 +57,11 @@ jobs:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
+
+      - name: Lint the OpenAPI spec
+        uses: ./.github/actions/lint-openapi
+        with:
+          specs: KittenClaws/KittenClaws.Api/openapi.json
 
       - name: Setup dotnet ${{ matrix.dotnet-version }}
         uses: actions/setup-dotnet@v6

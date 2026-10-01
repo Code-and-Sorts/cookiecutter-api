@@ -1,0 +1,19 @@
+name: Lint OpenAPI Spec
+description: Lint generated openapi.json files with Redocly and the shared rules in redocly.yaml.
+
+inputs:
+  specs:
+    required: true
+    description: Space-separated paths of the openapi.json files to lint.
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Lint with Redocly
+      env:
+        SPECS: ${{ inputs.specs }}
+        CONFIG: ${{ github.action_path }}/redocly.yaml
+      # SPECS is split on spaces on purpose: one path per file.
+      run: npx --yes @redocly/cli@2.57.0 lint --config "$CONFIG" $SPECS
+      shell: bash

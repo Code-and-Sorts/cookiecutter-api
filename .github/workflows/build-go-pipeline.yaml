@@ -6,6 +6,7 @@ on:
       - go/**
       - .github/workflows/build-go-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/lint-openapi/**
     branches:
       - main
   pull_request:
@@ -13,6 +14,7 @@ on:
       - go/**
       - .github/workflows/build-go-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/lint-openapi/**
 
 jobs:
   build-go:
@@ -55,6 +57,11 @@ jobs:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
+
+      - name: Lint the OpenAPI spec
+        uses: ./.github/actions/lint-openapi
+        with:
+          specs: KittenClaws/openapi.json
 
       - name: Setup Go ${{ matrix.go-version }}
         uses: actions/setup-go@v7
