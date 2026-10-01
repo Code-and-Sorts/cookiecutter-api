@@ -1,0 +1,261 @@
+# `yield` in file paths needs Copier 9.18.2+.
+_min_copier_version: "9.18.2"
+
+_jinja_extensions:
+  - jinja2_strcase.StrcaseExtension
+  - jinja2_time.TimeExtension
+
+# Render every file as a template, not only *.jinja files.
+_templates_suffix: ""
+
+# Only the chosen language's tree is rendered; its files include shared/ from the repository root.
+_subdirectory: "{{ language }}/template"
+
+language:
+  type: str
+  help: Language of the generated project.
+  choices:
+    Python: python
+    TypeScript: typescript
+    .NET (C#): dotnet
+    Go: go
+
+project_name:
+  type: str
+  default: "Cookiecutter API"
+  # Copier skips validators on derived (when: false) values, so they are checked here.
+  validator: >-
+    {%- set project_slug = project_name.lower().replace(' ', '_') -%}
+    {%- set project_lower_camel_name = project_name | to_lower_camel -%}
+    {%- set project_class_name = project_name | to_camel -%}
+    {%- set project_endpoint = project_name.lower().replace(' ', '-') -%}
+    {%- if language == 'python' and not (project_slug | regex_search('^[_a-zA-Z][_a-zA-Z0-9]+$')) -%}
+    The project slug {{ project_slug }} is not a valid Python module name. Please do not use a - and use _ instead.
+    {%- elif language != 'python' and not (project_lower_camel_name | regex_search('^[a-z]+(?:[A-Z][a-z]+)*$')) -%}
+    The project lower camel {{ project_lower_camel_name }} is not valid camel case. Please create a name using camelCase.
+    {%- elif not (project_class_name | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    The project class name {{ project_class_name }} is not a valid class name. Please create a class name using PascalCase.
+    {%- elif not (project_endpoint | regex_search('^[a-zA-Z0-9\-_]*$')) -%}
+    The project endpoint {{ project_endpoint }} is not a valid REST endpoint name. Please do not use a space or _ and use - instead.
+    {%- endif -%}
+
+project_description:
+  type: str
+  default: "This is a template repository for API projects."
+
+author:
+  type: str
+  default: "Code and Sorts (Colby Timm)"
+
+cloud_service:
+  type: str
+  default: "Azure Function App"
+  choices:
+    - "Azure Function App"
+    - "GCP Cloud Function"
+    - "AWS Lambda"
+
+open_source_license:
+  type: str
+  default: "MIT license"
+  choices:
+    - "MIT license"
+    - "BSD license"
+    - "ISC license"
+    - "Apache Software License 2.0"
+    - "GNU General Public License v3"
+    - "Not open source"
+
+project_slug:
+  type: str
+  when: false
+  default: "{{ project_name.lower().replace(' ', '_') }}"
+
+project_lower_camel_name:
+  type: str
+  when: false
+  default: "{{ project_name | to_lower_camel }}"
+
+project_endpoint:
+  type: str
+  when: false
+  default: "{{ project_name.lower().replace(' ', '-') }}"
+
+project_class_name:
+  type: str
+  when: false
+  default: "{{ project_name | to_camel }}"
+
+# Empty where unused so Copier skips the path; short names stay under Git for Windows' 260-character limit.
+functions_dir:
+  type: str
+  when: false
+  default: "{{ 'functions' if language == 'typescript' and cloud_service == 'Azure Function App' else '' }}"
+
+routes_dir:
+  type: str
+  when: false
+  default: "{{ 'routes' if language == 'typescript' and cloud_service != 'Azure Function App' else '' }}"
+
+azure_dir:
+  type: str
+  when: false
+  default: "{{ 'Functions' if language == 'dotnet' and cloud_service == 'Azure Function App' else '' }}"
+
+gcp_dir:
+  type: str
+  when: false
+  default: "{{ 'Handlers' if language == 'dotnet' and cloud_service == 'GCP Cloud Function' else '' }}"
+
+aws_dir:
+  type: str
+  when: false
+  default: "{{ 'Functions' if language == 'dotnet' and cloud_service == 'AWS Lambda' else '' }}"
+
+health_endpoint:
+  type: str
+  default: "health"
+  help: URL segment for the health check (kebab-case); leave empty to generate no health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
+    {%- endif -%}
+
+resources:
+  type: yaml
+  multiline: true
+  help: >-
+    Resources to generate. Each item: name (PascalCase), endpoint (kebab-case URL
+    segment), container (storage id; equal ids share storage), operations (subset of
+    list, get_by_id, create, update, replace, delete). The health_endpoint segment, the
+    name Health and some names per language are reserved.
+  default: |
+    - name: "{{ project_class_name }}"
+      endpoint: "{{ project_endpoint }}"
+      container: "{{ project_slug if language == 'python' else project_endpoint }}"
+      operations: ["list", "get_by_id", "create", "update", "delete"]
+  # Only reserve a name after watching the generated project fail to build with it.
+  validator: >-
+    {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
+    {%- set generated_suffixes = [] -%}
+    {%- if language == "python" -%}
+    {%- set reserved_names = ["Base", "Repository", "Health", "Openapi", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
+    {%- set generated_suffixes = ["Controller", "Repository", "Response", "Service", "Update"] -%}
+    {%- elif language == "typescript" -%}
+    {%- set reserved_names = ["Health", "Base", "BaseEnv", "BaseIdentifier", "BaseItem", "Env", "Guid", "Partial", "Promise", "SchemaValidator", "ValidationError"] + {"Azure Function App": ["HttpRequest", "HttpResponseInit", "InvocationContext"], "AWS Lambda": ["APIGatewayProxyEvent", "APIGatewayProxyResult"]}.get(cloud_service, []) -%}
+    {%- set generated_suffixes = ["Controller", "Entity", "EntitySchema", "Record", "Repository", "Request", "RequestSchema", "Response", "ResponseSchema", "Schema", "Service", "Update", "UpdateSchema"] -%}
+    {%- elif language == "dotnet" -%}
+    {%- set reserved_names = ["Health", "Base"] + {"AWS Lambda": ["Type", "HashCode"], "GCP Cloud Function": ["IResource"]}.get(cloud_service, []) -%}
+    {%- else -%}
+    {%- set reserved_names = ["Health", "BaseEntity", "BaseError", "NotFoundError", "ValidationError"] -%}
+    {%- endif -%}
+    {%- set ns = namespace(err="", eps=[], names=[], containers=[], idents={}, own=[], clash="", ident="", name_clash="") -%}
+    {%- if resources | length < 1 -%}
+    {%- set ns.err = "At least one resource is required." -%}
+    {%- elif language == "dotnet" and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 64 > 127 -%}
+    {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the OpenAPI handler string would exceed the 127-character limit." -%}
+    {%- endif -%}
+    {%- for r in resources -%}
+    {%- if not ns.err -%}
+    {%- set name = r.name | default('') | string -%}
+    {%- set name_key = name | lower -%}
+    {%- set lnames = ns.names | map('lower') | list -%}
+    {%- set container = r.container | default('') | string -%}
+    {#- Python and TypeScript compare ids as written, so YAML 1 and "1" are different ids. -#}
+    {%- set container_id = r.container if language in ["python", "typescript"] else container -%}
+    {%- set ns.clash = "" -%}
+    {%- for other in ns.containers if other != container_id and ((other | string | upper | replace('-', '_')) == (container | upper | replace('-', '_')) or (language in ["dotnet", "go"] and (other | string | to_camel) == (container | to_camel))) -%}
+    {%- set ns.clash = other -%}
+    {%- endfor -%}
+    {%- set ns.own = [name, "Base" ~ name] -%}
+    {%- for s in generated_suffixes -%}{%- set ns.own = ns.own + [name ~ s] -%}{%- endfor -%}
+    {%- set ns.ident = "" -%}
+    {%- for i in ns.own if language == "python" and not ns.ident and i in ns.idents -%}
+    {%- set ns.ident = i -%}
+    {%- endfor -%}
+    {%- set ns.name_clash = "" -%}
+    {%- for p in ns.names -%}
+    {%- if language == "typescript" and ((name.startswith(p) and name[p | length:] in generated_suffixes) or (p.startswith(name) and p[name | length:] in generated_suffixes)) -%}
+    {%- set ns.name_clash = p -%}
+    {%- elif language == "go" and (name in [p ~ "Dto", p ~ "List", "Create" ~ p ~ "Request", "Update" ~ p ~ "Request", "Replace" ~ p ~ "Request"] or p in [name ~ "Dto", name ~ "List", "Create" ~ name ~ "Request", "Update" ~ name ~ "Request", "Replace" ~ name ~ "Request"]) -%}
+    {%- set ns.name_clash = p -%}
+    {%- elif language == "dotnet" and (p | lower in [name_key ~ "list", "i" ~ name_key] or name_key in [(p | lower) ~ "list", "i" ~ (p | lower)]) -%}
+    {%- set ns.name_clash = p -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
+    {%- elif r.name in reserved_names -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a name the generated " ~ cloud_service ~ " project already uses. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
+    {%- elif language in ["typescript", "dotnet"] and name_key == "openapi" -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: its files would collide with the OpenAPI document's." -%}
+    {%- elif language == "python" and (r.name | to_snake) in python_keywords -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
+    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
+    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
+    {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
+    {%- elif (r.operations | default([]) | length) < 1 -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' must enable at least one operation." -%}
+    {%- elif r.operations | reject('in', valid_ops) | list | length > 0 -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' has an invalid operation. Allowed: " ~ (valid_ops | join(', ')) ~ "." -%}
+    {%- elif (r.operations | unique | list | length) != (r.operations | length) -%}
+    {%- set ns.err = "Resource '" ~ r.name ~ "' lists an operation more than once." -%}
+    {%- elif r.endpoint in ns.eps -%}
+    {%- set ns.err = "Duplicate endpoint '" ~ r.endpoint ~ "'." -%}
+    {%- elif name_key in lnames -%}
+    {%- set ns.err = "Duplicate resource name '" ~ r.name ~ "' (names must differ ignoring case)." -%}
+    {%- elif ns.clash -%}
+    {%- set ns.err = "Containers '" ~ ns.clash ~ "' and '" ~ container ~ "' map to the same setting or resource name; use the same id to share storage or clearly different ids." -%}
+    {%- elif ns.ident and ns.idents[ns.ident] != r.name -%}
+    {%- set ns.err = "Resource names '" ~ ns.idents[ns.ident] ~ "' and '" ~ r.name ~ "' both generate the Python name '" ~ ns.ident ~ "' (generated names add the prefix Base or a suffix: " ~ (generated_suffixes | join(', ')) ~ "). Rename one of them." -%}
+    {%- elif ns.name_clash -%}
+    {%- set ns.err = "Resource names '" ~ ns.name_clash ~ "' and '" ~ r.name ~ "' collide: one is the other plus a prefix or suffix the generated code adds. Rename one of them." -%}
+    {%- endif -%}
+    {%- if not ns.err and language == "dotnet" and cloud_service == "AWS Lambda" -%}
+    {%- set method_prefix_length = {"list": 7, "get_by_id": 3, "create": 6, "update": 6, "replace": 7, "delete": 6} -%}
+    {%- for op in r.operations if 2 * (project_class_name | length) + 43 + (r.name | length) + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is too long for project '" ~ project_class_name ~ "': its AWS Lambda handler strings would exceed the 127-character limit. Shorten the resource or project name." -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- set ns.eps = ns.eps + [r.endpoint] -%}
+    {%- set ns.names = ns.names + [name] -%}
+    {%- set ns.containers = ns.containers + [container_id] -%}
+    {%- for i in ns.own if language == "python" and i not in ns.idents -%}
+    {%- set ns.idents = dict(ns.idents, **{i: r.name}) -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {{ ns.err }}
+
+# Git for Windows can't check out paths containing "|", so paths yield from this copy, which precomputes filtered names.
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {%- set ops = r.operations -%}
+    {%- set container_key = r.container | string | replace('-', '_') -%}
+    {{ dict(r,
+    snake_name=(r.name | to_snake),
+    lower_camel_name=(r.name | to_lower_camel),
+    container_key=container_key,
+    env_key=(container_key | upper),
+    container_class=(r.container | string | to_camel),
+    has_body=("create" in ops or "update" in ops or "replace" in ops),
+    has_collection=("list" in ops or "create" in ops),
+    has_item=("get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops),
+    has_dto=(ops | reject("equalto", "delete") | list | length > 0)) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]
+
+# .NET request and validation model paths loop over this to stay under Git for Windows' 260-character limit.
+body_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in path_resources if r.has_body -%}
+    {{ r | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

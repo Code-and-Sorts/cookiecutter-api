@@ -1,4 +1,4 @@
-{%- set any_id = path_resources | selectattr('has_id') | list | length > 0 -%}
+{%- set any_id = path_resources | selectattr('has_item') | list | length > 0 -%}
 package controllers
 
 import (

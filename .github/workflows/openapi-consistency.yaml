@@ -7,6 +7,8 @@ on:
       - typescript/**
       - dotnet/**
       - go/**
+      - copier.yml
+      - shared/**
       - .github/workflows/openapi-consistency.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**
@@ -18,6 +20,8 @@ on:
       - typescript/**
       - dotnet/**
       - go/**
+      - copier.yml
+      - shared/**
       - .github/workflows/openapi-consistency.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**
@@ -40,17 +44,10 @@ jobs:
       - name: Install Copier
         run: pip install "copier>=9.18.2" jinja2-strcase jinja2-time
 
-      # Copier cannot share files between templates, so each language keeps its own copy.
-      - name: Check the spec templates are identical
-        run: |
-          for language in typescript dotnet go; do
-            cmp python/_openapi.yaml.jinja "$language/_openapi.yaml.jinja"
-          done
-          for spec in typescript/template/openapi.json go/template/openapi.json "dotnet/template/{{project_class_name}}.Api/openapi.json"; do
-            cmp python/template/openapi.json "$spec"
-          done
-
+      # Rendered outside the checkout, which Copier would otherwise copy into every later render.
       - name: Render every language, cloud and fixture
+        env:
+          RENDERED: ${{ runner.temp }}/rendered
         run: |
           fixtures=.github/actions/setup-copier-template/fixtures
           for language in python typescript dotnet go; do
@@ -60,17 +57,18 @@ jobs:
                 if [ "$fixture" != single ]; then
                   args+=(--data-file "$fixtures/$fixture-resources.yml")
                 fi
-                copier copy --quiet --defaults --trust \
+                copier copy --quiet --defaults --trust --vcs-ref HEAD \
+                  --data language="$language" \
                   --data project_name=KittenClaws \
                   --data cloud_service="${cloud#*:}" \
-                  "${args[@]}" "./$language" "rendered/$language/${cloud%%:*}/$fixture"
+                  "${args[@]}" . "$RENDERED/$language/${cloud%%:*}/$fixture"
               done
             done
           done
 
       - name: Compare the rendered specs
         run: |
-          python - rendered <<'EOF'
+          python - "$RUNNER_TEMP/rendered" <<'EOF'
           import difflib
           import json
           import sys
@@ -119,12 +117,12 @@ jobs:
         uses: ./.github/actions/lint-openapi
         with:
           specs: >-
-            rendered/python/azure/single/openapi.json
-            rendered/python/azure/multi/openapi.json
-            rendered/python/azure/edge/openapi.json
-            rendered/python/gcp/single/openapi.json
-            rendered/python/gcp/multi/openapi.json
-            rendered/python/gcp/edge/openapi.json
-            rendered/python/aws/single/openapi.json
-            rendered/python/aws/multi/openapi.json
-            rendered/python/aws/edge/openapi.json
+            ${{ runner.temp }}/rendered/python/azure/single/openapi.json
+            ${{ runner.temp }}/rendered/python/azure/multi/openapi.json
+            ${{ runner.temp }}/rendered/python/azure/edge/openapi.json
+            ${{ runner.temp }}/rendered/python/gcp/single/openapi.json
+            ${{ runner.temp }}/rendered/python/gcp/multi/openapi.json
+            ${{ runner.temp }}/rendered/python/gcp/edge/openapi.json
+            ${{ runner.temp }}/rendered/python/aws/single/openapi.json
+            ${{ runner.temp }}/rendered/python/aws/multi/openapi.json
+            ${{ runner.temp }}/rendered/python/aws/edge/openapi.json

@@ -1,0 +1,2 @@
+{%- set spec %}{% include 'shared/_openapi.yaml.jinja' %}{% endset -%}
+{{ spec | from_yaml | to_json(indent=2, ensure_ascii=False) }}

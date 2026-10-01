@@ -194,13 +194,13 @@ Settings are read from environment variables (case-insensitive).
 | `GCP_PROJECT_ID` | GCP project ID | required |
 | `FIRESTORE_DATABASE` | Firestore database name | `(default)` |
 {%- for c in containers %}
-| `FIRESTORE_COLLECTION_{{ c.env_name }}` | Firestore collection for `{{ c.container }}` | `{{ c.container }}` |
+| `FIRESTORE_COLLECTION_{{ c.env_key }}` | Firestore collection for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 | `AWS_REGION` | AWS region | `us-east-1` |
 {%- for c in containers %}
-| `DYNAMODB_TABLE_NAME_{{ c.env_name }}` | DynamoDB table for `{{ c.container }}` | `{{ c.container }}` |
+| `DYNAMODB_TABLE_NAME_{{ c.env_key }}` | DynamoDB table for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
 {%- endif %}
 
@@ -300,7 +300,7 @@ Settings are read from environment variables (case-insensitive).
       --no-allow-unauthenticated \
       --entry-point api \
       --source . \
-      --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_name }}={{ c.container }}{% endfor %}
+      --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_key }}={{ c.container }}{% endfor %}
     ```
 
     Callers need the Cloud Run Invoker role and an identity token:
@@ -339,7 +339,7 @@ Settings are read from environment variables (case-insensitive).
     > or connect to deployed DynamoDB tables by configuring your AWS credentials and setting the
     > per-container table variables in `template.yaml`:
 {%- for c in containers %}
-    > `DYNAMODB_TABLE_NAME_{{ c.env_name }}`{% if not loop.last %},{% else %}.{% endif %}
+    > `DYNAMODB_TABLE_NAME_{{ c.env_key }}`{% if not loop.last %},{% else %}.{% endif %}
 {%- endfor %}
 
 5. Deploy to AWS

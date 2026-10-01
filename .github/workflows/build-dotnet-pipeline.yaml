@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - dotnet/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**
@@ -12,6 +14,8 @@ on:
   pull_request:
     paths:
       - dotnet/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**

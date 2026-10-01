@@ -21,14 +21,14 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
 {%- endif %}
 {%- for c in containers %}
-    {{ prefix }}_{{ c.env_key }}: str = "{{ c.container }}"
+    {{ prefix }}_{{ c.container_key | lower }}: str = "{{ c.container }}"
 {%- endfor %}
 
     @property
     def {{ mapping }}(self) -> dict:
         return {
 {%- for c in containers %}
-            "{{ c.container }}": self.{{ prefix }}_{{ c.env_key }},
+            "{{ c.container }}": self.{{ prefix }}_{{ c.container_key | lower }},
 {%- endfor %}
         }
 

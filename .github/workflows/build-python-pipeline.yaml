@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - python/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**
@@ -12,6 +14,8 @@ on:
   pull_request:
     paths:
       - python/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**

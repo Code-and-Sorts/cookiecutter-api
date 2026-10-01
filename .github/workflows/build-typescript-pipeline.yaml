@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - typescript/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-typescript-pipeline.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**
@@ -12,6 +14,8 @@ on:
   pull_request:
     paths:
       - typescript/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-typescript-pipeline.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/lint-openapi/**

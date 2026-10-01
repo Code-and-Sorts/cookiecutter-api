@@ -96,22 +96,22 @@ jobs:
               return;
             }
 
-            // Map language display name to template directory
+            // Map the language display name to the template's language answer
             const languageMap = {
               'TypeScript': 'typescript',
               'C#': 'dotnet',
               'Go': 'go',
               'Python': 'python',
             };
-            const templateDir = languageMap[language];
+            const templateLanguage = languageMap[language];
 
-            if (!templateDir) {
+            if (!templateLanguage) {
               core.setFailed(`Invalid language selection: "${language}"`);
               return;
             }
 
             core.setOutput('language', language);
-            core.setOutput('template_dir', templateDir);
+            core.setOutput('template_language', templateLanguage);
             core.setOutput('cloud_service', cloudService);
             core.setOutput('project_name', projectName);
             core.setOutput('project_description', projectDescription);
@@ -122,7 +122,7 @@ jobs:
       - name: Render the template
         uses: ./.github/actions/setup-copier-template
         with:
-          template-language: ${{ steps.parse.outputs.template_dir }}
+          template-language: ${{ steps.parse.outputs.template_language }}
           template-cloud-service: ${{ steps.parse.outputs.cloud_service }}
           output-dir: generated-project
           project-name: ${{ steps.parse.outputs.project_name }}

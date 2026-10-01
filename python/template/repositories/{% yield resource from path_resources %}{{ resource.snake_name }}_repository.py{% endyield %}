@@ -1,6 +1,6 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- from '_macros.jinja' import model_names -%}
+{%- from 'python/_macros.jinja' import model_names -%}
 {% if 'list' in ops -%}
 from typing import List
 {% endif -%}

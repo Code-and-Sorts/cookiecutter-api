@@ -1,5 +1,5 @@
 {%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
-{%- set need_get = path_resources | selectattr('has_id') | list | length > 0 -%}
+{%- set need_get = path_resources | selectattr('has_item') | list | length > 0 -%}
 {%- set need_write = all_ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 {%- set need_one = all_ops | select('in', ['get_by_id', 'create', 'update', 'replace']) | list | length > 0 -%}
 package repositories

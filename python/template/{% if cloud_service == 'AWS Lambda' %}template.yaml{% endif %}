@@ -34,12 +34,12 @@ Resources:
       Environment:
         Variables:
 {%- for c in containers %}
-          DYNAMODB_TABLE_NAME_{{ c.env_name }}: !Ref {{ c.table_id }}Table
+          DYNAMODB_TABLE_NAME_{{ c.env_key }}: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Policies:
 {%- for c in containers %}
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{ c.table_id }}Table
+            TableName: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Events:
 {%- if health_endpoint %}
@@ -105,7 +105,7 @@ Resources:
 {%- endfor %}
 
 {% for c in containers %}
-  {{ c.table_id }}Table:
+  {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: {{ c.container }}

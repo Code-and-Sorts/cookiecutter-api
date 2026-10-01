@@ -10,10 +10,12 @@ This is a [Copier](https://github.com/copier-org/copier) template repository tha
 
 ```
 cookiecutter-api/
-├── python/                  # Python template (Azure + GCP + AWS)
-├── typescript/              # TypeScript/Node.js template (Azure + GCP + AWS)
-├── dotnet/                  # .NET/C# template (Azure + GCP + AWS)
-├── go/                      # Go template (Azure + GCP + AWS)
+├── copier.yml               # The one Copier config: questions, derived values, validators
+├── shared/                  # Files identical across languages, included by each language's copy
+├── python/template/         # Python template (Azure + GCP + AWS)
+├── typescript/template/     # TypeScript/Node.js template (Azure + GCP + AWS)
+├── dotnet/template/         # .NET/C# template (Azure + GCP + AWS)
+├── go/template/             # Go template (Azure + GCP + AWS)
 ├── .github/
 │   ├── actions/             # Shared composite actions, resource fixtures and the OpenAPI lint rules
 │   └── workflows/           # CI pipelines per language, OpenAPI consistency, example publishing
@@ -21,13 +23,25 @@ cookiecutter-api/
 └── README.md                # Support matrix and usage docs
 ```
 
-Each language directory contains:
-- `copier.yml` — Questions, derived values, validators, and Jinja extension config
-- `template/` — The template project root (declared via `_subdirectory: template`); its
-  contents are rendered directly into the destination directory
-- `_openapi.yaml.jinja` — The OpenAPI document as YAML, included by `template/openapi.json`
-  (`template/<Project>.Api/openapi.json` in .NET). Copier cannot share files between
-  templates, so every language keeps a byte-identical copy; edit all four together
+The repository root is the Copier template root. `copier.yml` asks `language` first and sets
+`_subdirectory: "{{ language }}/template"`, so only that language's tree is rendered into the
+destination; `shared/`, the other languages and the repository files are never copied. Template
+files include and import by path from the repository root, for example
+`{% include 'shared/LICENSE' -%}` or `{% from 'python/_macros.jinja' import routes %}`
+(Copier forbids includes outside the template root, which is why the root is the repository).
+
+### Shared files
+
+A file that would be identical in two or more languages lives once in `shared/`, and each
+language's copy is a one-line `{% include 'shared/<path>' -%}` (the `-` keeps the included
+file's own trailing newline as the only one). `shared/` mirrors the generated path
+(`shared/LICENSE`, `shared/.vscode/extensions.json`); a partial that is included into a
+differently named file starts with `_`. Only share what is really the same: a file that
+differs by language or needs per-language conditionals stays in each `template/`.
+
+The OpenAPI document is shared this way: `shared/_openapi.yaml.jinja` holds it as YAML, and
+`shared/openapi.json` converts it to JSON. Every language's `openapi.json` (`<Project>.Api/openapi.json`
+in .NET) is a one-line include of `shared/openapi.json`.
 
 ## Template Architecture
 
@@ -47,7 +61,7 @@ Entry Point (Azure functions, GCP main, or AWS Lambda handler)
 - **Schema Validation**: TypeScript uses [Zod](https://zod.dev/), Python uses [Pydantic](https://docs.pydantic.dev/), .NET uses [FluentValidation](https://docs.fluentvalidation.net/), Go uses JSON Schema
 - **Soft Deletes**: All templates use an `isDeleted` flag rather than hard deletes
 - **Base Records**: All entities extend a base schema with `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp`
-- **OpenAPI**: Every project has an OpenAPI 3.1 `openapi.json`, rendered from `_openapi.yaml.jinja` (the
+- **OpenAPI**: Every project has an OpenAPI 3.1 `openapi.json`, rendered from `shared/_openapi.yaml.jinja` (the
   `from_yaml` and `to_json` filters convert it, so no project needs a YAML parser) and served at
   `GET {prefix}/openapi.json`.
   A contract test per language (Go `handlers/openapi_test.go`, Python `openapi_test.py`, TypeScript
@@ -68,12 +82,16 @@ The default is a single resource derived from the project name with `list`, `get
   example `controllers/{% yield resource from path_resources %}{{ resource.lower_camel_name }}.controller.ts{% endyield %}`;
   Copier renders it once per resource with `resource` in context (`resources` is still the
   full list). Git for Windows cannot check out a path containing `|`, so paths never use
-  Jinja filters: `path_resources` (a derived `when: false` copy of `resources`) adds the
-  `snake_name` and `lower_camel_name` stems. Keep every repository path under about 200 characters too: Git for
-  Windows fails checkout past 260 characters including the clone directory, so long
+  Jinja filters: `path_resources` (a derived `when: false` copy of `resources`, the same for
+  every language) precomputes the names and flags templates need: `snake_name`,
+  `lower_camel_name`, `container_key` (`-` becomes `_`), `env_key` (that, upper case),
+  `container_class` (PascalCase container), `has_body`, `has_collection`, `has_item` and
+  `has_dto`. Keep every repository path under about 200 characters too: Git for
+  Windows fails checkout past 260 characters including the clone directory (Copier clones the
+  template into the system temp directory), so long
   conditions belong in a derived value (for example .NET's `azure_dir`/`gcp_dir`/`aws_dir`, which
   render the cloud's folder name or nothing, and `body_resources` for resources that accept a request body). Only one `yield` is allowed per path segment and none inside file contents,
-  so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
+  so files common to all resources (base repository, base entity, errors, DI wiring, env schema, barrels)
   still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
 - Controllers, services, routes and repositories expose only the resource's `operations`
   (`update` is PATCH, `replace` is PUT). Database code lives once per cloud, never per
@@ -94,8 +112,10 @@ The default is a single resource derived from the project name with `list`, `get
   resource file name can collide with).
 - The `resources` validator rejects an endpoint equal to `health_endpoint`, the name `Health`, duplicate
   operations, names or containers that collide after case and separator normalization, and
-  per-language reserved names. Only add a reserved name after rendering it and watching
-  the generated project fail to build.
+  per-language reserved names. It is one validator in the root `copier.yml`: checks every
+  language shares run for all, and reserved names and generated-name clashes branch on
+  `language`. Only add a reserved name after rendering it and watching the generated project
+  fail to build.
 
 ### API Contract
 
@@ -108,7 +128,7 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **OpenAPI:** `GET {prefix}/openapi.json` serves the project's `openapi.json` and has the health check's auth
   (anonymous on Azure, no API key on AWS, IAM on GCP), whether or not the health check exists. The spec's
   paths carry no prefix; its `servers` add `/api` on Azure. A change to any route (path, method, status,
-  body or header) must update the loop in `_openapi.yaml.jinja` in the same change; the contract tests and
+  body or header) must update the loop in `shared/_openapi.yaml.jinja` in the same change; the contract tests and
   the `openapi-consistency` workflow fail otherwise.
 - **Responses:** always JSON. Create 201; get, update, replace 200 with `{"id", "name"}`; list 200 with an array
   (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
@@ -137,7 +157,7 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 
 Cloud-specific code is handled through:
 
-1. **Jinja2 conditionals** — `{% if cloud_service == '...' %}` blocks within shared files (repositories, configs, package manifests)
+1. **Jinja2 conditionals** — `{% if cloud_service == '...' %}` blocks within files every cloud uses (repositories, configs, package manifests)
 2. **Separate entry point files** — Each cloud has its own entry point (e.g., `functions/` for Azure, `main.ts` for GCP, `lambda.ts` for AWS)
 3. **Conditional file/directory names** — Cloud-specific files and directories are named with a Jinja conditional (e.g. `{% if cloud_service == 'AWS Lambda' %}lambda.ts{% endif %}`). Copier skips any path that renders to an empty string, which replaces Cookiecutter's post-generation cleanup hooks.
 
@@ -153,7 +173,7 @@ Cloud-specific code is handled through:
 
 To add a new cloud provider to an existing language template:
 
-1. **Update `copier.yml`** — Add the new option to the `cloud_service` question's `choices`
+1. **Update the root `copier.yml`** — Add the new option to the `cloud_service` question's `choices` (shared by every language; gate any per-language derived value or reserved name on `language`)
 2. **Create the entry point** — Add the cloud-specific function entry point file(s) and any per-resource handlers (TypeScript `functions/` or `routes/`, Python `blueprints/`, .NET `Functions/` or `Handlers/`, Go `handlers/`), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
 3. **Add Jinja2 conditionals** to these files:
    - `package.json` / `pyproject.toml` / `.csproj` / `go.mod` — Cloud-specific dependencies
@@ -161,7 +181,7 @@ To add a new cloud provider to an existing language template:
      Go `repositories/store.go`, Python `repositories/base_repository.py`) — Database client implementation
    - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` / `function.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
-   - `_openapi.yaml.jinja` (all four copies) — the cloud's `servers`, security scheme and route prefix
+   - `shared/_openapi.yaml.jinja` — the cloud's `servers`, security scheme and route prefix
 4. **Serve the spec** — Route `GET {prefix}/openapi.json` with the health check's auth, and extend the contract test so it reads the new cloud's registered routes
 5. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
 6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML and to the render loop in `openapi-consistency.yaml`
@@ -169,24 +189,33 @@ To add a new cloud provider to an existing language template:
 
 ## Adding a New Language
 
-1. Create a new top-level directory (e.g., `java/`)
-2. Add `copier.yml` with `_min_copier_version: "9.18.2"`, the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
-3. Put the template project under `template/`
-4. Add input validation as a `validator:` on the prompted `project_name` and `resources` questions (Copier only runs validators for prompted questions, not for `when: false` derived values)
+1. Put the template project under `<language>/template/` (e.g., `java/template/`); there is no per-language `copier.yml`
+2. In the root `copier.yml`, add the language to the `language` question's `choices`. The shared questions
+   (`project_name`, `cloud_service`, `resources`, etc.) and `path_resources` already apply; add any derived value
+   only this language needs as a `when: false` question gated on `language`
+3. Add the language's input validation as `language` branches in the existing `project_name` and `resources`
+   validators (Copier only runs validators for prompted questions, not for `when: false` derived values):
+   its reserved names and any generated-name clashes
+4. Include files that are identical to another language's from `shared/` (see [Shared files](#shared-files))
+   instead of copying them, and move a file to `shared/` when it becomes identical
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Copy `_openapi.yaml.jinja` and `template/openapi.json` unchanged, serve the spec at `GET {prefix}/openapi.json`, and add a contract test that compares the spec with the registered routes and the request validators
-7. Create `.github/workflows/build-{language}-pipeline.yaml` with the `lint-openapi` step, and add the language to `openapi-consistency.yaml`
+6. Add an `openapi.json` that includes `shared/openapi.json`, serve it at `GET {prefix}/openapi.json`, and add a
+   contract test that compares the spec with the registered routes and the request validators
+7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`)
+   with the `lint-openapi` step, and add the language to `publish-examples.yml`, `openapi-consistency.yaml`, the
+   `template-setup.yml` language map and the setup issue form
 8. Update the root `README.md` support table
 
 ## Template Variables
 
 | Variable | Description | Example |
 |---|---|---|
+| `language` | Template language, asked first; picks `<language>/template` | `"python"`, `"typescript"`, `"dotnet"`, `"go"` |
 | `project_name` | Human-readable name | `"My API"` |
 | `project_endpoint` | REST endpoint (kebab-case) | `"my-api"` |
 | `project_class_name` | PascalCase class name | `"MyApi"` |
-| `project_lower_camel_name` | lowerCamelCase (TS/C#) | `"myApi"` |
-| `project_slug` | snake_case (Python only) | `"my_api"` |
+| `project_lower_camel_name` | lowerCamelCase | `"myApi"` |
+| `project_slug` | snake_case (the Python module name) | `"my_api"` |
 | `cloud_service` | Target cloud platform | `"Azure Function App"` |
 | `health_endpoint` | Health check URL segment; empty skips the health check | `"health"` |
 | `resources` | REST resources to generate | see [Resources](#resources) |
@@ -204,16 +233,18 @@ tag used in `LICENSE`.
 ### CI Pipelines
 
 Each language has a GitHub Actions workflow that:
-1. Generates a project with `copier copy --defaults --trust`
+1. Generates a project with `copier copy --defaults --trust --data language=<language>` from the repository root
 2. Installs dependencies
 3. Builds and lints the project, and lints `openapi.json` with the shared `.github/actions/lint-openapi` action
    (Redocly `recommended-strict`, see its `redocly.yaml`)
 4. Runs unit tests, including the OpenAPI contract test
 
 The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
-Its `resources-fixture` input renders `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
+Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
+`fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
 names of differing lengths) and no health check. `multi` only feeds the published example branches.
+Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
 
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
 - Ubuntu: every cloud service, with the default single resource and with `edge`
@@ -223,8 +254,8 @@ Pipelines use a small matrix, one job per distinct risk rather than every combin
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
 
 `openapi-consistency.yaml` renders every language, cloud and fixture (`single`, `multi`, `edge`) in one
-job, checks that the four `_openapi.yaml.jinja` copies are identical, that every language renders the
-same document for a cloud and that clouds differ only in `servers` and security, and lints each distinct
+job, checks that every language renders the same document for a cloud (so no language bypasses
+`shared/openapi.json`) and that clouds differ only in `servers` and security, and lints each distinct
 document once.
 
 ### Local Verification
@@ -235,19 +266,25 @@ To verify changes locally, generate a template and test it:
 # Install dependencies
 pip install copier jinja2-strcase jinja2-time
 
-# Generate a project
-copier copy --defaults --trust \
+# Generate a project from the repository root, outside the repository
+copier copy --defaults --trust --vcs-ref HEAD \
+  --data language="typescript" \
   --data project_name="TestProject" \
   --data cloud_service="GCP Cloud Function" \
   --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml \
-  ./typescript ./TestProject
+  . ../TestProject
 
 # Build and test
-cd TestProject
+cd ../TestProject
 yarn install --no-immutable
 yarn build
 yarn test:unit
 ```
+
+The repository root is a Git repository, so Copier renders from a clone of it: `--vcs-ref HEAD` picks the
+checked-out commit rather than the newest tag, and uncommitted changes (including new, unignored files) are
+added on top with a `DirtyLocalWarning`. Render outside the repository so a generated project is not swept
+into the next render.
 
 ### Dependency Updates
 
