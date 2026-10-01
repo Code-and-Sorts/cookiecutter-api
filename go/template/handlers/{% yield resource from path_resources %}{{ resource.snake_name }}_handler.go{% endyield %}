@@ -77,7 +77,7 @@ func Register{{ r }}Routes(router *Router, controller controllers.{{ r }}Control
 
 func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
 	return func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-{%- if resource.has_id %}
+{%- if resource.has_item %}
 		id := request.PathParameters["id"]
 {% endif %}
 		switch request.HTTPMethod + " " + request.Resource {

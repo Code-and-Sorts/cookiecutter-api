@@ -1,2 +1,1 @@
-# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-{{ _copier_answers | to_nice_yaml }}
+{% include 'shared/.copier-answers.yml' -%}

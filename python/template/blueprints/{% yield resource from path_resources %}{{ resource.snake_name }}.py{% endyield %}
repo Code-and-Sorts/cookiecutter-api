@@ -1,4 +1,4 @@
-{%- from '_macros.jinja' import routes -%}
+{%- from 'python/_macros.jinja' import routes -%}
 {%- set r = resource.name -%}
 {%- set slug = r | to_snake -%}
 {%- set ops = resource.operations -%}
