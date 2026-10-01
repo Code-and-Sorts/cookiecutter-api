@@ -1,0 +1,48 @@
+# Local database emulator; see "Run locally against the emulator" in README.md.
+# Storage is ephemeral: `docker compose down -v` discards every record.
+services:
+{%- if cloud_service == 'Azure Function App' %}
+  cosmos:
+    # The vNext emulator speaks plain HTTP (no certificate to trust) and runs on x64 and arm64.
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260907
+    ports:
+      - "8081:8081" # gateway
+      - "1234:1234" # Data Explorer
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 60s
+{%- elif cloud_service == 'GCP Cloud Function' %}
+  firestore:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:587.0.0-emulators
+    command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080"]
+    ports:
+      # 8085 on the host leaves 8080 to the Functions Framework.
+      - "8085:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+{%- else %}
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.1
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # DynamoDB Local answers a bare GET with 400, so any HTTP response means it is up.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+{%- endif %}
+
+networks:
+  default:
+    # Fixed so `sam local start-api --docker-network` and other containers can join it.
+    name: {{ project_endpoint }}-emulator

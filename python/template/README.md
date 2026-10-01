@@ -365,7 +365,7 @@ make run-emulator     # {% if cloud_service == 'Azure Function App' %}func start
 make emulator-down    # docker compose down -v: stops the emulator and discards its data
 ```
 
-`make emulator-logs` follows the emulator's logs. `make emulator-seed` and `make run-emulator` export the settings in `.env.emulator`{% if cloud_service == 'Azure Function App' %}, which take precedence over `local.settings.json` (Core Tools skips any setting already in the environment){% endif %}. That file is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json` or {% endif %}`.env.local`, which git ignores. The emulator stores nothing on disk, so `make emulator-down` (or removing the container) discards every record.
+`make emulator-logs` follows the emulator's logs. `make emulator-seed` and `make run-emulator` export the settings in `.env.emulator`{% if cloud_service == 'Azure Function App' %}, which take precedence over `local.settings.json` (Core Tools skips any setting already in the environment){% endif %}. `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json` or {% endif %}`.env.local`, which git ignores. The emulator stores nothing on disk, so `make emulator-down` (or removing the container) discards every record.
 {%- if cloud_service == 'Azure Function App' %}
 
 | Port | Purpose |

@@ -115,7 +115,7 @@ Each resource reads and writes the Cosmos DB container configured for its `conta
 
 The Cosmos DB connection string is read from `ConnectionStrings:CosmosDb` and the database name from `CosmosDbDatabaseName`. Containers must use `/id` as their partition key.
 
-`CosmosDbConnectionMode` selects the Cosmos DB connection mode: `Direct` (the default when the setting is missing, and the best choice in Azure) or `Gateway`. `local.settings.json` sets it to `Gateway` because the [Linux Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) only supports Gateway mode.
+`CosmosDbConnectionMode` selects the Cosmos DB connection mode: `Direct` (the default when the setting is missing, and the best choice in Azure) or `Gateway`. `local.settings.json` sets it to `Gateway` because the [Linux Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) only supports Gateway mode. `CosmosDbEmulator=true` is for local development only (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
@@ -187,7 +187,7 @@ Resources that use the same container share its records: there is no type discri
 
 - Azure Account: An active Azure subscription for deploying the Function App. On Linux, .NET 10 apps must run on the [Flex Consumption](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan) plan (or Premium/Dedicated); the Linux Consumption plan does not support .NET 10.
 
-- Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
+- Cosmos DB NoSQL Account either deployed in Azure or emulated locally (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
@@ -195,7 +195,7 @@ Resources that use the same container share its records: there is no type discri
 
 - [Dotnet](https://dotnet.microsoft.com/en-us/download): Dotnet SDK and CLI
 
-- Google Cloud project: An active project with Firestore enabled, or the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator).
+- Google Cloud project: An active project with Firestore enabled, or the local Firestore emulator (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
@@ -207,7 +207,7 @@ Resources that use the same container share its records: there is no type discri
 
 - AWS Account: An active AWS account for deploying Lambda functions.
 
-- DynamoDB table (created automatically via the SAM template or available via [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)).
+- DynamoDB table (created automatically via the SAM template, or DynamoDB Local; see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
 
 ## Setup and Installation
@@ -257,7 +257,7 @@ Resources that use the same container share its records: there is no type discri
     make install
     ```
 
-    To be able to run the project locally, set `GCP_PROJECT_ID` (and the optional variables listed under [Storage containers](#storage-containers)) in your environment, and either sign in with `gcloud auth application-default login` or point `FIRESTORE_EMULATOR_HOST` at a running [Firestore emulator](https://cloud.google.com/firestore/docs/emulator).
+    To be able to run the project locally, set `GCP_PROJECT_ID` (and the optional variables listed under [Storage containers](#storage-containers)) in your environment, and either sign in with `gcloud auth application-default login` or run against the local Firestore emulator (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 
 4. Run the API Locally
 
@@ -329,6 +329,64 @@ Resources that use the same container share its records: there is no type discri
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 
+## Run locally against the emulator
+
+`docker-compose.yml` runs {% if cloud_service == 'Azure Function App' %}the [Azure Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux){% elif cloud_service == 'GCP Cloud Function' %}the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator){% else %}[DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html){% endif %} in Docker, so the API can serve requests without a cloud account. You need Docker with Compose v2{% if cloud_service == 'Azure Function App' %} and Azure Functions Core Tools{% elif cloud_service == 'AWS Lambda' %} and the SAM CLI{% endif %}; for Podman, add `COMPOSE="podman compose"` to each `make` command.
+
+```console
+make install
+make emulator-up      # docker compose up -d --wait: returns once the emulator is healthy
+make emulator-seed    # {% if cloud_service == 'Azure Function App' %}creates the database and one container per storage container{% elif cloud_service == 'GCP Cloud Function' %}waits until the emulator answers (collections are created on first write){% else %}creates one table per storage container{% endif %}; safe to re-run
+make run-emulator     # {% if cloud_service == 'Azure Function App' %}func start in {{ project_class_name }}.Api{% elif cloud_service == 'GCP Cloud Function' %}dotnet run in {{ project_class_name }}.Api, on http://localhost:8080{% else %}sam build, then sam local start-api on http://127.0.0.1:3000{% endif %} with the emulator settings
+make emulator-down    # docker compose down -v: stops the emulator and discards its data
+```
+
+`make emulator-logs` follows the emulator's logs. `make emulator-seed` runs `{{ project_class_name }}.Bootstrap`, a console project in the solution that reuses the API's client setup and store name settings. It and `make run-emulator` export the settings in `.env.emulator`{% if cloud_service == 'Azure Function App' %}, which take precedence over `local.settings.json`: Core Tools skips any setting already in the environment, and `Program.cs` reads environment variables after `local.settings.json`{% endif %}. `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json` or {% endif %}`.env.local`, which git ignores. The emulator stores nothing on disk, so `make emulator-down` (or removing the container) discards every record.
+{%- if cloud_service == 'Azure Function App' %}
+
+| Port | Purpose |
+| --- | --- |
+| 8081 | Cosmos DB gateway (`http://localhost:8081/`) |
+| 1234 | Data Explorer: open `http://localhost:1234` to browse databases and items |
+
+- The image is the Linux [vNext emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) (preview). It serves plain HTTP, so there is no certificate to trust, and it runs natively on x64 and arm64, including Apple Silicon. Partition key `/id`, conditional patch (soft delete), `OFFSET`/`LIMIT` and parameterized queries all work against it.
+- The `AccountKey` in `ConnectionStrings__CosmosDb` is the emulator's well-known account key, published by Microsoft; it is not a secret and only works against the emulator.
+- `CosmosDbEmulator=true` switches the client to Gateway mode and `LimitToEndpoint`, so it keeps using the connection string's endpoint instead of the address the emulator advertises, and, for an `https://` endpoint only, skips certificate verification. Never set it outside local development; when it is unset or false the client is configured exactly as in production.
+- To use the older HTTPS-only emulator (`mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest`) instead, swap the image in `docker-compose.yml` (its readiness probe is `https://localhost:8081/_explorer/emulator.pem`) and set the connection string's `AccountEndpoint` to `https://localhost:8081/`. That image runs on x64 only (not on Apple Silicon) and takes 1 to 3 minutes to start.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+
+| Port | Purpose |
+| --- | --- |
+| 8085 | Firestore emulator (8080 in the container; 8085 on the host leaves 8080 to the Functions Framework) |
+
+- The Firestore client is built with `EmulatorDetection.EmulatorOrProduction`, so with `FIRESTORE_EMULATOR_HOST` set it connects to the emulator without credentials. `GCP_PROJECT_ID` uses a `demo-` project id, which can never reach a real project.
+- The emulator keeps data in memory, enforces no IAM or security rules for server SDKs and does not require composite indexes. Keep `FIRESTORE_DATABASE` at `(default)` locally.
+{%- else %}
+
+| Port | Purpose |
+| --- | --- |
+| 8000 | DynamoDB Local (`-inMemory -sharedDb`, so tables do not depend on the region or access key) |
+
+- `make emulator-seed` runs on your machine and reaches DynamoDB Local at `http://localhost:8000` (`.env.emulator`). `sam local start-api` runs the function in a container on the `{{ project_endpoint }}-emulator` Docker network, so `env.emulator.json` points it at `http://dynamodb:8000` and sets the table names, which `sam local` would otherwise take from the template's logical ids.
+- `template.yaml` declares `AWS_ENDPOINT_URL_DYNAMODB` only so `sam local` can set it; deployed stacks leave it out unless you pass the `DynamoDbEndpoint` parameter. The AWS SDK reads the variable natively; when `sam local` runs without `env.emulator.json` it passes the variable empty, and the client then ignores it instead of failing.
+- The credentials in `.env.emulator` are dummies and replace your own for these commands. DynamoDB Local 3 accepts only letters and digits in an access key id.
+{%- endif %}
+
+Startup takes {% if cloud_service == 'Azure Function App' %}about 10 to 60 seconds; the healthcheck allows up to 4 minutes for slow machines and CI runners{% elif cloud_service == 'GCP Cloud Function' %}about 10 to 20 seconds; the healthcheck allows up to 2 minutes{% else %}a few seconds; the healthcheck allows up to 2 minutes{% endif %}. `make emulator-seed` retries for up to 2 minutes and exits non-zero if the emulator never becomes ready, so it also works as a readiness gate in scripts.
+
+Troubleshooting:
+
+- **Port already in use:** another emulator or service holds a port above. Stop it, or change the host port in `docker-compose.yml` and in `.env.emulator`.
+- **`emulator-up` fails or never turns healthy:** check `make emulator-logs`, and that Docker has enough free memory for the emulator.
+- **Requests fail right after starting:** {% if cloud_service == 'GCP Cloud Function' %}check that `make emulator-seed` passes and that `FIRESTORE_EMULATOR_HOST` is exported (`make run-emulator` does this){% else %}run `make emulator-seed`; the {% if cloud_service == 'Azure Function App' %}database and containers{% else %}tables{% endif %} do not exist until it has run, and `make emulator-down` deletes them{% endif %}.
+{%- if cloud_service == 'Azure Function App' %}
+- **A missing container returns 404 instead of 500:** the emulator reports a missing container without the sub-status a Cosmos DB account sends; run `make emulator-seed`.
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+- **`network {{ project_endpoint }}-emulator not found`:** run `make emulator-up` before `make run-emulator`.
+- **`UnrecognizedClientException`:** the function did not get the dummy credentials; run it through `make run-emulator`, which exports them.
+{%- endif %}
+
 ## Development Workflow
 
 ### Adding a New Dependency
@@ -382,16 +440,22 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 │   ├── Repositories
 │   ├── Services
 │   └── Utils
-└── {{ project_class_name }}.Api.Tests.Unit
-    ├── Controllers
-    ├── Functions
+├── {{ project_class_name }}.Api.Tests.Unit
+│   ├── Controllers
+│   ├── Functions
 {%- if cloud_service == 'GCP Cloud Function' %}
-    ├── Handlers
+│   ├── Handlers
 {%- endif %}
-    ├── Repositories
-    ├── Services
-    ├── Utils
-    └── tests
+│   ├── Repositories
+│   ├── Services
+│   ├── Utils
+│   └── tests
+{{ "%-40s" | format("├── " ~ project_class_name ~ ".Bootstrap") }}- Prepares the local emulator (make emulator-seed)
+{{ "%-40s" | format("├── .env.emulator") }}- Public settings for the local emulator
+{%- if cloud_service == 'AWS Lambda' %}
+{{ "%-40s" | format("├── env.emulator.json") }}- sam local settings for the emulator
+{%- endif %}
+{{ "%-40s" | format("└── docker-compose.yml") }}- Local {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} emulator
 ```
 
 Each resource has its own file in every layer, named after the resource: for example `{{ resources[0].name }}Controller.cs`, `{{ resources[0].name }}Service.cs`, `{{ resources[0].name }}Repository.cs`, `{{ resources[0].name }}{% if cloud_service == 'GCP Cloud Function' %}Handler{% else %}Functions{% endif %}.cs` and their `I{{ resources[0].name }}…` interfaces, DTO, entity, request and validation models, and unit tests.
