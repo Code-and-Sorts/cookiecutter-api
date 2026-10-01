@@ -83,6 +83,29 @@ Each resource gets its own files in every layer, for example `CatController.cs` 
 `DogController.cs` in .NET, or `controllers/cat.controller.ts` and
 `controllers/dog.controller.ts` in TypeScript.
 
+### Run locally against an emulator
+
+Every generated project can run without a cloud account. Its `docker-compose.yml` starts
+only the database emulator for the chosen cloud, `.env.emulator` holds the public emulator
+settings, and a bootstrap command creates one container or table per `container`:
+
+| Cloud | Emulator | Host port |
+| --- | --- | --- |
+| Azure | [Cosmos DB vNext emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) (plain HTTP, x64 and arm64) | 8081, Data Explorer on 1234 |
+| AWS | [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) | 8000 |
+| GCP | [Firestore emulator](https://cloud.google.com/firestore/docs/emulator) | 8085 |
+
+```console
+make emulator-up && make emulator-seed && make run-emulator   # Python, .NET and Go
+yarn emulator:up && yarn emulator:seed && yarn start:emulator  # TypeScript
+```
+
+The SDK clients switch to the emulator only when its settings are present (a
+Cosmos DB emulator flag, `AWS_ENDPOINT_URL_DYNAMODB` or `FIRESTORE_EMULATOR_HOST`), so
+deployed code paths are unchanged. AWS projects run through `sam local start-api` on the
+emulator's Docker network with `env.emulator.json`. Each generated README covers ports,
+credentials, limitations and troubleshooting.
+
 ## Supported Templates
 
 <table width="100%">
@@ -173,14 +196,17 @@ Below are the SDKs and frameworks used in the various templates.
 ### Azure
 - [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs
 - [Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/) for data storage
+- [Cosmos DB Linux emulator (vNext)](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) for local development
 
 ### AWS
 - [Lambda docs](https://docs.aws.amazon.com/lambda/) for hosting the APIs
 - [DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStartedDynamoDB.html) for data storage
+- [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) for local development
 
 ### Google Cloud
 - [Cloud Functions](https://cloud.google.com/functions/docs) for hosting the APIs
 - [Firestore](https://cloud.google.com/firestore#documentation) for data storage
+- [Firestore emulator](https://cloud.google.com/firestore/docs/emulator) for local development
 
 ## Acknowledgements
 
