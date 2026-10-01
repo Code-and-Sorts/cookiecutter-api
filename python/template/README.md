@@ -376,7 +376,7 @@ make emulator-down    # docker compose down -v: stops the emulator and discards 
 - The image is the Linux [vNext emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) (preview). It serves plain HTTP, so there is no certificate to trust, and it runs natively on x64 and arm64, including Apple Silicon. Partition key `/id`, conditional patch (soft delete), `OFFSET`/`LIMIT` and parameterized queries all work against it.
 - `Cosmos_Db_Key` is the emulator's well-known account key, published by Microsoft; it is not a secret and only works against the emulator.
 - `Cosmos_Db_Emulator=true` turns off endpoint discovery, so the client keeps using `Cosmos_Db_Uri` instead of the address the emulator advertises, and, for an `https://` endpoint only, skips certificate verification. Never set it outside local development; when it is unset or false the client is configured exactly as in production.
-- To use the older HTTPS-only emulator (`mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest`) instead, set `Cosmos_Db_Uri=https://localhost:8081/`. That image runs on x64 only (not on Apple Silicon) and takes 1 to 3 minutes to start.
+- To use the older HTTPS-only emulator (`mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest`) instead, swap the image in `docker-compose.yml` (its readiness probe is `https://localhost:8081/_explorer/emulator.pem`) and set `Cosmos_Db_Uri=https://localhost:8081/`. That image runs on x64 only (not on Apple Silicon) and takes 1 to 3 minutes to start.
 {%- elif cloud_service == 'GCP Cloud Function' %}
 
 | Port | Purpose |

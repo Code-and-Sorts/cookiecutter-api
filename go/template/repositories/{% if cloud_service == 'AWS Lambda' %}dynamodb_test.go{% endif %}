@@ -1,0 +1,34 @@
+package repositories
+
+import (
+	"context"
+	"testing"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// main.go builds the client this way; the emulator relies on the SDK reading the endpoint override.
+func newClient(t *testing.T) *dynamodb.Client {
+	t.Setenv("AWS_REGION", "us-east-1")
+	t.Setenv("AWS_ENDPOINT_URL", "")
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
+	require.NoError(t, err)
+	return dynamodb.NewFromConfig(cfg)
+}
+
+func TestDynamoDBClient_UsesTheDefaultEndpointWithoutAnOverride(t *testing.T) {
+	t.Setenv("AWS_ENDPOINT_URL_DYNAMODB", "")
+
+	assert.Nil(t, newClient(t).Options().BaseEndpoint)
+}
+
+func TestDynamoDBClient_UsesTheEndpointOverrideFromTheEnvironment(t *testing.T) {
+	t.Setenv("AWS_ENDPOINT_URL_DYNAMODB", "http://localhost:8000")
+
+	endpoint := newClient(t).Options().BaseEndpoint
+	require.NotNil(t, endpoint)
+	assert.Equal(t, "http://localhost:8000", *endpoint)
+}

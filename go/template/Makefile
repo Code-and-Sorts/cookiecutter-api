@@ -20,6 +20,40 @@ run: ## Run the function app
 	@sam local start-api
 {%- endif %}
 
+# `make COMPOSE="podman compose" ...` runs the emulator with Podman instead.
+COMPOSE ?= docker compose
+
+.PHONY: emulator-up
+emulator-up: ## Start the local {{ {'Azure Function App': 'Cosmos DB', 'GCP Cloud Function': 'Firestore', 'AWS Lambda': 'DynamoDB'}[cloud_service] }} emulator and wait until it is healthy
+	@$(COMPOSE) up -d --wait
+
+.PHONY: emulator-seed
+emulator-seed: ## {{ {'Azure Function App': "Create the emulator's database and containers", 'GCP Cloud Function': 'Wait until the emulator answers', 'AWS Lambda': "Create the emulator's tables"}[cloud_service] }}; safe to re-run
+	@set -a && . ./.env.emulator && set +a && go run ./cmd/bootstrap
+
+.PHONY: emulator-down
+emulator-down: ## Stop the emulator and discard its data
+	@$(COMPOSE) down -v
+
+.PHONY: emulator-logs
+emulator-logs: ## Follow the emulator's logs
+	@$(COMPOSE) logs -f
+
+.PHONY: run-emulator
+run-emulator: ## Run the API against the emulator (after emulator-up and emulator-seed)
+{%- if cloud_service == 'Azure Function App' %}
+	@echo "Running Function App against the Cosmos DB emulator"
+	@go build -o handler
+	@set -a && . ./.env.emulator && set +a && func start
+{%- elif cloud_service == 'GCP Cloud Function' %}
+	@echo "Running the api function against the Firestore emulator on port 8080"
+	@set -a && . ./.env.emulator && set +a && FUNCTION_TARGET=api PORT=8080 go run ./cmd
+{%- elif cloud_service == 'AWS Lambda' %}
+	@echo "Building and running Lambda API locally via SAM against DynamoDB Local"
+	@sam build
+	@set -a && . ./.env.emulator && set +a && sam local start-api --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator
+{%- endif %}
+
 .PHONY: build
 build: ## Build the code
 {%- if cloud_service == 'Azure Function App' %}
