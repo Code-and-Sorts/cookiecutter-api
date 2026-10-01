@@ -182,21 +182,23 @@ func run(ctx context.Context) error {
 	client := dynamodb.NewFromConfig(cfg)
 
 	return retry(ctx, func(ctx context.Context) error {
-		for _, name := range containerNames() {
-			// Matches the tables in template.yaml.
-			_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
-				TableName: aws.String(name),
-				AttributeDefinitions: []types.AttributeDefinition{
-					{AttributeName: aws.String("id"), AttributeType: types.ScalarAttributeTypeS},
-				},
-				KeySchema: []types.KeySchemaElement{
-					{AttributeName: aws.String("id"), KeyType: types.KeyTypeHash},
-				},
-				BillingMode: types.BillingModePayPerRequest,
-			})
-			var inUse *types.ResourceInUseException
-			if err != nil && !errors.As(err, &inUse) {
+		// Listing first avoids an error response per existing table, which the SDK logs as a warning.
+		existing := map[string]bool{}
+		pages := dynamodb.NewListTablesPaginator(client, &dynamodb.ListTablesInput{})
+		for pages.HasMorePages() {
+			page, err := pages.NextPage(ctx)
+			if err != nil {
 				return err
+			}
+			for _, name := range page.TableNames {
+				existing[name] = true
+			}
+		}
+		for _, name := range containerNames() {
+			if !existing[name] {
+				if err := createTable(ctx, client, name); err != nil {
+					return err
+				}
 			}
 			waiter := dynamodb.NewTableExistsWaiter(client)
 			if err := waiter.Wait(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(name)}, 30*time.Second); err != nil {
@@ -206,5 +208,24 @@ func run(ctx context.Context) error {
 		}
 		return nil
 	})
+}
+
+// Matches the tables in template.yaml.
+func createTable(ctx context.Context, client *dynamodb.Client, name string) error {
+	_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
+		TableName: aws.String(name),
+		AttributeDefinitions: []types.AttributeDefinition{
+			{AttributeName: aws.String("id"), AttributeType: types.ScalarAttributeTypeS},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{AttributeName: aws.String("id"), KeyType: types.KeyTypeHash},
+		},
+		BillingMode: types.BillingModePayPerRequest,
+	})
+	var inUse *types.ResourceInUseException
+	if err != nil && !errors.As(err, &inUse) {
+		return err
+	}
+	return nil
 }
 {%- endif %}
