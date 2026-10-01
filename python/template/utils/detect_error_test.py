@@ -1,95 +1,54 @@
-{% if cloud_service == 'Azure Function App' -%}
-import azure.functions as func
-{%- endif %}
-from errors import BaseError, ValidationError
+import json
+import logging
+import pytest
+from errors import BaseError, MethodNotAllowedError, NotFoundError, ValidationError
 from .detect_error import detect_error
-from pydantic import BaseModel
 
-class ExampleModel(BaseModel):
-    name: str
-    type: str
+
+def _parts(response):
+{%- if cloud_service == 'Azure Function App' %}
+    return response.status_code, response.mimetype, json.loads(response.get_body())
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+    body, status, headers = response
+    return status, headers["Content-Type"], json.loads(body)
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+    return response["statusCode"], response["headers"]["Content-Type"], json.loads(response["body"])
+{%- endif %}
+
 
 def describe_detect_error():
-    def test_base_error_response():
-        try:
-            raise BaseError("Test")
-        except Exception as error:
+    @pytest.mark.parametrize("error, status", [
+        (ValidationError("name: Field required"), 400),
+        (NotFoundError("Cat with id x was not found."), 404),
+        (MethodNotAllowedError(), 405),
+    ])
+    def test_expected_errors_use_their_status_and_message(caplog, error, status):
+        with caplog.at_level(logging.ERROR):
             response = detect_error(error)
-{%- if cloud_service == 'Azure Function App' %}
-            assert isinstance(response, func.HttpResponse)
-            assert response.status_code == 500
-            assert response.get_body().decode() == '{"type":"UnknownError","message":"Test"}'
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-            assert isinstance(response, tuple)
-            assert response[1] == 500
-            assert '{"type":"UnknownError","message":"Test"}' in response[0]
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-            assert isinstance(response, dict)
-            assert response["statusCode"] == 500
-            assert '{"type":"UnknownError","message":"Test"}' in response["body"]
-{%- endif %}
 
-    def test_validation_error_response():
-        try:
-            raise ValidationError()
-        except Exception as error:
-            response = detect_error(error)
-{%- if cloud_service == 'Azure Function App' %}
-            assert isinstance(response, func.HttpResponse)
-            assert response.status_code == 422
-            assert response.get_body().decode() == '{"type":"ValidationError","message":"Validation Error."}'
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-            assert isinstance(response, tuple)
-            assert response[1] == 422
-            assert '"type":"ValidationError"' in response[0]
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-            assert isinstance(response, dict)
-            assert response["statusCode"] == 422
-            assert '"type":"ValidationError"' in response["body"]
-{%- endif %}
+        assert _parts(response) == (status, "application/json", {"errorMessage": str(error)})
+        assert caplog.records == []
 
-    def test_pydantic_validation_error_response():
-        try:
-            ExampleModel(name="Test").model_dump()
-        except Exception as error:
-            response = detect_error(error)
-{%- if cloud_service == 'Azure Function App' %}
-            assert isinstance(response, func.HttpResponse)
-            assert response.status_code == 422
-            assert '"type":"ValidationError"' in response.get_body().decode()
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-            assert isinstance(response, tuple)
-            assert response[1] == 422
-            assert '"type":"ValidationError"' in response[0]
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-            assert isinstance(response, dict)
-            assert response["statusCode"] == 422
-            assert '"type":"ValidationError"' in response["body"]
-{%- endif %}
+    def test_default_messages():
+        assert str(NotFoundError()) == "Not found."
+        assert str(MethodNotAllowedError()) == "Method not allowed."
 
-    def test_generic_exception_response():
+    @pytest.mark.parametrize("error", [
+        RuntimeError("secret connection string"),
+        ModuleNotFoundError("No module named 'aiohttp'"),
+        BaseError("internal detail"),
+    ])
+    def test_unexpected_errors_are_logged_and_hidden(caplog, error):
         try:
-            raise Exception()
-        except Exception as error:
-            response = detect_error(error)
-{%- if cloud_service == 'Azure Function App' %}
-            assert isinstance(response, func.HttpResponse)
-            assert response.status_code == 500
-            assert response.get_body().decode() == '{"type":"UnknownError","message":"Unknown Error."}'
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-            assert isinstance(response, tuple)
-            assert response[1] == 500
-            assert '"type":"UnknownError"' in response[0]
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-            assert isinstance(response, dict)
-            assert response["statusCode"] == 500
-            assert '"type":"UnknownError"' in response["body"]
-{%- endif %}
+            raise error
+        except Exception as raised:
+            with caplog.at_level(logging.ERROR):
+                response = detect_error(raised)
+
+        assert _parts(response) == (500, "application/json", {"errorMessage": "An unexpected error occurred."})
+        (record,) = caplog.records
+        assert record.levelno == logging.ERROR
+        assert record.exc_info[1] is error
+        assert "Traceback" in caplog.text

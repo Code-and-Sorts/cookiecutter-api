@@ -1,354 +1,91 @@
-{% if cloud_service == 'Azure Function App' -%}
-import { Container, PatchOperation } from '@azure/cosmos';
-import { ProxyError, NotFoundError } from '@errors';
+import { NotFoundError, ProxyError } from '@errors';
 import { BaseItemRecord } from '@models';
+import { DEFAULT_LIST_LIMIT, newId, nowIso, withDeadline } from '@utils';
+import { DocumentStore } from './document.store';
 
-// Default cap on list reads to avoid unbounded queries.
-const DEFAULT_LIST_LIMIT = 100;
+export type RecordFields<T extends BaseItemRecord> = Omit<T, keyof BaseItemRecord>;
 
-export class BaseRepository<T extends BaseItemRecord> {
-  readonly _container: Container;
+// updatedBy names the latest writer, so a write without a user id drops any earlier value.
+const updatedBy = (userId?: string): Pick<BaseItemRecord, 'updatedBy'> => (userId === undefined ? {} : { updatedBy: userId });
 
-  constructor(container: Container) {
-    this._container = container;
-  }
+// Protected so each resource repository exposes only the operations its resource declares.
+export abstract class BaseRepository<T extends BaseItemRecord> {
+  constructor(
+    protected readonly store: DocumentStore<T>,
+    protected readonly resourceName: string,
+  ) {}
 
-  addRecord = async (item: T): Promise<T> => {
-    try {
-      const { resource: createdRecord } = await this._container.items.create<T>(item);
-      return createdRecord as T;
-    } catch (error) {
-      throw new ProxyError('Error creating item in database.');
-    }
-  };
+  protected guard = <R>(message: string, op: () => Promise<R>): Promise<R> =>
+    withDeadline(
+      op().catch((error: unknown) => {
+        throw error instanceof NotFoundError ? error : new ProxyError(message, error);
+      }),
+    );
 
-  getRecord = async (id: string): Promise<T> => {
-    try {
-      const query = `SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false`;
-      const { resources: items } = await this._container.items
-        .query<T>({ query, parameters: [{ name: '@id', value: id }] })
-        .fetchAll();
+  protected notFound = (id: string): NotFoundError => NotFoundError.forItem(this.resourceName, id);
 
-      if (items.length > 0) {
-        return items[0] as T;
+  protected addRecord = (fields: RecordFields<T>, userId?: string): Promise<T> =>
+    this.guard('Error creating item in database.', async () => {
+      const now = nowIso();
+      const record = {
+        ...fields,
+        id: newId(),
+        isDeleted: false,
+        createdTimestamp: now,
+        updatedTimestamp: now,
+        ...(userId !== undefined && { createdBy: userId }),
+        ...updatedBy(userId),
+      } as T;
+      await this.store.create(record);
+      return record;
+    });
+
+  protected getRecord = (id: string): Promise<T> =>
+    this.guard('Error retrieving item from database.', () => this.findLive(id));
+
+  protected getRecords = (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> =>
+    this.guard('Error retrieving items from database.', () => this.store.query(limit));
+
+  protected updateRecord = (id: string, fields: Partial<RecordFields<T>>, userId?: string): Promise<T> =>
+    this.guard(`Error upserting item with id ${id}.`, async () => {
+      const { updatedBy: _previous, ...current } = await this.findLive(id);
+      return this.save({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T);
+    });
+
+  protected replaceRecord = (id: string, fields: RecordFields<T>, userId?: string): Promise<T> =>
+    this.guard(`Error replacing item with id ${id}.`, async () => {
+      const { createdTimestamp, createdBy } = await this.findLive(id);
+      return this.save({
+        ...fields,
+        id,
+        isDeleted: false,
+        createdTimestamp,
+        updatedTimestamp: nowIso(),
+        // Omitted, never stored as undefined, when the record has none.
+        ...(createdBy !== undefined && { createdBy }),
+        ...updatedBy(userId),
+      } as T);
+    });
+
+  protected deleteRecord = (id: string, userId?: string): Promise<void> =>
+    this.guard(`Error deleting record with id ${id}.`, async () => {
+      if (!(await this.store.softDelete(id, nowIso(), userId))) {
+        throw this.notFound(id);
       }
-    } catch (error) {
-      throw new ProxyError('Error creating item in database.');
+    });
+
+  private findLive = async (id: string): Promise<T> => {
+    const record = await this.store.read(id);
+    if (!record || record.isDeleted) {
+      throw this.notFound(id);
     }
-    throw new NotFoundError(`Record not found for ID ${id}.`);
+    return record;
   };
 
-  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
-    try {
-      const query = `SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT ${limit}`;
-      const { resources: items } = await this._container.items
-        .query<T>({ query })
-        .fetchAll();
-
-      return items as T[];
-    } catch (error) {
-      throw new ProxyError('Error creating item in database.');
+  private save = async (record: T): Promise<T> => {
+    if (!(await this.store.write(record))) {
+      throw this.notFound(record.id);
     }
-  };
-
-  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
-    try {
-      const currentItem = await this.getRecord(updates.id);
-      const updatedItem = {
-        ...currentItem,
-        ...updates,
-      };
-      const updatedRecord = await this._container.item(updates.id).replace<T>(updatedItem);
-      return updatedRecord.resource as T;
-    } catch (error) {
-      if (error?.code === 404 || error?.statusCode === 404) {
-        throw new NotFoundError(`Record with id ${updates.id} not found.`);
-      }
-      throw new ProxyError(`Error upserting item with id ${updates.id}.`);
-    }
-  };
-
-  replaceRecord = async (item: T): Promise<T> => {
-    try {
-      await this.getRecord(item.id);
-      const { resource: replacedRecord } = await this._container.item(item.id, item.id).replace<T>(item);
-      return replacedRecord as T;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error replacing item with id ${item.id}.`);
-    }
-  };
-
-  deleteRecord = async (id: string): Promise<void> => {
-    try {
-      const operations: PatchOperation[] = [
-        { op: 'set', path: '/isDeleted', value: true },
-        {
-          op: 'set',
-          path: '/updatedTimestamp',
-          value: new Date().toISOString()
-        }
-      ];
-      const condition = 'FROM c WHERE c.isDeleted = false';
-
-      await this._container.item(id, id).patch({ condition, operations });
-    } catch (error) {
-      if (error?.code === 404 || error?.code === 412) {
-        throw new NotFoundError(`Record with id ${id} not found.`);
-      }
-      throw new ProxyError(`Error deleting record with id ${id}.`);
-    }
+    return record;
   };
 }
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-import { CollectionReference } from '@google-cloud/firestore';
-import { ProxyError, NotFoundError } from '@errors';
-import { BaseItemRecord } from '@models';
-
-// Default cap on list reads to avoid unbounded queries.
-const DEFAULT_LIST_LIMIT = 100;
-
-export class BaseRepository<T extends BaseItemRecord> {
-  readonly _collection: CollectionReference;
-
-  constructor(collection: CollectionReference) {
-    this._collection = collection;
-  }
-
-  addRecord = async (item: T): Promise<T> => {
-    try {
-      const docRef = this._collection.doc(item.id);
-      await docRef.set(item);
-      return item;
-    } catch (error) {
-      throw new ProxyError('Error creating item in database.');
-    }
-  };
-
-  getRecord = async (id: string): Promise<T> => {
-    try {
-      const doc = await this._collection.doc(id).get();
-
-      if (!doc.exists) {
-        throw new NotFoundError(`Record not found for ID ${id}.`);
-      }
-
-      const data = doc.data() as T;
-      if (data.isDeleted) {
-        throw new NotFoundError(`Record not found for ID ${id}.`);
-      }
-
-      return data;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError('Error retrieving item from database.');
-    }
-  };
-
-  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
-    try {
-      const snapshot = await this._collection
-        .where('isDeleted', '==', false)
-        .limit(limit)
-        .get();
-
-      return snapshot.docs.map((doc) => doc.data() as T);
-    } catch (error) {
-      throw new ProxyError('Error retrieving items from database.');
-    }
-  };
-
-  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
-    try {
-      const currentItem = await this.getRecord(updates.id);
-      const updatedItem = {
-        ...currentItem,
-        ...updates,
-      };
-      const docRef = this._collection.doc(updates.id);
-      await docRef.update(updatedItem);
-      return updatedItem;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error upserting item with id ${updates.id}.`);
-    }
-  };
-
-  replaceRecord = async (item: T): Promise<T> => {
-    try {
-      await this.getRecord(item.id);
-      await this._collection.doc(item.id).set(item);
-      return item;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error replacing item with id ${item.id}.`);
-    }
-  };
-
-  deleteRecord = async (id: string): Promise<void> => {
-    try {
-      const doc = await this._collection.doc(id).get();
-
-      if (!doc.exists || (doc.data() as T).isDeleted) {
-        throw new NotFoundError(`Record with id ${id} not found.`);
-      }
-
-      await this._collection.doc(id).update({
-        isDeleted: true,
-        updatedTimestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error deleting record with id ${id}.`);
-    }
-  };
-}
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-import { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { ServiceIdentifier } from 'inversify';
-import { ProxyError, NotFoundError } from '@errors';
-import { BaseItemRecord } from '@models';
-
-export const DocumentClient: ServiceIdentifier<DynamoDBDocumentClient> = Symbol.for('DynamoDBDocumentClient');
-
-// Default cap on list reads to avoid unbounded scans.
-const DEFAULT_LIST_LIMIT = 100;
-
-export class BaseRepository<T extends BaseItemRecord> {
-  readonly _docClient: DynamoDBDocumentClient;
-  readonly _tableName: string;
-
-  constructor(docClient: DynamoDBDocumentClient, tableName: string) {
-    this._docClient = docClient;
-    this._tableName = tableName;
-  }
-
-  addRecord = async (item: T): Promise<T> => {
-    try {
-      await this._docClient.send(new PutCommand({
-        TableName: this._tableName,
-        Item: item as Record<string, unknown>,
-      }));
-      return item;
-    } catch (error) {
-      throw new ProxyError('Error creating item in database.');
-    }
-  };
-
-  getRecord = async (id: string): Promise<T> => {
-    try {
-      const { Item } = await this._docClient.send(new GetCommand({
-        TableName: this._tableName,
-        Key: { id },
-      }));
-
-      if (!Item) {
-        throw new NotFoundError(`Record not found for ID ${id}.`);
-      }
-
-      const data = Item as T;
-      if (data.isDeleted) {
-        throw new NotFoundError(`Record not found for ID ${id}.`);
-      }
-
-      return data;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError('Error retrieving item from database.');
-    }
-  };
-
-  getRecords = async (limit: number = DEFAULT_LIST_LIMIT): Promise<T[]> => {
-    try {
-      const { Items } = await this._docClient.send(new ScanCommand({
-        TableName: this._tableName,
-        FilterExpression: 'isDeleted = :val',
-        ExpressionAttributeValues: { ':val': false },
-        Limit: limit,
-      }));
-
-      return ((Items || []) as T[]).slice(0, limit);
-    } catch (error) {
-      throw new ProxyError('Error retrieving items from database.');
-    }
-  };
-
-  updateRecord = async (updates: Partial<T> & { id: string }): Promise<T> => {
-    try {
-      const currentItem = await this.getRecord(updates.id);
-      const updatedItem = {
-        ...currentItem,
-        ...updates,
-      };
-      await this._docClient.send(new PutCommand({
-        TableName: this._tableName,
-        Item: updatedItem as Record<string, unknown>,
-      }));
-      return updatedItem;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error upserting item with id ${updates.id}.`);
-    }
-  };
-
-  replaceRecord = async (item: T): Promise<T> => {
-    try {
-      await this.getRecord(item.id);
-      await this._docClient.send(new PutCommand({
-        TableName: this._tableName,
-        Item: item as Record<string, unknown>,
-      }));
-      return item;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error replacing item with id ${item.id}.`);
-    }
-  };
-
-  deleteRecord = async (id: string): Promise<void> => {
-    try {
-      const { Item } = await this._docClient.send(new GetCommand({
-        TableName: this._tableName,
-        Key: { id },
-      }));
-
-      if (!Item || (Item as T).isDeleted) {
-        throw new NotFoundError(`Record with id ${id} not found.`);
-      }
-
-      await this._docClient.send(new UpdateCommand({
-        TableName: this._tableName,
-        Key: { id },
-        UpdateExpression: 'SET isDeleted = :del, updatedTimestamp = :ts',
-        ExpressionAttributeValues: {
-          ':del': true,
-          ':ts': new Date().toISOString(),
-        },
-      }));
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error;
-      }
-      throw new ProxyError(`Error deleting record with id ${id}.`);
-    }
-  };
-}
-{%- endif %}

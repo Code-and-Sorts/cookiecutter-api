@@ -1,6 +1,8 @@
 import azure.functions as func
-from blueprints import bp
+from blueprints import BLUEPRINTS
 
+# Resource functions require a function key{% if health_endpoint %}; the health check opts out{% endif %}.
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
-app.register_functions(bp)
+for blueprint in BLUEPRINTS:
+    app.register_functions(blueprint)

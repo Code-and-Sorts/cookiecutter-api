@@ -1,10 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: {{ project_description }}
+Metadata:
+  cfn-lint:
+    config:
+      # SAM's generated usage plan resources carry a redundant DependsOn.
+      ignore_checks:
+        - W3005
 
 Globals:
   Function:
     Timeout: 30
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
 
 Resources:
   {{ project_class_name }}Function:
@@ -20,13 +31,13 @@ Resources:
         - x86_64
       Environment:
         Variables:
-{%- for container in resources | map(attribute='container') | unique %}
-          DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}: !Ref {{ container | to_camel }}Table
+{%- for c in path_resources | unique(attribute='container') %}
+          DYNAMODB_TABLE_NAME_{{ c.env_key }}: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Policies:
-{%- for container in resources | map(attribute='container') | unique %}
+{%- for c in path_resources | unique(attribute='container') %}
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{ container | to_camel }}Table
+            TableName: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Events:
 {%- for resource in resources %}
@@ -34,7 +45,7 @@ Resources:
         Get{{ resource.name }}ById:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: get
 {%- endif %}
 {%- if "list" in resource.operations %}
@@ -55,34 +66,38 @@ Resources:
         Update{{ resource.name }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: patch
 {%- endif %}
 {%- if "replace" in resource.operations %}
         Replace{{ resource.name }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: put
 {%- endif %}
 {%- if "delete" in resource.operations %}
         Delete{{ resource.name }}:
           Type: Api
           Properties:
-            Path: /{{ resource.endpoint }}/{item_id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: delete
 {%- endif %}
 {%- endfor %}
+{%- if health_endpoint %}
         Health:
           Type: Api
           Properties:
-            Path: /health
+            Path: /{{ health_endpoint }}
             Method: get
-{% for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}Table:
+            Auth:
+              ApiKeyRequired: false
+{%- endif %}
+{% for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{ container }}
+      TableName: {{ c.container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -95,11 +110,14 @@ Outputs:
   {{ project_class_name }}Api:
     Description: API Gateway endpoint URL
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  {{ project_class_name }}ApiKeyId:
+    Description: API key id; read the key with aws apigateway get-api-key --api-key <id> --include-value --query value --output text
+    Value: !Ref ServerlessRestApiApiKey
   {{ project_class_name }}Function:
     Description: Lambda Function ARN
     Value: !GetAtt {{ project_class_name }}Function.Arn
-{%- for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}TableName:
-    Description: DynamoDB table name for the {{ container }} container
-    Value: !Ref {{ container | to_camel }}Table
+{%- for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}TableName:
+    Description: DynamoDB table name for the {{ c.container }} container
+    Value: !Ref {{ c.container_class }}Table
 {%- endfor %}

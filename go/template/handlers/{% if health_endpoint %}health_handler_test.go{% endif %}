@@ -1,0 +1,83 @@
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
+package handlers
+
+import (
+{%- if cloud_service == 'AWS Lambda' %}
+	"context"
+{%- endif %}
+	"net/http"
+{%- if cloud_service != 'AWS Lambda' %}
+	"net/http/httptest"
+{%- endif %}
+	"testing"
+{%- if cloud_service == 'AWS Lambda' %}
+
+	"github.com/aws/aws-lambda-go/events"
+{%- endif %}
+
+	"github.com/stretchr/testify/assert"
+)
+{%- if cloud_service != 'AWS Lambda' %}
+
+func callHealth(method, target string) *httptest.ResponseRecorder {
+	mux := NewRouter()
+	RegisterHealthRoute(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(method, target, nil))
+	return w
+}
+
+func TestHealth_Get_ReturnsOK(t *testing.T) {
+	w := callHealth(http.MethodGet, "{{ route_prefix }}/{{ health_endpoint }}")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.JSONEq(t, `{"status": "ok"}`, w.Body.String())
+}
+
+func TestHealth_OtherMethod_Returns405(t *testing.T) {
+	w := callHealth(http.MethodPost, "{{ route_prefix }}/{{ health_endpoint }}")
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, w.Body.String())
+}
+
+func TestHealth_OnlyMatchesExactPath(t *testing.T) {
+	w := callHealth(http.MethodGet, "{{ route_prefix }}/items/{{ health_endpoint }}")
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+{%- else %}
+
+func callHealth(method, resource string) events.APIGatewayProxyResponse {
+	router := NewRouter()
+	RegisterHealthRoute(router)
+	response, _ := router.ServeRequest(context.Background(), events.APIGatewayProxyRequest{
+		HTTPMethod: method,
+		Resource:   resource,
+		Path:       resource,
+	})
+	return response
+}
+
+func TestHealth_Get_ReturnsOK(t *testing.T) {
+	response := callHealth(http.MethodGet, "/{{ health_endpoint }}")
+
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "application/json", response.Headers["Content-Type"])
+	assert.JSONEq(t, `{"status": "ok"}`, response.Body)
+}
+
+func TestHealth_OtherMethod_Returns405(t *testing.T) {
+	response := callHealth(http.MethodPost, "/{{ health_endpoint }}")
+
+	assert.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
+	assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, response.Body)
+}
+
+func TestHealth_OnlyMatchesExactPath(t *testing.T) {
+	response := callHealth(http.MethodGet, "/items/{id}")
+
+	assert.Equal(t, http.StatusNotFound, response.StatusCode)
+}
+{%- endif %}

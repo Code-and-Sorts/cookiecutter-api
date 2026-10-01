@@ -1,786 +1,222 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { BaseRepository } from '@repositories';
-{% if cloud_service == 'Azure Function App' -%}
-import { Container } from '@azure/cosmos';
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-import { CollectionReference } from '@google-cloud/firestore';
-{%- endif %}
+import { BaseRepository, DocumentStore } from '@repositories';
 import { NotFoundError, ProxyError } from '@errors';
+import { BaseItemRecord } from '@models';
+import { DATABASE_DEADLINE_MS, DEFAULT_LIST_LIMIT } from '@utils';
+import { mockStore } from '../../test/mocks';
 
-type MockFn = (...args: any[]) => any;
+type Item = BaseItemRecord & { name: string };
 
-
-{% if cloud_service == 'Azure Function App' -%}
-class MockNotFound extends Error {
-    public code: number | undefined;
-
-    constructor() {
-        super('NotFound');
-        this.code = 404;
-    }
+// Exposes the protected methods so they are tested whichever operations resources use.
+class TestRepository extends BaseRepository<Item> {
+    declare public addRecord: (fields: { name: string }, userId?: string) => Promise<Item>;
+    declare public getRecord: (id: string) => Promise<Item>;
+    declare public getRecords: (limit?: number) => Promise<Item[]>;
+    declare public updateRecord: (id: string, fields: { name?: string }, userId?: string) => Promise<Item>;
+    declare public replaceRecord: (id: string, fields: { name: string }, userId?: string) => Promise<Item>;
+    declare public deleteRecord: (id: string, userId?: string) => Promise<void>;
 }
 
-const mock{{project_class_name}}CreateRecord = {
-    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-    name: 'mock{{project_class_name}}1',
-    {{project_lower_camel_name}}GenerationData: {},
-    createdBy: 'mockUser',
-    updatedBy: 'mockUser',
-};
-const mock{{project_class_name}}Records = [
-    {
-        id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-        name: 'mock{{project_class_name}}1',
-        {{project_lower_camel_name}}GenerationData: {},
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-        _rid: 'A75OAPmg6JcDAAAAAAAAAA==',
-        _self: 'dbs/A75OAA==/colls/A75OAPmg6Jc=/docs/A75OAPmg6JcDAAAAAAAAAA==/',
-        _etag: '\'12002ff0-0000-0800-0000-6600ec090000\'',
-        _attachments: 'attachments/',
-        _ts: 1711336457,
-    },
-    {
-        id: 'cb8b2d40-edcc-4ac7-93ba-207408b23c8a',
-        name: 'mock{{project_class_name}}2',
-        {{project_lower_camel_name}}GenerationData: {},
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-        _rid: 'A75OAPmg6JcDAAAAAAAAAA==',
-        _self: 'dbs/A75OAA==/colls/A75OAPmg6Jc=/docs/A75OAPmg6JcDAAAAAAAAAA==/',
-        _etag: '\'12002ff0-0000-0800-0000-6600ec090000\'',
-        _attachments: 'attachments/',
-        _ts: 1711336457,
-    }
-];
-const mock{{project_class_name}}UpdateFetchRecord = {
-    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-    name: 'mock{{project_class_name}}1Update',
-    {{project_lower_camel_name}}GenerationData: {},
+const id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const stored: Item = {
+    id,
+    name: 'stored',
+    isDeleted: false,
     createdBy: 'mockUser',
     updatedBy: 'mockUser',
     createdTimestamp: '2024-03-24T00:00:00.000Z',
     updatedTimestamp: '2024-03-24T00:00:00.000Z',
-    isDeleted: false,
-    _rid: 'A75OAPmg6JcDAAAAAAAAAA==',
-    _self: 'dbs/A75OAA==/colls/A75OAPmg6Jc=/docs/A75OAPmg6JcDAAAAAAAAAA==/',
-    _etag: '\'12002ff0-0000-0800-0000-6600ec090000\'',
-    _attachments: 'attachments/',
-    _ts: 1711336457,
 };
-const mock{{project_class_name}}Update = {
-    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-    name: 'mock{{project_class_name}}1Update',
-};
-const mock{{project_class_name}}sRepositoryResponse = {
-    id: '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0',
-    name: 'mock{{project_class_name}}1',
-    isDeleted: false,
-    createdTimestamp: '2024-03-24T00:00:00.000Z',
-    updatedTimestamp: '2024-03-24T00:00:00.000Z',
-    createdBy: 'mockUser',
-    updatedBy: 'mockUser',
-};
-const mock{{project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-const mockGetRecordQuery = 'SELECT * FROM c WHERE c.id = @id AND c.isDeleted = false';
-const mockGetRecordsQuery = 'SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 100';
-const mockGetRecordParameters = [
-    {
-        name: '@id',
-        value: mock{{project_class_name}}Id,
-    },
-];
-const mockDeleteUpdatedTimestamp = '2024-03-24T00:00:00.000Z';
-const mockDeleteRecordOperations = [
-    { op: 'set', path: '/isDeleted', value: true },
-    { op: 'set', path: '/updatedTimestamp', value: mockDeleteUpdatedTimestamp }
-];
-const mockDeleteRecordCondition = 'FROM c WHERE c.isDeleted = false';
-
-let mockFetchAll;
-let mockReplace;
-let mockCreate;
-let mockPatch;
-let mockContainer;
-let mockBaseRepository;
 
 describe('BaseRepository', () => {
+    let store: ReturnType<typeof mockStore>;
+    let repository: TestRepository;
+
     beforeEach(() => {
-        jest.resetAllMocks();
-        mockFetchAll = jest.fn<MockFn>();
-        mockReplace = jest.fn<MockFn>();
-        mockCreate = jest.fn<MockFn>();
-        mockPatch = jest.fn<MockFn>();
-        mockContainer = {
-            items: {
-                query: () => ({
-                    fetchAll: mockFetchAll,
-                }),
-                create: mockCreate,
-            },
-            item: () => ({
-                replace: mockReplace,
-                patch: mockPatch,
-            }),
-        } as unknown as Container;
-        mockBaseRepository = new BaseRepository(mockContainer);
+        jest.restoreAllMocks();
+        store = mockStore();
+        store.write.mockResolvedValue(true);
+        store.softDelete.mockResolvedValue(true);
+        repository = new TestRepository(store as unknown as DocumentStore<Item>, 'Item');
     });
 
+    const expectProxyError = async (call: Promise<unknown>, message: string, cause: unknown) => {
+        await expect(call).rejects.toBeInstanceOf(ProxyError);
+        await expect(call).rejects.toMatchObject({ statusCode: 502, message, cause });
+    };
+
+    const expectNotFound = async (call: Promise<unknown>) => {
+        await expect(call).rejects.toBeInstanceOf(NotFoundError);
+        await expect(call).rejects.toMatchObject({ statusCode: 404, message: `Item with id ${id} was not found.` });
+    };
+
     describe('addRecord', () => {
-        it('should successfully call item create', async () => {
-            mockCreate.mockReturnValue({ resource: mock{{project_class_name}}Records[0] });
-            await mockBaseRepository.addRecord(mock{{project_class_name}}Records[0]);
-            expect(mockCreate).toHaveBeenCalledTimes(1);
-            expect(mockCreate).toHaveBeenCalledWith(mock{{project_class_name}}Records[0]);
+        it('should store a new live record with a UUID, one timestamp and the user id for both fields', async () => {
+            // A second clock reading would differ, so equal timestamps prove the clock was read once.
+            jest.spyOn(Date.prototype, 'toISOString')
+                .mockReturnValueOnce('2026-01-01T00:00:00.000Z')
+                .mockReturnValueOnce('2026-01-01T00:00:00.001Z');
+            const result = await repository.addRecord({ name: 'new' }, 'creator');
+            expect(result).toEqual({
+                id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+                name: 'new',
+                isDeleted: false,
+                createdTimestamp: '2026-01-01T00:00:00.000Z',
+                updatedTimestamp: '2026-01-01T00:00:00.000Z',
+                createdBy: 'creator',
+                updatedBy: 'creator',
+            });
+            expect(store.create).toHaveBeenCalledWith(result);
         });
 
-        it('should successfully throw proxy error', async () => {
-            mockCreate.mockRejectedValueOnce(new Error('mockError'));
-            try {
-                await mockBaseRepository.addRecord(mock{{project_class_name}}CreateRecord);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
-            }
+        it('should omit createdBy and updatedBy without a user id', async () => {
+            const result = await repository.addRecord({ name: 'new' });
+            expect('createdBy' in result || 'updatedBy' in result).toBe(false);
+        });
+
+        it('should wrap a store failure in a proxy error', async () => {
+            const cause = new Error('down');
+            store.create.mockRejectedValue(cause);
+            await expectProxyError(repository.addRecord({ name: 'new' }), 'Error creating item in database.', cause);
         });
     });
 
     describe('getRecord', () => {
-        it('should successfully call query fetchAll by item id', async () => {
-            const query = jest.spyOn(mockContainer.items, 'query');
-            mockFetchAll.mockReturnValue({ resources: mock{{project_class_name}}Records });
-            const response = await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            expect(mockFetchAll).toHaveBeenCalledTimes(1);
-            expect(query).toHaveBeenCalledWith({
-                parameters: mockGetRecordParameters,
-                query: mockGetRecordQuery,
-            });
-            expect(response).toEqual(mock{{project_class_name}}Records[0]);
+        it('should return a live record', async () => {
+            store.read.mockResolvedValue(stored);
+            expect(await repository.getRecord(id)).toEqual(stored);
+            expect(store.read).toHaveBeenCalledWith(id);
         });
 
-        it('should successfully throw not found error', async () => {
-            mockFetchAll.mockReturnValueOnce({ resources: [] });
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record not found for ID ${mock{{project_class_name}}Id}.`);
-            }
+        it('should report missing and soft-deleted records as not found', async () => {
+            store.read.mockResolvedValueOnce(undefined);
+            await expectNotFound(repository.getRecord(id));
+            store.read.mockResolvedValue({ ...stored, isDeleted: true });
+            await expectNotFound(repository.getRecord(id));
         });
 
-        it('should successfully throw proxy error', async () => {
-            mockFetchAll.mockRejectedValueOnce(new Error('Unknown error'));
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
-            }
+        it('should wrap a store failure in a proxy error', async () => {
+            const cause = new Error('down');
+            store.read.mockRejectedValue(cause);
+            await expectProxyError(repository.getRecord(id), 'Error retrieving item from database.', cause);
         });
     });
 
     describe('getRecords', () => {
-        it('should successfully call query fetchAll', async () => {
-            const query = jest.spyOn(mockContainer.items, 'query');
-            mockFetchAll.mockReturnValue({ resources: mock{{project_class_name}}Records });
-            const response = await mockBaseRepository.getRecords();
-            expect(mockFetchAll).toHaveBeenCalledTimes(1);
-            expect(query).toHaveBeenCalledWith({
-                query: mockGetRecordsQuery,
-            });
-            expect(response).toEqual(mock{{project_class_name}}Records);
+        it('should query with the given or default limit', async () => {
+            store.query.mockResolvedValue([stored]);
+            expect(await repository.getRecords(5)).toEqual([stored]);
+            expect(store.query).toHaveBeenCalledWith(5);
+            await repository.getRecords();
+            expect(store.query).toHaveBeenLastCalledWith(DEFAULT_LIST_LIMIT);
         });
 
-        it('should successfully throw proxy error', async () => {
-            jest.spyOn(mockContainer.items, 'query');
-            mockFetchAll.mockRejectedValueOnce(new Error('Unknown error'));
-            try {
-                await mockBaseRepository.getRecords();
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
-            }
+        it('should wrap a store failure in a proxy error', async () => {
+            const cause = new Error('down');
+            store.query.mockRejectedValue(cause);
+            await expectProxyError(repository.getRecords(), 'Error retrieving items from database.', cause);
         });
     });
 
     describe('updateRecord', () => {
-        it('should successfully get and replace record', async () => {
-            const containerItem = jest.spyOn(mockContainer, 'item');
-            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
-            mockReplace.mockReturnValue({ resource: mock{{project_class_name}}Records[0] });
-            await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            expect(getRecord).toHaveBeenCalledTimes(1);
-            expect(mockReplace).toHaveBeenCalledTimes(1);
-            expect(containerItem).toHaveBeenCalledWith(mock{{project_class_name}}Id);
+        it('should merge the fields and refresh updatedTimestamp and updatedBy only', async () => {
+            store.read.mockResolvedValue(stored);
+            const result = await repository.updateRecord(id, { name: 'updated' }, 'editor');
+            expect(result).toEqual({ ...stored, name: 'updated', updatedBy: 'editor', updatedTimestamp: expect.stringMatching(isoTimestamp) });
+            expect(result.updatedTimestamp).not.toEqual(stored.updatedTimestamp);
+            expect(store.write).toHaveBeenCalledWith(result);
         });
 
-        it('should successfully throw not found error', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}sRepositoryResponse);
-            mockReplace.mockRejectedValueOnce(new NotFoundError('Not Found'));
-
-            try {
-                await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
-            }
+        it('should drop the stored updatedBy without a user id', async () => {
+            store.read.mockResolvedValue(stored);
+            const result = await repository.updateRecord(id, { name: 'updated' });
+            expect(result.createdBy).toEqual(stored.createdBy);
+            expect('updatedBy' in result).toBe(false);
         });
 
-        it('should successfully throw proxy error', async () => {
-            mockReplace.mockReturnValueOnce(new Error('mockError'));
-            try {
-                await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual(`Error upserting item with id ${mock{{project_class_name}}Id}.`);
-            }
+        it('should report a missing record or one that vanished before the write as not found', async () => {
+            store.read.mockResolvedValueOnce(undefined);
+            await expectNotFound(repository.updateRecord(id, { name: 'updated' }));
+            store.read.mockResolvedValue(stored);
+            store.write.mockResolvedValue(false);
+            await expectNotFound(repository.updateRecord(id, { name: 'updated' }));
+        });
+
+        it('should wrap a store failure in a proxy error', async () => {
+            const cause = new Error('down');
+            store.read.mockResolvedValue(stored);
+            store.write.mockRejectedValue(cause);
+            await expectProxyError(repository.updateRecord(id, { name: 'updated' }), `Error upserting item with id ${id}.`, cause);
         });
     });
 
     describe('replaceRecord', () => {
-        it('should successfully get and replace record', async () => {
-            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}UpdateFetchRecord);
-            mockReplace.mockReturnValue({ resource: mock{{project_class_name}}Records[0] });
-            await mockBaseRepository.replaceRecord(mock{{project_class_name}}Update);
-            expect(getRecord).toHaveBeenCalledTimes(1);
-            expect(mockReplace).toHaveBeenCalledTimes(1);
+        it('should write the fields as a live record that keeps the stored created fields', async () => {
+            store.read.mockResolvedValue(stored);
+            const result = await repository.replaceRecord(id, { name: 'replaced' }, 'editor');
+            expect(result).toEqual({
+                id,
+                name: 'replaced',
+                isDeleted: false,
+                createdBy: 'mockUser',
+                updatedBy: 'editor',
+                createdTimestamp: stored.createdTimestamp,
+                updatedTimestamp: expect.stringMatching(isoTimestamp),
+            });
+            expect(store.write).toHaveBeenCalledWith(result);
         });
 
-        it('should rethrow not found error', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockRejectedValue(new NotFoundError('Not Found'));
-            try {
-                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Update);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-            }
+        it('should omit createdBy when the stored record has none and updatedBy without a user id', async () => {
+            const { createdBy: _createdBy, ...withoutCreatedBy } = stored;
+            store.read.mockResolvedValue(withoutCreatedBy);
+            const result = await repository.replaceRecord(id, { name: 'replaced' });
+            expect('createdBy' in result || 'updatedBy' in result).toBe(false);
+        });
+
+        it('should report a missing record as not found', async () => {
+            store.read.mockResolvedValue(undefined);
+            await expectNotFound(repository.replaceRecord(id, { name: 'replaced' }));
+            expect(store.write).not.toHaveBeenCalled();
+        });
+
+        it('should wrap a store failure in a proxy error', async () => {
+            const cause = new Error('down');
+            store.read.mockResolvedValue(stored);
+            store.write.mockRejectedValue(cause);
+            await expectProxyError(repository.replaceRecord(id, { name: 'replaced' }), `Error replacing item with id ${id}.`, cause);
         });
     });
 
     describe('deleteRecord', () => {
-        beforeEach(() => {
-            jest.resetAllMocks();
-        });
-        it('should successfully delete record', async () => {
-            jest.spyOn(Date.prototype, 'toISOString').mockReturnValue(mockDeleteUpdatedTimestamp);
-            const containerItem = jest.spyOn(mockContainer, 'item');
-            await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            expect(mockPatch).toHaveBeenCalledWith({
-                condition: mockDeleteRecordCondition,
-                operations: mockDeleteRecordOperations,
-            });
-            expect(containerItem).toHaveBeenCalledTimes(1);
-            expect(containerItem).toHaveBeenCalledWith(mock{{project_class_name}}Id, mock{{project_class_name}}Id);
-            expect(mockPatch).toHaveBeenCalledTimes(1);
+        it('should soft delete with a fresh updatedTimestamp and the user id, if any', async () => {
+            await repository.deleteRecord(id, 'deleter');
+            expect(store.softDelete).toHaveBeenCalledWith(id, expect.stringMatching(isoTimestamp), 'deleter');
+            await repository.deleteRecord(id);
+            expect(store.softDelete).toHaveBeenLastCalledWith(id, expect.stringMatching(isoTimestamp), undefined);
         });
 
-        it('should successfully throw not found error', async () => {
-            try {
-                mockPatch.mockRejectedValueOnce(new MockNotFound());
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
-            }
+        it('should report a missing or already deleted record as not found', async () => {
+            store.softDelete.mockResolvedValue(false);
+            await expectNotFound(repository.deleteRecord(id));
         });
 
-        it('should successfully throw proxy error', async () => {
-            try {
-                mockPatch.mockRejectedValueOnce(new ProxyError('mockProxyError'))
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual(`Error deleting record with id ${mock{{project_class_name}}Id}.`);
-            }
+        it('should wrap a store failure in a proxy error', async () => {
+            const cause = new Error('down');
+            store.softDelete.mockRejectedValue(cause);
+            await expectProxyError(repository.deleteRecord(id), `Error deleting record with id ${id}.`, cause);
         });
+    });
+
+    it('should fail an operation that outlives the database deadline', async () => {
+        jest.useFakeTimers();
+        try {
+            store.read.mockReturnValue(new Promise(() => undefined));
+            const assertion = expect(repository.getRecord(id)).rejects.toBeInstanceOf(ProxyError);
+            jest.advanceTimersByTime(DATABASE_DEADLINE_MS);
+            await assertion;
+        } finally {
+            jest.useRealTimers();
+        }
     });
 });
-{%- endif %}
-{%- if cloud_service == 'GCP Cloud Function' %}
-const mock{{project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-const mock{{project_class_name}}CreateRecord = {
-    id: mock{{project_class_name}}Id,
-    name: 'mock{{project_class_name}}1',
-    createdBy: 'mockUser',
-    updatedBy: 'mockUser',
-};
-const mock{{project_class_name}}Records = [
-    {
-        id: mock{{project_class_name}}Id,
-        name: 'mock{{project_class_name}}1',
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-    },
-    {
-        id: 'cb8b2d40-edcc-4ac7-93ba-207408b23c8a',
-        name: 'mock{{project_class_name}}2',
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-    }
-];
-const mock{{project_class_name}}Update = {
-    id: mock{{project_class_name}}Id,
-    name: 'mock{{project_class_name}}1Update',
-};
-const mockDeletedRecord = {
-    id: mock{{project_class_name}}Id,
-    name: 'mock{{project_class_name}}1',
-    isDeleted: true,
-};
-
-let mockSet: jest.Mock<MockFn>;
-let mockGet: jest.Mock<MockFn>;
-let mockUpdate: jest.Mock<MockFn>;
-let mockWhere: jest.Mock<MockFn>;
-let mockStream: jest.Mock<MockFn>;
-let mockDoc: jest.Mock<MockFn>;
-let mockCollection: unknown;
-let mockBaseRepository: BaseRepository<any>;
-
-describe('BaseRepository', () => {
-    beforeEach(() => {
-        jest.resetAllMocks();
-        mockSet = jest.fn<MockFn>().mockResolvedValue(undefined);
-        mockGet = jest.fn<MockFn>();
-        mockUpdate = jest.fn<MockFn>().mockResolvedValue(undefined);
-        mockStream = jest.fn<MockFn>();
-        mockWhere = jest.fn<MockFn>().mockReturnValue({ get: jest.fn<MockFn>() });
-        mockDoc = jest.fn<MockFn>().mockReturnValue({
-            set: mockSet,
-            get: mockGet,
-            update: mockUpdate,
-        });
-        mockCollection = {
-            doc: mockDoc,
-            where: mockWhere,
-        } as unknown as CollectionReference;
-        mockBaseRepository = new BaseRepository(mockCollection as CollectionReference);
-    });
-
-    describe('addRecord', () => {
-        it('should successfully set document in collection', async () => {
-            const result = await mockBaseRepository.addRecord(mock{{project_class_name}}Records[0]);
-            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
-            expect(mockSet).toHaveBeenCalledWith(mock{{project_class_name}}Records[0]);
-            expect(result).toEqual(mock{{project_class_name}}Records[0]);
-        });
-
-        it('should throw proxy error on failure', async () => {
-            mockSet.mockRejectedValueOnce(new Error('mockError'));
-            try {
-                await mockBaseRepository.addRecord(mock{{project_class_name}}CreateRecord);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
-            }
-        });
-    });
-
-    describe('getRecord', () => {
-        it('should successfully get document by id', async () => {
-            mockGet.mockResolvedValue({
-                exists: true,
-                data: () => mock{{project_class_name}}Records[0],
-            });
-            const result = await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
-            expect(result).toEqual(mock{{project_class_name}}Records[0]);
-        });
-
-        it('should throw not found error when document does not exist', async () => {
-            mockGet.mockResolvedValue({ exists: false });
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-            }
-        });
-
-        it('should throw not found error when document is soft deleted', async () => {
-            mockGet.mockResolvedValue({
-                exists: true,
-                data: () => mockDeletedRecord,
-            });
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-            }
-        });
-    });
-
-    describe('getRecords', () => {
-        it('should successfully query non-deleted documents', async () => {
-            const mockSnapshot = {
-                docs: mock{{project_class_name}}Records.map((r) => ({ data: () => r })),
-            };
-            mockWhere.mockReturnValue({ limit: jest.fn<MockFn>().mockReturnValue({ get: jest.fn<MockFn>().mockResolvedValue(mockSnapshot) }) });
-            const result = await mockBaseRepository.getRecords();
-            expect(mockWhere).toHaveBeenCalledWith('isDeleted', '==', false);
-            expect(result).toEqual(mock{{project_class_name}}Records);
-        });
-
-        it('should throw proxy error on failure', async () => {
-            mockWhere.mockReturnValue({
-                limit: jest.fn<MockFn>().mockReturnValue({
-                    get: jest.fn<MockFn>().mockRejectedValue(new Error('Unknown error')),
-                }),
-            });
-            try {
-                await mockBaseRepository.getRecords();
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-            }
-        });
-    });
-
-    describe('updateRecord', () => {
-        it('should successfully update document', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}Records[0]);
-            const result = await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
-            expect(mockUpdate).toHaveBeenCalledTimes(1);
-            expect(result.name).toEqual('mock{{project_class_name}}1Update');
-        });
-
-        it('should throw not found error when record does not exist', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockRejectedValue(new NotFoundError('Not found'));
-            try {
-                await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-            }
-        });
-    });
-
-    describe('replaceRecord', () => {
-        it('should successfully replace document', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}Records[0]);
-            const result = await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
-            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
-            expect(mockSet).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mock{{project_class_name}}Records[0]);
-        });
-
-        it('should rethrow not found error', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockRejectedValue(new NotFoundError('Not found'));
-            try {
-                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-            }
-        });
-    });
-
-    describe('deleteRecord', () => {
-        it('should successfully soft delete document', async () => {
-            mockGet.mockResolvedValue({
-                exists: true,
-                data: () => mock{{project_class_name}}Records[0],
-            });
-            await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            expect(mockDoc).toHaveBeenCalledWith(mock{{project_class_name}}Id);
-            expect(mockUpdate).toHaveBeenCalledWith(
-                expect.objectContaining({ isDeleted: true })
-            );
-        });
-
-        it('should throw not found error when document does not exist', async () => {
-            mockGet.mockResolvedValue({ exists: false });
-            try {
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-            }
-        });
-
-        it('should throw not found error when document is already deleted', async () => {
-            mockGet.mockResolvedValue({
-                exists: true,
-                data: () => mockDeletedRecord,
-            });
-            try {
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-            }
-        });
-    });
-});
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-const mock{{project_class_name}}Id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-const mockTableName = 'test-table';
-const mock{{project_class_name}}CreateRecord = {
-    id: mock{{project_class_name}}Id,
-    name: 'mock{{project_class_name}}1',
-    createdBy: 'mockUser',
-    updatedBy: 'mockUser',
-};
-const mock{{project_class_name}}Records = [
-    {
-        id: mock{{project_class_name}}Id,
-        name: 'mock{{project_class_name}}1',
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-    },
-    {
-        id: 'cb8b2d40-edcc-4ac7-93ba-207408b23c8a',
-        name: 'mock{{project_class_name}}2',
-        createdBy: 'mockUser',
-        updatedBy: 'mockUser',
-        createdTimestamp: '2024-03-24T00:00:00.000Z',
-        updatedTimestamp: '2024-03-24T00:00:00.000Z',
-        isDeleted: false,
-    }
-];
-const mock{{project_class_name}}Update = {
-    id: mock{{project_class_name}}Id,
-    name: 'mock{{project_class_name}}1Update',
-};
-const mockDeletedRecord = {
-    id: mock{{project_class_name}}Id,
-    name: 'mock{{project_class_name}}1',
-    isDeleted: true,
-};
-const mockDeleteUpdatedTimestamp = '2024-03-24T00:00:00.000Z';
-
-let mockSend: jest.Mock<MockFn>;
-let mockDocClient: unknown;
-let mockBaseRepository: BaseRepository<any>;
-
-describe('BaseRepository', () => {
-    beforeEach(() => {
-        jest.resetAllMocks();
-        mockSend = jest.fn<MockFn>();
-        mockDocClient = {
-            send: mockSend,
-        };
-        mockBaseRepository = new BaseRepository(mockDocClient as any, mockTableName);
-    });
-
-    describe('addRecord', () => {
-        it('should successfully put item in table', async () => {
-            mockSend.mockResolvedValue({});
-            const result = await mockBaseRepository.addRecord(mock{{project_class_name}}Records[0]);
-            expect(mockSend).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mock{{project_class_name}}Records[0]);
-        });
-
-        it('should throw proxy error on failure', async () => {
-            mockSend.mockRejectedValueOnce(new Error('mockError'));
-            try {
-                await mockBaseRepository.addRecord(mock{{project_class_name}}CreateRecord);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error creating item in database.');
-            }
-        });
-    });
-
-    describe('getRecord', () => {
-        it('should successfully get item by id', async () => {
-            mockSend.mockResolvedValue({ Item: mock{{project_class_name}}Records[0] });
-            const result = await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            expect(mockSend).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mock{{project_class_name}}Records[0]);
-        });
-
-        it('should throw not found error when item does not exist', async () => {
-            mockSend.mockResolvedValue({ Item: undefined });
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-            }
-        });
-
-        it('should throw not found error when item is soft deleted', async () => {
-            mockSend.mockResolvedValue({ Item: mockDeletedRecord });
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-            }
-        });
-
-        it('should throw proxy error on failure', async () => {
-            mockSend.mockRejectedValueOnce(new Error('Unknown error'));
-            try {
-                await mockBaseRepository.getRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error retrieving item from database.');
-            }
-        });
-    });
-
-    describe('getRecords', () => {
-        it('should successfully scan non-deleted items', async () => {
-            mockSend.mockResolvedValue({ Items: mock{{project_class_name}}Records });
-            const result = await mockBaseRepository.getRecords();
-            expect(mockSend).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mock{{project_class_name}}Records);
-        });
-
-        it('should return empty array when no items found', async () => {
-            mockSend.mockResolvedValue({ Items: undefined });
-            const result = await mockBaseRepository.getRecords();
-            expect(result).toEqual([]);
-        });
-
-        it('should throw proxy error on failure', async () => {
-            mockSend.mockRejectedValueOnce(new Error('Unknown error'));
-            try {
-                await mockBaseRepository.getRecords();
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual('Error retrieving items from database.');
-            }
-        });
-    });
-
-    describe('updateRecord', () => {
-        it('should successfully get and put updated record', async () => {
-            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}Records[0]);
-            mockSend.mockResolvedValue({});
-            const result = await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            expect(getRecord).toHaveBeenCalledTimes(1);
-            expect(mockSend).toHaveBeenCalledTimes(1);
-            expect(result.name).toEqual('mock{{project_class_name}}1Update');
-        });
-
-        it('should throw not found error when record does not exist', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockRejectedValue(new NotFoundError('Not found'));
-            try {
-                await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-            }
-        });
-
-        it('should throw proxy error on failure', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}Records[0]);
-            mockSend.mockRejectedValueOnce(new Error('mockError'));
-            try {
-                await mockBaseRepository.updateRecord(mock{{project_class_name}}Update);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual(`Error upserting item with id ${mock{{project_class_name}}Id}.`);
-            }
-        });
-    });
-
-    describe('replaceRecord', () => {
-        it('should successfully get and put replaced record', async () => {
-            const getRecord = jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockResolvedValue(mock{{project_class_name}}Records[0]);
-            mockSend.mockResolvedValue({});
-            const result = await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
-            expect(getRecord).toHaveBeenCalledTimes(1);
-            expect(mockSend).toHaveBeenCalledTimes(1);
-            expect(result).toEqual(mock{{project_class_name}}Records[0]);
-        });
-
-        it('should rethrow not found error', async () => {
-            jest.spyOn(mockBaseRepository, 'getRecord')
-                .mockRejectedValue(new NotFoundError('Not found'));
-            try {
-                await mockBaseRepository.replaceRecord(mock{{project_class_name}}Records[0]);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-            }
-        });
-    });
-
-    describe('deleteRecord', () => {
-        it('should successfully soft delete item', async () => {
-            jest.spyOn(Date.prototype, 'toISOString').mockReturnValue(mockDeleteUpdatedTimestamp);
-            mockSend
-                .mockResolvedValueOnce({ Item: mock{{project_class_name}}Records[0] })
-                .mockResolvedValueOnce({});
-            await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            expect(mockSend).toHaveBeenCalledTimes(2);
-        });
-
-        it('should throw not found error when item does not exist', async () => {
-            mockSend.mockResolvedValue({ Item: undefined });
-            try {
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
-            }
-        });
-
-        it('should throw not found error when item is already deleted', async () => {
-            mockSend.mockResolvedValue({ Item: mockDeletedRecord });
-            try {
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(NotFoundError);
-                expect(error.statusCode).toEqual(404);
-                expect(error.message).toEqual(`Record with id ${mock{{project_class_name}}Id} not found.`);
-            }
-        });
-
-        it('should throw proxy error on failure', async () => {
-            mockSend.mockRejectedValueOnce(new ProxyError('mockProxyError'));
-            try {
-                await mockBaseRepository.deleteRecord(mock{{project_class_name}}Id);
-            } catch (error) {
-                expect(error).toBeInstanceOf(ProxyError);
-                expect(error.statusCode).toEqual(502);
-                expect(error.message).toEqual(`Error deleting record with id ${mock{{project_class_name}}Id}.`);
-            }
-        });
-    });
-});
-{%- endif %}

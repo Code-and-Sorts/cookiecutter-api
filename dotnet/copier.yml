@@ -1,21 +1,18 @@
+# `yield` in file paths needs Copier 9.18.2+.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
 
-# Render every file as a template (Cookiecutter-style) instead of requiring a
-# .jinja suffix on each file.
 _templates_suffix: ""
 
-# The template content lives in template/; its contents are rendered directly
-# into the destination directory.
 _subdirectory: template
 
 project_name:
   type: str
   default: "Cookiecutter API"
-  # Validation runs against the values derived from the project name. Copier
-  # only evaluates validators for prompted questions, so the checks that
-  # Cookiecutter's pre_gen hook ran on the derived names live here.
+  # Copier skips validators on derived (when: false) values, so they are checked here.
   validator: >-
     {%- set project_lower_camel_name = project_name | to_lower_camel -%}
     {%- set project_class_name = project_name | to_camel -%}
@@ -55,7 +52,6 @@ open_source_license:
     - "GNU General Public License v3"
     - "Not open source"
 
-# ---- Derived values (never prompted) ----
 project_lower_camel_name:
   type: str
   when: false
@@ -71,12 +67,32 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
-# ---- REST resources ----
-# A list of resources to generate. Each resource gets its own URL endpoint, a
-# storage container (resources sharing a container id share storage), and a
-# chosen subset of operations. The default is a single resource matching the
-# project name with today's CRUD behaviour, so answering only project_name
-# reproduces the original single-resource project.
+# Short cloud folder names keep paths under Git for Windows' 260-character limit;
+# each is empty for the other clouds, so Copier skips those paths.
+azure_dir:
+  type: str
+  when: false
+  default: "{{ 'Functions' if cloud_service == 'Azure Function App' else '' }}"
+
+gcp_dir:
+  type: str
+  when: false
+  default: "{{ 'Handlers' if cloud_service == 'GCP Cloud Function' else '' }}"
+
+aws_dir:
+  type: str
+  when: false
+  default: "{{ 'Functions' if cloud_service == 'AWS Lambda' else '' }}"
+
+health_endpoint:
+  type: str
+  default: "health"
+  help: URL segment for the health check (for example "health"); leave empty to generate no health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
+    {%- endif -%}
+
 resources:
   type: yaml
   multiline: true
@@ -94,11 +110,13 @@ resources:
     {%- set reserved_names = ["Health", "Base"] -%}
     {%- if cloud_service == "AWS Lambda" -%}
     {%- set reserved_names = reserved_names + ["Type", "HashCode"] -%}
+    {%- elif cloud_service == "GCP Cloud Function" -%}
+    {%- set reserved_names = reserved_names + ["IResource"] -%}
     {%- endif -%}
     {%- set ns = namespace(err="", eps=[], names=[], containers=[]) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
-    {%- elif cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 59 > 127 -%}
+    {%- elif health_endpoint and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 61 > 127 -%}
     {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the health handler string would exceed the 127-character limit." -%}
     {%- else -%}
     {%- for r in resources -%}
@@ -110,8 +128,8 @@ resources:
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a type or method the generated " ~ cloud_service ~ " project already uses. Choose another name." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
-    {%- elif r.endpoint == "health" -%}
-    {%- set ns.err = "Resource endpoint 'health' is reserved for the health check." -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
     {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
     {%- elif (r.operations | default([]) | length) < 1 -%}
@@ -137,7 +155,7 @@ resources:
     {%- endif -%}
     {%- if not ns.err and cloud_service == "AWS Lambda" -%}
     {%- set method_prefix_length = {"list": 7, "get_by_id": 3, "create": 6, "update": 6, "replace": 7, "delete": 6} -%}
-    {%- for op in r.operations if 2 * (project_class_name | length) + 47 + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
+    {%- for op in r.operations if 2 * (project_class_name | length) + 43 + (r.name | length) + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is too long for project '" ~ project_class_name ~ "': its AWS Lambda handler strings would exceed the 127-character limit. Shorten the resource or project name." -%}
     {%- endfor -%}
     {%- endif -%}
@@ -148,3 +166,33 @@ resources:
     {%- endfor -%}
     {%- endif -%}
     {{ ns.err }}
+
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {%- set ops = r.operations -%}
+    {{ {
+      "name": r.name,
+      "endpoint": r.endpoint,
+      "container": r.container,
+      "operations": ops,
+      "lower_camel_name": r.name | to_lower_camel,
+      "env_key": r.container | upper | replace('-', '_'),
+      "container_class": r.container | to_camel,
+      "has_body": "create" in ops or "update" in ops or "replace" in ops,
+      "has_collection": "list" in ops or "create" in ops,
+      "has_item": "get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops,
+      "has_dto": ops | reject("equalto", "delete") | list | length > 0,
+    } | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]
+
+# Precomputed so request and validation model paths stay under Git for Windows' 260-character limit.
+body_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in path_resources if r.has_body -%}
+    {{ r | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

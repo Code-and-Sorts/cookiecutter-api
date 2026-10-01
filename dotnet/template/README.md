@@ -1,5 +1,5 @@
-{%- set prefix = '' if cloud_service == 'GCP Cloud Function' else '/api' -%}
-{%- set containers = resources | map(attribute='container') | unique | list -%}
+{%- set prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
+{%- set containers = path_resources | unique(attribute='container') | list -%}
 # {{ project_class_name }} API
 
 [![](https://img.shields.io/badge/made%20using%20cookiecutter%20api-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/Code-and-Sorts/cookiecutter-api)
@@ -40,8 +40,10 @@ The REST API exposes the following resources and operations:
   - `DELETE {{ prefix }}/{{ resource.endpoint }}/{id}` — soft delete
 {%- endif %}
 {%- endfor %}
-- **`{{ prefix }}/health`**
-  - `GET {{ prefix }}/health` — health check
+{%- if health_endpoint %}
+- **`{{ prefix }}/{{ health_endpoint }}`**
+  - `GET {{ prefix }}/{{ health_endpoint }}` — health check
+{%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 
 Paths are relative to the Function App host (`http://localhost:7071` when running locally); `/api` is the Azure Functions default route prefix.
@@ -52,10 +54,53 @@ Paths are relative to the function URL (`http://localhost:8080` when running loc
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-Paths are relative to the API Gateway stage URL (`https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://localhost:3000` with `sam local start-api`).
+Paths are relative to the API Gateway stage URL (`https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://localhost:3000` with `sam local start-api`). Routes have no `/api` prefix; the path parameter is `{id}`.
 {%- endif %}
 
 Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring a streamlined and consistent environment for managing Dotnet packages and their dependencies.
+
+## API behaviour
+
+Every response body is JSON (`Content-Type: application/json`), including errors.
+
+| Case | Status | Body |
+|---|---|---|
+| create | 201 | the item |
+| get, update, replace | 200 | the item |
+| list | 200 | JSON array of items (`[]` when empty) |
+| delete | 200 | `{"message": "<Name> with id <id> was deleted successfully."}` |
+{%- if health_endpoint %}
+| health | 200 | `{"status": "ok"}` |
+{%- endif %}
+| invalid request body | 400 | `{"errorMessage": "<what is wrong>"}` |
+| id not found, soft-deleted or not a UUID | 404 | `{"errorMessage": "<Name> with id <id> was not found."}` |
+{%- if cloud_service == 'GCP Cloud Function' %}
+| unknown path | 404 | `{"errorMessage": "Not found."}` |
+| known path, method not enabled | 405 | `{"errorMessage": "Method not allowed."}` |
+{%- endif %}
+| anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` (the exception is logged with its stack trace) |
+
+An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be a JSON object: `name` is required on create (`POST`) and replace (`PUT`) and optional on update (`PATCH`), and when present it must be a non-empty JSON string (numbers and booleans are not converted). Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with `400`, so clients can never set ids or system fields.
+
+Writes (`POST`, `PATCH`, `PUT` and `DELETE`) record who made them from the optional `X-User-Id` request header (surrounding whitespace is trimmed; an empty or missing header means no user). Create stores it as `createdBy` and `updatedBy`, and later writes store it as `updatedBy`, removing any earlier `updatedBy` when the header is absent. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
+
+Each request's database work is bounded by a 5-second deadline (`Utils/RequestDeadline.cs`) and the database client has capped timeouts and retries, so an unreachable or failing database answers the generic `500` well inside the platform timeout. A request that hits the deadline returns `500`, but the write may still complete, so retrying a create can store a duplicate. A request the client cancels is logged at information level, not as an error.
+{%- if cloud_service == 'AWS Lambda' %}
+
+Each operation is its own Lambda function. Every function checks that the event's method and path are its own route and otherwise answers `405 {"errorMessage": "Method not allowed."}` (another method) or `404 {"errorMessage": "Not found."}` (another path), so an event sent straight to the wrong function is not served.
+{%- endif %}
+
+List endpoints accept `?limit=<n>` (default `100`, at most `1000`); a missing or invalid value uses the default and a larger value is capped.
+{%- if cloud_service == 'Azure Function App' %}
+
+Requests that never reach the app are answered by the Azure Functions host: an unknown path, or a method a function is not registered for, returns `404` with an empty body.
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+
+Requests that never reach the app are answered by API Gateway: an unmapped path or method returns `403` with `{"message": "Missing Authentication Token"}`.
+{%- endif %}
+
+Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with millisecond precision, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when they are set. Updates and replacements keep `createdTimestamp` and `createdBy` and refresh `updatedTimestamp` and `updatedBy`; delete is a soft delete that sets `isDeleted` to `true`.
 
 ## Storage containers
 {%- if cloud_service == 'Azure Function App' %}
@@ -64,11 +109,13 @@ Each resource reads and writes the Cosmos DB container configured for its `conta
 
 | Container | Setting | Default value | Resources |
 |---|---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | `CosmosDbContainerName_{{ container | to_camel }}` | `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- for c in containers %}
+| `{{ c.container }}` | `CosmosDbContainerName_{{ c.container_class }}` | `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 
 The Cosmos DB connection string is read from `ConnectionStrings:CosmosDb` and the database name from `CosmosDbDatabaseName`. Containers must use `/id` as their partition key.
+
+`CosmosDbConnectionMode` selects the Cosmos DB connection mode: `Direct` (the default when the setting is missing, and the best choice in Azure) or `Gateway`. `local.settings.json` sets it to `Gateway` because the [Linux Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) only supports Gateway mode.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
@@ -76,8 +123,8 @@ Each resource reads and writes the Firestore collection configured for its `cont
 
 | Container | Environment variable | Default value | Resources |
 |---|---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}` | `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- for c in containers %}
+| `{{ c.container }}` | `FIRESTORE_COLLECTION_{{ c.env_key }}` | `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 
 The Google Cloud project is read from `GCP_PROJECT_ID` (required) and the Firestore database from `FIRESTORE_DATABASE` (defaults to `(default)`).
@@ -88,22 +135,12 @@ Each resource reads and writes the DynamoDB table configured for its `container`
 
 | Container | Environment variable | `template.yaml` table resource | Resources |
 |---|---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | `DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}` | `{{ container | to_camel }}Table` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} |
+{%- for c in containers %}
+| `{{ c.container }}` | `DYNAMODB_TABLE_NAME_{{ c.env_key }}` | `{{ c.container_class }}Table` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 {%- endif %}
 
 Resources that use the same container share its records: there is no type discriminator, so every resource on a shared container lists, reads, updates and deletes the same items.
-
-{%- if cloud_service == 'Azure Function App' %}
-{%- set old_setting, new_setting = 'CosmosDbContainerName', 'CosmosDbContainerName_<Container>' %}
-{%- elif cloud_service == 'GCP Cloud Function' %}
-{%- set old_setting, new_setting = 'FIRESTORE_COLLECTION', 'FIRESTORE_COLLECTION_<CONTAINER>' %}
-{%- else %}
-{%- set old_setting, new_setting = 'DYNAMODB_TABLE_NAME', 'DYNAMODB_TABLE_NAME_<CONTAINER>' %}
-{%- endif %}
-
-> **Upgrading from a single-resource project:** the storage setting name now includes the container id. `{{ old_setting }}` became `{{ new_setting }}` (see the table above), so rename it in every deployed environment.
 
 ## Features
 {%- if cloud_service == 'Azure Function App' %}
@@ -233,7 +270,15 @@ Resources that use the same container share its records: there is no type discri
 5. Deploy
 
     ```console
-    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
+    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --no-allow-unauthenticated --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
+    ```
+
+    The whole API is one HTTP function. The .NET Functions Framework names the entry point by its type, so `--entry-point` is the `{{ project_class_name }}.Api.Function` class, which routes every request by its path.
+
+    The function is private: callers need the Cloud Run Invoker role and send `Authorization: Bearer $(gcloud auth print-identity-token)`. Because the whole API is one function, the health check sits behind the same IAM check.
+
+    ```console
+    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" <function-url>/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -260,10 +305,27 @@ Resources that use the same container share its records: there is no type discri
     make run
     ```
 
-    This command builds the project and starts a local API Gateway using SAM CLI, where you can interact with your API endpoints.
+    This command builds the project and starts a local API Gateway using SAM CLI, where you can interact with your API endpoints. `sam local start-api` does not enforce API keys.
+
+5. Deploy
+
+    ```console
+    cd {{ project_class_name }}.Api
+    sam build
+    sam deploy --guided
+    ```
+
+    Resource routes require an API key{% if health_endpoint %}; the health check does not{% endif %}. SAM creates the key and a usage plan, and the `ApiKeyId` stack output holds its id. Read the value and send it as the `x-api-key` header:
+
+    ```console
+    aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
+    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
+    ```
+
+    An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
 {%- endif %}
 
-{% if cloud_service == 'GCP Cloud Function' %}6{% else %}5{% endif %}. Thunderclient
+{% if cloud_service == 'Azure Function App' %}5{% else %}6{% endif %}. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 
@@ -306,6 +368,8 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 │   ├── Controllers
 {%- if cloud_service != 'GCP Cloud Function' %}
 │   ├── Functions
+{%- else %}
+│   ├── Handlers
 {%- endif %}
 │   ├── Interfaces
 │   ├── Models
@@ -321,11 +385,18 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 └── {{ project_class_name }}.Api.Tests.Unit
     ├── Controllers
     ├── Functions
+{%- if cloud_service == 'GCP Cloud Function' %}
+    ├── Handlers
+{%- endif %}
     ├── Repositories
     ├── Services
     ├── Utils
     └── tests
 ```
+
+Each resource has its own file in every layer, named after the resource: for example `{{ resources[0].name }}Controller.cs`, `{{ resources[0].name }}Service.cs`, `{{ resources[0].name }}Repository.cs`, `{{ resources[0].name }}{% if cloud_service == 'GCP Cloud Function' %}Handler{% else %}Functions{% endif %}.cs` and their `I{{ resources[0].name }}…` interfaces, DTO, entity, request and validation models, and unit tests.
+{%- if cloud_service == 'GCP Cloud Function' %} `Function.cs` routes each request to the handler whose endpoint matches the first path segment.{% endif %}
+Each repository extends `EntityRepository`, which holds the shared read, list, create, update and soft-delete logic and talks to the database through `IDocumentStore` (`{% if cloud_service == 'Azure Function App' %}Cosmos{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}Dynamo{% endif %}DocumentStore`).
 
 ## License
 

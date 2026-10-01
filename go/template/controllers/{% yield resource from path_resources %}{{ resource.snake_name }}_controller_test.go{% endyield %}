@@ -1,0 +1,390 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set uses_body = resource.has_body -%}
+{%- set uses_id = resource.has_id -%}
+package controllers
+
+import (
+	"context"
+{%- if "list" in ops %}
+	"encoding/json"
+{%- endif %}
+{%- if "list" in ops or "create" in ops or "delete" in ops %}
+	"errors"
+{%- endif %}
+{%- if uses_body %}
+	"strings"
+{%- endif %}
+	"testing"
+{%- if "create" in ops %}
+	"testing/iotest"
+{%- endif %}
+
+	"{{project_endpoint}}/models"
+	"{{project_endpoint}}/services"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+{%- if uses_id %}
+
+const invalid{{ r }}ID = "not-a-uuid"
+{%- endif %}
+
+type Mock{{ r }}Service struct {
+	mock.Mock
+}
+{%- if "get_by_id" in ops %}
+
+func (m *Mock{{ r }}Service) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "list" in ops %}
+
+func (m *Mock{{ r }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
+	args := m.Called(ctx, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "create" in ops %}
+
+func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, req, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "update" in ops %}
+
+func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, req, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "replace" in ops %}
+
+func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, req, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "delete" in ops %}
+
+func (m *Mock{{ r }}Service) Delete(ctx context.Context, id, userID string) error {
+	args := m.Called(ctx, id, userID)
+	return args.Error(0)
+}
+{%- endif %}
+
+func newTest{{ r }}Controller(mockService *Mock{{ r }}Service) {{ r }}Controller {
+	validator, _ := services.NewSchemaValidator(RequestSchemas())
+	return New{{ r }}Controller(mockService, validator)
+}
+
+{%- if uses_id %}
+
+func assert{{ r }}NotFound(t *testing.T, err error) {
+	t.Helper()
+	var notFound *models.NotFoundError
+	if assert.ErrorAs(t, err, &notFound) {
+		assert.Equal(t, "{{ r }} with id not-a-uuid was not found.", notFound.Message)
+	}
+}
+{%- endif %}
+{%- if uses_body %}
+
+func assert{{ r }}BadRequest(t *testing.T, err error) {
+	t.Helper()
+	assert.ErrorAs(t, err, new(*models.ValidationError))
+}
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+func TestGet{{ r }}_Returns{{ r }}Dto(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mock{{ r }}"}
+	mockService.On("Get", mock.Anything, test{{ r }}ID).Return(expected, nil)
+
+	result, err := controller.Get(context.Background(), test{{ r }}ID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+}
+
+func TestGet{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+
+	result, err := controller.Get(context.Background(), invalid{{ r }}ID)
+
+	assert.Nil(t, result)
+	assert{{ r }}NotFound(t, err)
+	mockService.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
+}
+{%- endif %}
+{%- if "list" in ops %}
+
+func TestGet{{ r }}List_ReturnsListOf{{ r }}Dto(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	expected := []models.{{ r }}Dto{
+		{Id: test{{ r }}ID, Name: "mock{{ r }}1"},
+		{Id: "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name: "mock{{ r }}2"},
+	}
+	mockService.On("GetList", mock.Anything, DefaultListLimit).Return(expected, nil)
+
+	result, err := controller.GetList(context.Background(), 0)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+}
+
+func TestGet{{ r }}List_PassesRequestedLimit(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("GetList", mock.Anything, 2).Return([]models.{{ r }}Dto{}, nil)
+
+	_, err := controller.GetList(context.Background(), 2)
+
+	assert.NoError(t, err)
+	mockService.AssertCalled(t, "GetList", mock.Anything, 2)
+}
+
+func TestGet{{ r }}List_ReturnsEmptyArray_WhenNothingIsStored(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("GetList", mock.Anything, DefaultListLimit).Return(nil, nil)
+
+	result, err := controller.GetList(context.Background(), 0)
+
+	assert.NoError(t, err)
+	body, _ := json.Marshal(result)
+	assert.JSONEq(t, `[]`, string(body))
+}
+
+func TestGet{{ r }}List_ReturnsServiceError(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("GetList", mock.Anything, DefaultListLimit).Return(nil, errors.New("boom"))
+
+	result, err := controller.GetList(context.Background(), 0)
+
+	assert.Nil(t, result)
+	assert.EqualError(t, err, "boom")
+}
+{%- endif %}
+{%- if "create" in ops %}
+
+func TestCreate{{ r }}_ReturnsCreated{{ r }}Dto(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	createReq := models.Create{{ r }}Request{Name: "mockCreate{{ r }}"}
+	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockCreate{{ r }}"}
+	mockService.On("Create", mock.Anything, createReq, "alice").Return(expected, nil)
+
+	result, err := controller.Create(context.Background(), "alice", strings.NewReader(`{"name": "mockCreate{{ r }}"}`))
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockService.AssertCalled(t, "Create", mock.Anything, createReq, "alice")
+}
+
+func TestCreate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
+	bodies := map[string]string{
+		"empty name":     `{"name": ""}`,
+		"missing name":   `{}`,
+		"number name":    `{"name": 5}`,
+		"malformed JSON": `invalid json`,
+		"array body":     `[]`,
+		"unknown field":  `{"name": "a", "color": "red"}`,
+		"client id":      `{"name": "a", "id": "` + test{{ r }}ID + `"}`,
+		"system field":   `{"name": "a", "createdBy": "someone"}`,
+	}
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			mockService := new(Mock{{ r }}Service)
+			controller := newTest{{ r }}Controller(mockService)
+
+			result, err := controller.Create(context.Background(), "", strings.NewReader(body))
+
+			assert.Nil(t, result)
+			assert{{ r }}BadRequest(t, err)
+			mockService.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestCreate{{ r }}_ReturnsValidationError_WhenBodyCannotBeRead(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+
+	result, err := controller.Create(context.Background(), "", iotest.ErrReader(errors.New("broken")))
+
+	assert.Nil(t, result)
+	assert{{ r }}BadRequest(t, err)
+}
+{%- endif %}
+{%- if "update" in ops %}
+
+func TestUpdate{{ r }}_ReturnsUpdated{{ r }}Dto(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	expectedReq := models.Update{{ r }}Request{Id: test{{ r }}ID, Name: "mockUpdated{{ r }}"}
+	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockUpdated{{ r }}"}
+	mockService.On("Update", mock.Anything, expectedReq, "alice").Return(expected, nil)
+
+	result, err := controller.Update(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{"name": "mockUpdated{{ r }}"}`))
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockService.AssertCalled(t, "Update", mock.Anything, expectedReq, "alice")
+}
+
+func TestUpdate{{ r }}_AllowsBodyWithoutName(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	expectedReq := models.Update{{ r }}Request{Id: test{{ r }}ID}
+	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "unchanged"}
+	mockService.On("Update", mock.Anything, expectedReq, "alice").Return(expected, nil)
+
+	result, err := controller.Update(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{}`))
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+}
+
+func TestUpdate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
+	bodies := map[string]string{
+		"empty name":    `{"name": ""}`,
+		"boolean name":  `{"name": true}`,
+		"null body":     `null`,
+		"unknown field": `{"color": "red"}`,
+		"client id":     `{"id": "` + test{{ r }}ID + `"}`,
+		"system field":  `{"updatedTimestamp": "2026-01-01T00:00:00.000Z"}`,
+	}
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			mockService := new(Mock{{ r }}Service)
+			controller := newTest{{ r }}Controller(mockService)
+
+			result, err := controller.Update(context.Background(), test{{ r }}ID, "", strings.NewReader(body))
+
+			assert.Nil(t, result)
+			assert{{ r }}BadRequest(t, err)
+		})
+	}
+}
+
+func TestUpdate{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+
+	result, err := controller.Update(context.Background(), invalid{{ r }}ID, "", strings.NewReader(`{"name": "a"}`))
+
+	assert.Nil(t, result)
+	assert{{ r }}NotFound(t, err)
+}
+{%- endif %}
+{%- if "replace" in ops %}
+
+func TestReplace{{ r }}_ReturnsReplaced{{ r }}Dto(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	expectedReq := models.Replace{{ r }}Request{Id: test{{ r }}ID, Name: "mockReplaced{{ r }}"}
+	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockReplaced{{ r }}"}
+	mockService.On("Replace", mock.Anything, expectedReq, "alice").Return(expected, nil)
+
+	result, err := controller.Replace(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{"name": "mockReplaced{{ r }}"}`))
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockService.AssertCalled(t, "Replace", mock.Anything, expectedReq, "alice")
+}
+
+func TestReplace{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
+	bodies := map[string]string{
+		"empty name":    `{"name": ""}`,
+		"missing name":  `{}`,
+		"unknown field": `{"name": "a", "isDeleted": false}`,
+	}
+
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			mockService := new(Mock{{ r }}Service)
+			controller := newTest{{ r }}Controller(mockService)
+
+			result, err := controller.Replace(context.Background(), test{{ r }}ID, "", strings.NewReader(body))
+
+			assert.Nil(t, result)
+			assert{{ r }}BadRequest(t, err)
+		})
+	}
+}
+
+func TestReplace{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+
+	result, err := controller.Replace(context.Background(), invalid{{ r }}ID, "", strings.NewReader(`{"name": "a"}`))
+
+	assert.Nil(t, result)
+	assert{{ r }}NotFound(t, err)
+}
+{%- endif %}
+{%- if "delete" in ops %}
+
+func TestDelete{{ r }}_CallsDeleteOnService(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("Delete", mock.Anything, test{{ r }}ID, "alice").Return(nil)
+
+	result, err := controller.Delete(context.Background(), test{{ r }}ID, "alice")
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"message": "{{ r }} with id " + test{{ r }}ID + " was deleted successfully."}, result)
+	mockService.AssertCalled(t, "Delete", mock.Anything, test{{ r }}ID, "alice")
+}
+
+func TestDelete{{ r }}_ReturnsServiceError(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("Delete", mock.Anything, test{{ r }}ID, "").Return(errors.New("boom"))
+
+	result, err := controller.Delete(context.Background(), test{{ r }}ID, "")
+
+	assert.Nil(t, result)
+	assert.EqualError(t, err, "boom")
+}
+
+func TestDelete{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+
+	result, err := controller.Delete(context.Background(), invalid{{ r }}ID, "")
+
+	assert.Nil(t, result)
+	assert{{ r }}NotFound(t, err)
+	mockService.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything, mock.Anything)
+}
+{%- endif %}

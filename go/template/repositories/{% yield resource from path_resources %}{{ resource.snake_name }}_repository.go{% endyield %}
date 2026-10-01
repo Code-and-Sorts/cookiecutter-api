@@ -1,0 +1,79 @@
+{%- set r = resource.name -%}
+{%- set lc = resource.lower_camel_name -%}
+{%- set ops = resource.operations -%}
+package repositories
+
+import (
+	"context"
+
+	"{{project_endpoint}}/models"
+)
+
+type {{ r }}Repository interface {
+{%- if 'get_by_id' in ops %}
+	Get(ctx context.Context, id string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'list' in ops %}
+	GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'create' in ops %}
+	Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'update' in ops %}
+	Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'replace' in ops %}
+	Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
+{%- endif %}
+{%- if 'delete' in ops %}
+	Delete(ctx context.Context, id, userID string) error
+{%- endif %}
+}
+
+type {{ lc }}Repository struct {
+	store *store[models.{{ r }}, *models.{{ r }}]
+}
+
+func New{{ r }}Repository(container Container) {{ r }}Repository {
+	return &{{ lc }}Repository{store: newStore[models.{{ r }}]("{{ r }}", container)}
+}
+{%- if 'get_by_id' in ops %}
+
+func (repo *{{ lc }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.get(ctx, id))
+}
+{%- endif %}
+{%- if 'list' in ops %}
+
+func (repo *{{ lc }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
+	return toDtos(models.To{{ r }}Dto)(repo.store.list(ctx, limit))
+}
+{%- endif %}
+{%- if 'create' in ops %}
+
+func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.create(ctx, &item, userID))
+}
+{%- endif %}
+{%- if 'update' in ops %}
+
+func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, item.Id, userID, func(stored *models.{{ r }}) {
+		if item.Name != "" {
+			stored.Name = item.Name
+		}
+	}))
+}
+{%- endif %}
+{%- if 'replace' in ops %}
+
+func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.replace(ctx, &item, userID))
+}
+{%- endif %}
+{%- if 'delete' in ops %}
+
+func (repo *{{ lc }}Repository) Delete(ctx context.Context, id, userID string) error {
+	return repo.store.softDelete(ctx, id, userID)
+}
+{%- endif %}

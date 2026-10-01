@@ -110,93 +110,42 @@ jobs:
               return;
             }
 
-            // Use provided endpoint or derive from project name
-            const projectEndpoint = endpointInput
-              ? endpointInput
-              : projectName.toLowerCase().replace(/\s+/g, '-');
-
-            // CamelCase: capitalize first letter of each word, remove spaces
-            const projectClassName = projectName
-              .split(/\s+/)
-              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-              .join('');
-
-            // lowerCamelCase: same as CamelCase but first letter lowercase
-            const projectLowerCamelName = projectClassName.charAt(0).toLowerCase() + projectClassName.slice(1);
-
-            // Python slug: lowercase, spaces to underscores
-            const projectSlug = projectName.toLowerCase().replace(/\s+/g, '_');
-
             core.setOutput('language', language);
             core.setOutput('template_dir', templateDir);
             core.setOutput('cloud_service', cloudService);
             core.setOutput('project_name', projectName);
             core.setOutput('project_description', projectDescription);
-            core.setOutput('project_endpoint', projectEndpoint);
-            core.setOutput('project_class_name', projectClassName);
-            core.setOutput('project_lower_camel_name', projectLowerCamelName);
-            core.setOutput('project_slug', projectSlug);
+            core.setOutput('project_endpoint', endpointInput);
             core.setOutput('author', author);
             core.setOutput('license', license);
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - name: Render the template
+        uses: ./.github/actions/setup-copier-template
         with:
-          python-version: "3.14"
-
-      - name: Install copier
-        run: pip install copier jinja2-strcase jinja2-time
-
-      - name: Run copier
-        env:
-          TEMPLATE_DIR: ${{ steps.parse.outputs.template_dir }}
-          PROJECT_NAME: ${{ steps.parse.outputs.project_name }}
-          PROJECT_DESCRIPTION: ${{ steps.parse.outputs.project_description }}
-          PROJECT_ENDPOINT: ${{ steps.parse.outputs.project_endpoint }}
-          PROJECT_CLASS_NAME: ${{ steps.parse.outputs.project_class_name }}
-          PROJECT_LOWER_CAMEL_NAME: ${{ steps.parse.outputs.project_lower_camel_name }}
-          PROJECT_SLUG: ${{ steps.parse.outputs.project_slug }}
-          AUTHOR: ${{ steps.parse.outputs.author }}
-          CLOUD_SERVICE: ${{ steps.parse.outputs.cloud_service }}
-          LICENSE: ${{ steps.parse.outputs.license }}
-        run: |
-          copier copy --defaults --trust \
-            --data project_name="$PROJECT_NAME" \
-            --data project_description="$PROJECT_DESCRIPTION" \
-            --data project_slug="$PROJECT_SLUG" \
-            --data project_endpoint="$PROJECT_ENDPOINT" \
-            --data project_lower_camel_name="$PROJECT_LOWER_CAMEL_NAME" \
-            --data project_class_name="$PROJECT_CLASS_NAME" \
-            --data author="$AUTHOR" \
-            --data cloud_service="$CLOUD_SERVICE" \
-            --data open_source_license="$LICENSE" \
-            ./"$TEMPLATE_DIR" ./"$PROJECT_CLASS_NAME"
+          template-language: ${{ steps.parse.outputs.template_dir }}
+          template-cloud-service: ${{ steps.parse.outputs.cloud_service }}
+          output-dir: generated-project
+          project-name: ${{ steps.parse.outputs.project_name }}
+          project-description: ${{ steps.parse.outputs.project_description }}
+          project-endpoint: ${{ steps.parse.outputs.project_endpoint }}
+          author: ${{ steps.parse.outputs.author }}
+          open-source-license: ${{ steps.parse.outputs.license }}
 
       - name: Replace repo contents with generated project
-        env:
-          PROJECT_CLASS_NAME: ${{ steps.parse.outputs.project_class_name }}
         run: |
-          if [[ -z "$PROJECT_CLASS_NAME" ]]; then
-            echo "PROJECT_CLASS_NAME is empty, aborting." >&2
+          if [[ ! -d generated-project ]]; then
+            echo "Expected generated project directory 'generated-project' was not found." >&2
             exit 1
           fi
 
-          if [[ ! -d "$PROJECT_CLASS_NAME" ]]; then
-            echo "Expected generated project directory '$PROJECT_CLASS_NAME' was not found." >&2
-            exit 1
-          fi
-
-          # Remove everything except .git and the generated project directory
           find . -maxdepth 1 \
             ! -name '.' \
             ! -name '.git' \
-            ! -name "$PROJECT_CLASS_NAME" \
+            ! -name generated-project \
             -exec rm -rf {} +
 
-          # Copy generated project files to repo root (including hidden files),
-          # then remove the generated project directory.
-          cp -a -- "$PROJECT_CLASS_NAME"/. .
-          rm -rf -- "$PROJECT_CLASS_NAME"
+          cp -a -- generated-project/. .
+          rm -rf -- generated-project
 
       - name: Create pull request
         uses: actions/github-script@v9

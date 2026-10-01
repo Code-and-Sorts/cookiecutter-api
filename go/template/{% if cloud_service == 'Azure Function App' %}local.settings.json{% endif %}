@@ -1,4 +1,3 @@
-{%- if cloud_service == 'Azure Function App' %}
 {
     "IsEncrypted": false,
     "Values": {
@@ -6,17 +5,7 @@
         "FUNCTIONS_WORKER_RUNTIME": "custom",
         "CosmosDbEndpoint": "{{ '{{CosmosDbEndpoint}}' }}",
         "CosmosDbKey": "{{ '{{CosmosDbKey}}' }}",
-        "CosmosDbDatabaseName": "{{ '{{CosmosDbDatabaseName}}' }}"{% for container in resources | map(attribute='container') | unique %},
-        "CosmosDbContainerName_{{ container | to_camel }}": "{{ container }}"{% endfor %}
+        "CosmosDbDatabaseName": "{{ '{{CosmosDbDatabaseName}}' }}"{% for c in path_resources | unique(attribute='container') %},
+        "CosmosDbContainerName_{{ c.container_class }}": "{{ c.container }}"{% endfor %}
     }
 }
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-{
-    "Values": {
-{%- for container in resources | map(attribute='container') | unique %}
-        "DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}": "{{ container }}"{% if not loop.last %},{% endif %}
-{%- endfor %}
-    }
-}
-{%- endif %}

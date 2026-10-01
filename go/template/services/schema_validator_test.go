@@ -17,7 +17,8 @@ const testSchema = `{
 			"minLength": 1
 		}
 	},
-	"required": ["name"]
+	"required": ["name"],
+	"additionalProperties": false
 }`
 
 func newTestValidator(t *testing.T) SchemaValidator {
@@ -30,39 +31,60 @@ func newTestValidator(t *testing.T) SchemaValidator {
 }
 
 func TestValidate_WithValidData_ReturnsNoError(t *testing.T) {
-	// Arrange
 	validator := newTestValidator(t)
-	data := map[string]string{"name": "TestItem"}
 
-	// Act
-	err := validator.Validate(data, "test_schema")
+	err := validator.Validate([]byte(`{"name": "TestItem"}`), "test_schema")
 
-	// Assert
 	assert.NoError(t, err)
 }
 
-func TestValidate_WithMissingRequiredField_ReturnsValidationError(t *testing.T) {
-	// Arrange
+func TestValidate_WithInvalidBodies_ReturnsValidationError(t *testing.T) {
 	validator := newTestValidator(t)
-	data := map[string]string{}
+	cases := map[string]struct {
+		body    string
+		message string
+	}{
+		"malformed JSON":   {`{"name": `, "Request body must be valid JSON."},
+		"trailing content": {`{"name": "a"} {}`, "Request body must be valid JSON."},
+		"empty body":       {``, "Request body must be valid JSON."},
+		"not an object":    {`["name"]`, "request body: got array, want object."},
+		"null body":        {`null`, "request body: got null, want object."},
+		"missing name":     {`{}`, "request body: missing property 'name'."},
+		"empty name":       {`{"name": ""}`, "name: minLength: got 0, want 1."},
+		"number name":      {`{"name": 1}`, "name: got number, want string."},
+		"null name":        {`{"name": null}`, "name: got null, want string."},
+		"unknown field":    {`{"name": "a", "color": "red"}`, "request body: additional properties 'color' not allowed."},
+		"id field":         {`{"name": "a", "id": "x"}`, "request body: additional properties 'id' not allowed."},
+		"system field":     {`{"name": "a", "isDeleted": true}`, "request body: additional properties 'isDeleted' not allowed."},
+		"several problems": {`{"name": 1, "createdBy": "x"}`, ""},
+	}
 
-	// Act
-	err := validator.Validate(data, "test_schema")
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := validator.Validate([]byte(tc.body), "test_schema")
 
-	// Assert
-	assert.Error(t, err)
-	assert.IsType(t, &models.ValidationError{}, err)
+			var validationErr *models.ValidationError
+			assert.ErrorAs(t, err, &validationErr)
+			if tc.message != "" {
+				assert.Equal(t, tc.message, validationErr.Message)
+			}
+		})
+	}
 }
 
-func TestValidate_WithEmptyName_ReturnsValidationError(t *testing.T) {
-	// Arrange
+func TestValidate_WithUnknownSchema_ReturnsError(t *testing.T) {
 	validator := newTestValidator(t)
-	data := map[string]string{"name": ""}
 
-	// Act
-	err := validator.Validate(data, "test_schema")
+	err := validator.Validate([]byte(`{}`), "missing_schema")
 
-	// Assert
 	assert.Error(t, err)
-	assert.IsType(t, &models.ValidationError{}, err)
+	assert.NotErrorAs(t, err, new(*models.ValidationError))
+}
+
+func TestNewSchemaValidator_WithInvalidSchema_ReturnsError(t *testing.T) {
+	_, err := NewSchemaValidator(map[string]string{"broken": `{`})
+	assert.Error(t, err)
+
+	_, err = NewSchemaValidator(map[string]string{"bad_type": `{"type": 5}`})
+	assert.Error(t, err)
 }

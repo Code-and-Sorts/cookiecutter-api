@@ -1,0 +1,69 @@
+{%- set r = resource.name -%}
+namespace {{project_class_name}}.Api.Services;
+
+{% if "list" in resource.operations -%}
+using System.Collections.Generic;
+{% endif -%}
+using System.Threading;
+using System.Threading.Tasks;
+{% if resource.has_dto -%}
+using {{project_class_name}}.Api.Dtos;
+{% endif -%}
+{% if resource.has_body -%}
+using {{project_class_name}}.Api.Entities;
+{% endif -%}
+using {{project_class_name}}.Api.Interfaces;
+{% if resource.has_body -%}
+using {{project_class_name}}.Api.Requests;
+{% endif %}
+public class {{ r }}Service : I{{ r }}Service
+{
+    private readonly I{{ r }}Repository _repository;
+
+    public {{ r }}Service(I{{ r }}Repository repository)
+    {
+        _repository = repository;
+    }
+{%- if "get_by_id" in resource.operations %}
+
+    public async Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => await _repository.GetAsync(id, ct);
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+    public async Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default) => await _repository.GetListAsync(limit, ct);
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+    public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, string? userId, CancellationToken ct = default) =>
+        await _repository.CreateAsync(new {{ r }}Entity { Name = item.Name }, userId, ct);
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+    public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, string? userId, CancellationToken ct = default)
+    {
+        var updated{{ r }} = new {{ r }}Entity
+        {
+            Id = item.Id,
+            // A null name (not sent in the PATCH body) keeps the stored name.
+            Name = item.Name!,
+        };
+        return await _repository.UpdateAsync(updated{{ r }}, userId, ct);
+    }
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+    public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, string? userId, CancellationToken ct = default)
+    {
+        var replaced{{ r }} = new {{ r }}Entity
+        {
+            Id = item.Id,
+            Name = item.Name,
+        };
+        return await _repository.ReplaceAsync(replaced{{ r }}, userId, ct);
+    }
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+    public async Task DeleteAsync(string id, string? userId, CancellationToken ct = default) => await _repository.DeleteAsync(id, userId, ct);
+{%- endif %}
+}

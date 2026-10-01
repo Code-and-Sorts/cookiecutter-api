@@ -16,6 +16,9 @@
       "@controllers": ["./controllers/index"],
       "@services": ["./services/index"],
       "@repositories": ["./repositories/index"],
+{%- if cloud_service != 'Azure Function App' %}
+      "@routes": ["./routes/index"],
+{%- endif %}
       "@models": ["./types/models/index"],
       "@errors": ["./types/errors/index"],
       "@utils": ["./utils/index"]

@@ -19,11 +19,11 @@
 ## Overview
 
 {% if cloud_service == 'Azure Function App' -%}
-This project is a TypeScript Node.js REST API built on [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/) (programming model v4) and backed by [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/). Each enabled operation is registered as its own HTTP-triggered function.
+This project is a TypeScript Node.js REST API built on [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/) (programming model v4) and backed by [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/). Each enabled operation is registered as its own HTTP-triggered function, with one file per resource under `functions/`.
 {%- elif cloud_service == 'GCP Cloud Function' -%}
-This project is a TypeScript Node.js REST API built on [Cloud Run functions](https://cloud.google.com/functions/docs) with the [Functions Framework](https://github.com/GoogleCloudPlatform/functions-framework-nodejs) and backed by [Firestore](https://cloud.google.com/firestore/docs). A single HTTP function named `api` routes every request to the matching resource.
+This project is a TypeScript Node.js REST API built on [Cloud Run functions](https://cloud.google.com/functions/docs) with the [Functions Framework](https://github.com/GoogleCloudPlatform/functions-framework-nodejs) and backed by [Firestore](https://cloud.google.com/firestore/docs). A single HTTP function named `api` passes every request to the matching resource's handler in `routes/`.
 {%- else -%}
-This project is a TypeScript Node.js REST API built on [AWS Lambda](https://docs.aws.amazon.com/lambda/) behind Amazon API Gateway and backed by [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/). A single Lambda handler routes every request to the matching resource, and `template.yaml` is an [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) template for local runs and deployment.
+This project is a TypeScript Node.js REST API built on [AWS Lambda](https://docs.aws.amazon.com/lambda/) behind Amazon API Gateway and backed by [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/). A single Lambda handler passes every request to the matching resource's handler in `routes/`, and `template.yaml` is an [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) template for local runs and deployment.
 {%- endif %}
 
 The API follows a controller → service → repository layout wired together by an [Inversify](https://inversify.io/) container in `config/container.ts`, validates input with [Zod](https://zod.dev/), and soft-deletes records by setting `isDeleted`. The project is an ES module (`"type": "module"`).
@@ -31,14 +31,16 @@ The API follows a controller → service → repository layout wired together by
 ## Endpoints
 
 {% if cloud_service == 'Azure Function App' -%}
-Azure Functions serves HTTP functions under the `/api` route prefix. Every route except `/api/health` uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+Azure Functions serves HTTP functions under the `/api` route prefix. Every route{% if health_endpoint %} except `/api/{{ health_endpoint }}`{% endif %} uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
 {%- elif cloud_service == 'GCP Cloud Function' -%}
-Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally).
+Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally). The deployed function is not public; see [Deploy](#deploy) for calling it.
 {%- else -%}
-Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`).
-{%- endif %}
+Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`). Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires an API key sent as `x-api-key: <value>`; see [Deploy](#deploy) for reading it.
+{%- endif %}{{ "\n" }}
 
-- `GET {{ base_path }}/health` — health check
+{%- if health_endpoint %}
+- `GET {{ base_path }}/{{ health_endpoint }}` — health check
+{%- endif %}
 {%- for resource in resources %}
 - **{{ resource.name }}** (storage: `{{ resource.container }}`)
 {%- if "list" in resource.operations %}
@@ -61,7 +63,41 @@ Paths are relative to the API Gateway stage URL (for example `https://<api-id>.e
 {%- endif %}
 {%- endfor %}
 
-The `id` in the path always wins over an `id` in a PATCH or PUT body. Operations that were not generated for a resource{% if cloud_service == 'Azure Function App' %} have no function registered{% else %} return 405 Method Not Allowed{% endif %}.
+## Requests and responses
+
+Every response the app sends is JSON (`Content-Type: application/json`), errors included.
+
+- An item is `{"id": "<uuid>", "name": "<string>"}`. A list is a JSON array (`[]` when empty).
+- A request body must be a JSON object holding only the resource's fields. POST and PUT require `name` as a non-empty string (numbers and booleans are not converted). PATCH may leave `name` out, but when present it must be a non-empty string.
+- Unknown fields are rejected, including `id`, `isDeleted`, the timestamps and `createdBy`/`updatedBy`, so clients can never set ids or system fields. The id comes from the path only.
+- `?limit=` on a list is optional: a missing or invalid value uses the default (100) and larger values are capped at 1000.
+- Writes record the user id sent in the optional `X-User-Id` header (any casing; surrounding whitespace is trimmed). POST stores it as `createdBy` and `updatedBy`; PATCH, PUT and DELETE store it as `updatedBy` and keep `createdBy`. A write without the header (or with an empty one) removes `updatedBy`, so it always names the latest writer. GET ignores the header and responses never include these fields. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read.
+  The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
+
+| Status | When | Body |
+|---|---|---|
+| 200 | get, list, update, replace | the item, or an array of items |
+| 201 | create | the new item |
+| 200 | delete | `{"message": "<Name> with id <id> was deleted successfully."}` |
+| 400 | body is not valid JSON or not an object, a field is missing or invalid, an unknown field is sent, or `X-User-Id` is too long | `{"errorMessage": "<what is wrong>"}` |
+| 404 | the id does not exist, is soft-deleted, or is not a UUID | `{"errorMessage": "<Name> with id <id> was not found."}` |
+{%- if cloud_service != 'Azure Function App' %}
+| 404 | unknown path | `{"errorMessage": "Not found."}` |
+| 405 | known path, operation not generated for the resource | `{"errorMessage": "Method not allowed."}` |
+{%- endif %}
+| 500 | anything unexpected, such as a database failure | `{"errorMessage": "An unexpected error occurred."}` |
+
+Expected 4xx outcomes are not logged as errors. Unexpected errors are logged at error level with their stack trace (a database failure carries the SDK error as its `cause`); exception text never reaches the client. A failing or unreachable database answers with that 500 within about 8 seconds: every repository operation is bounded by `DATABASE_DEADLINE_MS` (`utils/deadline.util.ts`), and the database client in `config/container.ts` uses short per-attempt timeouts and capped retries. A cancelled request is logged as a warning, not an error. A request that hits the database deadline returns 500, but the write may still complete; retrying a create can therefore store a duplicate.
+{%- if cloud_service == 'Azure Function App' %}
+
+Requests for a method or path that has no registered function never reach the app: the Functions host answers them itself with its own 404 (not JSON, and not a 405). That covers unknown paths and operations that were not generated for a resource.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+
+Every request reaches the `api` function, so unknown paths get the JSON 404 and operations that were not generated get the JSON 405. The Functions Framework parses request bodies before the function runs; `main.ts` gives its Express app a JSON final handler, so a malformed body is still answered with the JSON 400 above. The framework itself answers `/favicon.ico` and `/robots.txt` with an empty 404.
+{%- else %}
+
+API Gateway only routes the methods and paths listed in `template.yaml`, one per generated operation. Any other method or path is answered by API Gateway (and by `sam local start-api`) with `403 {"message": "Missing Authentication Token"}` without invoking the Lambda, so the handler's JSON 404 and 405 answers only apply to requests that reach it.
+{%- endif %}
 
 ## Storage
 
@@ -76,18 +112,9 @@ Each resource is stored in the {{ store_word }} named by its `container` setting
 > [!IMPORTANT]
 > Resources that share a container share records. There is no type discriminator, so a record created through one resource's endpoint is listed, read, updated and deleted through every other resource that uses the same container. Give resources separate containers unless that is what you want.
 
-> [!NOTE]
-> Upgrading from a single-resource project generated by an earlier version of this template? Storage and environment names changed:
-{%- if cloud_service == 'Azure Function App' %}
-> the single Cosmos DB container was `{{ project_endpoint }}s-sql-container`; each resource now uses the container named by its `container` id (`{{ project_endpoint }}` for the default single resource), overridable with `COSMOS_CONTAINER_<CONTAINER>`. The database is still `{{ project_endpoint }}s-sql-db` (overridable with `COSMOS_DB_DATABASE_NAME`).
-{%- elif cloud_service == 'GCP Cloud Function' %}
-> `FIRESTORE_COLLECTION` is now `FIRESTORE_COLLECTION_<CONTAINER>`, one per container (for example `FIRESTORE_COLLECTION_{{ containers[0] | upper | replace('-', '_') }}`).
-{%- else %}
-> `DYNAMODB_TABLE_NAME` is now `DYNAMODB_TABLE_NAME_<CONTAINER>`, one per container (for example `DYNAMODB_TABLE_NAME_{{ containers[0] | upper | replace('-', '_') }}`).
-{%- endif %}
-> Set the variable to the old name to keep using existing data.
-
 `<CONTAINER>` is the container id upper-cased with `-` replaced by `_`.
+
+Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp`, plus `createdBy`/`updatedBy` only when they are set (they are never stored as null or empty). Timestamps are ISO-8601 UTC with millisecond precision, for example `2026-09-29T22:49:26.625Z`. Create sets both timestamps; PATCH and PUT keep the stored `createdTimestamp` and `createdBy` and refresh `updatedTimestamp`; DELETE is a soft delete that sets `isDeleted: true` and refreshes `updatedTimestamp`. Every write sets or removes `updatedBy` from the `X-User-Id` header.
 
 ## Environment variables
 
@@ -107,7 +134,7 @@ Each resource is stored in the {{ store_word }} named by its `container` setting
 | `{{ env_prefix }}{{ container | upper | replace('-', '_') }}` | no | {{ store_word }} for `{{ container }}` (default `{{ container }}`) |
 {%- endfor %}
 
-Locally the variables are read from the process environment and from a `.env` file in the project root.
+Locally the variables are read from the process environment and from a `.env` file in the project root (loaded quietly, without a startup banner).
 
 ## Prerequisites
 
@@ -165,7 +192,7 @@ sam local start-api
 The API is served at `http://127.0.0.1:3000`. The functions reach DynamoDB with your local AWS credentials; the table names come from `template.yaml`.
 {%- endif %}
 
-The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation and a `baseUrl` that matches the local server above.
+The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation, a few error cases, and a `baseUrl` that matches the local server above.
 
 ## Deploy
 
@@ -201,10 +228,18 @@ gcloud functions deploy {{ project_endpoint }} \
   --source . \
   --entry-point api \
   --trigger-http \
+  --no-allow-unauthenticated \
   --set-env-vars GCP_PROJECT_ID=<project-id>
 ```
 
 Add `{{ env_prefix }}<CONTAINER>=<name>` to `--set-env-vars` to override a collection name.
+
+The function is not public. Grant callers the Cloud Run Invoker role (`gcloud functions add-invoker-policy-binding {{ project_endpoint }} --region <region> --member <principal>`); they send an identity token{% if health_endpoint %}, the health check included, since the project exposes one function{% endif %}:
+
+```console
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
+```
 {%- else -%}
 `template.yaml` defines the Lambda function (Node.js 24, `nodejs24.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
 
@@ -213,6 +248,15 @@ yarn build
 sam build
 sam deploy --guided
 ```
+
+SAM creates an API key and usage plan for the API. Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires the key in an `x-api-key` header. Read its value from the `{{ project_class_name }}ApiKeyId` stack output:
+
+```console
+aws apigateway get-api-key --api-key <api-key-id> --include-value --query value --output text
+curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
+```
+
+`sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
 {%- endif %}
 
 ## Development
@@ -226,26 +270,67 @@ yarn audit       # yarn npm audit --severity moderate
 
 ## Repository structure
 
+Each resource gets its own file in every layer, named after the resource in lowerCamelCase{% if resources | length > 1 %} (for example `{{ resources[0].name | to_lower_camel }}.controller.ts`){% endif %}. Each layer's `index.ts` re-exports them.
+
 ```text
-├── .thunderclient     - Thunder Client collection
-├── config             - Wiring of repositories, services and controllers
-├── controllers        - Request validation
+├── .thunderclient                  - Thunder Client collection, one folder per resource
+├── config
+│   └── container.ts                - Wiring of repositories, services and controllers
+├── controllers                     - Request validation
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.controller.ts
+{%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
-├── functions          - Azure Functions HTTP triggers
+├── functions                       - Azure Functions HTTP triggers
+{%- if health_endpoint %}
+│   ├── health.ts
 {%- endif %}
-├── repositories       - {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} access
-├── services           - Business logic
-├── types              - Zod models, environment schema and errors
-├── utils              - Error to HTTP response mapping
+│   ├── response.ts                 - JSON responses and the shared handler wrapper
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.ts
+{%- endfor %}
+{%- endif %}
+├── repositories                    - Data access
+│   ├── base.repository.ts          - CRUD, timestamps and soft deletes over a document store
+│   ├── document.store.ts           - Store interface
+│   ├── {% if cloud_service == 'Azure Function App' %}cosmos.store.ts             - Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}firestore.store.ts          - Firestore{% else %}dynamo.store.ts             - DynamoDB{% endif %} store
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.repository.ts
+{%- endfor %}
+{%- if cloud_service != 'Azure Function App' %}
+├── routes                          - Per-resource HTTP method routing
+{%- if health_endpoint %}
+│   ├── health.routes.ts
+{%- endif %}
+│   ├── response.ts
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.routes.ts
+{%- endfor %}
+{%- endif %}
+├── services                        - Business logic
+│   ├── schemaValidator.service.ts
+{%- for resource in resources %}
+│   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.service.ts
+{%- endfor %}
+├── types
+│   ├── errors                      - Error types
+│   └── models                      - Zod models and environment schema
+{%- for resource in resources %}
+│       {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.schema.ts
+{%- endfor %}
+├── test                            - Shared test mocks
+├── utils                           - Error mapping, JSON body parsing, list limits, clock and ids
 {%- if cloud_service == 'GCP Cloud Function' %}
-├── main.ts            - Functions Framework entry point
+├── main.ts                         - Functions Framework entry point and JSON final handler
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-├── lambda.ts          - Lambda handler
-├── template.yaml      - AWS SAM template
+├── lambda.ts                       - Lambda handler
+├── template.yaml                   - AWS SAM template
 {%- endif %}
-└── package.json       - Scripts and dependencies
+└── package.json                    - Scripts and dependencies
 ```
+
+Unit tests sit in a `__tests__` directory next to the code they cover, one file per resource (for example `controllers/__tests__/{{ resources[0].name | to_lower_camel }}.controller.test.ts`).
 
 ## License
 

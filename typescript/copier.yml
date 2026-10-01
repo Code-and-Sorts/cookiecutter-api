@@ -1,21 +1,19 @@
+# Per-resource paths use the `yield` tag, which needs this Copier version.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
 
-# Render every file as a template (Cookiecutter-style) instead of requiring a
-# .jinja suffix on each file.
+# Render every file as a template, not only *.jinja files.
 _templates_suffix: ""
 
-# The template content lives in template/; its contents are rendered directly
-# into the destination directory.
 _subdirectory: template
 
 project_name:
   type: str
   default: "Cookiecutter API"
-  # Validation runs against the values derived from the project name. Copier
-  # only evaluates validators for prompted questions, so the checks that
-  # Cookiecutter's pre_gen hook ran on the derived names live here.
+  # Copier skips validators on derived (when: false) values, so the derived names are checked here.
   validator: >-
     {%- set project_lower_camel_name = project_name | to_lower_camel -%}
     {%- set project_class_name = project_name | to_camel -%}
@@ -55,7 +53,6 @@ open_source_license:
     - "GNU General Public License v3"
     - "Not open source"
 
-# ---- Derived values (never prompted) ----
 project_lower_camel_name:
   type: str
   when: false
@@ -71,12 +68,26 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
-# ---- REST resources ----
-# A list of resources to generate. Each resource gets its own URL endpoint, a
-# storage container (resources sharing a container id share storage), and a
-# chosen subset of operations. The default is a single resource matching the
-# project name with today's CRUD behaviour, so answering only project_name
-# reproduces the original single-resource project.
+# Empty on the other clouds so Copier skips the directory; keeps paths short for Git for Windows.
+functions_dir:
+  type: str
+  when: false
+  default: "{{ 'functions' if cloud_service == 'Azure Function App' else '' }}"
+
+routes_dir:
+  type: str
+  when: false
+  default: "{{ 'routes' if cloud_service != 'Azure Function App' else '' }}"
+
+health_endpoint:
+  type: str
+  default: "health"
+  help: URL segment for the health check; leave empty to generate no health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to skip the health check.
+    {%- endif -%}
+
 resources:
   type: yaml
   multiline: true
@@ -91,13 +102,13 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Base", "BaseIdentifier", "BaseItem", "Guid", "Partial", "Promise", "SchemaValidator", "ValidationError"] -%}
+    {%- set reserved_names = ["Base", "BaseEnv", "BaseIdentifier", "BaseItem", "Env", "Guid", "Partial", "Promise", "SchemaValidator", "ValidationError"] -%}
     {%- if cloud_service == "Azure Function App" -%}
     {%- set reserved_names = reserved_names + ["HttpRequest", "HttpResponseInit", "InvocationContext"] -%}
     {%- elif cloud_service == "AWS Lambda" -%}
     {%- set reserved_names = reserved_names + ["APIGatewayProxyEvent", "APIGatewayProxyResult"] -%}
     {%- endif -%}
-    {%- set generated_suffixes = ["Controller", "Entity", "Record", "Repository", "Request", "Response", "Service", "Update"] -%}
+    {%- set generated_suffixes = ["Controller", "Entity", "EntitySchema", "Record", "Repository", "Request", "RequestSchema", "Response", "ResponseSchema", "Schema", "Service", "Update", "UpdateSchema"] -%}
     {%- set ns = namespace(err="", eps=[], names=[], raw_names=[], containers={}, clash="") -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
@@ -118,11 +129,11 @@ resources:
     {%- elif r.name == "Health" -%}
     {%- set ns.err = "Resource name 'Health' is reserved." -%}
     {%- elif r.name in reserved_names -%}
-    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved because it collides with a generated or imported TypeScript identifier. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved because it collides with a generated or imported TypeScript identifier or a shared file name. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
-    {%- elif r.endpoint == "health" -%}
-    {%- set ns.err = "Resource endpoint 'health' is reserved for the health check." -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
     {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
     {%- elif (ops | length) < 1 -%}
@@ -150,3 +161,13 @@ resources:
     {%- endfor -%}
     {%- endif -%}
     {{ ns.err }}
+
+# Git for Windows can't check out paths containing "|", so per-resource paths yield from
+# this copy, which precomputes the filtered file-name stems.
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {{ dict(r, snake_name=(r.name | to_snake), lower_camel_name=(r.name | to_lower_camel)) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

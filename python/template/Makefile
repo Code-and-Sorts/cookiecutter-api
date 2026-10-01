@@ -10,11 +10,8 @@ run: ## Run function app.
 	@poetry run func start
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} %}
-{%- set first_fn = op_fn[resources[0].operations[0]] ~ '_' ~ (resources[0].name | to_snake) %}
-	@echo "🚀 Running Cloud Function ({{ first_fn }})"
-	@echo "Each function deploys separately. Use 'poetry run functions-framework --target=<function_name> --source=main.py' to run a specific one."
-	@poetry run functions-framework --target={{ first_fn }} --source=main.py --port=8080
+	@echo "🚀 Running the api Cloud Function on http://localhost:8080"
+	@poetry run functions-framework --target=api --source=main.py --port=8080
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 	@echo "🚀 Building and running Lambda API locally via SAM"
@@ -22,10 +19,41 @@ run: ## Run function app.
 	@sam local start-api
 {%- endif %}
 
+{% if cloud_service == 'AWS Lambda' -%}
+.PHONY: build
+build: install ## Build the Lambda package with SAM
+	@echo "🎡 Building the Lambda package"
+	@sam build
+
+# SAM's builder can't read Poetry, so `sam build` runs this target (BuildMethod: makefile).
+# pip runs on the Poetry env's Python so dependency markers match the Lambda runtime.
+LAMBDA_PYTHON = $(shell poetry env info --executable)
+LAMBDA_PLATFORMS := manylinux2014_x86_64 manylinux_2_17_x86_64 manylinux_2_28_x86_64 manylinux_2_34_x86_64
+
+.PHONY: build-{{ project_class_name }}Function
+build-{{ project_class_name }}Function:
+	@poetry export --help >/dev/null 2>&1 && [ -n "$(LAMBDA_PYTHON)" ] || { echo "Run 'make install' first: it creates the Poetry environment and installs the poetry-plugin-export plugin declared in pyproject.toml." >&2; exit 1; }
+	poetry export --only main --format requirements.txt --output "$(ARTIFACTS_DIR)/requirements.txt"
+	"$(LAMBDA_PYTHON)" -m pip install --quiet --disable-pip-version-check --no-compile \
+		--requirement "$(ARTIFACTS_DIR)/requirements.txt" --target "$(ARTIFACTS_DIR)" \
+		--implementation cp --python-version 3.14 --only-binary=:all: \
+		$(addprefix --platform ,$(LAMBDA_PLATFORMS))
+	rm "$(ARTIFACTS_DIR)/requirements.txt"
+	find . -name '*.py' ! -name '*_test.py' ! -name conftest.py ! -path './.*' | while read -r file; do \
+		mkdir -p "$(ARTIFACTS_DIR)/$$(dirname "$$file")" && cp "$$file" "$(ARTIFACTS_DIR)/$$file"; \
+	done
+{%- else -%}
+.PHONY: requirements
+requirements: ## Export the main dependencies from poetry.lock to requirements.txt for deployment
+	@poetry export --help >/dev/null 2>&1 || { echo "Run 'make install' first: it installs the poetry-plugin-export plugin declared in pyproject.toml." >&2; exit 1; }
+	@poetry export --only main --format requirements.txt --output requirements.txt
+	@echo "📦 Wrote requirements.txt"
+
 .PHONY: build
 build: clean-build ## Build wheel file using poetry
 	@echo "🎡 Creating wheel file"
 	@poetry build
+{%- endif %}
 
 .PHONY: clean-build
 clean-build: ## Clean build artifacts

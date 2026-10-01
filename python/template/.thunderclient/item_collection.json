@@ -1,8 +1,7 @@
-{%- set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
 {%- set methods = {'list': 'GET', 'get_by_id': 'GET', 'create': 'POST', 'update': 'PATCH', 'replace': 'PUT', 'delete': 'DELETE'} -%}
 {%- set labels = {'list': 'List', 'get_by_id': 'Get by ID', 'create': 'Create', 'update': 'Update', 'replace': 'Replace', 'delete': 'Delete'} -%}
 {%- set statuses = {'list': '200', 'get_by_id': '200', 'create': '201', 'update': '200', 'replace': '200', 'delete': '200'} -%}
-{%- set bodies = {'create': '{\\n  \\"name\\": \\"Item1\\",\\n  \\"type\\": \\"item\\"\\n}', 'update': '{\\n  \\"name\\": \\"Item1-Update\\"\\n}', 'replace': '{\\n  \\"name\\": \\"Item1-Replace\\",\\n  \\"type\\": \\"item\\"\\n}'} -%}
+{%- set bodies = {'create': '{\\n  \\"name\\": \\"Item1\\"\\n}', 'update': '{\\n  \\"name\\": \\"Item1-Update\\"\\n}', 'replace': '{\\n  \\"name\\": \\"Item1-Replace\\"\\n}'} -%}
 {%- set ns = namespace(sort=0) -%}
 {
     "clientName": "Thunder Client",
@@ -12,6 +11,33 @@
     "version": "1.2",
     "folders": [],
     "requests": [
+{%- if health_endpoint %}
+{%- if cloud_service == 'Azure Function App' %}
+{%- set health_path = '/api/' ~ health_endpoint %}
+{%- else %}
+{%- set health_path = '/' ~ health_endpoint %}
+{%- endif %}
+        {
+            "_id": "health",
+            "colId": "17bc9346-e6fe-4e42-8430-7ad3bb80da7b",
+            "containerId": "",
+            "name": "Health Check",
+            "url": "{{ '{{baseUrl}}' }}{{ health_path }}",
+            "method": "GET",
+            "sortNum": 5000,
+            "created": "2024-08-10T20:25:19.095Z",
+            "modified": "2024-08-10T20:42:18.713Z",
+            "headers": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+{%- endif %}
 {%- for resource in resources %}
 {%- set outer = loop %}
 {%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
@@ -19,8 +45,6 @@
 {%- set ns.sort = ns.sort + 10000 %}
 {%- if cloud_service == 'Azure Function App' %}
 {%- set path = '/api/' ~ resource.endpoint %}
-{%- elif cloud_service == 'GCP Cloud Function' %}
-{%- set path = '/' ~ op_fn[op] ~ '_' ~ (resource.name | to_snake) %}
 {%- else %}
 {%- set path = '/' ~ resource.endpoint %}
 {%- endif %}
@@ -34,7 +58,16 @@
             "sortNum": {{ ns.sort }},
             "created": "2024-08-10T20:25:19.095Z",
             "modified": "2024-08-10T20:42:18.713Z",
+{%- if op in ['create', 'update', 'replace', 'delete'] %}
+            "headers": [
+                {
+                    "name": "X-User-Id",
+                    "value": "local-user"
+                }
+            ],
+{%- else %}
             "headers": [],
+{%- endif %}
 {%- if op in bodies %}
             "body": {
                 "type": "json",

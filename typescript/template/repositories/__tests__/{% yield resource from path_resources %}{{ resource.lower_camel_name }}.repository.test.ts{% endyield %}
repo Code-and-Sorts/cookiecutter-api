@@ -1,0 +1,94 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { {{ r }}Repository, StoreFactory } from '@repositories';
+import { MockFn, mockStore } from '../../test/mocks';
+
+describe('{{ r }}Repository', () => {
+    const opened: string[] = [];
+    const openStore = (name: string) => {
+        opened.push(name);
+        return mockStore();
+    };
+    const mockRepository = new {{ r }}Repository(openStore as unknown as StoreFactory);
+    // Untyped view, since the base methods are protected.
+    const base = mockRepository as unknown as Record<string, MockFn>;
+    const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+    const mockFields = { name: 'mock{{ r }}' };
+    const mockRecord = {
+        id: mockId,
+        ...mockFields,
+        isDeleted: false,
+        createdTimestamp: '2024-03-24T00:00:00.000Z',
+        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+    };
+
+    beforeEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('should open the store named by its container setting', () => {
+        expect(opened).toEqual(['{{ resource.container }}']);
+    });
+
+    it('should expose only its resource operations', () => {
+        const operations = ['create', 'get', 'list', 'update', 'replace', 'delete'];
+        const actual = operations.filter((operation) => typeof base[operation] === 'function');
+{%- set exposed = [] %}
+{%- for op, needed in [('create', 'create' in ops), ('get', 'get_by_id' in ops), ('list', 'list' in ops), ('update', 'update' in ops), ('replace', 'replace' in ops), ('delete', 'delete' in ops)] if needed %}{% set _ = exposed.append(op) %}{% endfor %}
+        expect(actual).toEqual([{% for op in exposed %}'{{ op }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
+    });
+
+    it('should name the resource in not found errors', () => {
+        const error = (base['notFound'] as (id: string) => Error)(mockId);
+        expect(error.message).toEqual(`{{ r }} with id ${mockId} was not found.`);
+    });
+{%- if "create" in ops %}
+
+    it('should delegate create to the base repository', async () => {
+        const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.create(mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockFields, 'mockUser');
+    });
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+    it('should delegate get to the base repository', async () => {
+        const spy = jest.spyOn(base, 'getRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.get(mockId)).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId);
+    });
+{%- endif %}
+{%- if "list" in ops %}
+
+    it('should delegate list to the base repository', async () => {
+        const spy = jest.spyOn(base, 'getRecords').mockResolvedValue([mockRecord]);
+        expect(await mockRepository.list(5)).toEqual([mockRecord]);
+        expect(spy).toHaveBeenCalledWith(5);
+    });
+{%- endif %}
+{%- if "update" in ops %}
+
+    it('should delegate update to the base repository', async () => {
+        const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.update(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
+    });
+{%- endif %}
+{%- if "replace" in ops %}
+
+    it('should delegate replace to the base repository', async () => {
+        const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.replace(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
+    });
+{%- endif %}
+{%- if "delete" in ops %}
+
+    it('should delegate delete to the base repository', async () => {
+        const spy = jest.spyOn(base, 'deleteRecord').mockResolvedValue(undefined);
+        await mockRepository.delete(mockId, 'mockUser');
+        expect(spy).toHaveBeenCalledWith(mockId, 'mockUser');
+    });
+{%- endif %}
+});

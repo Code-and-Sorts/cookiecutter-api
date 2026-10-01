@@ -1,21 +1,32 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: {{project_description}}
+Metadata:
+  cfn-lint:
+    config:
+      # SAM's generated usage plan resources carry a redundant DependsOn.
+      ignore_checks:
+        - W3005
 Globals:
   Function:
     Timeout: 30
     Runtime: dotnet10
     MemorySize: 256
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
 Resources:
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 {%- set cn = resource.name %}
-{%- set tableRef = resource.container | to_camel %}
-{%- set tableEnv = 'DYNAMODB_TABLE_NAME_' ~ (resource.container | upper | replace('-', '_')) %}
+{%- set tableRef = resource.container_class %}
+{%- set tableEnv = 'DYNAMODB_TABLE_NAME_' ~ resource.env_key %}
 {%- if "get_by_id" in resource.operations %}
   Get{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Get{{ cn }}_Generated::Get{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Get{{ cn }}_Generated::Get{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -27,14 +38,14 @@ Resources:
         GetById:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: GET
 {%- endif %}
 {%- if "list" in resource.operations %}
   Get{{ cn }}ListFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Get{{ cn }}List_Generated::Get{{ cn }}List
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Get{{ cn }}List_Generated::Get{{ cn }}List
       CodeUri: ./
       Environment:
         Variables:
@@ -46,14 +57,14 @@ Resources:
         GetList:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}
+            Path: /{{ resource.endpoint }}
             Method: GET
 {%- endif %}
 {%- if "create" in resource.operations %}
   Create{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Create{{ cn }}_Generated::Create{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Create{{ cn }}_Generated::Create{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -65,14 +76,14 @@ Resources:
         Create:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}
+            Path: /{{ resource.endpoint }}
             Method: POST
 {%- endif %}
 {%- if "update" in resource.operations %}
   Update{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Update{{ cn }}_Generated::Update{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Update{{ cn }}_Generated::Update{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -84,14 +95,14 @@ Resources:
         Update:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: PATCH
 {%- endif %}
 {%- if "replace" in resource.operations %}
   Replace{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Replace{{ cn }}_Generated::Replace{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Replace{{ cn }}_Generated::Replace{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -103,14 +114,14 @@ Resources:
         Replace:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: PUT
 {%- endif %}
 {%- if "delete" in resource.operations %}
   Delete{{ cn }}Function:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Delete{{ cn }}_Generated::Delete{{ cn }}
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.{{ cn }}Functions_Delete{{ cn }}_Generated::Delete{{ cn }}
       CodeUri: ./
       Environment:
         Variables:
@@ -122,26 +133,30 @@ Resources:
         Delete:
           Type: Api
           Properties:
-            Path: /api/{{ resource.endpoint }}/{id}
+            Path: /{{ resource.endpoint }}/{id}
             Method: DELETE
 {%- endif %}
 {%- endfor %}
+{%- if health_endpoint %}
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.ItemFunctions_Health_Generated::Health
+      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.HealthFunctions_Health_Generated::Health
       CodeUri: ./
       Events:
         Health:
           Type: Api
           Properties:
-            Path: /api/health
+            Path: /{{ health_endpoint }}
             Method: GET
-{%- for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}Table:
+            Auth:
+              ApiKeyRequired: false
+{%- endif %}
+{%- for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: {{ container }}
+      TableName: {{ c.container }}
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -153,9 +168,12 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/"
-{%- for container in resources | map(attribute='container') | unique %}
-  {{ container | to_camel }}TableName:
-    Description: DynamoDB table name for the {{ container }} container
-    Value: !Ref {{ container | to_camel }}Table
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  ApiKeyId:
+    Description: API key id; read its value with aws apigateway get-api-key --api-key <id> --include-value --query value --output text
+    Value: !Ref ServerlessRestApiApiKey
+{%- for c in path_resources | unique(attribute='container') %}
+  {{ c.container_class }}TableName:
+    Description: DynamoDB table name for the {{ c.container }} container
+    Value: !Ref {{ c.container_class }}Table
 {%- endfor %}

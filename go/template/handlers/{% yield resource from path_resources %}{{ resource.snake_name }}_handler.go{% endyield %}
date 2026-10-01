@@ -1,0 +1,122 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set ep = resource.endpoint -%}
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
+package handlers
+
+import (
+{%- if cloud_service == 'AWS Lambda' %}
+	"context"
+{%- endif %}
+	"net/http"
+{%- if 'list' in ops %}
+	"strconv"
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' and resource.has_body %}
+	"strings"
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+
+	"github.com/aws/aws-lambda-go/events"
+{%- endif %}
+
+	"{{project_endpoint}}/controllers"
+)
+{%- if cloud_service != 'AWS Lambda' %}
+
+func Register{{ r }}Routes(mux *http.ServeMux, controller controllers.{{ r }}Controller) {
+{%- if "list" in ops %}
+	mux.HandleFunc("GET {{ route_prefix }}/{{ ep }}", func(w http.ResponseWriter, r *http.Request) {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		serve(w, r, http.StatusOK, func() (any, error) { return controller.GetList(r.Context(), limit) })
+	})
+{%- endif %}
+{%- if "get_by_id" in ops %}
+	mux.HandleFunc("GET {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
+		serve(w, r, http.StatusOK, func() (any, error) { return controller.Get(r.Context(), r.PathValue("id")) })
+	})
+{%- endif %}
+{%- if "create" in ops %}
+	mux.HandleFunc("POST {{ route_prefix }}/{{ ep }}", func(w http.ResponseWriter, r *http.Request) {
+		serve(w, r, http.StatusCreated, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Create(r.Context(), userID, r.Body)
+		}))
+	})
+{%- endif %}
+{%- if "update" in ops %}
+	mux.HandleFunc("PATCH {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
+		serve(w, r, http.StatusOK, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Update(r.Context(), r.PathValue("id"), userID, r.Body)
+		}))
+	})
+{%- endif %}
+{%- if "replace" in ops %}
+	mux.HandleFunc("PUT {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
+		serve(w, r, http.StatusOK, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Replace(r.Context(), r.PathValue("id"), userID, r.Body)
+		}))
+	})
+{%- endif %}
+{%- if "delete" in ops %}
+	mux.HandleFunc("DELETE {{ route_prefix }}/{{ ep }}/{id}", func(w http.ResponseWriter, r *http.Request) {
+		serve(w, r, http.StatusOK, withUserID(r.Header, func(userID string) (any, error) {
+			return controller.Delete(r.Context(), r.PathValue("id"), userID)
+		}))
+	})
+{%- endif %}
+	mux.HandleFunc("{{ route_prefix }}/{{ ep }}", methodNotAllowed)
+	mux.HandleFunc("{{ route_prefix }}/{{ ep }}/{id}", methodNotAllowed)
+}
+{%- else %}
+
+func Register{{ r }}Routes(router *Router, controller controllers.{{ r }}Controller) {
+	handler := handle{{ r }}(controller)
+	router.Handle("/{{ ep }}", handler)
+	router.Handle("/{{ ep }}/{id}", handler)
+}
+
+func handle{{ r }}(controller controllers.{{ r }}Controller) RouteHandler {
+	return func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+{%- if resource.has_id %}
+		id := request.PathParameters["id"]
+{% endif %}
+		switch request.HTTPMethod + " " + request.Resource {
+{%- if "list" in ops %}
+		case "GET /{{ ep }}":
+			limit, _ := strconv.Atoi(request.QueryStringParameters["limit"])
+			return serve(ctx, http.StatusOK, func() (any, error) { return controller.GetList(ctx, limit) })
+{%- endif %}
+{%- if "get_by_id" in ops %}
+		case "GET /{{ ep }}/{id}":
+			return serve(ctx, http.StatusOK, func() (any, error) { return controller.Get(ctx, id) })
+{%- endif %}
+{%- if "create" in ops %}
+		case "POST /{{ ep }}":
+			return serve(ctx, http.StatusCreated, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Create(ctx, userID, strings.NewReader(request.Body))
+			}))
+{%- endif %}
+{%- if "update" in ops %}
+		case "PATCH /{{ ep }}/{id}":
+			return serve(ctx, http.StatusOK, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Update(ctx, id, userID, strings.NewReader(request.Body))
+			}))
+{%- endif %}
+{%- if "replace" in ops %}
+		case "PUT /{{ ep }}/{id}":
+			return serve(ctx, http.StatusOK, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Replace(ctx, id, userID, strings.NewReader(request.Body))
+			}))
+{%- endif %}
+{%- if "delete" in ops %}
+		case "DELETE /{{ ep }}/{id}":
+			return serve(ctx, http.StatusOK, withUserID(request.Headers, func(userID string) (any, error) {
+				return controller.Delete(ctx, id, userID)
+			}))
+{%- endif %}
+		default:
+			return methodNotAllowed()
+		}
+	}
+}
+{%- endif %}

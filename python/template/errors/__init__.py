@@ -1,3 +1,3 @@
-from .errors import NotFoundError, ValidationError, ProxyError, BaseError
+from .errors import BaseError, MethodNotAllowedError, NotFoundError, ValidationError
 
-__all__ = ["NotFoundError","ValidationError","ProxyError","BaseError"]
+__all__ = ["BaseError", "MethodNotAllowedError", "NotFoundError", "ValidationError"]

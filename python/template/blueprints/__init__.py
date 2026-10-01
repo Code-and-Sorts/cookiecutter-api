@@ -1,13 +1,45 @@
-{% if cloud_service == 'Azure Function App' -%}
-from .api import bp
+{%- if cloud_service == 'Azure Function App' -%}
+from . import (
+{%- if health_endpoint %}
+    health,
+{%- endif %}
+{%- for resource in resources %}
+    {{ resource.name | to_snake }},
+{%- endfor %}
+)
 
-__all__ = ["bp"]
+BLUEPRINTS = [
+{%- if health_endpoint %}
+    health.bp,
 {%- endif %}
-{% if cloud_service == 'GCP Cloud Function' -%}
-# GCP Cloud Functions don't use blueprints, see main.py for function exports
-__all__ = []
+{%- for resource in resources %}
+    {{ resource.name | to_snake }}.bp,
+{%- endfor %}
+]
+
+__all__ = ["BLUEPRINTS"]
+{%- else -%}
+from . import (
+{%- if health_endpoint %}
+    health,
 {%- endif %}
-{% if cloud_service == 'AWS Lambda' -%}
-# AWS Lambda doesn't use blueprints, see lambda_app.py for function routing
-__all__ = []
+{%- for resource in resources %}
+    {{ resource.name | to_snake }},
+{%- endfor %}
+)
+
+# endpoint (first path segment) -> (HTTP method, path has an item id) -> handler
+ROUTES = {
+    module.ENDPOINT: module.ROUTES
+    for module in (
+{%- if health_endpoint %}
+        health,
+{%- endif %}
+{%- for resource in resources %}
+        {{ resource.name | to_snake }},
+{%- endfor %}
+    )
+}
+
+__all__ = ["ROUTES"]
 {%- endif %}

@@ -1,0 +1,43 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+namespace {{project_class_name}}.Api.Repositories;
+{% if "list" in ops %}
+using System.Collections.Generic;
+{%- endif %}
+using System.Threading;
+using System.Threading.Tasks;
+using {{project_class_name}}.Api.Dtos;
+using {{project_class_name}}.Api.Entities;
+using {{project_class_name}}.Api.Interfaces;
+
+public class {{ r }}Repository(IDocumentStore<{{ r }}Entity> store)
+    : EntityRepository<{{ r }}Entity, {{ r }}Dto>(store, "{{ r }}"), I{{ r }}Repository
+{
+    protected override {{ r }}Dto ToDto({{ r }}Entity item) => new() { Id = item.Id, Name = item.Name };
+{%- if "get_by_id" in ops %}
+
+    public Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => GetDtoAsync(id, ct);
+{%- endif %}
+{%- if "list" in ops %}
+
+    public Task<IEnumerable<{{ r }}Dto>> GetListAsync(int limit, CancellationToken ct = default) => ListAsync(limit, ct);
+{%- endif %}
+{%- if "create" in ops %}
+
+    public Task<{{ r }}Dto> CreateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) => InsertAsync(item, userId, ct);
+{%- endif %}
+{%- if "update" in ops %}
+
+    public Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) =>
+        MergeAsync(item, (current, changes) => current.Name = changes.Name ?? current.Name, userId, ct);
+{%- endif %}
+{%- if "replace" in ops %}
+
+    public Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) =>
+        MergeAsync(item, (current, changes) => current.Name = changes.Name, userId, ct);
+{%- endif %}
+{%- if "delete" in ops %}
+
+    public Task DeleteAsync(string id, string? userId, CancellationToken ct = default) => SoftDeleteAsync(id, userId, ct);
+{%- endif %}
+}

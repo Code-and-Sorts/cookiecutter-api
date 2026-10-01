@@ -1,0 +1,178 @@
+{%- set r = resource.name -%}
+package services
+
+import (
+	"context"
+	"testing"
+{%- if resource.has_body or 'get_by_id' in resource.operations or 'list' in resource.operations %}
+
+	"{{project_endpoint}}/models"
+{%- endif %}
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+type mock{{ r }}Repository struct {
+	mock.Mock
+}
+{%- if "get_by_id" in resource.operations %}
+
+func (m *mock{{ r }}Repository) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+func (m *mock{{ r }}Repository) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
+	args := m.Called(ctx, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+func (m *mock{{ r }}Repository) Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, item, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+func (m *mock{{ r }}Repository) Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, item, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+func (m *mock{{ r }}Repository) Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
+	args := m.Called(ctx, item, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
+}
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+func (m *mock{{ r }}Repository) Delete(ctx context.Context, id, userID string) error {
+	args := m.Called(ctx, id, userID)
+	return args.Error(0)
+}
+{%- endif %}
+
+func setup{{ r }}ServiceTest() (*mock{{ r }}Repository, {{ r }}Service) {
+	mockRepo := new(mock{{ r }}Repository)
+	service := New{{ r }}Service(mockRepo)
+	return mockRepo, service
+}
+{%- if "get_by_id" in resource.operations %}
+
+func TestGet{{ r }}_ShouldReturn{{ r }}Dto(t *testing.T) {
+	mockRepo, service := setup{{ r }}ServiceTest()
+	id := "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+	expected := &models.{{ r }}Dto{Id: id, Name: "mock{{ r }}"}
+	mockRepo.On("Get", mock.Anything, id).Return(expected, nil)
+
+	result, err := service.Get(context.Background(), id)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockRepo.AssertExpectations(t)
+}
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+func TestGet{{ r }}List_ShouldReturnListOf{{ r }}Dto(t *testing.T) {
+	mockRepo, service := setup{{ r }}ServiceTest()
+	expected := []models.{{ r }}Dto{
+		{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mock{{ r }}1"},
+		{Id: "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name: "mock{{ r }}2"},
+	}
+	mockRepo.On("GetList", mock.Anything, 50).Return(expected, nil)
+
+	result, err := service.GetList(context.Background(), 50)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockRepo.AssertExpectations(t)
+}
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+func TestCreate{{ r }}_ShouldReturnCreated{{ r }}Dto(t *testing.T) {
+	mockRepo, service := setup{{ r }}ServiceTest()
+	createRequest := models.Create{{ r }}Request{Name: "mockCreate{{ r }}"}
+	expected := &models.{{ r }}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockCreate{{ r }}"}
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("models.{{ r }}"), "alice").Return(expected, nil)
+
+	result, err := service.Create(context.Background(), createRequest, "alice")
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockRepo.AssertExpectations(t)
+
+	stored := mockRepo.Calls[0].Arguments.Get(1).(models.{{ r }})
+	assert.Len(t, stored.Id, 36)
+	assert.Equal(t, "mockCreate{{ r }}", stored.Name)
+	assert.False(t, stored.IsDeleted)
+	assert.Equal(t, stored.CreatedTimestamp, stored.UpdatedTimestamp)
+	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$`, stored.CreatedTimestamp)
+}
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+func TestUpdate{{ r }}_ShouldReturnUpdated{{ r }}Dto(t *testing.T) {
+	mockRepo, service := setup{{ r }}ServiceTest()
+	updateRequest := models.Update{{ r }}Request{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockUpdate{{ r }}"}
+	expected := &models.{{ r }}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockUpdate{{ r }}"}
+	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("models.{{ r }}"), "alice").Return(expected, nil)
+
+	result, err := service.Update(context.Background(), updateRequest, "alice")
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockRepo.AssertExpectations(t)
+}
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+func TestReplace{{ r }}_ShouldReturnReplaced{{ r }}Dto(t *testing.T) {
+	mockRepo, service := setup{{ r }}ServiceTest()
+	replaceRequest := models.Replace{{ r }}Request{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockReplace{{ r }}"}
+	expected := &models.{{ r }}Dto{Id: "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name: "mockReplace{{ r }}"}
+	mockRepo.On("Replace", mock.Anything, mock.AnythingOfType("models.{{ r }}"), "alice").Return(expected, nil)
+
+	result, err := service.Replace(context.Background(), replaceRequest, "alice")
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+	mockRepo.AssertExpectations(t)
+}
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+func TestDelete{{ r }}_ShouldCallRepositoryDelete(t *testing.T) {
+	mockRepo, service := setup{{ r }}ServiceTest()
+	id := "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+	mockRepo.On("Delete", mock.Anything, id, "alice").Return(nil)
+
+	err := service.Delete(context.Background(), id, "alice")
+
+	assert.NoError(t, err)
+	mockRepo.AssertCalled(t, "Delete", mock.Anything, id, "alice")
+}
+{%- endif %}

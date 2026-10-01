@@ -1,0 +1,69 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+namespace {{project_class_name}}.Api.Handlers;
+
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
+
+public class {{ r }}Handler(I{{ r }}Controller controller) : IResourceHandler
+{
+    private readonly I{{ r }}Controller _controller = controller;
+
+    public string Endpoint => "{{ resource.endpoint }}";
+
+    public async Task HandleAsync(HttpContext context, string? id)
+    {
+        var request = context.Request;
+        var response = context.Response;
+        var ct = context.RequestAborted;
+
+        switch (request.Method, id)
+        {
+{%- if "get_by_id" in ops %}
+            case ("GET", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.GetAsync(itemId, ct), ct);
+                return;
+{%- endif %}
+{%- if "list" in ops %}
+            case ("GET", null):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.GetListAsync(request.Query["limit"].ToString(), ct), ct);
+                return;
+{%- endif %}
+{%- if "create" in ops %}
+            case ("POST", null):
+                await response.WriteJsonAsync(StatusCodes.Status201Created, await _controller.CreateAsync(request.Body, UserIds.From(request), ct), ct);
+                return;
+{%- endif %}
+{%- if "update" in ops %}
+            case ("PATCH", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.UpdateAsync(itemId, request.Body, UserIds.From(request), ct), ct);
+                return;
+{%- endif %}
+{%- if "replace" in ops %}
+            case ("PUT", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.ReplaceAsync(itemId, request.Body, UserIds.From(request), ct), ct);
+                return;
+{%- endif %}
+{%- if "delete" in ops %}
+            case ("DELETE", string itemId):
+                await response.WriteJsonAsync(StatusCodes.Status200OK, await _controller.DeleteAsync(itemId, UserIds.From(request), ct), ct);
+                return;
+{%- endif %}
+{%- if not resource.has_collection %}
+            case (_, null):
+{%- endif %}
+{%- if not resource.has_item %}
+            case (_, not null):
+{%- endif %}
+{%- if not (resource.has_collection and resource.has_item) %}
+                await response.WriteErrorAsync(StatusCodes.Status404NotFound, ErrorMessages.NotFound, ct);
+                return;
+{%- endif %}
+            default:
+                await response.WriteErrorAsync(StatusCodes.Status405MethodNotAllowed, ErrorMessages.MethodNotAllowed, ct);
+                return;
+        }
+    }
+}

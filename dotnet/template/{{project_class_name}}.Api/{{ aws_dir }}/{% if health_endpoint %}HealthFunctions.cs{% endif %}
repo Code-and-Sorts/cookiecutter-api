@@ -1,0 +1,14 @@
+namespace {{project_class_name}}.Api.Functions;
+
+using Amazon.Lambda.Annotations;
+using Amazon.Lambda.APIGatewayEvents;
+using {{project_class_name}}.Api.Utils;
+
+public class HealthFunctions
+{
+    private const string Route = "/{{ health_endpoint }}";
+
+    [LambdaFunction(ResourceName = "HealthFunction")]
+    public APIGatewayProxyResponse Health(APIGatewayProxyRequest request) =>
+        RouteGuard.Check(request, "GET", Route) ?? ResponseHelper.Ok(new { status = "ok" });
+}

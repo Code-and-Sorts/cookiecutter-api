@@ -1,23 +1,25 @@
 class BaseError(Exception):
-    def __init__(self, message: str):
-        self.status_code: int = 500
-        self.type: str = "UnknownError"
-        super().__init__(message)
+    status_code: int = 500
+    default_message: str = "An unexpected error occurred."
 
-class NotFoundError(BaseError):
-    def __init__(self, message: str = "Item Not Found."):
-        super().__init__(message)
-        self.status_code = 404
-        self.type = "NotFoundError"
+    def __init__(self, message: str | None = None):
+        super().__init__(message or self.default_message)
+
 
 class ValidationError(BaseError):
-    def __init__(self, message: str = "Validation Error."):
-        super().__init__(message)
-        self.status_code = 422
-        self.type = "ValidationError"
+    status_code = 400
+    default_message = "The request is invalid."
 
-class ProxyError(BaseError):
-    def __init__(self, message: str = "Proxy Error."):
-        super().__init__(message)
-        self.status_code = 502
-        self.type = "ProxyError"
+
+class NotFoundError(BaseError):
+    status_code = 404
+    default_message = "Not found."
+
+    @classmethod
+    def for_item(cls, resource: str, item_id: str | None) -> "NotFoundError":
+        return cls(f"{resource} with id {item_id} was not found.")
+
+
+class MethodNotAllowedError(BaseError):
+    status_code = 405
+    default_message = "Method not allowed."

@@ -1,0 +1,64 @@
+// Package function is the Cloud Run function; deploy it with --entry-point api.
+package function
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"os"
+
+	"cloud.google.com/go/firestore"
+	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
+
+	"{{project_endpoint}}/controllers"
+	"{{project_endpoint}}/handlers"
+	"{{project_endpoint}}/repositories"
+	"{{project_endpoint}}/services"
+	"{{project_endpoint}}/utils"
+)
+
+func init() {
+	slog.SetDefault(utils.NewLogger())
+	functions.HTTP("api", newAPI().ServeHTTP)
+}
+
+func newAPI() http.Handler {
+	validator, err := services.NewSchemaValidator(controllers.RequestSchemas())
+	exitOnError("Failed to initialize schema validator", err)
+	client := newFirestoreClient()
+
+	router := handlers.NewRouter()
+{%- if health_endpoint %}
+	handlers.RegisterHealthRoute(router)
+{%- endif %}
+{%- for resource in path_resources %}
+	{
+		collection := client.Collection(utils.Getenv("FIRESTORE_COLLECTION_{{ resource.env_key }}", "{{ resource.container }}"))
+		repository := repositories.New{{ resource.name }}Repository(collection)
+		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
+		handlers.Register{{ resource.name }}Routes(router, controller)
+	}
+{%- endfor %}
+
+	return handlers.Middleware(router)
+}
+
+func newFirestoreClient() *firestore.Client {
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		exitOnError("Missing settings", errors.New("GCP_PROJECT_ID is required"))
+	}
+	databaseName := utils.Getenv("FIRESTORE_DATABASE", firestore.DefaultDatabaseID)
+
+	client, err := firestore.NewClientWithDatabase(context.Background(), projectID, databaseName)
+	exitOnError("Failed to create Firestore client", err)
+	return client
+}
+
+func exitOnError(message string, err error) {
+	if err != nil {
+		slog.Error(message, "error", err)
+		os.Exit(1)
+	}
+}

@@ -1,21 +1,19 @@
+# `yield` in file paths needs Copier 9.18.2+.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
 
-# Render every file as a template (Cookiecutter-style) instead of requiring a
-# .jinja suffix on each file.
+# Render every file as a template, without a .jinja suffix.
 _templates_suffix: ""
 
-# The template content lives in template/; its contents are rendered directly
-# into the destination directory.
 _subdirectory: template
 
 project_name:
   type: str
   default: "Cookiecutter API"
-  # Validation runs against the values derived from the project name. Copier
-  # only evaluates validators for prompted questions, so the checks that
-  # Cookiecutter's pre_gen hook ran on the derived names live here.
+  # Copier only runs validators for prompted questions, so derived names are checked here.
   validator: >-
     {%- set project_lower_camel_name = project_name | to_lower_camel -%}
     {%- set project_class_name = project_name | to_camel -%}
@@ -55,7 +53,6 @@ open_source_license:
     - "GNU General Public License v3"
     - "Not open source"
 
-# ---- Derived values (never prompted) ----
 project_lower_camel_name:
   type: str
   when: false
@@ -71,20 +68,26 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
-# ---- REST resources ----
-# A list of resources to generate. Each resource gets its own URL endpoint, a
-# storage container (resources sharing a container id share storage), and a
-# chosen subset of operations. The default is a single resource matching the
-# project name with today's CRUD behaviour, so answering only project_name
-# reproduces the original single-resource project.
+health_endpoint:
+  type: str
+  default: "health"
+  help: >-
+    URL segment for the health check (kebab-case); leave empty to generate no
+    health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    Health endpoint '{{ health_endpoint }}' must be empty or a kebab-case URL segment.
+    {%- endif -%}
+
 resources:
   type: yaml
   multiline: true
   help: >-
     Resources to generate. Each item: name (PascalCase), endpoint (kebab-case URL
     segment), container (storage id; equal ids share storage), operations (subset of
-    list, get_by_id, create, update, replace, delete). The endpoint "health" and the
-    names Health, BaseEntity, BaseError, NotFoundError and ValidationError are reserved.
+    list, get_by_id, create, update, replace, delete). The health_endpoint segment and
+    the names Health, BaseEntity, BaseError, NotFoundError and ValidationError are
+    reserved.
   default: |
     - name: "{{ project_class_name }}"
       endpoint: "{{ project_endpoint }}"
@@ -93,7 +96,6 @@ resources:
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
     {%- set reserved_names = ["Health", "BaseEntity", "BaseError", "NotFoundError", "ValidationError"] -%}
-    {%- set reserved_endpoints = ["health"] -%}
     {%- set ns = namespace(err="", eps=[], names=[], lnames=[], containers=[], clash="") -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
@@ -110,7 +112,7 @@ resources:
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
-    {%- elif r.endpoint in reserved_endpoints -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
     {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
     {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
@@ -142,3 +144,18 @@ resources:
     {%- endfor -%}
     {%- endif -%}
     {{ ns.err }}
+
+# Git for Windows cannot check out paths containing "|", so templates read precomputed values from this copy.
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {{ dict(r,
+    snake_name=(r.name | to_snake),
+    lower_camel_name=(r.name | to_lower_camel),
+    env_key=(r.container | string | upper | replace('-', '_')),
+    container_class=(r.container | string | to_camel),
+    has_id=(r.operations | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list | length > 0),
+    has_body=(r.operations | select('in', ['create', 'update', 'replace']) | list | length > 0)) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

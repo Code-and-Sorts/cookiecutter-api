@@ -1,0 +1,38 @@
+{%- set r = resource.name -%}
+namespace {{project_class_name}}.Api.Interfaces;
+
+{% if "list" in resource.operations -%}
+using System.Collections.Generic;
+{% endif -%}
+{% if resource.has_body -%}
+using System.IO;
+{% endif -%}
+using System.Threading;
+using System.Threading.Tasks;
+{% if resource.has_dto -%}
+using {{project_class_name}}.Api.Dtos;
+{% endif -%}
+{% if "delete" in resource.operations -%}
+using {{project_class_name}}.Api.Utils;
+{% endif %}
+public interface I{{ r }}Controller
+{
+{%- if "get_by_id" in resource.operations %}
+    Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default);
+{%- endif %}
+{%- if "list" in resource.operations %}
+    Task<IEnumerable<{{ r }}Dto>> GetListAsync(string? limit = null, CancellationToken ct = default);
+{%- endif %}
+{%- if "create" in resource.operations %}
+    Task<{{ r }}Dto> CreateAsync(Stream item, string? userId, CancellationToken ct = default);
+{%- endif %}
+{%- if "update" in resource.operations %}
+    Task<{{ r }}Dto> UpdateAsync(string id, Stream item, string? userId, CancellationToken ct = default);
+{%- endif %}
+{%- if "replace" in resource.operations %}
+    Task<{{ r }}Dto> ReplaceAsync(string id, Stream item, string? userId, CancellationToken ct = default);
+{%- endif %}
+{%- if "delete" in resource.operations %}
+    Task<DeleteOkObjectResult> DeleteAsync(string id, string? userId, CancellationToken ct = default);
+{%- endif %}
+}

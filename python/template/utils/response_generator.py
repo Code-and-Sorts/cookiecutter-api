@@ -1,32 +1,34 @@
 import json
-{% if cloud_service == 'Azure Function App' -%}
+{%- if cloud_service == 'Azure Function App' %}
 from azure.functions import HttpResponse
 {%- endif %}
 from pydantic import BaseModel
 
-def response_generator(items: BaseModel | list, status_code: int = 200):
-{%- if cloud_service == 'GCP Cloud Function' %}
-    headers = {'Content-Type': 'application/json'}
-{%- endif %}
+JSON_CONTENT_TYPE = "application/json"
 
-    if isinstance(items, list):
-        if not items:
-            body = json.dumps([])
-        else:
-            body = json.dumps([item.model_dump() for item in items])
-    else:
-        body = json.dumps(items.model_dump())
 
+def _plain(value):
+    return value.model_dump() if isinstance(value, BaseModel) else value
+
+
+def to_json(payload) -> str:
+    if isinstance(payload, list):
+        return json.dumps([_plain(item) for item in payload])
+    return json.dumps(_plain(payload))
+
+
+def response_generator(payload, status_code: int = 200):
+    body = to_json(payload)
 {%- if cloud_service == 'Azure Function App' %}
-    return HttpResponse(body=body, status_code=status_code)
+    return HttpResponse(body=body, status_code=status_code, mimetype=JSON_CONTENT_TYPE)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    return (body, status_code, headers)
+    return (body, status_code, {"Content-Type": JSON_CONTENT_TYPE})
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {"Content-Type": JSON_CONTENT_TYPE},
         "body": body
     }
 {%- endif %}

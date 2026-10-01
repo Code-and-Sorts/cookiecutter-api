@@ -1,21 +1,19 @@
+# The {% yield %} path tag needs Copier 9.18.2+.
+_min_copier_version: "9.18.2"
+
 _jinja_extensions:
   - jinja2_strcase.StrcaseExtension
   - jinja2_time.TimeExtension
 
-# Render every file as a template (Cookiecutter-style) instead of requiring a
-# .jinja suffix on each file.
+# Render every file as a template, not only *.jinja files.
 _templates_suffix: ""
 
-# The template content lives in template/; its contents are rendered directly
-# into the destination directory.
 _subdirectory: template
 
 project_name:
   type: str
   default: "Cookiecutter API"
-  # Validation runs against the values derived from the project name. Copier
-  # only evaluates validators for prompted questions, so the checks that
-  # Cookiecutter's pre_gen hook ran on the derived slug/endpoint/class live here.
+  # Copier skips validators on derived (when: false) values, so check them here.
   validator: >-
     {%- set project_slug = project_name.lower().replace(' ', '_') -%}
     {%- set project_endpoint = project_name.lower().replace(' ', '-') -%}
@@ -55,7 +53,6 @@ open_source_license:
     - "GNU General Public License v3"
     - "Not open source"
 
-# ---- Derived values (never prompted) ----
 project_slug:
   type: str
   when: false
@@ -71,12 +68,15 @@ project_class_name:
   when: false
   default: "{{ project_name | to_camel }}"
 
-# ---- REST resources ----
-# A list of resources to generate. Each resource gets its own URL endpoint, a
-# storage container (resources sharing a container id share storage), and a
-# chosen subset of operations. The default is a single resource matching the
-# project name with today's CRUD behaviour, so answering only project_name
-# reproduces the original single-resource project.
+health_endpoint:
+  type: str
+  default: "health"
+  help: URL segment for the health check; leave empty to generate no health check.
+  validator: >-
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    The health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
+    {%- endif -%}
+
 resources:
   type: yaml
   multiline: true
@@ -91,13 +91,25 @@ resources:
       operations: ["list", "get_by_id", "create", "update", "delete"]
   validator: >-
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
-    {%- set reserved_names = ["Health", "List", "Optional", "BaseModel", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
-    {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[]) -%}
+    {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
+    {#- Reject names whose generated identifiers collide, e.g. Cat and BaseCat. -#}
+    {%- set generated_prefixes = ["Base"] -%}
+    {%- set generated_suffixes = ["Controller", "Repository", "Response", "Service", "Update"] -%}
+    {%- set ns = namespace(err="", eps=[], names=[], name_keys=[], containers=[], container_keys=[], idents={}, own=[], clash="") -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
     {%- else -%}
     {%- for r in resources -%}
     {%- if not ns.err -%}
+    {%- set rname = r.name | default('') | string -%}
+    {%- set ns.own = [rname] -%}
+    {%- for p in generated_prefixes -%}{%- set ns.own = ns.own + [p ~ rname] -%}{%- endfor -%}
+    {%- for s in generated_suffixes -%}{%- set ns.own = ns.own + [rname ~ s] -%}{%- endfor -%}
+    {%- set ns.clash = "" -%}
+    {%- for i in ns.own if not ns.clash and i in ns.idents -%}
+    {%- set ns.clash = i -%}
+    {%- endfor -%}
     {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
@@ -110,10 +122,14 @@ resources:
     {%- set ns.err = "Resource '" ~ r.name ~ "' has an invalid operation. Allowed: " ~ (valid_ops | join(', ')) ~ "." -%}
     {%- elif (r.operations | unique | list | length) != (r.operations | length) -%}
     {%- set ns.err = "Resource '" ~ r.name ~ "' lists an operation more than once." -%}
-    {%- elif r.endpoint == "health" -%}
-    {%- set ns.err = "Resource endpoint 'health' is reserved for the health check." -%}
+    {%- elif health_endpoint and r.endpoint == health_endpoint -%}
+    {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
+    {%- elif (r.name | to_snake) in python_keywords -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
+    {%- elif ns.clash and ns.idents[ns.clash] != r.name -%}
+    {%- set ns.err = "Resource names '" ~ ns.idents[ns.clash] ~ "' and '" ~ r.name ~ "' both generate the Python name '" ~ ns.clash ~ "' (generated names add the prefix " ~ (generated_prefixes | join(', ')) ~ " or a suffix: " ~ (generated_suffixes | join(', ')) ~ "). Rename one of them." -%}
     {%- elif r.endpoint in ns.eps -%}
     {%- set ns.err = "Duplicate endpoint '" ~ r.endpoint ~ "'." -%}
     {%- elif r.name in ns.names -%}
@@ -126,9 +142,23 @@ resources:
     {%- set ns.eps = ns.eps + [r.endpoint] -%}
     {%- set ns.names = ns.names + [r.name] -%}
     {%- set ns.name_keys = ns.name_keys + [r.name | lower, r.name | to_snake, r.name | to_lower_camel] -%}
+    {%- for i in ns.own if i not in ns.idents -%}
+    {%- set ns.idents = dict(ns.idents, **{i: r.name}) -%}
+    {%- endfor -%}
     {%- set ns.containers = ns.containers + [r.container] -%}
     {%- set ns.container_keys = ns.container_keys + [r.container | lower | replace('-', '_')] -%}
     {%- endif -%}
     {%- endfor -%}
     {%- endif -%}
     {{ ns.err }}
+
+# Git for Windows can't check out paths containing "|", so paths yield from this
+# copy of `resources`, which adds the derived names, instead of using filters.
+path_resources:
+  type: yaml
+  when: false
+  default: >-
+    [{%- for r in resources -%}
+    {%- set container_key = r.container | replace('-', '_') -%}
+    {{ dict(r, snake_name=(r.name | to_snake), lower_camel_name=(r.name | to_lower_camel), container_key=container_key, env_key=(container_key | lower), env_name=(container_key | upper), table_id=(r.container | to_camel)) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}]

@@ -1,0 +1,63 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set with_id = ('get_by_id' in ops) or ('update' in ops) or ('replace' in ops) or ('delete' in ops) -%}
+{%- set with_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
+{%- from '_macros.jinja' import model_names -%}
+{%- set models = model_names(resource) -%}
+{%- set helpers = [] -%}
+{%- if with_body %}{% set _ = helpers.append('parse_body') %}{% endif -%}
+{%- if with_id %}{% set _ = helpers.append('require_uuid') %}{% endif -%}
+{% if 'list' in ops -%}
+from typing import List
+{% endif -%}
+{% if models -%}
+from models import {{ models }}
+{% endif -%}
+from services import {{ r }}Service
+{%- if 'list' in ops %}
+from .pagination import coerce_limit
+{%- endif %}
+{%- if helpers %}
+from .validation import {{ helpers | join(', ') }}
+{%- endif %}
+
+RESOURCE = "{{ r }}"
+
+
+class {{ r }}Controller:
+    def __init__(self, service: {{ r }}Service):
+        self.service = service
+{%- if "get_by_id" in ops %}
+
+    async def get_by_id(self, item_id: str | None) -> {{ r }}Response:
+        return await self.service.get_by_id(require_uuid(item_id, RESOURCE))
+{%- endif %}
+{%- if "list" in ops %}
+
+    async def get_list(self, limit: str | None = None) -> List[{{ r }}Response]:
+        return await self.service.get_list(coerce_limit(limit))
+{%- endif %}
+{%- if "create" in ops %}
+
+    async def create(self, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
+        return await self.service.create(parse_body(body, Base{{ r }}), user_id)
+{%- endif %}
+{%- if "update" in ops %}
+
+    async def update(self, item_id: str | None, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
+        item_id = require_uuid(item_id, RESOURCE)
+        return await self.service.update(item_id, parse_body(body, {{ r }}Update), user_id)
+{%- endif %}
+{%- if "replace" in ops %}
+
+    async def replace(self, item_id: str | None, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
+        item_id = require_uuid(item_id, RESOURCE)
+        return await self.service.replace(item_id, parse_body(body, Base{{ r }}), user_id)
+{%- endif %}
+{%- if "delete" in ops %}
+
+    async def delete(self, item_id: str | None, user_id: str | None = None) -> dict:
+        item_id = require_uuid(item_id, RESOURCE)
+        await self.service.soft_delete(item_id, user_id)
+        return {"message": f"{RESOURCE} with id {item_id} was deleted successfully."}
+{%- endif %}

@@ -1,3 +1,5 @@
+# Every resource shape the default single resource doesn't cover, in one CI render.
+health_endpoint: ""
 resources:
   - name: "Cat"
     endpoint: "cats"
@@ -15,7 +17,19 @@ resources:
     endpoint: "owls"
     container: "birds"
     operations: ["delete"]
+  - name: "Lynx"
+    endpoint: "lynxes"
+    container: "zoo-records"
+    operations: ["update"]
+  - name: "Puma"
+    endpoint: "pumas"
+    container: "zoo-records"
+    operations: ["replace"]
   - name: "Order"
     endpoint: "orders"
     container: "orders"
     operations: ["list", "get_by_id", "create", "update", "replace", "delete"]
+  - name: "OrderItem"
+    endpoint: "order-items"
+    container: "orders"
+    operations: ["create"]

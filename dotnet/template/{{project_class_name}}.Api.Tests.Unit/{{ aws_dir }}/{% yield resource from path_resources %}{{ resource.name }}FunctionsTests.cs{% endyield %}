@@ -1,0 +1,268 @@
+{%- set r = resource.name -%}
+namespace {{project_class_name}}.Api.Tests.Unit;
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Amazon.Lambda.APIGatewayEvents;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Xunit;
+using {{project_class_name}}.Api.Dtos;
+using {{project_class_name}}.Api.Functions;
+using {{project_class_name}}.Api.Interfaces;
+{%- if resource.has_body %}
+using {{project_class_name}}.Api.Requests;
+{%- endif %}
+using {{project_class_name}}.Api.Utils;
+
+public class {{ r }}FunctionsTests
+{
+    private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+    private readonly I{{ r }}Controller _mock{{ r }}Controller;
+    private readonly RecordingLogger<{{ r }}Functions> _logger = new();
+    private readonly {{ r }}Functions _functions;
+
+    public {{ r }}FunctionsTests()
+    {
+        _mock{{ r }}Controller = Substitute.For<I{{ r }}Controller>();
+        _functions = new {{ r }}Functions(_mock{{ r }}Controller, _logger);
+    }
+
+    private static Dictionary<string, string> IdPath(string id = ItemId) => new() { { "id", id } };
+
+    private static APIGatewayProxyRequest OnRoute(APIGatewayProxyRequest request)
+    {
+        request.Path = request.PathParameters.TryGetValue("id", out var id) ? $"/{{ resource.endpoint }}/{id}" : "/{{ resource.endpoint }}";
+        return request;
+    }
+
+    private void AssertUnexpectedError(APIGatewayProxyResponse response)
+    {
+        Assert.Equal(500, response.StatusCode);
+        Assert.Equal("application/json", response.Headers["Content-Type"]);
+        Assert.Equal("{\"errorMessage\":\"An unexpected error occurred.\"}", response.Body);
+        Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Error && entry.Exception?.Message == "Mock exception");
+    }
+{%- if "get_by_id" in resource.operations %}
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsOk_When{{ r }}IsFound()
+    {
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+
+        var response = await _functions.Get{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("GET", IdPath())));
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("application/json", response.Headers["Content-Type"]);
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", response.Body);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsNotFound_WithoutLoggingAnError()
+    {
+        _mock{{ r }}Controller.GetAsync("not-a-uuid", Arg.Any<CancellationToken>()).Throws(new NotFoundException("{{ r }}", "not-a-uuid"));
+
+        var response = await _functions.Get{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("GET", IdPath("not-a-uuid"))));
+
+        Assert.Equal(404, response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"{{ r }} with id not-a-uuid was not found.\"}", response.Body);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Get{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("GET", IdPath())));
+
+        AssertUnexpectedError(response);
+    }
+{%- endif %}
+{%- if "list" in resource.operations %}
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsOk_WithItems()
+    {
+        _mock{{ r }}Controller.GetListAsync("1", Arg.Any<CancellationToken>())
+            .Returns(new List<{{ r }}Dto>
+            {
+                new() { Id = ItemId, Name = "mock{{ r }}1" },
+                new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
+            });
+
+        var response = await _functions.Get{{ r }}List(OnRoute(Mocks.CreateApiGatewayRequest("GET", queryStringParameters: new() { { "limit", "1" } })));
+        var responseDtos = JsonSerializer.Deserialize<List<{{ r }}Dto>>(response.Body, Json.Options);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(2, responseDtos!.Count);
+        Assert.StartsWith($"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }}", response.Body);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsEmptyArray_WithoutQueryParameters()
+    {
+        _mock{{ r }}Controller.GetListAsync(null, Arg.Any<CancellationToken>()).Returns(new List<{{ r }}Dto>());
+
+        var response = await _functions.Get{{ r }}List(OnRoute(Mocks.CreateApiGatewayRequest(httpMethod: "GET")));
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("[]", response.Body);
+    }
+
+    [Fact]
+    public async Task Get{{ r }}List_ReturnsGenericError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.GetListAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Get{{ r }}List(OnRoute(Mocks.CreateApiGatewayRequest(httpMethod: "GET")));
+
+        AssertUnexpectedError(response);
+    }
+{%- endif %}
+{%- if "create" in resource.operations %}
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
+    {
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+
+        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
+        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
+
+        Assert.Equal(201, response.StatusCode);
+        Assert.Equal(ItemId, responseDto!.Id);
+        Assert.Equal("mock{{ r }}", responseDto.Name);
+    }
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsBadRequest_WhenBodyIsInvalid()
+    {
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new BadRequestException("Request body must be valid JSON."));
+
+        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("POST")));
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Request body must be valid JSON.\"}", response.Body);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public async Task Create{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
+
+        AssertUnexpectedError(response);
+    }
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+    [Fact]
+    public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
+    {
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+
+        var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
+        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("mockUpdated{{ r }}", responseDto!.Name);
+    }
+
+    [Fact]
+    public async Task Update{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
+
+        AssertUnexpectedError(response);
+    }
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+    [Fact]
+    public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
+    {
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+
+        var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
+        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("mockReplaced{{ r }}", responseDto!.Name);
+    }
+
+    [Fact]
+    public async Task Replace{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
+
+        AssertUnexpectedError(response);
+    }
+{%- endif %}
+{%- if "delete" in resource.operations %}
+
+    [Fact]
+    public async Task Delete{{ r }}_ReturnsOk_When{{ r }}IsDeleted()
+    {
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(DeleteOkObjectResult.For("{{ r }}", ItemId));
+
+        var response = await _functions.Delete{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("DELETE", IdPath())));
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal($"{{ '{{' }}\"message\":\"{{ r }} with id {ItemId} was deleted successfully.\"{{ '}}' }}", response.Body);
+    }
+
+    [Fact]
+    public async Task Delete{{ r }}_ReturnsGenericError_WhenExceptionIsThrown()
+    {
+        _mock{{ r }}Controller.DeleteAsync(ItemId, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
+
+        var response = await _functions.Delete{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("DELETE", IdPath())));
+
+        AssertUnexpectedError(response);
+    }
+{%- endif %}
+{%- set route_ops = [('list', 'Get' ~ r ~ 'List', 'GET', False), ('get_by_id', 'Get' ~ r ~ '', 'GET', True), ('create', 'Create' ~ r ~ '', 'POST', False), ('update', 'Update' ~ r ~ '', 'PATCH', True), ('replace', 'Replace' ~ r ~ '', 'PUT', True), ('delete', 'Delete' ~ r ~ '', 'DELETE', True)] %}
+{%- for op, fn, method, with_id in route_ops if op in resource.operations %}
+
+    [Fact]
+    public async Task {{ fn }}_ReturnsMethodNotAllowed_ForAnotherMethodOnItsRoute()
+    {
+        var request = Mocks.CreateApiGatewayRequest("OPTIONS"{{ ', IdPath()' if with_id }});
+        request.Resource = "/{{ resource.endpoint }}{{ '/{id}' if with_id }}";
+
+        var response = await _functions.{{ fn }}(request);
+
+        Assert.Equal(405, response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Method not allowed.\"}", response.Body);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public async Task {{ fn }}_ReturnsNotFound_ForAnotherPath()
+    {
+        var request = Mocks.CreateApiGatewayRequest("{{ method }}"{{ ', IdPath()' if not with_id }});
+        request.Path = "/{{ resource.endpoint }}{{ '/0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c' if with_id }}/extra";
+
+        var response = await _functions.{{ fn }}(request);
+
+        Assert.Equal(404, response.StatusCode);
+        Assert.Equal("{\"errorMessage\":\"Not found.\"}", response.Body);
+    }
+{%- endfor %}
+}

@@ -8,6 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 {%- elif cloud_service == 'GCP Cloud Function' %}
 	cloud.google.com/go/firestore v1.26.0
+	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
 	google.golang.org/api v0.299.0
 	google.golang.org/grpc v1.84.0
 {%- elif cloud_service == 'AWS Lambda' %}
@@ -21,4 +22,5 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/stretchr/testify v1.12.1
+	golang.org/x/text v0.42.0
 )

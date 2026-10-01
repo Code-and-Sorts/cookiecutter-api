@@ -1,27 +1,11 @@
-{% if cloud_service == 'Azure Function App' -%}
-from .repository import (
+from .base_repository import BaseRepository
 {%- for resource in resources %}
-    {{ resource.name }}Repository,
+from .{{ resource.name | to_snake }}_repository import {{ resource.name }}Repository
 {%- endfor %}
-    Database,
-)
 
 __all__ = [
-{%- for resource in resources %}
-    "{{ resource.name }}Repository",
-{%- endfor %}
-    "Database",
-]
-{%- else -%}
-from .repository import (
-{%- for resource in resources %}
-    {{ resource.name }}Repository,
-{%- endfor %}
-)
-
-__all__ = [
+    "BaseRepository",
 {%- for resource in resources %}
     "{{ resource.name }}Repository",
 {%- endfor %}
 ]
-{%- endif %}

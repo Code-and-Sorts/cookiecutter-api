@@ -1,0 +1,41 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set setting = {'Azure Function App': 'COSMOS_CONTAINER_', 'GCP Cloud Function': 'FIRESTORE_COLLECTION_', 'AWS Lambda': 'DYNAMODB_TABLE_NAME_'}[cloud_service] ~ (resource.container | upper | replace('-', '_')) -%}
+import 'reflect-metadata';
+import { inject, injectable } from 'inversify';
+import { env, {% if "create" in ops or "replace" in ops %}{{ r }}, {% endif %}{% if "update" in ops %}{{ r }}Update, {% endif %}{{ r }}Record } from '@models';
+import { BaseRepository } from './base.repository';
+import { StoreFactory } from './document.store';
+
+@injectable()
+export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
+  constructor(@inject(StoreFactory) openStore: StoreFactory) {
+    super(openStore(env.{{ setting }}), '{{ r }}');
+  }
+{%- if "create" in ops %}
+
+  create = (item: {{ r }}, userId?: string): Promise<{{ r }}Record> => this.addRecord(item, userId);
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+  get = (id: string): Promise<{{ r }}Record> => this.getRecord(id);
+{%- endif %}
+{%- if "list" in ops %}
+
+  list = (limit?: number): Promise<{{ r }}Record[]> => this.getRecords(limit);
+{%- endif %}
+{%- if "update" in ops %}
+
+  update = (id: string, fields: {{ r }}Update, userId?: string): Promise<{{ r }}Record> =>
+    this.updateRecord(id, fields, userId);
+{%- endif %}
+{%- if "replace" in ops %}
+
+  replace = (id: string, item: {{ r }}, userId?: string): Promise<{{ r }}Record> =>
+    this.replaceRecord(id, item, userId);
+{%- endif %}
+{%- if "delete" in ops %}
+
+  delete = (id: string, userId?: string): Promise<void> => this.deleteRecord(id, userId);
+{%- endif %}
+}

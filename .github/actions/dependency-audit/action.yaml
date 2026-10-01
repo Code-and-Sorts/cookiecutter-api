@@ -1,0 +1,38 @@
+name: Dependency Audit
+description: Run a dependency vulnerability scan and write its output to the job summary.
+
+inputs:
+  command:
+    required: true
+    description: Scan command, run in working-directory.
+  title:
+    required: true
+    description: Heading for the job summary section.
+  working-directory:
+    required: false
+    default: "KittenClaws"
+    description: Directory to run the scan in.
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Run dependency vulnerability scan
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ inputs.command }}
+        TITLE: ${{ inputs.title }}
+      run: |
+        set +e
+        bash -c "$COMMAND" 2>&1 | tee audit.log
+        status=${PIPESTATUS[0]}
+        set -e
+        {
+          echo "### $TITLE"
+          echo ""
+          echo '```'
+          cat audit.log
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit $status
+      shell: bash

@@ -1,8 +1,6 @@
-from .controller import (
 {%- for resource in resources %}
-    {{ resource.name }}Controller,
+from .{{ resource.name | to_snake }}_controller import {{ resource.name }}Controller
 {%- endfor %}
-)
 
 __all__ = [
 {%- for resource in resources %}

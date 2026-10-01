@@ -1,49 +1,72 @@
 namespace {{project_class_name}}.Api.Entities;
-
-using System;
-using Newtonsoft.Json;
 {%- if cloud_service == 'GCP Cloud Function' %}
+
+using System.Collections.Generic;
 using Google.Cloud.Firestore;
-{%- endif %}
+{%- elif cloud_service == 'AWS Lambda' %}
 
-{%- if cloud_service == 'GCP Cloud Function' %}
+using System.Collections.Generic;
+using Amazon.DynamoDBv2.Model;
+{%- endif %}
+{% if cloud_service == 'GCP Cloud Function' %}
 [FirestoreData]
 {%- endif %}
 public class BaseEntity
 {
-    [JsonProperty("id")]
 {%- if cloud_service == 'GCP Cloud Function' %}
     [FirestoreProperty("id")]
 {%- endif %}
     public string Id { get; set; } = default!;
-
-    [JsonProperty("isDeleted")]
-{%- if cloud_service == 'GCP Cloud Function' %}
+{% if cloud_service == 'GCP Cloud Function' %}
     [FirestoreProperty("isDeleted")]
 {%- endif %}
     public bool IsDeleted { get; set; } = false;
-
-    [JsonProperty("createdTimestamp")]
-{%- if cloud_service == 'GCP Cloud Function' %}
+{% if cloud_service == 'GCP Cloud Function' %}
     [FirestoreProperty("createdTimestamp")]
 {%- endif %}
-    public DateTime CreatedTimestamp { get; set; } = DateTime.UtcNow;
-
-    [JsonProperty("updatedTimestamp")]
-{%- if cloud_service == 'GCP Cloud Function' %}
+    public string CreatedTimestamp { get; set; } = default!;
+{% if cloud_service == 'GCP Cloud Function' %}
     [FirestoreProperty("updatedTimestamp")]
 {%- endif %}
-    public DateTime UpdatedTimestamp { get; set; } = DateTime.UtcNow;
-
-    [JsonProperty("createdBy")]
-{%- if cloud_service == 'GCP Cloud Function' %}
+    public string UpdatedTimestamp { get; set; } = default!;
+{% if cloud_service == 'GCP Cloud Function' %}
     [FirestoreProperty("createdBy")]
 {%- endif %}
-    public string CreatedBy { get; set; } = default!;
-
-    [JsonProperty("updatedBy")]
-{%- if cloud_service == 'GCP Cloud Function' %}
+    public string? CreatedBy { get; set; }
+{% if cloud_service == 'GCP Cloud Function' %}
     [FirestoreProperty("updatedBy")]
 {%- endif %}
-    public string UpdatedBy { get; set; } = default!;
+    public string? UpdatedBy { get; set; }
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+    public virtual Dictionary<string, object> ToDocument()
+    {
+        var document = new Dictionary<string, object>
+        {
+            { "id", Id },
+            { "isDeleted", IsDeleted },
+            { "createdTimestamp", CreatedTimestamp },
+            { "updatedTimestamp", UpdatedTimestamp },
+        };
+        if (CreatedBy != null)
+        {
+            document["createdBy"] = CreatedBy;
+        }
+        if (UpdatedBy != null)
+        {
+            document["updatedBy"] = UpdatedBy;
+        }
+        return document;
+    }
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+
+    public virtual void WriteAttributes(Dictionary<string, AttributeValue> item)
+    {
+    }
+
+    public virtual void ReadAttributes(Dictionary<string, AttributeValue> item)
+    {
+    }
+{%- endif %}
 }

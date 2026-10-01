@@ -1,0 +1,53 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+import 'reflect-metadata';
+import { inject, injectable } from 'inversify';
+import { {{ r }}Repository } from '@repositories';
+{%- if ops | reject('equalto', 'delete') | list %}
+import {
+{%- if "create" in ops or "replace" in ops %}
+    {{ r }},
+{%- endif %}
+    {{ r }}Response,
+{%- if "update" in ops %}
+    {{ r }}Update,
+{%- endif %}
+    to{{ r }}Response,
+} from '@models';
+{%- endif %}
+
+@injectable()
+export class {{ r }}Service {
+  private _repo: {{ r }}Repository;
+
+  constructor(@inject({{ r }}Repository) repo: {{ r }}Repository) {
+    this._repo = repo;
+  }
+{%- if "create" in ops %}
+
+  create = async (item: {{ r }}, userId?: string): Promise<{{ r }}Response> =>
+    to{{ r }}Response(await this._repo.create(item, userId));
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+  get = async (id: string): Promise<{{ r }}Response> => to{{ r }}Response(await this._repo.get(id));
+{%- endif %}
+{%- if "list" in ops %}
+
+  list = async (limit?: number): Promise<{{ r }}Response[]> => (await this._repo.list(limit)).map(to{{ r }}Response);
+{%- endif %}
+{%- if "update" in ops %}
+
+  update = async (id: string, fields: {{ r }}Update, userId?: string): Promise<{{ r }}Response> =>
+    to{{ r }}Response(await this._repo.update(id, fields, userId));
+{%- endif %}
+{%- if "replace" in ops %}
+
+  replace = async (id: string, item: {{ r }}, userId?: string): Promise<{{ r }}Response> =>
+    to{{ r }}Response(await this._repo.replace(id, item, userId));
+{%- endif %}
+{%- if "delete" in ops %}
+
+  delete = (id: string, userId?: string): Promise<void> => this._repo.delete(id, userId);
+{%- endif %}
+}

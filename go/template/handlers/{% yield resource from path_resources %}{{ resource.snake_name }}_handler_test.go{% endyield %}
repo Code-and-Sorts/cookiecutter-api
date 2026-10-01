@@ -1,0 +1,293 @@
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set ep = resource.endpoint -%}
+{%- set uses_body = resource.has_body -%}
+{%- set uses_id = resource.has_id -%}
+{%- set uses_user = ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
+{%- set routes = [
+  ('list', 'MethodGet', false), ('create', 'MethodPost', false),
+  ('get_by_id', 'MethodGet', true), ('update', 'MethodPatch', true),
+  ('replace', 'MethodPut', true), ('delete', 'MethodDelete', true),
+  ('', 'MethodPut', false), ('', 'MethodPatch', false), ('', 'MethodDelete', false),
+  ('', 'MethodPost', true)] -%}
+package handlers
+
+import (
+	"context"
+{%- if uses_body %}
+	"io"
+{%- endif %}
+	"net/http"
+{%- if cloud_service != 'AWS Lambda' %}
+	"net/http/httptest"
+{%- endif %}
+{%- if cloud_service != 'AWS Lambda' %}
+	"strings"
+{%- endif %}
+	"testing"
+{%- if cloud_service == 'AWS Lambda' %}
+
+	"github.com/aws/aws-lambda-go/events"
+{%- endif %}
+
+	"{{project_endpoint}}/models"
+
+	"github.com/stretchr/testify/assert"
+)
+
+const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+
+{%- set fields = [('err', 'error', true), ('id', 'string', uses_id), ('limit', 'int', 'list' in ops), ('body', 'string', uses_body), ('userID', 'string', uses_user)] | selectattr(2) | list %}
+{%- set width = fields | map(attribute=0) | map('length') | max %}
+
+type fake{{ r }}Controller struct {
+{%- for name, type, _ in fields %}
+	{{ name ~ ' ' * (width - name | length) }} {{ type }}
+{%- endfor %}
+}
+{%- if "get_by_id" in ops %}
+
+func (f *fake{{ r }}Controller) Get(ctx context.Context, id string) (*models.{{ r }}Dto, error) {
+	f.id = id
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+}
+{%- endif %}
+{%- if "list" in ops %}
+
+func (f *fake{{ r }}Controller) GetList(ctx context.Context, limit int) ([]models.{{ r }}Dto, error) {
+	f.limit = limit
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []models.{{ r }}Dto{}, nil
+}
+{%- endif %}
+{%- if "create" in ops %}
+
+func (f *fake{{ r }}Controller) Create(ctx context.Context, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
+	data, _ := io.ReadAll(body)
+	f.body, f.userID = string(data), userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "Fake"}, nil
+}
+{%- endif %}
+{%- if "update" in ops %}
+
+func (f *fake{{ r }}Controller) Update(ctx context.Context, id, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
+	data, _ := io.ReadAll(body)
+	f.id, f.body, f.userID = id, string(data), userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+}
+{%- endif %}
+{%- if "replace" in ops %}
+
+func (f *fake{{ r }}Controller) Replace(ctx context.Context, id, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
+	data, _ := io.ReadAll(body)
+	f.id, f.body, f.userID = id, string(data), userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+}
+{%- endif %}
+{%- if "delete" in ops %}
+
+func (f *fake{{ r }}Controller) Delete(ctx context.Context, id, userID string) (map[string]string, error) {
+	f.id, f.userID = id, userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return map[string]string{"message": "Fake deleted."}, nil
+}
+{%- endif %}
+{%- if cloud_service != 'AWS Lambda' %}
+
+func call{{ r }}(t *testing.T, controller *fake{{ r }}Controller, method string, item bool, query, body string) (int, string) {
+	t.Helper()
+	target := "{{ route_prefix }}/{{ ep }}"
+	if item {
+		target += "/" + test{{ r }}ID
+	}
+	mux := NewRouter()
+	Register{{ r }}Routes(mux, controller)
+	w := httptest.NewRecorder()
+	request := httptest.NewRequest(method, target+query, strings.NewReader(body))
+	request.Header.Set("X-User-Id", "alice")
+
+	Recover(mux).ServeHTTP(w, request)
+
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	return w.Code, w.Body.String()
+}
+
+func Test{{ r }}Routes_UnknownPath_Returns404(t *testing.T) {
+	mux := NewRouter()
+	Register{{ r }}Routes(mux, &fake{{ r }}Controller{})
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "{{ route_prefix }}/{{ ep }}/"+test{{ r }}ID+"/extra", nil))
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.JSONEq(t, `{"errorMessage": "Not found."}`, w.Body.String())
+}
+{%- else %}
+
+func call{{ r }}(t *testing.T, controller *fake{{ r }}Controller, method string, item bool, query, body string) (int, string) {
+	t.Helper()
+	request := events.APIGatewayProxyRequest{
+		HTTPMethod: method,
+		Resource:   "/{{ ep }}",
+		Headers:    map[string]string{"x-user-id": "alice"},
+		Body:       body,
+	}
+	if item {
+		request.Resource = "/{{ ep }}/{id}"
+		request.PathParameters = map[string]string{"id": test{{ r }}ID}
+	}
+	if query != "" {
+		request.QueryStringParameters = map[string]string{"limit": query[len("?limit="):]}
+	}
+	router := NewRouter()
+	Register{{ r }}Routes(router, controller)
+
+	response, err := router.ServeRequest(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "application/json", response.Headers["Content-Type"])
+	return response.StatusCode, response.Body
+}
+{%- endif %}
+{%- if "list" in ops %}
+
+func TestGet{{ r }}List_ReturnsJSONArray(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, body := call{{ r }}(t, controller, http.MethodGet, false, "?limit=5", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `[]`, body)
+	assert.Equal(t, 5, controller.limit)
+}
+
+func TestGet{{ r }}List_IgnoresInvalidLimit(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, _ := call{{ r }}(t, controller, http.MethodGet, false, "?limit=abc", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, 0, controller.limit)
+}
+{%- endif %}
+{%- if "get_by_id" in ops %}
+
+func TestGet{{ r }}_ReturnsItem(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, body := call{{ r }}(t, controller, http.MethodGet, true, "", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.Equal(t, test{{ r }}ID, controller.id)
+}
+{%- endif %}
+{%- if "create" in ops %}
+
+func TestCreate{{ r }}_Returns201WithItem(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, body := call{{ r }}(t, controller, http.MethodPost, false, "", `{"name": "Fake"}`)
+
+	assert.Equal(t, http.StatusCreated, status)
+	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
+}
+{%- endif %}
+{%- if "update" in ops %}
+
+func TestUpdate{{ r }}_ReturnsItem(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, body := call{{ r }}(t, controller, http.MethodPatch, true, "", `{"name": "Fake"}`)
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.Equal(t, test{{ r }}ID, controller.id)
+	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
+}
+{%- endif %}
+{%- if "replace" in ops %}
+
+func TestReplace{{ r }}_ReturnsItem(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, body := call{{ r }}(t, controller, http.MethodPut, true, "", `{"name": "Fake"}`)
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.Equal(t, test{{ r }}ID, controller.id)
+	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
+}
+{%- endif %}
+{%- if "delete" in ops %}
+
+func TestDelete{{ r }}_ReturnsMessage(t *testing.T) {
+	controller := &fake{{ r }}Controller{}
+
+	status, body := call{{ r }}(t, controller, http.MethodDelete, true, "", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `{"message": "Fake deleted."}`, body)
+	assert.Equal(t, test{{ r }}ID, controller.id)
+	assert.Equal(t, "alice", controller.userID)
+}
+{%- endif %}
+
+func Test{{ r }}Routes_ReturnControllerErrorsAsJSON(t *testing.T) {
+	requests := []struct {
+		method string
+		item   bool
+	}{
+{%- for op, method, item in routes if op and op in ops %}
+		{http.{{ method }}, {{ 'true' if item else 'false' }}},
+{%- endfor %}
+	}
+
+	for _, request := range requests {
+		controller := &fake{{ r }}Controller{err: models.NewNotFoundError("{{ r }}", test{{ r }}ID)}
+
+		status, body := call{{ r }}(t, controller, request.method, request.item, "", `{"name": "Fake"}`)
+
+		assert.Equal(t, http.StatusNotFound, status, request.method)
+		assert.JSONEq(t, `{"errorMessage": "{{ r }} with id `+test{{ r }}ID+` was not found."}`, body)
+	}
+}
+
+func Test{{ r }}Routes_DisabledMethod_Returns405(t *testing.T) {
+	requests := []struct {
+		method string
+		item   bool
+	}{
+{%- for op, method, item in routes if op not in ops %}
+		{http.{{ method }}, {{ 'true' if item else 'false' }}},
+{%- endfor %}
+	}
+
+	for _, request := range requests {
+		status, body := call{{ r }}(t, &fake{{ r }}Controller{}, request.method, request.item, "", "")
+
+		assert.Equal(t, http.StatusMethodNotAllowed, status, request.method)
+		assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, body)
+	}
+}

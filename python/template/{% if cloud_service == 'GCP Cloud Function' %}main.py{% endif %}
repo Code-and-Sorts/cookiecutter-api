@@ -1,27 +1,15 @@
-"""
-Main entry point for GCP Cloud Functions.
-Each function is exported individually for GCP deployment.
-"""
-{% set op_fn = {'list': 'get_list', 'get_by_id': 'get_by_id', 'create': 'create', 'update': 'update', 'replace': 'replace', 'delete': 'delete'} -%}
 import functions_framework
-from blueprints.api import (
-{%- for resource in resources %}
-{%- set slug = resource.name | to_snake %}
-{%- for op in resource.operations %}
-    {{ op_fn[op] }}_{{ slug }},
-{%- endfor %}
-{%- endfor %}
-    health
-)
+from flask import Request
+from blueprints import ROUTES
+from utils import detect_error, response_generator
+from utils.routing import resolve
 
-# Export functions for GCP Cloud Functions
-# These can be deployed individually as separate cloud functions
-__all__ = [
-{%- for resource in resources %}
-{%- set slug = resource.name | to_snake %}
-{%- for op in resource.operations %}
-    '{{ op_fn[op] }}_{{ slug }}',
-{%- endfor %}
-{%- endfor %}
-    'health'
-]
+
+@functions_framework.http
+def api(request: Request):
+    try:
+        handler, item_id = resolve(ROUTES, request.method, request.path)
+        status_code, payload = handler(request, item_id)
+        return response_generator(payload, status_code)
+    except Exception as error:
+        return detect_error(error)

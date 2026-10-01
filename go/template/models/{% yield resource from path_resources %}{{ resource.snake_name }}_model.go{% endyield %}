@@ -1,0 +1,37 @@
+{%- set r = resource.name -%}
+package models
+
+type {{ r }} struct {
+	BaseEntity
+	Name string `json:"name" dynamodbav:"name" firestore:"name"`
+}
+
+type {{ r }}Dto struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func To{{ r }}Dto(item {{ r }}) {{ r }}Dto {
+	return {{ r }}Dto{Id: item.Id, Name: item.Name}
+}
+{%- if "create" in resource.operations %}
+
+type Create{{ r }}Request struct {
+	Name string `json:"name"`
+}
+{%- endif %}
+{%- if "update" in resource.operations %}
+
+// An empty Name leaves the stored name unchanged.
+type Update{{ r }}Request struct {
+	Id   string `json:"-"`
+	Name string `json:"name"`
+}
+{%- endif %}
+{%- if "replace" in resource.operations %}
+
+type Replace{{ r }}Request struct {
+	Id   string `json:"-"`
+	Name string `json:"name"`
+}
+{%- endif %}

@@ -1,102 +1,38 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import {
+  errorResponse,
+{%- if health_endpoint %}
+  healthRoutes,
+{%- endif %}
+  notFound,
 {%- for resource in resources %}
-  {{ resource.name | to_lower_camel }}Controller,
+  {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
-} from '@config/container';
-import {
-{%- for resource in resources %}
-  {{ resource.name }},
-{%- endfor %}
-} from '@models';
-import { detectError } from '@utils';
+} from '@routes';
 
-const jsonResponse = (statusCode: number, body: unknown): APIGatewayProxyResult => ({
-  statusCode,
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(body),
-});
-
-const notAllowed = () => jsonResponse(405, { error: 'Method not allowed.' });
-{% for resource in resources %}
-{%- set c = resource.name | to_lower_camel %}
-const handle{{ resource.name }} = async (event: APIGatewayProxyEvent, id?: string): Promise<APIGatewayProxyResult> => {
-  switch (event.httpMethod) {
-    case 'GET': {
-      if (id) {
-{%- if "get_by_id" in resource.operations %}
-        return jsonResponse(200, await {{ c }}Controller.get(id));
-{%- else %}
-        return notAllowed();
-{%- endif %}
-      }
-{%- if "list" in resource.operations %}
-      return jsonResponse(200, await {{ c }}Controller.list(event.queryStringParameters?.limit ?? undefined));
-{%- else %}
-      return notAllowed();
-{%- endif %}
-    }
-    case 'POST': {
-{%- if "create" in resource.operations %}
-      const item: {{ resource.name }} = JSON.parse(event.body || '{}');
-      return jsonResponse(201, await {{ c }}Controller.post(item));
-{%- else %}
-      return notAllowed();
-{%- endif %}
-    }
-    case 'PATCH': {
-{%- if "update" in resource.operations %}
-      const item: {{ resource.name }} = JSON.parse(event.body || '{}');
-      return jsonResponse(200, await {{ c }}Controller.update({ ...item, id }));
-{%- else %}
-      return notAllowed();
-{%- endif %}
-    }
-    case 'PUT': {
-{%- if "replace" in resource.operations %}
-      const item: {{ resource.name }} = JSON.parse(event.body || '{}');
-      return jsonResponse(200, await {{ c }}Controller.replace({ ...item, id }));
-{%- else %}
-      return notAllowed();
-{%- endif %}
-    }
-    case 'DELETE': {
-{%- if "delete" in resource.operations %}
-      if (!id) {
-        return jsonResponse(400, { error: 'Missing item ID.' });
-      }
-      await {{ c }}Controller.delete(id);
-      return jsonResponse(200, { message: `{{ resource.endpoint }} with ID ${id} deleted.` });
-{%- else %}
-      return notAllowed();
-{%- endif %}
-    }
-    default:
-      return notAllowed();
-  }
-};
-{% endfor %}
+// template.yaml maps only the enabled operations; API Gateway answers other paths and methods itself.
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const routePath = (event.resource || event.path || '').replace(/\/+$/, '');
-  const segments = routePath.split('/').filter(Boolean);
+  const segments = (event.resource || event.path || '').split('/').filter(Boolean);
   const endpoint = segments[0];
-  const id = event.pathParameters?.id;
-
-  if (event.httpMethod === 'GET' && endpoint === 'health' && segments.length === 1) {
-    return jsonResponse(200, { status: 'ok' });
-  }
+  const id = segments.length > 1 ? event.pathParameters?.id : undefined;
 
   try {
+    if (segments.length > 2 || (segments.length === 2 && id === undefined)) {
+      return notFound();
+    }
     switch (endpoint) {
+{%- if health_endpoint %}
+      case '{{ health_endpoint }}':
+        return id === undefined ? await healthRoutes(event) : notFound();
+{%- endif %}
 {%- for resource in resources %}
       case '{{ resource.endpoint }}':
-        return await handle{{ resource.name }}(event, id);
+        return await {{ resource.name | to_lower_camel }}Routes(event, id);
 {%- endfor %}
       default:
-        return jsonResponse(404, { error: 'Not found.' });
+        return notFound();
     }
   } catch (error) {
-    const errorResponse = detectError(error);
-    return jsonResponse(errorResponse.status, errorResponse.body);
+    return errorResponse(error);
   }
 };

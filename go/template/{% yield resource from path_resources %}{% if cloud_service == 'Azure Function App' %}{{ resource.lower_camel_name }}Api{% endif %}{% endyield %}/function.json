@@ -1,0 +1,28 @@
+{%- set ops = resource.operations -%}
+{%- set methods = [] -%}
+{%- if "list" in ops or "get_by_id" in ops %}{% set methods = methods + ["get"] %}{% endif -%}
+{%- if "create" in ops %}{% set methods = methods + ["post"] %}{% endif -%}
+{%- if "replace" in ops %}{% set methods = methods + ["put"] %}{% endif -%}
+{%- if "update" in ops %}{% set methods = methods + ["patch"] %}{% endif -%}
+{%- if "delete" in ops %}{% set methods = methods + ["delete"] %}{% endif -%}
+{
+    "bindings": [
+        {
+            "authLevel": "function",
+            "type": "httpTrigger",
+            "direction": "in",
+            "name": "req",
+            "methods": [
+{%- for method in methods %}
+                "{{ method }}"{% if not loop.last %},{% endif %}
+{%- endfor %}
+            ],
+            "route": "{{ resource.endpoint }}/{id?}"
+        },
+        {
+            "type": "http",
+            "direction": "out",
+            "name": "res"
+        }
+    ]
+}

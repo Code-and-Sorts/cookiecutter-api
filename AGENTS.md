@@ -40,7 +40,7 @@ Entry Point (Azure functions, GCP main, or AWS Lambda handler)
 
 ### Key Patterns
 
-- **Dependency Injection**: .NET uses `Microsoft.Extensions.DependencyInjection`, TypeScript uses [Inversify](https://inversify.io/) (`config/container.ts`); Python (blueprint/entry point) and Go (`main.go`) wire dependencies manually
+- **Dependency Injection**: .NET uses `Microsoft.Extensions.DependencyInjection`, TypeScript uses [Inversify](https://inversify.io/) (`config/container.ts`); Python (blueprint/entry point) and Go (`main.go`, or `function.go` on GCP) wire dependencies manually
 - **Schema Validation**: TypeScript uses [Zod](https://zod.dev/), Python uses [Pydantic](https://docs.pydantic.dev/), .NET uses [FluentValidation](https://docs.fluentvalidation.net/), Go uses JSON Schema
 - **Soft Deletes**: All templates use an `isDeleted` flag rather than hard deletes
 - **Base Records**: All entities extend a base schema with `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp`
@@ -52,20 +52,67 @@ The default is a single resource derived from the project name with `list`, `get
 `create`, `update` and `delete`.
 
 - Each resource gets its own named types (for example `CatController`, `CatService`,
-  `CatRepository`; in .NET the stored entity is `CatEntity`). Copier cannot fan a list out
-  into separate files, so the per-resource classes for a layer live in one file inside a
-  `{% for resource in resources %}` loop.
-- Controllers, services and routes expose only the resource's `operations` (`update` is
-  PATCH, `replace` is PUT). Repositories always implement all six operations.
+  `CatRepository`; in .NET the stored entity is `CatEntity`) and its own file in every
+  layer: entry point/handlers, controller, service, repository, models and tests. A
+  per-resource file is a single template whose path uses Copier's `yield` tag, for
+  example `controllers/{% yield resource from path_resources %}{{ resource.lower_camel_name }}.controller.ts{% endyield %}`;
+  Copier renders it once per resource with `resource` in context (`resources` is still the
+  full list). Git for Windows cannot check out a path containing `|`, so paths never use
+  Jinja filters: `path_resources` (a derived `when: false` copy of `resources`) adds the
+  `snake_name` and `lower_camel_name` stems. Keep every repository path under about 200 characters too: Git for
+  Windows fails checkout past 260 characters including the clone directory, so long
+  conditions belong in a derived value (for example .NET's `azure_dir`/`gcp_dir`/`aws_dir`, which
+  render the cloud's folder name or nothing, and `body_resources` for resources that accept a request body). Only one `yield` is allowed per path segment and none inside file contents,
+  so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
+  still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
+- Controllers, services, routes and repositories expose only the resource's `operations`
+  (`update` is PATCH, `replace` is PUT). Database code lives once per cloud, never per
+  resource: a shared base repository (TypeScript `BaseRepository`, Python `BaseRepository`,
+  .NET `EntityRepository`, Go `store[T]`) holds the CRUD, merging and not-found logic, and a
+  per-cloud store does the SDK calls. The base keeps all six operations and its own tests,
+  so coverage holds when no resource uses one.
 - Resources with the same `container` share one store and see each other's records; there
   is no type discriminator.
 - GCP and AWS read per-container settings named `FIRESTORE_COLLECTION_<CONTAINER>` and
   `DYNAMODB_TABLE_NAME_<CONTAINER>` (upper case, `-` becomes `_`). Azure setting names
   follow each language's existing convention.
-- The `resources` validator rejects the endpoint `health`, the name `Health`, duplicate
+- The health check is its own handler file per cloud, served at `health_endpoint` (default
+  `health`) and generated only when that answer is non-empty.
+- The `resources` validator rejects an endpoint equal to `health_endpoint`, the name `Health`, duplicate
   operations, names or containers that collide after case and separator normalization, and
   per-language reserved names. Only add a reserved name after rendering it and watching
   the generated project fail to build.
+
+### API Contract
+
+Every language and cloud must generate the same HTTP behaviour; change all four templates together.
+
+- **Routes:** `{prefix}/<endpoint>` and `{prefix}/<endpoint>/{id}`, where the prefix is `/api` on Azure
+  Functions (the host default) and empty on GCP and AWS. The health check is `GET {prefix}/<health_endpoint>`,
+  matched exactly. SAM path parameters are named `{id}`. GCP projects expose one HTTP function: entry point `api`, or the `Function` class in .NET, whose
+  Functions Framework resolves entry points by type name.
+- **Responses:** always JSON. Create 201; get, update, replace 200 with `{"id", "name"}`; list 200 with an array
+  (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
+  with `{"status": "ok"}`.
+- **Errors:** `{"errorMessage": "..."}`. 400 for malformed JSON, a non-object body, a missing, empty or non-string
+  `name`, or any unknown field (including `id` and system fields, so a create can never overwrite a record);
+  404 for unknown, deleted or non-UUID ids and unknown paths; 405 for a method the resource does not enable
+  when the request reaches app code; 500 with a generic message for anything else, logged with its stack trace
+  and never echoed to the client. API Gateway (403) and the Azure host (404) answer some unmapped methods
+  before app code runs.
+- **Storage:** `id`, `name`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
+  `Z`), plus `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both
+  `createdTimestamp` and `updatedTimestamp` (never a separate default per field, which can differ by a
+  millisecond). Update and replace keep the created fields; delete is soft.
+- **User id:** the optional `X-User-Id` header (trimmed, at most 256 characters, else 400) is the only source of
+  `createdBy`/`updatedBy`. Create sets both; update, replace and delete set `updatedBy`, and a write without the
+  header removes it. Bodies still reject both fields. The header is not authenticated; every generated README says so.
+- **Auth:** resource routes need credentials and health is open where the platform allows it. Azure: function keys,
+  anonymous health function. AWS: API Gateway API keys (`x-api-key`, SAM usage plan), health exempt. GCP: IAM
+  invoker (deployed with `--no-allow-unauthenticated`); the one function means health needs the token too.
+- `?limit=` on list is honoured everywhere.
+- A failing database yields the generic 500 within 10 seconds: database calls use a per-request deadline or
+  capped retries, so the answer arrives well inside the platform timeout.
 
 ## Multi-Cloud Support
 
@@ -88,12 +135,12 @@ Cloud-specific code is handled through:
 To add a new cloud provider to an existing language template:
 
 1. **Update `copier.yml`** — Add the new option to the `cloud_service` question's `choices`
-2. **Create the entry point** — Add the cloud-specific function entry point file(s), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
+2. **Create the entry point** — Add the cloud-specific function entry point file(s) and any per-resource handlers (TypeScript `functions/` or `routes/`, Python `blueprints/`, .NET `Functions/` or `Handlers/`, Go `handlers/`), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
 3. **Add Jinja2 conditionals** to these files:
    - `package.json` / `pyproject.toml` / `.csproj` / `go.mod` — Cloud-specific dependencies
-   - `repositories/base.repository` — Database client implementation
-   - `repositories/{project}.repository` — DI binding for the database client
-   - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` (Go) — dependency wiring
+   - The per-cloud store (TypeScript `repositories/*.store.ts`, .NET `Repositories/*DocumentStore.cs`,
+     Go `repositories/store.go`, Python `repositories/base_repository.py`) — Database client implementation
+   - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` / `function.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
 4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
 5. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
@@ -102,7 +149,7 @@ To add a new cloud provider to an existing language template:
 ## Adding a New Language
 
 1. Create a new top-level directory (e.g., `java/`)
-2. Add `copier.yml` with the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
+2. Add `copier.yml` with `_min_copier_version: "9.18.2"`, the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
 3. Put the template project under `template/`
 4. Add input validation as a `validator:` on the prompted `project_name` and `resources` questions (Copier only runs validators for prompted questions, not for `when: false` derived values)
 5. Use conditional file/directory names if supporting multiple cloud providers
@@ -119,6 +166,7 @@ To add a new cloud provider to an existing language template:
 | `project_lower_camel_name` | lowerCamelCase (TS/C#) | `"myApi"` |
 | `project_slug` | snake_case (Python only) | `"my_api"` |
 | `cloud_service` | Target cloud platform | `"Azure Function App"` |
+| `health_endpoint` | Health check URL segment; empty skips the health check | `"health"` |
 | `resources` | REST resources to generate | see [Resources](#resources) |
 | `author` | Project author | `"Your Name"` |
 | `open_source_license` | License type | `"MIT license"` |
@@ -140,15 +188,16 @@ Each language has a GitHub Actions workflow that:
 4. Runs unit tests
 
 The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
-Its `resources-fixture` input renders `fixtures/<name>-resources.yml`: `multi` (two
-resources sharing a container) and `edge` (list-only, delete-only, hyphenated and shared
-containers, names of differing lengths).
+Its `resources-fixture` input renders `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
+shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
+names of differing lengths) and no health check. `multi` only feeds the published example branches.
 
-Pipelines use a matrix strategy to test across:
-- Multiple operating systems (ubuntu, macOS, Windows) with the default single resource
-- The `multi` and `edge` fixtures on ubuntu
-- All supported cloud services
+Pipelines use a small matrix, one job per distinct risk rather than every combination:
+- Ubuntu: every cloud service, with the default single resource and with `edge`
+- Windows (path length, checkout) and macOS (BSD tools) once each, on different clouds
 - The newest GA runtime each cloud supports: Node 24 (Node 22 on Azure Functions), Python 3.14, .NET 10, Go 1.27
+
+Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
 
 ### Local Verification
 
@@ -181,8 +230,12 @@ Azure Functions, Cloud Run functions and AWS Lambda all support the new version 
 ## Code Conventions
 
 - **TypeScript**: ES modules (`"type": "module"`), Yarn for packages, Jest for tests (ESM mode; import `jest` and friends from `@jest/globals`, mock modules with `jest.unstable_mockModule`), path aliases (`@controllers`, `@services`, etc.) via `tsconfig.json` paths, rewritten to `.js` paths by `tsc-alias`
-- **Python**: Poetry for packages, pytest for tests, blueprint pattern for route registration
+- **Python**: Poetry for packages, pytest for tests, blueprint pattern for route registration; controllers are
+  cloud-agnostic (plain values in, `utils/routing.py` resolves GCP/AWS routes), and AWS builds with SAM's makefile
+  builder, which exports the Poetry lock (run `make install` before `sam build`); Azure and GCP deploy from
+  `make requirements`, and `utils/deadline.py` bounds each request's database work to 8 seconds
 - **.NET**: NuGet for packages, xUnit v3 for tests, solution/project structure
 - **Go**: Go modules, `go test`, gofmt enforced through golangci-lint
 - Template files use `{{ variable_name }}` in both filenames and content
+- Comments only record a reason the code can't show (a platform or SDK quirk, a workaround, a security choice), in one short line; never restate what the code does
 - Keep controllers, services, and error types cloud-agnostic — only repositories and entry points should contain cloud-specific code

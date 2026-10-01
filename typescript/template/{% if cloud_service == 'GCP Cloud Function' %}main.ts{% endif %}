@@ -1,92 +1,84 @@
+import { createRequire } from 'node:module';
 import * as ff from '@google-cloud/functions-framework';
 import {
+  errorResponse,
+{%- if health_endpoint %}
+  healthRoutes,
+{%- endif %}
+  jsonResponse,
+  notFound,
 {%- for resource in resources %}
-  {{ resource.name | to_lower_camel }}Controller,
+  {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
-} from '@config/container';
-import {
-{%- for resource in resources %}
-  {{ resource.name }},
-{%- endfor %}
-} from '@models';
-import { detectError } from '@utils';
+} from '@routes';
+import { INVALID_JSON_MESSAGE, runWithSignal } from '@utils';
 
-const jsonResponse = (res: ff.Response, status: number, body: unknown): void => {
-  res.status(status).json(body);
+type Next = (error?: unknown) => void;
+type ExpressApplication = { handle(req: ff.Request, res: ff.Response, next?: Next): void };
+
+// Express parses bodies before the function runs and answers parse failures with an HTML page;
+// this final handler answers them in JSON instead.
+export const frameworkFinalHandler = (req: ff.Request, res: ff.Response): Next => (error?: unknown) => {
+  if (res.headersSent) {
+    return;
+  }
+  if (error === undefined) {
+    return notFound(res);
+  }
+  const status = (error as { status?: number }).status;
+  if (status !== undefined && status >= 400 && status < 500) {
+    return jsonResponse(res, 400, { errorMessage: INVALID_JSON_MESSAGE });
+  }
+  return errorResponse(res, error);
 };
 
-const notAllowed = (res: ff.Response) => jsonResponse(res, 405, { error: 'Method not allowed.' });
+// Patch the framework's own Express copy; the framework builds its app after loading this module.
+const frameworkRequire = createRequire(createRequire(import.meta.url).resolve('@google-cloud/functions-framework'));
+const express = frameworkRequire('express') as { application: ExpressApplication };
+const handle = express.application.handle;
+express.application.handle = function (this: ExpressApplication, req, res, next) {
+  return handle.call(this, req, res, next ?? frameworkFinalHandler(req, res));
+};
 
-ff.http('api', async (req: ff.Request, res: ff.Response) => {
-  const cleanPath = req.path.replace(/\/+$/, '');
-  const segments = cleanPath.split('/').filter(Boolean);
-  const endpoint = segments[0];
-  const id = segments[1];
-
-  if (endpoint === 'health' && !id) {
-    return jsonResponse(res, 200, { status: 'ok' });
-  }
+const route = async (req: ff.Request, res: ff.Response): Promise<void> => {
+  const segments = req.path.split('/').filter(Boolean);
+  const [endpoint, id] = segments;
 
   try {
+    if (segments.length > 2) {
+      return notFound(res);
+    }
     switch (endpoint) {
+{%- if health_endpoint %}
+      case '{{ health_endpoint }}':
+        return id === undefined ? await healthRoutes(req, res) : notFound(res);
+{%- endif %}
 {%- for resource in resources %}
-{%- set c = resource.name | to_lower_camel %}
-      case '{{ resource.endpoint }}': {
-        switch (req.method) {
-          case 'GET': {
-            if (id) {
-{%- if "get_by_id" in resource.operations %}
-              return jsonResponse(res, 200, await {{ c }}Controller.get(id));
-{%- else %}
-              return notAllowed(res);
-{%- endif %}
-            }
-{%- if "list" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.list(req.query.limit as string | undefined));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'POST': {
-{%- if "create" in resource.operations %}
-            return jsonResponse(res, 201, await {{ c }}Controller.post(req.body as {{ resource.name }}));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'PATCH': {
-{%- if "update" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.update({ ...(req.body as {{ resource.name }}), id }));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'PUT': {
-{%- if "replace" in resource.operations %}
-            return jsonResponse(res, 200, await {{ c }}Controller.replace({ ...(req.body as {{ resource.name }}), id }));
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          case 'DELETE': {
-{%- if "delete" in resource.operations %}
-            if (!id) return jsonResponse(res, 400, { error: 'Missing item ID.' });
-            await {{ c }}Controller.delete(id);
-            return jsonResponse(res, 200, { message: `{{ resource.endpoint }} with ID ${id} deleted.` });
-{%- else %}
-            return notAllowed(res);
-{%- endif %}
-          }
-          default:
-            return notAllowed(res);
-        }
-      }
+      case '{{ resource.endpoint }}':
+        return await {{ resource.name | to_lower_camel }}Routes(req, res, id);
 {%- endfor %}
       default:
-        return jsonResponse(res, 404, { error: 'Not found.' });
+        return notFound(res);
     }
   } catch (error) {
-    const errorResponse = detectError(error);
-    return res.status(errorResponse.status).send(errorResponse.body);
+    return errorResponse(res, error);
   }
-});
+};
+
+// A client that disconnects early aborts the signal, cancelling pending database work.
+export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
+  const controller = new AbortController();
+  const onClose = () => {
+    if (!res.writableEnded) {
+      controller.abort();
+    }
+  };
+  res.on('close', onClose);
+  try {
+    await runWithSignal(controller.signal, () => route(req, res));
+  } finally {
+    res.off('close', onClose);
+  }
+};
+
+ff.http('api', api);

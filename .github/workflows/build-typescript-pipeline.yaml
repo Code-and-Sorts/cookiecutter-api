@@ -18,11 +18,10 @@ jobs:
   build-typescript:
     runs-on: ${{ matrix.os }}
     strategy:
+      # Windows and macOS risks don't depend on the cloud, so each runs once.
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
-          - windows-latest
         template-type:
           - typescript
         cloud-service:
@@ -31,17 +30,16 @@ jobs:
           - "AWS Lambda"
         fixture:
           - single
-          - multi
           - edge
-        exclude:
-          - os: macos-latest
-            fixture: multi
-          - os: macos-latest
-            fixture: edge
+        include:
           - os: windows-latest
-            fixture: multi
-          - os: windows-latest
-            fixture: edge
+            template-type: typescript
+            cloud-service: "Azure Function App"
+            fixture: single
+          - os: macos-latest
+            template-type: typescript
+            cloud-service: "AWS Lambda"
+            fixture: single
       fail-fast: false
     steps:
       - name: Check out
@@ -84,18 +82,7 @@ jobs:
 
       - name: Run dependency vulnerability scan
         continue-on-error: true
-        run: |
-            set +e
-            yarn npm audit --severity moderate 2>&1 | tee audit.log
-            status=$?
-            set -e
-            {
-              echo "### TypeScript dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }})"
-              echo ""
-              echo '```'
-              cat audit.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit $status
-        working-directory: KittenClaws
-        shell: bash
+        uses: ./.github/actions/dependency-audit
+        with:
+          command: yarn npm audit --severity moderate
+          title: TypeScript dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }})

@@ -12,9 +12,8 @@ run: ## Run the function app
 	@go build -o handler
 	@func start
 {%- elif cloud_service == 'GCP Cloud Function' %}
-	@echo "Running Cloud Function"
-	@go build -o handler
-	@PORT=8080 ./handler
+	@echo "Running the api function with the Functions Framework on port 8080"
+	@FUNCTION_TARGET=api PORT=8080 go run ./cmd
 {%- elif cloud_service == 'AWS Lambda' %}
 	@echo "Building and running Lambda API locally via SAM"
 	@sam build
@@ -27,8 +26,8 @@ build: ## Build the code
 	@echo "Building file"
 	@go build -o handler
 {%- elif cloud_service == 'GCP Cloud Function' %}
-	@echo "Building file"
-	@go build -o handler
+	@echo "Building the function and its local runner"
+	@go build -o handler ./cmd
 {%- elif cloud_service == 'AWS Lambda' %}
 	@echo "Building Lambda binary"
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap
@@ -43,7 +42,7 @@ clean-build: ## Clean the build artifacts
 {%- elif cloud_service == 'GCP Cloud Function' %}
 	@echo "Cleaning build artifacts"
 	@rm -f handler
-	@go build -o handler
+	@go build -o handler ./cmd
 {%- elif cloud_service == 'AWS Lambda' %}
 	@echo "Cleaning build artifacts"
 	@rm -f bootstrap
@@ -63,7 +62,7 @@ format: ## Format the code with gofmt
 .PHONY: test-unit
 test-unit: ## Test the code with unit tests
 	@echo "Testing code: Running unit tests"
-	@go test ./... -v -count=1 -coverpkg=./controllers/...,./services/...,./utils/... -coverprofile=coverage.out
+	@go test ./... -v -count=1 -coverpkg=./controllers/...,./services/...,./handlers/...,./utils/... -coverprofile=coverage.out
 	@total=$$(go tool cover -func=coverage.out | grep total | awk '{print $$3}' | tr -d '%'); \
 	echo "Total coverage (logic packages): $$total%"; \
 	awk "BEGIN { exit !($$total >= $(COVERAGE_THRESHOLD)) }" || \

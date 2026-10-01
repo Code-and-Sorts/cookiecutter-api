@@ -1,8 +1,6 @@
-from .service import (
 {%- for resource in resources %}
-    {{ resource.name }}Service,
+from .{{ resource.name | to_snake }}_service import {{ resource.name }}Service
 {%- endfor %}
-)
 
 __all__ = [
 {%- for resource in resources %}

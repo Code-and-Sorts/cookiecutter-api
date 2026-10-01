@@ -1,0 +1,33 @@
+namespace {{project_class_name}}.Api.Entities;
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+using Google.Cloud.Firestore;
+{%- elif cloud_service == 'AWS Lambda' %}
+
+using Amazon.DynamoDBv2.Model;
+{%- endif %}
+{% if cloud_service == 'GCP Cloud Function' %}
+[FirestoreData]
+{%- endif %}
+public class {{ resource.name }}Entity : BaseEntity
+{
+{%- if cloud_service == 'GCP Cloud Function' %}
+    [FirestoreProperty("name")]
+{%- endif %}
+    public string Name { get; set; } = default!;
+{%- if cloud_service == 'GCP Cloud Function' %}
+
+    public override Dictionary<string, object> ToDocument()
+    {
+        var document = base.ToDocument();
+        document["name"] = Name;
+        return document;
+    }
+{%- elif cloud_service == 'AWS Lambda' %}
+
+    public override void WriteAttributes(Dictionary<string, AttributeValue> item) => item["name"] = new AttributeValue { S = Name };
+
+    public override void ReadAttributes(Dictionary<string, AttributeValue> item) =>
+        Name = item.TryGetValue("name", out var name) ? name.S : string.Empty;
+{%- endif %}
+}

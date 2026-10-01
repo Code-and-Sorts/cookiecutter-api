@@ -1,0 +1,38 @@
+package handlers
+
+import (
+{%- if cloud_service == 'AWS Lambda' %}
+	"context"
+{%- endif %}
+	"net/http"
+{%- if cloud_service == 'AWS Lambda' %}
+
+	"github.com/aws/aws-lambda-go/events"
+{%- endif %}
+
+	"{{project_endpoint}}/utils"
+)
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' %}
+{%- if cloud_service != 'AWS Lambda' %}
+
+func RegisterHealthRoute(mux *http.ServeMux) {
+	mux.HandleFunc("GET {{ route_prefix }}/{{ health_endpoint }}", handleHealth)
+	mux.HandleFunc("{{ route_prefix }}/{{ health_endpoint }}", methodNotAllowed)
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	utils.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+{%- else %}
+
+func RegisterHealthRoute(router *Router) {
+	router.Handle("/{{ health_endpoint }}", handleHealth)
+}
+
+func handleHealth(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+	if request.HTTPMethod != http.MethodGet {
+		return methodNotAllowed()
+	}
+	return utils.JSONResponse(http.StatusOK, map[string]string{"status": "ok"})
+}
+{%- endif %}

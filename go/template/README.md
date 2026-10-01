@@ -7,14 +7,15 @@
 This project is a Go-based REST API built using [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) with a [custom handler](https://learn.microsoft.com/en-us/azure/azure-functions/functions-custom-handlers). The API leverages Azure's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered functions serve as the endpoints for the API, providing a seamless way to handle client requests.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-This project is a Go-based REST API built using [Google Cloud Functions](https://cloud.google.com/functions/docs). The API leverages GCP's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The HTTP-triggered function serves as the entry point for the API, providing a seamless way to handle client requests.
+This project is a Go-based REST API built as a single HTTP [Cloud Run function](https://cloud.google.com/functions/docs) (formerly Cloud Functions) with the [Functions Framework for Go](https://github.com/GoogleCloudPlatform/functions-framework-go). The function, registered as `api` in `function.go`, routes every request by its path, and `cmd/main.go` runs it locally.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 This project is a Go-based REST API built using [AWS Lambda](https://docs.aws.amazon.com/lambda/) with [API Gateway](https://docs.aws.amazon.com/apigateway/). The API leverages AWS's serverless architecture, allowing you to deploy and scale functions effortlessly in the cloud. The [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/) framework is used for local development and deployment.
 {%- endif %}
 
-{%- set route_prefix = '' if cloud_service == 'AWS Lambda' else '/api' %}
-{%- set containers = resources | map(attribute='container') | unique | list %}
+{%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' %}
+{%- set containers = path_resources | unique(attribute='container') | list %}
+
 The REST API exposes the following resources and operations:
 {% for resource in resources %}
 - **`{{ route_prefix }}/{{ resource.endpoint }}`** (container: `{{ resource.container }}`)
@@ -38,7 +39,55 @@ The REST API exposes the following resources and operations:
 {%- endif %}
 {%- endfor %}
 
-A health check is served at `GET {{ route_prefix }}/health`.
+{%- if health_endpoint %}
+
+A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and answers `200 {"status":"ok"}`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% endif %}.
+{%- endif %}
+{%- if cloud_service == 'Azure Function App' %}
+
+Routes are served under the Functions host's default `/api` prefix. The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed){% if health_endpoint %}; the health check function is anonymous{% endif %}.
+{%- elif cloud_service == 'AWS Lambda' %}
+
+API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`). Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires an API key sent as `x-api-key: <value>`; step 5 of [Setup and Installation](#setup-and-installation) shows how to read it after deploying. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+
+The deployed function requires IAM: callers need the Cloud Run Invoker role and send `Authorization: Bearer $(gcloud auth print-identity-token)`.{% if health_endpoint %} The health check sits behind the same check, because the project exposes one function.{% endif %}
+{%- endif %}
+
+### Responses
+
+Every response, including errors, is JSON (`Content-Type: application/json`).
+
+| Case | Status | Body |
+|---|---|---|
+| Create | 201 | the item |
+| Get, update, replace | 200 | the item |
+| List | 200 | an array of items (`[]` when there are none) |
+| Delete | 200 | `{"message": "<Name> with id <id> was deleted successfully."}` |
+| Invalid body | 400 | `{"errorMessage": "<what is wrong>"}` |
+| Id not found, soft-deleted or not a UUID | 404 | `{"errorMessage": "<Name> with id <id> was not found."}` |
+| Unknown path | 404 | `{"errorMessage": "Not found."}` |
+| Known path, method not enabled | 405 | `{"errorMessage": "Method not allowed."}` |
+| Anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` |
+
+Each request has an 8-second deadline (`handlers.RequestTimeout`) that covers every database call and the SDK's retries, so an unreachable or failing database answers with the 500 above instead of hanging until the platform times out. A request that hits the deadline returns 500, but the write may still complete, so retrying a create can store a duplicate.
+
+An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be JSON objects: create (POST) and replace (PUT) require a non-empty string `name`; update (PATCH) accepts an optional non-empty string `name`. Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with a 400. List takes an optional `?limit=` (default 100, at most 1000; invalid values fall back to the default).
+
+Send an optional `X-User-Id` header on create, update, replace and delete to record who made the change: create stores it as `createdBy` and `updatedBy`, later writes set `updatedBy` (or remove it when the header is absent or blank) and never change `createdBy`. Surrounding whitespace is trimmed, and a value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}`. Reads ignore the header, and responses never include these fields. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
+{%- if cloud_service == 'Azure Function App' %}
+
+A method a resource does not enable never reaches the handler when the method is missing from every function registered for that path: the Functions host answers it with its own 404.
+{%- elif cloud_service == 'AWS Lambda' %}
+
+API Gateway answers a path or method that `template.yaml` does not map with its own `403 {"message":"Missing Authentication Token"}` before the Lambda function runs; the JSON 404 and 405 responses above apply to requests that reach the function.
+{%- endif %}
+
+Records are stored with `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Delete is a soft delete: it sets `isDeleted` to `true`.
+
+### Logging
+
+Logs are written with `log/slog`. Each request is logged once at info level with its method and path. Records below error level go to stdout; unexpected errors are logged at error level, with a stack trace, to stderr. Expected 4xx outcomes, and requests the client cancels by disconnecting, are not logged as errors.
 
 ### Storage containers
 
@@ -46,8 +95,8 @@ Each container is configured by its own setting. When the setting is unset, the 
 
 | Container | Resources | Setting |
 |---|---|---|
-{%- for container in containers %}
-| `{{ container }}` | {{ resources | selectattr('container', 'equalto', container) | map(attribute='name') | join(', ') }} | `{% if cloud_service == 'Azure Function App' %}CosmosDbContainerName_{{ container | to_camel }}{% elif cloud_service == 'GCP Cloud Function' %}FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}{% else %}DYNAMODB_TABLE_NAME_{{ container | upper | replace('-', '_') }}{% endif %}` |
+{%- for c in containers %}
+| `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} | `{% if cloud_service == 'Azure Function App' %}CosmosDbContainerName_{{ c.container_class }}{% elif cloud_service == 'GCP Cloud Function' %}FIRESTORE_COLLECTION_{{ c.env_key }}{% else %}DYNAMODB_TABLE_NAME_{{ c.env_key }}{% endif %}` |
 {%- endfor %}
 
 Resources that share a container share its records: there is no type discriminator, so every resource mapped to a container reads, lists, updates and deletes all records in it. Give resources separate containers unless they are meant to operate on the same data.
@@ -67,7 +116,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 - Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-- GCP Cloud Functions: Utilizes Google Cloud's serverless platform to create scalable and efficient endpoints with HTTP triggers.
+- GCP Cloud Run functions: One HTTP function, `api`, built with the Functions Framework for Go, serves every endpoint on Google Cloud's serverless platform.
 
 - Go-Based: Written entirely in Go, leveraging its performance, simplicity, and rich standard library for rapid development.
 
@@ -171,8 +220,8 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
     - `GCP_PROJECT_ID`: Your GCP project ID
     - `FIRESTORE_DATABASE`: Firestore database name (defaults to "(default)")
-{%- for container in containers %}
-    - `FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}`: Firestore collection for the `{{ container }}` container (defaults to `{{ container }}`)
+{%- for c in containers %}
+    - `FIRESTORE_COLLECTION_{{ c.env_key }}`: Firestore collection for the `{{ c.container }}` container (defaults to `{{ c.container }}`)
 {%- endfor %}
 
 5. Run the API Locally
@@ -181,19 +230,29 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     make run
     ```
 
-    This command builds the Go binary and starts the local development server on port 8080, where you can interact with your API endpoints.
+    This runs `FUNCTION_TARGET=api PORT=8080 go run ./cmd`: the Functions Framework serves the `api` function at every path on port 8080, for example `http://localhost:8080/{{ resources[0].endpoint }}`. Set `FIRESTORE_EMULATOR_HOST` to use the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator).
 
 6. Deploy to GCP
 
-    Build and deploy to Cloud Run (recommended for Go HTTP servers):
+    Deploy the `api` entry point as an HTTP Cloud Run function:
 
     ```console
-    gcloud run deploy {{project_endpoint}}-api \
-      --source . \
-      --base-image go127 \
+    gcloud functions deploy {{project_endpoint}}-api \
+      --gen2 \
+      --runtime go127 \
       --region us-central1 \
-      --allow-unauthenticated \
-      --set-env-vars GCP_PROJECT_ID=your-project-id{% for container in containers %},FIRESTORE_COLLECTION_{{ container | upper | replace('-', '_') }}={{ container }}{% endfor %}
+      --source . \
+      --entry-point api \
+      --trigger-http \
+      --no-allow-unauthenticated \
+      --set-env-vars GCP_PROJECT_ID=your-project-id{% for c in containers %},FIRESTORE_COLLECTION_{{ c.env_key }}={{ c.container }}{% endfor %}
+    ```
+
+    The function's routes have no prefix, and callers need the Cloud Run Invoker role:
+
+    ```console
+    curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+      https://<function-url>/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
@@ -219,10 +278,24 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     make run
     ```
 
-    This command builds the Go binary using SAM and starts the local API Gateway, where you can interact with your API endpoints.
+    This command builds the Go binary using SAM and starts the local API Gateway, where you can interact with your API endpoints. The local API does not enforce API keys.
+
+5. Deploy to AWS
+
+    ```console
+    sam build
+    sam deploy --guided
+    ```
+
+    SAM creates an API key and usage plan for the API. Read the key's value from the `{{ project_class_name }}ApiKeyId` stack output and send it in an `x-api-key` header:
+
+    ```console
+    aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
+    curl -H "x-api-key: <value>" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
+    ```
 {%- endif %}
 
-5. Thunderclient
+{{ {'GCP Cloud Function': 7, 'AWS Lambda': 6}.get(cloud_service, 5) }}. Thunderclient
 
     Included in the project is a [Thunderclient](https://www.thunderclient.com/) collection in the .thunderclient directory to easily test the locally hosted APIs.
 
@@ -260,22 +333,92 @@ This is also run automatically in CI on every PR and push to main.
 
 ## Repository structure
 
+Every resource has its own file in each layer. Shared code (routing, list pagination, id
+checks, the schema validator, the generic database store, the base entity, error types, logging and the wiring in
+`{{ 'function.go' if cloud_service == 'GCP Cloud Function' else 'main.go' }}`) lives in one file per package.
+
 ```text
-├── cookiecutter-template-go
-    ├── controllers
-    ├── services
-    ├── repositories
-    ├── models
-    ├── utils
-{%- if cloud_service == 'Azure Function App' %}
-    ├── httpApi
-    └── main.go
-{%- endif %}
+.
+├── .github/workflows              # CI: format, vet, build, lint, unit tests and vulnerability scan
+├── .thunderclient                 # Thunder Client requests and the localhost environment
+├── .golangci.yml
 {%- if cloud_service == 'GCP Cloud Function' %}
-    └── main.go
+├── cmd
+│   └── main.go                    # runs the function locally with the Functions Framework
+{%- endif %}
+├── controllers
+│   ├── schemas                    # request body JSON schemas, one per resource and operation
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_controller.go
+│   ├── {{ resource.name | to_snake }}_controller_test.go
+{%- endfor %}
+│   ├── ids.go                     # only UUID ids reach the database
+│   ├── ids_test.go
+│   ├── pagination.go
+│   ├── pagination_test.go
+│   └── schemas.go                 # embeds the request schemas
+├── handlers
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_handler.go
+│   ├── {{ resource.name | to_snake }}_handler_test.go
+{%- endfor %}
+{%- if health_endpoint %}
+│   ├── health_handler.go
+│   ├── health_handler_test.go
+{%- endif %}
+│   ├── router.go                  # request log and deadline, JSON responses and 404, 405 and 500 errors
+│   └── router_test.go
+├── models                         # each resource's entity, DTO and request types
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_model.go
+{%- endfor %}
+│   ├── entity.go                  # BaseEntity
+│   ├── entity_test.go
+│   └── errors.go
+├── repositories
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_repository.go
+{%- endfor %}
+{%- if cloud_service == 'Azure Function App' %}
+│   ├── cosmos.go                  # tells a missing item from a missing container
+│   ├── cosmos_test.go
+{%- endif %}
+│   └── store.go                   # generic database access and the shared update, replace and soft delete
+├── services
+{%- for resource in resources %}
+│   ├── {{ resource.name | to_snake }}_service.go
+│   ├── {{ resource.name | to_snake }}_service_test.go
+{%- endfor %}
+│   ├── schema_validator.go
+│   └── schema_validator_test.go
+├── utils
+│   ├── error_detector.go          # maps errors to JSON error responses
+│   ├── error_detector_test.go
+│   ├── env.go                     # setting or default
+│   ├── env_test.go
+│   ├── logger.go                  # info logs to stdout, errors to stderr
+│   └── logger_test.go
+{%- if cloud_service == 'Azure Function App' %}
+{%- for resource in resources %}
+├── {{ resource.name | to_lower_camel }}Api
+│   └── function.json
+{%- endfor %}
+{%- if health_endpoint %}
+├── healthApi
+│   └── function.json
+{%- endif %}
+├── host.json
+├── local.settings.json
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    └── template.yaml
+├── template.yaml                  # SAM template: API Gateway routes and DynamoDB tables
+{%- endif %}
+├── go.mod
+├── Makefile
+{%- if cloud_service == 'GCP Cloud Function' %}
+└── function.go                    # registers the "api" function and wires each resource
+{%- else %}
+└── main.go                        # wires each resource's repository, service, controller and routes
 {%- endif %}
 ```
 

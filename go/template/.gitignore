@@ -6,22 +6,17 @@ handler
 *.so
 *.dylib
 
-# Test binary
 *.test
 
-# Output of go coverage tool
 *.out
 
-# Go workspace
 go.work
 go.work.sum
 
-# IDE
 .idea/
 *.swp
 *.swo
 
-# Azure Functions localsettings file
 local.settings.json
 
 # Azurite

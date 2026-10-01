@@ -1,0 +1,80 @@
+{%- set c = resource.name | to_lower_camel -%}
+{%- set ops = resource.operations -%}
+{%- set gcp = cloud_service == 'GCP Cloud Function' -%}
+{%- set collection_ops = ops | select('in', ['list', 'create']) | list -%}
+{%- set item_ops = ops | select('in', ['get_by_id', 'update', 'replace', 'delete']) | list -%}
+{%- set method = 'req.method' if gcp else 'event.httpMethod' -%}
+{%- set na = 'notAllowed(res)' if gcp else 'notAllowed()' -%}
+{%- macro ok(status, value) -%}
+{%- if gcp %}jsonResponse(res, {{ status }}, {{ value }}){% else %}jsonResponse({{ status }}, {{ value }}){% endif -%}
+{%- endmacro -%}
+{%- set body = 'readBody(req)' if gcp else 'readBody(event)' -%}
+{%- set user = 'userIdFrom(req)' if gcp else 'userIdFrom(event)' -%}
+{%- if gcp -%}
+import * as ff from '@google-cloud/functions-framework';
+{%- else -%}
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+{%- endif %}
+import { {{ c }}Controller } from '@config/container';
+import { jsonResponse, notAllowed{% if ops | select('in', ['create', 'update', 'replace']) | list %}, readBody{% endif %}{% if ops | reject('in', ['list', 'get_by_id']) | list %}, userIdFrom{% endif %} } from './response';
+{% if ops | select('in', ['create', 'update', 'replace']) | list %}
+// Writes read the user id before the body so an invalid header is rejected first.
+{%- endif %}
+{%- if gcp %}
+export const {{ c }}Routes = async (req: ff.Request, res: ff.Response, id?: string): Promise<void> => {
+{%- else %}
+export const {{ c }}Routes = async (event: APIGatewayProxyEvent, id?: string): Promise<APIGatewayProxyResult> => {
+{%- endif %}
+  if (id === undefined) {
+{%- if collection_ops %}
+    switch ({{ method }}) {
+{%- if "list" in ops %}
+      case 'GET':
+{%- if gcp %}
+        return {{ ok(200, 'await ' ~ c ~ 'Controller.list(req.query.limit as string | undefined)') }};
+{%- else %}
+        return {{ ok(200, 'await ' ~ c ~ 'Controller.list(event.queryStringParameters?.limit)') }};
+{%- endif %}
+{%- endif %}
+{%- if "create" in ops %}
+      case 'POST': {
+        const userId = {{ user }};
+        return {{ ok(201, 'await ' ~ c ~ 'Controller.post(' ~ body ~ ', userId)') }};
+      }
+{%- endif %}
+      default:
+        return {{ na }};
+    }
+{%- else %}
+    return {{ na }};
+{%- endif %}
+  }
+{%- if item_ops %}
+  switch ({{ method }}) {
+{%- if "get_by_id" in ops %}
+    case 'GET':
+      return {{ ok(200, 'await ' ~ c ~ 'Controller.get(id)') }};
+{%- endif %}
+{%- if "update" in ops %}
+    case 'PATCH': {
+      const userId = {{ user }};
+      return {{ ok(200, 'await ' ~ c ~ 'Controller.update(id, ' ~ body ~ ', userId)') }};
+    }
+{%- endif %}
+{%- if "replace" in ops %}
+    case 'PUT': {
+      const userId = {{ user }};
+      return {{ ok(200, 'await ' ~ c ~ 'Controller.replace(id, ' ~ body ~ ', userId)') }};
+    }
+{%- endif %}
+{%- if "delete" in ops %}
+    case 'DELETE':
+      return {{ ok(200, 'await ' ~ c ~ 'Controller.delete(id, ' ~ user ~ ')') }};
+{%- endif %}
+    default:
+      return {{ na }};
+  }
+{%- else %}
+  return {{ na }};
+{%- endif %}
+};
