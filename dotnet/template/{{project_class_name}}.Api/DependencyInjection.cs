@@ -66,7 +66,6 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>The distinct store names the resources use, for the emulator bootstrap.</summary>
     public static IReadOnlyList<string> StoreNames(IConfiguration configuration) =>
     [
         ..new SortedSet<string>(StringComparer.Ordinal)
@@ -120,7 +119,6 @@ public static class DependencyInjection
         }
 
         options.ConnectionMode = ConnectionMode.Gateway;
-        // The emulator advertises its own address, which discovery would use instead of the configured one.
         options.LimitToEndpoint = true;
         var connection = new DbConnectionStringBuilder { ConnectionString = connectionString };
         if (connection.TryGetValue("AccountEndpoint", out object? endpoint)
@@ -169,7 +167,6 @@ public static class DependencyInjection
         services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient(dynamoDbConfig));
     }
 
-    /// <summary>The SDK reads a local emulator's endpoint from AWS_ENDPOINT_URL_DYNAMODB itself.</summary>
     public static AmazonDynamoDBConfig CreateDynamoDbConfig(IConfiguration configuration) => new()
     {
         // Bounded so a failing database answers well inside the Lambda timeout.

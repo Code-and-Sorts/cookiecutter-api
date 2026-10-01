@@ -1,5 +1,4 @@
 {%- set containers = path_resources | unique(attribute='container') | list -%}
-// Command bootstrap prepares the local emulator for the app (make emulator-seed); it is safe to run again.
 package main
 
 import (
@@ -60,7 +59,6 @@ func main() {
 	}
 }
 
-// Same settings and defaults as the app's wiring, so both use the same store names.
 func containerNames() []string {
 	names := []string{
 {%- for c in containers %}
@@ -77,7 +75,6 @@ func containerNames() []string {
 	return slices.Compact(names)
 }
 
-// retry runs step until it succeeds or ctx ends, so the bootstrap also waits for the emulator to start.
 func retry(ctx context.Context, step func(context.Context) error) error {
 	delay := time.Second
 	for {
@@ -121,7 +118,6 @@ func run(ctx context.Context) error {
 			return err
 		}
 		for _, name := range containerNames() {
-			// Every repository reads and writes items by id, so id is the partition key.
 			properties := azcosmos.ContainerProperties{
 				ID:                     name,
 				PartitionKeyDefinition: azcosmos.PartitionKeyDefinition{Paths: []string{"/id"}},
@@ -147,7 +143,6 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("FIRESTORE_EMULATOR_HOST is not set: %w", errNotEmulator)
 	}
 
-	// Firestore creates collections on first write, so a reachable emulator is all the app needs.
 	return retry(ctx, func(ctx context.Context) error {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+host+"/", nil)
 		if err != nil {
@@ -210,7 +205,6 @@ func run(ctx context.Context) error {
 	})
 }
 
-// Matches the tables in template.yaml.
 func createTable(ctx context.Context, client *dynamodb.Client, name string) error {
 	_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
 		TableName: aws.String(name),

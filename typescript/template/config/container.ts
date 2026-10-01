@@ -54,7 +54,6 @@ export const cosmosClientOptions = (settings: CosmosSettings): CosmosClientOptio
   }
   return {
     ...options,
-    // The emulator advertises its own address, which discovery would use instead of the configured one.
     connectionPolicy: { ...cosmosConnectionPolicy, enableEndpointDiscovery: false },
     // Only an emulator serving HTTPS gets here; its certificate is self-signed.
     ...(settings.COSMOS_DB_URL.toLowerCase().startsWith('https:') && { agent: new Agent({ rejectUnauthorized: false }) }),

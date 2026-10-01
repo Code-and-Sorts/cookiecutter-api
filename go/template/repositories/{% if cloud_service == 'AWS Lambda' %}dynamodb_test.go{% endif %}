@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// main.go builds the client this way; the emulator relies on the SDK reading the endpoint override.
 func newClient(t *testing.T) *dynamodb.Client {
 	t.Setenv("AWS_REGION", "us-east-1")
 	t.Setenv("AWS_ENDPOINT_URL", "")

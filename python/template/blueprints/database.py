@@ -26,7 +26,6 @@ CLIENT_OPTIONS = {
 def cosmos_client_options(settings) -> dict:
     if not settings.cosmos_db_emulator:
         return CLIENT_OPTIONS
-    # The emulator advertises its own address, which discovery would use instead of the configured one.
     options = {**CLIENT_OPTIONS, "enable_endpoint_discovery": False}
     if settings.cosmos_db_uri.lower().startswith("https://"):
         # Only an emulator serving HTTPS gets here; its certificate is self-signed.

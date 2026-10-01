@@ -1,5 +1,4 @@
 {%- set prefix = {'Azure Function App': 'COSMOS_CONTAINER_', 'GCP Cloud Function': 'FIRESTORE_COLLECTION_', 'AWS Lambda': 'DYNAMODB_TABLE_NAME_'}[cloud_service] -%}
-// Prepares the local emulator for the app (yarn emulator:seed); it is safe to run again.
 {%- if cloud_service == 'Azure Function App' %}
 import { CosmosClient } from '@azure/cosmos';
 import { cosmosClientOptions } from '@config/container';
@@ -14,7 +13,6 @@ const MAX_DELAY_MS = 8_000;
 
 class NotEmulatorError extends Error {}
 
-// Same settings the repositories read, so the app and the bootstrap agree on store names.
 const storeNames = (): string[] =>
   [
 {%- for container in resources | map(attribute='container') | unique %}
@@ -33,7 +31,6 @@ const bootstrap = async (): Promise<void> => {
   try {
     const { database } = await client.databases.createIfNotExists({ id: env.COSMOS_DB_DATABASE_NAME });
     for (const name of storeNames()) {
-      // Every repository reads and writes items by id, so id is the partition key.
       await database.containers.createIfNotExists({ id: name, partitionKey: { paths: ['/id'] } });
       console.log(`Container ${env.COSMOS_DB_DATABASE_NAME}/${name} is ready.`);
     }
@@ -48,7 +45,6 @@ const bootstrap = async (): Promise<void> => {
   if (!host) {
     throw new NotEmulatorError('FIRESTORE_EMULATOR_HOST is not set; refusing to run outside the emulator.');
   }
-  // Firestore creates collections on first write, so a reachable emulator is all the app needs.
   const response = await fetch(`http://${host}/`, { signal: AbortSignal.timeout(5_000) });
   if ((await response.text()).trim() !== 'Ok') {
     throw new Error(`${host} is not a Firestore emulator.`);
@@ -65,7 +61,6 @@ const bootstrap = async (): Promise<void> => {
   try {
     for (const name of storeNames()) {
       try {
-        // Matches the tables in template.yaml.
         await client.send(
           new CreateTableCommand({
             TableName: name,

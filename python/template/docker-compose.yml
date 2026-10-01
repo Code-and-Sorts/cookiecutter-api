@@ -1,9 +1,6 @@
-# Local database emulator; see "Run locally against the emulator" in README.md.
-# Storage is ephemeral: `docker compose down -v` discards every record.
 services:
 {%- if cloud_service == 'Azure Function App' %}
   cosmos:
-    # The vNext emulator speaks plain HTTP (no certificate to trust) and runs on x64 and arm64.
     image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260907
     ports:
       - "8081:8081" # gateway
@@ -19,7 +16,6 @@ services:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:587.0.0-emulators
     command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080"]
     ports:
-      # 8085 on the host leaves 8080 to the Functions Framework.
       - "8085:8080"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
@@ -44,5 +40,4 @@ services:
 
 networks:
   default:
-    # Fixed so `sam local start-api --docker-network` and other containers can join it.
     name: {{ project_endpoint }}-emulator

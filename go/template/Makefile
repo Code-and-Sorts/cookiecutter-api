@@ -20,7 +20,6 @@ run: ## Run the function app
 	@sam local start-api
 {%- endif %}
 
-# `make COMPOSE="podman compose" ...` runs the emulator with Podman instead.
 COMPOSE ?= docker compose
 
 .PHONY: emulator-up

@@ -10,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 {%- endif %}
 using {{project_class_name}}.Api;
 
-// Prepares the local emulator for the API (make emulator-seed); it is safe to run again.
 var timeout = TimeSpan.FromMinutes(2);
 var maxDelay = TimeSpan.FromSeconds(8);
 var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -31,7 +30,6 @@ async Task Bootstrap(CancellationToken ct)
     Database database = await client.CreateDatabaseIfNotExistsAsync(databaseName, cancellationToken: ct);
     foreach (var name in storeNames)
     {
-        // Every repository reads and writes items by id, so id is the partition key.
         await database.CreateContainerIfNotExistsAsync(name, "/id", cancellationToken: ct);
         Console.WriteLine($"Container {databaseName}/{name} is ready.");
     }
@@ -46,7 +44,6 @@ if (string.IsNullOrEmpty(host))
 }
 using var http = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
 
-// Firestore creates collections on first write, so a reachable emulator is all the API needs.
 async Task Bootstrap(CancellationToken ct)
 {
     string body = await http.GetStringAsync($"http://{host}/", ct);
@@ -72,7 +69,6 @@ async Task Bootstrap(CancellationToken ct)
     {
         try
         {
-            // Matches the tables in template.yaml.
             await client.CreateTableAsync(new CreateTableRequest
             {
                 TableName = name,

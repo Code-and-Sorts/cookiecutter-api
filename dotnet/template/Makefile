@@ -18,7 +18,6 @@ run: ## Run the API locally
 	@cd {{project_class_name}}.Api && sam build && sam local start-api
 {%- endif %}
 
-# `make COMPOSE="podman compose" ...` runs the emulator with Podman instead.
 COMPOSE ?= docker compose
 
 .PHONY: emulator-up

@@ -25,6 +25,5 @@ __blobstorage__/
 __queuestorage__/
 __tablestorage__/
 
-# Local overrides; .env.emulator holds only public emulator values and is committed
 .env
 .env.local

@@ -1,7 +1,6 @@
 # Azure Functions localsettings file
 local.settings.json
 
-# Local overrides; .env.emulator holds only public emulator values and is committed
 .env
 .env.local
 
