@@ -15,7 +15,7 @@ import (
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' %}
 {%- if cloud_service != 'AWS Lambda' %}
 
-func RegisterHealthRoute(mux *http.ServeMux) {
+func RegisterHealthRoute(mux Mux) {
 	mux.HandleFunc("GET {{ route_prefix }}/{{ health_endpoint }}", handleHealth)
 	mux.HandleFunc("{{ route_prefix }}/{{ health_endpoint }}", methodNotAllowed)
 }

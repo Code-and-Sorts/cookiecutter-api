@@ -44,6 +44,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.12" />
 {%- endif %}
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="openapi.json" LogicalName="openapi.json" />
+  </ItemGroup>
 {%- if cloud_service == 'Azure Function App' %}
   <ItemGroup>
     <None Update="host.json">

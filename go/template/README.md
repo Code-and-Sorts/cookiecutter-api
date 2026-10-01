@@ -45,14 +45,25 @@ A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and a
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 
-Routes are served under the Functions host's default `/api` prefix. The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed){% if health_endpoint %}; the health check function is anonymous{% endif %}.
+Routes are served under the Functions host's default `/api` prefix. The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed); the {% if health_endpoint %}health check and {% endif %}OpenAPI functions are anonymous.
 {%- elif cloud_service == 'AWS Lambda' %}
 
-API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`). Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires an API key sent as `x-api-key: <value>`; step 5 of [Setup and Installation](#setup-and-installation) shows how to read it after deploying. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
+API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`). Every route except {% if health_endpoint %}`/{{ health_endpoint }}` and {% endif %}`/openapi.json` requires an API key sent as `x-api-key: <value>`; step 5 of [Setup and Installation](#setup-and-installation) shows how to read it after deploying. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
 {%- elif cloud_service == 'GCP Cloud Function' %}
 
 The deployed function requires IAM: callers need the Cloud Run Invoker role and send `Authorization: Bearer $(gcloud auth print-identity-token)`.{% if health_endpoint %} The health check sits behind the same check, because the project exposes one function.{% endif %}
 {%- endif %}
+
+### OpenAPI
+
+[`openapi.json`](openapi.json) is an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) description of the routes above{% if health_endpoint %}, the health check{% endif %} and itself, generated from the same template answers. It is embedded in the binary and served at `GET {{ route_prefix }}/openapi.json`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% else %}, behind the same IAM check as every other route{% endif %}.
+
+`handlers/openapi_test.go` fails when the spec's routes differ from the ones `handlers.RegisterRoutes` registers, or its request schemas from `controllers/schemas`, so a change to a route must update `openapi.json` too. Lint it, or build an HTML reference, with [Redocly CLI](https://redocly.com/docs/cli/):
+
+```console
+npx @redocly/cli lint openapi.json
+npx @redocly/cli build-docs openapi.json
+```
 
 ### Responses
 
@@ -366,8 +377,11 @@ checks, the schema validator, the generic database store, the base entity, error
 │   ├── health_handler.go
 │   ├── health_handler_test.go
 {%- endif %}
+│   ├── openapi.go                 # serves openapi.json
+│   ├── openapi_test.go            # checks the spec against the registered routes and request schemas
 │   ├── router.go                  # request log and deadline, JSON responses and 404, 405 and 500 errors
-│   └── router_test.go
+│   ├── router_test.go
+│   └── routes.go                  # registers every route; shared by the entry point and the OpenAPI test
 ├── models                         # each resource's entity, DTO and request types
 {%- for resource in resources %}
 │   ├── {{ resource.name | to_snake }}_model.go
@@ -407,6 +421,8 @@ checks, the schema validator, the generic database store, the base entity, error
 ├── healthApi
 │   └── function.json
 {%- endif %}
+├── openapi
+│   └── function.json
 ├── host.json
 ├── local.settings.json
 {%- endif %}
@@ -415,6 +431,7 @@ checks, the schema validator, the generic database store, the base entity, error
 {%- endif %}
 ├── go.mod
 ├── Makefile
+├── openapi.json                   # OpenAPI 3.1 description of the API
 {%- if cloud_service == 'GCP Cloud Function' %}
 └── function.go                    # registers the "api" function and wires each resource
 {%- else %}

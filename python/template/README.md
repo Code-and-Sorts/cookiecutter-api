@@ -42,6 +42,17 @@ A health check is available at `GET {{ prefix }}{{ health_endpoint }}` and answe
 {%- endif %}
 {%- endfor %}
 
+## OpenAPI
+
+[`openapi.json`](openapi.json) is an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) description of the routes above{% if health_endpoint %}, the health check{% endif %} and itself, generated from the same template answers. The API serves it at `GET {{ prefix }}openapi.json`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% else %}, behind the same IAM check as every other route{% endif %}.
+
+`openapi_test.py` fails when the spec's routes differ from the registered ones, or its request schemas from the Pydantic models, so a change to a route must update `openapi.json` too. Lint it, or build an HTML reference, with [Redocly CLI](https://redocly.com/docs/cli/):
+
+```console
+npx @redocly/cli lint openapi.json
+npx @redocly/cli build-docs openapi.json
+```
+
 ## Requests and responses
 
 Every response, including errors, is JSON with `Content-Type: application/json`.
@@ -68,11 +79,11 @@ An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must b
 Writes (create, update, replace and delete) may send an `X-User-Id` header naming the caller; it is the only way to set `createdBy` and `updatedBy`, which request bodies cannot contain. Surrounding whitespace is trimmed, an empty or missing header means no user, and a value longer than 256 characters is rejected with a 400 before the body is read. Reads ignore the header, and responses never include the audit fields. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 {%- if cloud_service == 'Azure Function App' %}
 
-Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the health check is anonymous. For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
+Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the {% if health_endpoint %}health check and the {% endif %}OpenAPI document are anonymous. For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
-Resource routes require an API key, sent as the `x-api-key` header{% if health_endpoint %}; the health check does not{% endif %}. `sam deploy` creates the key, and the stack's `{{ project_class_name }}ApiKeyId` output names it: read the value with `aws apigateway get-api-key --api-key <id> --include-value --query value --output text`. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
+Resource routes require an API key, sent as the `x-api-key` header; the {% if health_endpoint %}health check and the {% endif %}OpenAPI document do not. `sam deploy` creates the key, and the stack's `{{ project_class_name }}ApiKeyId` output names it: read the value with `aws apigateway get-api-key --api-key <id> --include-value --query value --output text`. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
 
 API Gateway only forwards the routes declared in `template.yaml`: for any other path or method it answers `403 {"message": "Missing Authentication Token"}` itself, without invoking the function. The function's own 404 and 405 answers apply when it is invoked some other way.
 {%- endif %}
@@ -396,6 +407,7 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {%- if health_endpoint %}
 {{ "%-34s" | format("│   ├── health.py") }}- Health check at `{{ health_endpoint }}`
 {%- endif %}
+{{ "%-34s" | format("│   ├── openapi.py") }}- Serves `openapi.json`
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ ".py") }}- {{ resource.name }} {{ fn }}
 {%- endfor %}
@@ -426,6 +438,8 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {%- if health_endpoint %}
 {{ "%-34s" | format("├── health_test.py") }}- Health check unit tests
 {%- endif %}
+{{ "%-34s" | format("├── openapi.json") }}- OpenAPI 3.1 description of the API
+{{ "%-34s" | format("├── openapi_test.py") }}- Checks the spec against the routes and models
 {%- if cloud_service == 'Azure Function App' %}
 {{ "%-34s" | format("├── function_app.py") }}- Function App entry point, registers each blueprint
 {{ "%-34s" | format("└── function_app_test.py") }}- Route, auth level and response tests

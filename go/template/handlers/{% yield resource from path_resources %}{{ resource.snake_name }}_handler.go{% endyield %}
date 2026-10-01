@@ -24,7 +24,7 @@ import (
 )
 {%- if cloud_service != 'AWS Lambda' %}
 
-func Register{{ r }}Routes(mux *http.ServeMux, controller controllers.{{ r }}Controller) {
+func Register{{ r }}Routes(mux Mux, controller controllers.{{ r }}Controller) {
 {%- if "list" in ops %}
 	mux.HandleFunc("GET {{ route_prefix }}/{{ ep }}", func(w http.ResponseWriter, r *http.Request) {
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))

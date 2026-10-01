@@ -7,6 +7,7 @@ import {
 {%- endif %}
   jsonResponse,
   notFound,
+  openApiRoutes,
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
@@ -40,26 +41,29 @@ express.application.handle = function (this: ExpressApplication, req, res, next)
   return handle.call(this, req, res, next ?? frameworkFinalHandler(req, res));
 };
 
+type Route = (req: ff.Request, res: ff.Response, id?: string) => Promise<void>;
+
+// First path segment -> its routes; the OpenAPI contract test probes every entry.
+export const routes = new Map<string, Route>([
+{%- if health_endpoint %}
+  ['{{ health_endpoint }}', healthRoutes],
+{%- endif %}
+  ['openapi.json', openApiRoutes],
+{%- for resource in resources %}
+  ['{{ resource.endpoint }}', {{ resource.name | to_lower_camel }}Routes],
+{%- endfor %}
+]);
+
 const route = async (req: ff.Request, res: ff.Response): Promise<void> => {
   const segments = req.path.split('/').filter(Boolean);
   const [endpoint, id] = segments;
+  const routeFor = routes.get(endpoint);
 
   try {
-    if (segments.length > 2) {
+    if (routeFor === undefined || segments.length > 2) {
       return notFound(res);
     }
-    switch (endpoint) {
-{%- if health_endpoint %}
-      case '{{ health_endpoint }}':
-        return id === undefined ? await healthRoutes(req, res) : notFound(res);
-{%- endif %}
-{%- for resource in resources %}
-      case '{{ resource.endpoint }}':
-        return await {{ resource.name | to_lower_camel }}Routes(req, res, id);
-{%- endfor %}
-      default:
-        return notFound(res);
-    }
+    return await routeFor(req, res, id);
   } catch (error) {
     return errorResponse(res, error);
   }

@@ -57,6 +57,11 @@ func withUserID({% if cloud_service == 'AWS Lambda' %}headers map[string]string{
 {%- endif %}
 {%- if cloud_service != 'AWS Lambda' %}
 
+// Satisfied by *http.ServeMux; the OpenAPI contract test passes a recorder to list the routes.
+type Mux interface {
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}
+
 func NewRouter() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

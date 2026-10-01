@@ -1,7 +1,7 @@
 import azure.functions as func
 from blueprints import BLUEPRINTS
 
-# Resource functions require a function key{% if health_endpoint %}; the health check opts out{% endif %}.
+# Resource functions require a function key; the {% if health_endpoint %}health check and the {% endif %}OpenAPI document opt out.
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 for blueprint in BLUEPRINTS:

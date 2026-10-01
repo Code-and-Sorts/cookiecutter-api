@@ -44,6 +44,8 @@ The REST API exposes the following resources and operations:
 - **`{{ prefix }}/{{ health_endpoint }}`**
   - `GET {{ prefix }}/{{ health_endpoint }}` — health check
 {%- endif %}
+- **`{{ prefix }}/openapi.json`**
+  - `GET {{ prefix }}/openapi.json` — the [OpenAPI document](#openapi)
 {%- if cloud_service == 'Azure Function App' %}
 
 Paths are relative to the Function App host (`http://localhost:7071` when running locally); `/api` is the Azure Functions default route prefix.
@@ -58,6 +60,17 @@ Paths are relative to the API Gateway stage URL (`https://<api-id>.execute-api.<
 {%- endif %}
 
 Dependency management is handled using [Nuget](https://www.nuget.org/), ensuring a streamlined and consistent environment for managing Dotnet packages and their dependencies.
+
+## OpenAPI
+
+[`{{ project_class_name }}.Api/openapi.json`]({{ project_class_name }}.Api/openapi.json) is an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) description of every route above, generated from the same template answers. The project embeds it in the assembly and serves it at `GET {{ prefix }}/openapi.json`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% else %}, behind the same IAM check as every other route{% endif %}.
+
+`OpenApi/OpenApiSpecTests.cs` fails when the spec's routes differ from the {% if cloud_service == 'Azure Function App' %}`[Function]` HTTP triggers{% elif cloud_service == 'GCP Cloud Function' %}routes the registered handlers serve{% else %}API events in `template.yaml`{% endif %}, or its request schemas from the request models and FluentValidation validators, so a change to a route must update `openapi.json` too. Lint it, or build an HTML reference, with [Redocly CLI](https://redocly.com/docs/cli/):
+
+```console
+npx @redocly/cli lint {{ project_class_name }}.Api/openapi.json
+npx @redocly/cli build-docs {{ project_class_name }}.Api/openapi.json
+```
 
 ## API behaviour
 
@@ -315,7 +328,7 @@ Resources that use the same container share its records: there is no type discri
     sam deploy --guided
     ```
 
-    Resource routes require an API key{% if health_endpoint %}; the health check does not{% endif %}. SAM creates the key and a usage plan, and the `ApiKeyId` stack output holds its id. Read the value and send it as the `x-api-key` header:
+    Resource routes require an API key; the {% if health_endpoint %}health check and the {% endif %}OpenAPI document do not. SAM creates the key and a usage plan, and the `ApiKeyId` stack output holds its id. Read the value and send it as the `x-api-key` header:
 
     ```console
     aws apigateway get-api-key --api-key <ApiKeyId> --include-value --query value --output text
@@ -381,13 +394,15 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 {%- endif %}
 │   ├── Repositories
 │   ├── Services
-│   └── Utils
+│   ├── Utils
+│   └── openapi.json
 └── {{ project_class_name }}.Api.Tests.Unit
     ├── Controllers
     ├── Functions
 {%- if cloud_service == 'GCP Cloud Function' %}
     ├── Handlers
 {%- endif %}
+    ├── OpenApi
     ├── Repositories
     ├── Services
     ├── Utils

@@ -116,8 +116,8 @@ resources:
     {%- set ns = namespace(err="", eps=[], names=[], containers=[]) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
-    {%- elif health_endpoint and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 61 > 127 -%}
-    {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the health handler string would exceed the 127-character limit." -%}
+    {%- elif cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 64 > 127 -%}
+    {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the OpenAPI handler string would exceed the 127-character limit." -%}
     {%- else -%}
     {%- for r in resources -%}
     {%- if not ns.err -%}
@@ -126,6 +126,8 @@ resources:
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a type or method the generated " ~ cloud_service ~ " project already uses. Choose another name." -%}
+    {%- elif name_key == "openapi" -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: its files would collide with the OpenAPI document's." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
     {%- elif health_endpoint and r.endpoint == health_endpoint -%}

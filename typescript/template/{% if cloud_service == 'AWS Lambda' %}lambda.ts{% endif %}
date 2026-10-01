@@ -5,33 +5,36 @@ import {
   healthRoutes,
 {%- endif %}
   notFound,
+  openApiRoutes,
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
 } from '@routes';
 
+type Route = (event: APIGatewayProxyEvent, id?: string) => Promise<APIGatewayProxyResult>;
+
+// First path segment -> its routes; the OpenAPI contract test probes every entry.
+export const routes = new Map<string, Route>([
+{%- if health_endpoint %}
+  ['{{ health_endpoint }}', healthRoutes],
+{%- endif %}
+  ['openapi.json', openApiRoutes],
+{%- for resource in resources %}
+  ['{{ resource.endpoint }}', {{ resource.name | to_lower_camel }}Routes],
+{%- endfor %}
+]);
+
 // template.yaml maps only the enabled operations; API Gateway answers other paths and methods itself.
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const segments = (event.resource || event.path || '').split('/').filter(Boolean);
-  const endpoint = segments[0];
   const id = segments.length > 1 ? event.pathParameters?.id : undefined;
+  const route = routes.get(segments[0]);
 
   try {
-    if (segments.length > 2 || (segments.length === 2 && id === undefined)) {
+    if (route === undefined || segments.length > 2 || (segments.length === 2 && id === undefined)) {
       return notFound();
     }
-    switch (endpoint) {
-{%- if health_endpoint %}
-      case '{{ health_endpoint }}':
-        return id === undefined ? await healthRoutes(event) : notFound();
-{%- endif %}
-{%- for resource in resources %}
-      case '{{ resource.endpoint }}':
-        return await {{ resource.name | to_lower_camel }}Routes(event, id);
-{%- endfor %}
-      default:
-        return notFound();
-    }
+    return await route(event, id);
   } catch (error) {
     return errorResponse(error);
   }

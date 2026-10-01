@@ -3,6 +3,7 @@ package function
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -18,6 +19,9 @@ import (
 	"{{project_endpoint}}/utils"
 )
 
+//go:embed openapi.json
+var openAPISpec []byte
+
 func init() {
 	slog.SetDefault(utils.NewLogger())
 	functions.HTTP("api", newAPI().ServeHTTP)
@@ -28,19 +32,17 @@ func newAPI() http.Handler {
 	exitOnError("Failed to initialize schema validator", err)
 	client := newFirestoreClient()
 
-	router := handlers.NewRouter()
-{%- if health_endpoint %}
-	handlers.RegisterHealthRoute(router)
-{%- endif %}
+	var resources handlers.Controllers
 {%- for resource in path_resources %}
 	{
 		collection := client.Collection(utils.Getenv("FIRESTORE_COLLECTION_{{ resource.env_key }}", "{{ resource.container }}"))
 		repository := repositories.New{{ resource.name }}Repository(collection)
-		controller := controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
-		handlers.Register{{ resource.name }}Routes(router, controller)
+		resources.{{ resource.name }} = controllers.New{{ resource.name }}Controller(services.New{{ resource.name }}Service(repository), validator)
 	}
 {%- endfor %}
 
+	router := handlers.NewRouter()
+	handlers.RegisterRoutes(router, resources, openAPISpec)
 	return handlers.Middleware(router)
 }
 

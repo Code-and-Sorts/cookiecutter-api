@@ -128,6 +128,8 @@ resources:
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name == "Health" -%}
     {%- set ns.err = "Resource name 'Health' is reserved." -%}
+    {%- elif (r.name | lower) == "openapi" -%}
+    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: its files would collide with the OpenAPI document's." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved because it collides with a generated or imported TypeScript identifier or a shared file name. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}

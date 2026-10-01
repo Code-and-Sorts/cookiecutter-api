@@ -1,0 +1,348 @@
+{#- The OpenAPI document as YAML; template/openapi.json converts it to JSON. Every language keeps an identical copy (CI diffs them). -#}
+{%- set all_ops = resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
+{%- set item_ops = ['get_by_id', 'update', 'replace', 'delete'] -%}
+{%- set write_ops = ['create', 'update', 'replace', 'delete'] -%}
+{%- set scheme = {'Azure Function App': 'functionKey', 'GCP Cloud Function': 'identityToken', 'AWS Lambda': 'apiKey'}[cloud_service] -%}
+{%- set licenses = {
+    'MIT license': ('MIT License', 'MIT'),
+    'BSD license': ('BSD 3-Clause License', 'BSD-3-Clause'),
+    'ISC license': ('ISC License', 'ISC'),
+    'Apache Software License 2.0': ('Apache License 2.0', 'Apache-2.0'),
+    'GNU General Public License v3': ('GNU General Public License v3.0 or later', 'GPL-3.0-or-later'),
+} -%}
+{%- macro json_body(schema) -%}
+content:
+  application/json:
+    schema:
+      $ref: '#/components/schemas/{{ schema }}'
+{%- endmacro -%}
+{%- macro errors(codes) -%}
+{%- for code, name in [('400', 'BadRequest'), ('404', 'NotFound'), ('500', 'InternalError')] if code in codes %}
+'{{ code }}':
+  $ref: '#/components/responses/{{ name }}'
+{%- endfor %}
+{%- endmacro -%}
+openapi: 3.1.0
+info:
+  title: {{ project_name | tojson }}
+  version: 1.0.0
+  summary: {{ project_description | tojson }}
+  description: >-
+    Every response, including errors, is JSON. Errors are `{"errorMessage": "..."}`:
+    400 for a malformed or non-object body, a missing, empty or non-string `name`, any
+    other field, or an invalid `X-User-Id` header; 404 for an unknown path or an id that
+    is unknown, soft-deleted or not a UUID; 405 for a method a path does not list (when
+    the request reaches the function); 500, with the details logged, for anything else.
+    `X-User-Id` is taken as sent and is not authenticated.
+  contact:
+    name: {{ author | tojson }}
+{%- if open_source_license in licenses %}
+  license:
+    name: {{ licenses[open_source_license][0] }}
+    identifier: {{ licenses[open_source_license][1] }}
+{%- endif %}
+servers:
+{%- if cloud_service == 'Azure Function App' %}
+  - url: https://{functionApp}.azurewebsites.net/api
+    description: Deployed Function App; `/api` is the Functions host's default route prefix.
+    variables:
+      functionApp:
+        default: {{ project_endpoint | tojson }}
+        description: Function App name.
+  - url: http://localhost:7071/api
+    description: Local Functions host.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+  - url: https://{region}-{projectId}.cloudfunctions.net/{functionName}
+    description: Deployed Cloud Run function; its routes have no prefix.
+    variables:
+      region:
+        default: us-central1
+      projectId:
+        default: my-project
+      functionName:
+        default: {{ project_endpoint | tojson }}
+        description: Name the function was deployed with.
+  - url: http://localhost:8080
+    description: Local Functions Framework.
+{%- else %}
+  - url: https://{restApiId}.execute-api.{region}.amazonaws.com/Prod
+    description: Deployed API Gateway stage; its routes have no prefix.
+    variables:
+      restApiId:
+        default: my-api-id
+        description: REST API id from the stack's API URL output.
+      region:
+        default: us-east-1
+  - url: http://127.0.0.1:3000
+    description: Local `sam local start-api`, which does not check API keys.
+{%- endif %}
+security:
+  - {{ scheme }}: []
+tags:
+  - name: Service
+    description: Operational endpoints.
+{%- for resource in resources %}
+  - name: {{ resource.name }}
+    description: {{ resource.name }} records, stored in the `{{ resource.container }}` container.
+{%- endfor %}
+paths:
+{%- if health_endpoint %}
+  /{{ health_endpoint }}:
+    get:
+      tags: [Service]
+      operationId: getHealth
+      summary: Health check
+{%- if cloud_service != 'GCP Cloud Function' %}
+      security: []
+{%- endif %}
+      responses:
+        '200':
+          description: The service is up.
+          {{ json_body('Health') | indent(10) }}
+{%- endif %}
+  /openapi.json:
+    get:
+      tags: [Service]
+      operationId: getOpenApi
+      summary: This OpenAPI document
+{%- if cloud_service != 'GCP Cloud Function' %}
+      security: []
+{%- endif %}
+      responses:
+        '200':
+          description: The OpenAPI document.
+          content:
+            application/json:
+              schema:
+                type: object
+{%- for resource in resources %}
+{%- set r = resource.name %}
+{%- set ops = resource.operations %}
+{%- if 'list' in ops or 'create' in ops %}
+  /{{ resource.endpoint }}:
+{%- if 'list' in ops %}
+    get:
+      tags: [{{ r }}]
+      operationId: list{{ r }}
+      summary: List {{ r }} records
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: The records that are not deleted (`[]` when there are none).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/{{ r }}'
+        {{- errors(['500']) | indent(8) }}
+{%- endif %}
+{%- if 'create' in ops %}
+    post:
+      tags: [{{ r }}]
+      operationId: create{{ r }}
+      summary: Create a {{ r }}
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        {{ json_body(r ~ 'CreateRequest') | indent(8) }}
+      responses:
+        '201':
+          description: The created record.
+          {{ json_body(r) | indent(10) }}
+        {{- errors(['400', '500']) | indent(8) }}
+{%- endif %}
+{%- endif %}
+{%- if ops | select('in', item_ops) | list %}
+  /{{ resource.endpoint }}/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+{%- if 'get_by_id' in ops %}
+    get:
+      tags: [{{ r }}]
+      operationId: get{{ r }}ById
+      summary: Get a {{ r }}
+      responses:
+        '200':
+          description: The record.
+          {{ json_body(r) | indent(10) }}
+        {{- errors(['404', '500']) | indent(8) }}
+{%- endif %}
+{%- if 'update' in ops %}
+    patch:
+      tags: [{{ r }}]
+      operationId: update{{ r }}
+      summary: Update a {{ r }}'s fields
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        {{ json_body(r ~ 'UpdateRequest') | indent(8) }}
+      responses:
+        '200':
+          description: The updated record.
+          {{ json_body(r) | indent(10) }}
+        {{- errors(['400', '404', '500']) | indent(8) }}
+{%- endif %}
+{%- if 'replace' in ops %}
+    put:
+      tags: [{{ r }}]
+      operationId: replace{{ r }}
+      summary: Replace a {{ r }}
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        {{ json_body(r ~ 'ReplaceRequest') | indent(8) }}
+      responses:
+        '200':
+          description: The replaced record.
+          {{ json_body(r) | indent(10) }}
+        {{- errors(['400', '404', '500']) | indent(8) }}
+{%- endif %}
+{%- if 'delete' in ops %}
+    delete:
+      tags: [{{ r }}]
+      operationId: delete{{ r }}
+      summary: Soft-delete a {{ r }}
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: The record is marked deleted.
+          {{ json_body('DeleteResponse') | indent(10) }}
+        {{- errors(['400', '404', '500']) | indent(8) }}
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+components:
+  securitySchemes:
+{%- if cloud_service == 'Azure Function App' %}
+    functionKey:
+      type: apiKey
+      in: header
+      name: x-functions-key
+      description: A function key (the `code` query parameter also works). `func start` does not check it.
+{%- elif cloud_service == 'GCP Cloud Function' %}
+    identityToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Google-signed identity token of a caller with the Cloud Run Invoker role, for
+        example from `gcloud auth print-identity-token`. The Functions Framework does
+        not check it locally.
+{%- else %}
+    apiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: The API key created by the SAM usage plan.
+{%- endif %}
+  parameters:
+{%- if all_ops | select('in', item_ops) | list %}
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Record id; anything other than a UUID is answered with 404.
+      schema:
+        type: string
+        format: uuid
+{%- endif %}
+{%- if 'list' in all_ops %}
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Most records to return. Values above 1000 are capped at 1000; invalid values fall back to 100.
+      schema:
+        type: integer
+        minimum: 1
+        default: 100
+{%- endif %}
+{%- if all_ops | select('in', write_ops) | list %}
+    UserId:
+      name: X-User-Id
+      in: header
+      required: false
+      description: >-
+        Caller id stored as `createdBy` (on create) and `updatedBy`; surrounding whitespace
+        is trimmed and a write without it removes `updatedBy`. Not authenticated.
+      schema:
+        type: string
+        maxLength: 256
+{%- endif %}
+  responses:
+{%- if all_ops | select('in', write_ops) | list %}
+    BadRequest:
+      description: The body or the `X-User-Id` header is invalid.
+      {{ json_body('ErrorResponse') | indent(6) }}
+{%- endif %}
+{%- if all_ops | select('in', item_ops) | list %}
+    NotFound:
+      description: No record has this id, it is deleted, or the id is not a UUID.
+      {{ json_body('ErrorResponse') | indent(6) }}
+{%- endif %}
+    InternalError:
+      description: An unexpected error; the details are logged, never returned.
+      {{ json_body('ErrorResponse') | indent(6) }}
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [errorMessage]
+      properties:
+        errorMessage:
+          type: string
+      additionalProperties: false
+{%- if health_endpoint %}
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+      additionalProperties: false
+{%- endif %}
+{%- if 'delete' in all_ops %}
+    DeleteResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          examples:
+            - <Name> with id <id> was deleted successfully.
+      additionalProperties: false
+{%- endif %}
+{%- for resource in resources %}
+{%- set r = resource.name %}
+{%- set ops = resource.operations %}
+{%- if ops | reject('equalto', 'delete') | list %}
+    {{ r }}:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      additionalProperties: false
+{%- endif %}
+{%- for op, suffix in [('create', 'CreateRequest'), ('update', 'UpdateRequest'), ('replace', 'ReplaceRequest')] if op in ops %}
+    {{ r }}{{ suffix }}:
+      type: object
+{%- if op != 'update' %}
+      required: [name]
+{%- endif %}
+      properties:
+        name:
+          type: string
+          minLength: 1
+      additionalProperties: false
+{%- endfor %}
+{%- endfor %}
