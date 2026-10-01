@@ -95,8 +95,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments (.env.emulator holds only public emulator values and is committed)
 .env
+.env.local
 .venv
 env/
 venv/

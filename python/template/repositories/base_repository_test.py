@@ -14,6 +14,7 @@ from azure.cosmos.exceptions import (
 from google.cloud.firestore import DELETE_FIELD, FieldFilter
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
+import aioboto3
 from botocore.exceptions import ClientError
 {%- endif %}
 from repositories import BaseRepository
@@ -419,6 +420,20 @@ def describe_dynamodb_storage():
         assert DYNAMODB_CONFIG.connect_timeout <= 1
         assert DYNAMODB_CONFIG.read_timeout <= 2
         assert DYNAMODB_CONFIG.retries == {"total_max_attempts": 2, "mode": "standard"}
+
+    @pytest.mark.parametrize("endpoint", [None, "http://localhost:8000"])
+    def test_endpoint_override_comes_only_from_the_environment(monkeypatch, endpoint):
+        monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
+        if endpoint:
+            monkeypatch.setenv("AWS_ENDPOINT_URL_DYNAMODB", endpoint)
+        else:
+            monkeypatch.delenv("AWS_ENDPOINT_URL_DYNAMODB", raising=False)
+
+        async def endpoint_url():
+            async with aioboto3.Session().resource("dynamodb", region_name="us-east-1", config=DYNAMODB_CONFIG) as dynamodb:
+                return dynamodb.meta.client.meta.endpoint_url
+
+        assert asyncio.run(endpoint_url()) == (endpoint or "https://dynamodb.us-east-1.amazonaws.com")
 
     def describe_get_stored():
         def test_reads_item(table):

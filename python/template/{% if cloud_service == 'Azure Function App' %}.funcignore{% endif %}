@@ -8,6 +8,9 @@
 .thunderclient
 __pycache__
 local.settings.json
+.env.emulator
+docker-compose.yml
+scripts
 *_test.py
 conftest.py
 Makefile

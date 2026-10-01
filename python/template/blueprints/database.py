@@ -23,12 +23,23 @@ CLIENT_OPTIONS = {
 }
 
 
+def cosmos_client_options(settings) -> dict:
+    if not settings.cosmos_db_emulator:
+        return CLIENT_OPTIONS
+    # The emulator advertises its own address, which discovery would use instead of the configured one.
+    options = {**CLIENT_OPTIONS, "enable_endpoint_discovery": False}
+    if settings.cosmos_db_uri.lower().startswith("https://"):
+        # Only an emulator serving HTTPS gets here; its certificate is self-signed.
+        options["connection_verify"] = False
+    return options
+
+
 async def get_container(container_id: str) -> ContainerProxy:
     global _client
     settings = get_settings()
     async with _client_lock:
         if _client is None:
-            client = CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key, **CLIENT_OPTIONS)
+            client = CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key, **cosmos_client_options(settings))
             await client.__aenter__()
             _client = client
     database = _client.get_database_client(settings.cosmos_db_database_name)
