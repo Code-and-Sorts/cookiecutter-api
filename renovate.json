@@ -34,8 +34,8 @@
     },
     {
       "customType": "regex",
-      "description": "Emulator images; the Jinja blocks in these files stop the docker-compose manager from parsing them",
-      "managerFilePatterns": ["/^(python|typescript|dotnet|go)/template/docker-compose\\.yml$/"],
+      "description": "Emulator images; the Jinja blocks in this file stop the docker-compose manager from parsing it",
+      "managerFilePatterns": ["/^shared/docker-compose\\.yml$/"],
       "matchStrings": ["image: (?<depName>[^:\\s]+):(?<currentValue>\\S+)"],
       "datasourceTemplate": "docker"
     }

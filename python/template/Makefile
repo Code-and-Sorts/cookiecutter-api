@@ -19,26 +19,8 @@ run: ## Run function app.
 	@sam local start-api
 {%- endif %}
 
-COMPOSE ?= docker compose
-
-.PHONY: emulator-up
-emulator-up: ## Start the local {{ {'Azure Function App': 'Cosmos DB', 'GCP Cloud Function': 'Firestore', 'AWS Lambda': 'DynamoDB'}[cloud_service] }} emulator and wait until it is healthy
-	@$(COMPOSE) up -d --wait
-
-.PHONY: emulator-seed
-emulator-seed: ## {{ {'Azure Function App': "Create the emulator's database and containers", 'GCP Cloud Function': 'Wait until the emulator answers', 'AWS Lambda': "Create the emulator's tables"}[cloud_service] }}; safe to re-run
-	@set -a && . ./.env.emulator && set +a && poetry run python -m scripts.bootstrap_emulator
-
-.PHONY: emulator-down
-emulator-down: ## Stop the emulator and discard its data
-	@$(COMPOSE) down -v
-
-.PHONY: emulator-logs
-emulator-logs: ## Follow the emulator's logs
-	@$(COMPOSE) logs -f
-
-.PHONY: run-emulator
-run-emulator: ## Run the API against the emulator (after emulator-up and emulator-seed)
+{% set emulator_seed = 'poetry run python -m scripts.bootstrap_emulator' -%}
+{% include 'shared/_Makefile.emulator' -%}
 {%- if cloud_service == 'Azure Function App' %}
 	@echo "🚀 Running Function App against the Cosmos DB emulator"
 	@set -a && . ./.env.emulator && set +a && poetry run func start

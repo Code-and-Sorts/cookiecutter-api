@@ -128,7 +128,8 @@ The SDK clients switch to the emulator only when its settings are present (a
 Cosmos DB emulator flag, `AWS_ENDPOINT_URL_DYNAMODB` or `FIRESTORE_EMULATOR_HOST`), so
 deployed code paths are unchanged. AWS projects run through `sam local start-api` on the
 emulator's Docker network with `env.emulator.json`. Each generated README covers ports,
-credentials, limitations and troubleshooting.
+credentials, limitations and troubleshooting. The compose file, `env.emulator.json`, the
+shared Make targets and that README section are kept once in `shared/` for every language.
 
 ## Supported Templates
 
