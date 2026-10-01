@@ -43,7 +43,6 @@ express.application.handle = function (this: ExpressApplication, req, res, next)
 
 type Route = (req: ff.Request, res: ff.Response, id?: string) => Promise<void>;
 
-// First path segment -> its routes; the OpenAPI contract test probes every entry.
 export const routes = new Map<string, Route>([
 {%- if health_endpoint %}
   ['{{ health_endpoint }}', healthRoutes],

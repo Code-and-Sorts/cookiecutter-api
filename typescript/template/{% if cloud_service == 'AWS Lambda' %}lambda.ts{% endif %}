@@ -13,7 +13,6 @@ import {
 
 type Route = (event: APIGatewayProxyEvent, id?: string) => Promise<APIGatewayProxyResult>;
 
-// First path segment -> its routes; the OpenAPI contract test probes every entry.
 export const routes = new Map<string, Route>([
 {%- if health_endpoint %}
   ['{{ health_endpoint }}', healthRoutes],

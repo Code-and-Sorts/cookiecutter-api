@@ -5,7 +5,6 @@ using System.IO;
 
 public static class OpenApiDocument
 {
-    // Embedded rather than copied, so every cloud's deployment package carries it unchanged.
     public static readonly string Json = Load();
 
     private static string Load()

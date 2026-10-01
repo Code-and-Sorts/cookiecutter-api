@@ -91,7 +91,6 @@ public class OpenApiSpecTests
         Assert.Equal(405, response.StatusCode);
     }
 
-    // API Gateway only forwards what template.yaml maps, so its events are the route table.
     [Fact]
     public void Spec_ListsExactlyTheTemplateRoutes()
     {
@@ -128,7 +127,6 @@ public class OpenApiSpecTests
         }
     }
 
-    // A route exists when the function answers its method and path with anything but 405 or the unknown-path 404.
     [Fact]
     public async Task Spec_ListsExactlyTheRoutesTheFunctionServes()
     {
@@ -173,7 +171,6 @@ public class OpenApiSpecTests
         Assert.Equal(Sorted(specRequests), Sorted(RequestTypes().Select(SpecName)));
     }
 
-    // Field names, required fields and empty strings must match what RequestBody and the FluentValidation validators enforce.
     [Fact]
     public void RequestSchemas_MatchTheValidators()
     {
@@ -206,7 +203,6 @@ public class OpenApiSpecTests
     private static IEnumerable<Type> RequestTypes() =>
         Api.GetTypes().Where(type => type.Namespace == "{{project_class_name}}.Api.Requests" && type.Name.EndsWith("Request", StringComparison.Ordinal));
 
-    // CreateCatRequest is the spec's CatCreateRequest.
     private static string SpecName(Type type)
     {
         var operation = new[] { "Create", "Update", "Replace" }.Single(prefix => type.Name.StartsWith(prefix, StringComparison.Ordinal));

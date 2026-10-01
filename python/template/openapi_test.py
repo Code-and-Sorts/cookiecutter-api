@@ -14,7 +14,6 @@ import models
 
 _SPEC = json.loads(Path(__file__).with_name("openapi.json").read_text(encoding="utf-8"))
 
-# Request schema in the spec -> the Pydantic model that validates that body.
 _REQUEST_MODELS = {
 {%- for resource in resources %}
 {%- for op, suffix in request_ops if op in resource.operations %}

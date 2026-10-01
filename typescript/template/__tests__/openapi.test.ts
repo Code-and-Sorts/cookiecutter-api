@@ -27,7 +27,6 @@ jest.unstable_mockModule('@azure/functions', () => ({ app: { http: jest.fn<MockF
 type Registration = { methods: string[]; route: string; authLevel: string; handler: () => Promise<{ status: number; body: string }> };
 let registrations: Record<string, Registration>;
 
-// The Functions host loads every module in functions/, so the test does too.
 beforeAll(async () => {
     const { app } = await import('@azure/functions');
     for (const file of readdirSync(new URL('../functions', import.meta.url))) {
@@ -95,7 +94,6 @@ const send = async (method: string, endpoint: string, id?: string) => {
 {%- endif %}
 };
 
-// A route exists when the app answers its method and path with anything but 405 or the unknown-path 404.
 const registeredRoutes = async (): Promise<string[]> => {
     const found: string[] = [];
     for (const endpoint of routes.keys()) {
@@ -124,7 +122,6 @@ const specRoutes = (): string[] =>
 
 const specSchemas = spec.components.schemas as Record<string, unknown>;
 
-// Request schema in the spec -> the Zod schema that validates that body.
 const requestSchemas: Record<string, z.ZodType> = {
 {%- for name, schema in ns.requests %}
     {{ name }}: {{ schema }},

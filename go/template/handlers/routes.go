@@ -5,7 +5,6 @@ import (
 	"{{project_endpoint}}/controllers"
 )
 
-// The entry point and the OpenAPI contract test both register routes through RegisterRoutes.
 type Controllers struct {
 {%- for resource in resources %}
 	{{ resource.name ~ ' ' * (width - resource.name | length) }} controllers.{{ resource.name }}Controller

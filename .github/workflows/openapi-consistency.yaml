@@ -1,6 +1,5 @@
 name: OpenAPI Consistency
 
-# Every language must render the same openapi.json for the same answers.
 on:
   push:
     paths:
@@ -69,7 +68,6 @@ jobs:
             done
           done
 
-      # Within a cloud the documents must match exactly; across clouds only servers and security may differ.
       - name: Compare the rendered specs
         run: |
           python - rendered <<'EOF'
@@ -117,7 +115,6 @@ jobs:
           sys.exit(1 if failed else 0)
           EOF
 
-      # The previous step proved every language renders the same document, so one language covers them all.
       - name: Lint every cloud and fixture
         uses: ./.github/actions/lint-openapi
         with:

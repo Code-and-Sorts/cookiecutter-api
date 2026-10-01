@@ -42,7 +42,6 @@ func loadOpenAPI(t *testing.T) ([]byte, openAPIDocument) {
 	return spec, doc
 }
 
-// "METHOD /path" for every operation in the spec, sorted.
 func (doc openAPIDocument) routes() []string {
 	var routes []string
 	for path, item := range doc.Paths {
@@ -96,7 +95,6 @@ func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
 
 	var routes []string
 	for _, pattern := range recorder.patterns {
-		// Patterns without a method only answer 405.
 		if method, path, ok := strings.Cut(pattern, " "); ok {
 {%- if route_prefix %}
 			assert.True(t, strings.HasPrefix(path, "{{ route_prefix }}/"), pattern)
@@ -136,7 +134,6 @@ func TestOpenAPI_OtherMethod_Returns405(t *testing.T) {
 	assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, response.Body)
 }
 
-// A route is registered when the router answers anything but 405 for its method and resource.
 func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
 	spec, doc := loadOpenAPI(t)
 	var fakes Controllers
@@ -168,7 +165,6 @@ func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
 }
 {%- endif %}
 
-// The spec's request schemas must be the JSON Schemas the validator enforces.
 func TestOpenAPI_RequestSchemasMatchValidator(t *testing.T) {
 	_, doc := loadOpenAPI(t)
 	validatorSchemas := controllers.RequestSchemas()

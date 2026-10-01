@@ -12,7 +12,6 @@ SPEC = json.loads((Path(__file__).parent.parent / "openapi.json").read_text(enco
 bp = func.Blueprint()
 
 
-# Anonymous like the health check: the document describes the API, not its data.
 @bp.route(route=ENDPOINT, methods=[func.HttpMethod.GET], auth_level=func.AuthLevel.ANONYMOUS)
 async def openapi(req: func.HttpRequest) -> func.HttpResponse:
     return response_generator(SPEC)
@@ -23,7 +22,6 @@ def openapi({% if cloud_service == 'GCP Cloud Function' %}request{% else %}event
     return 200, SPEC
 
 
-# (HTTP method, path has an item id) -> handler
 ROUTES = {
     ("GET", False): openapi,
 }

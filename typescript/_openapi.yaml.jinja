@@ -1,4 +1,3 @@
-{#- The OpenAPI document as YAML; template/openapi.json converts it to JSON. Every language keeps an identical copy (CI diffs them). -#}
 {%- set all_ops = resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
 {%- set item_ops = ['get_by_id', 'update', 'replace', 'delete'] -%}
 {%- set write_ops = ['create', 'update', 'replace', 'delete'] -%}
