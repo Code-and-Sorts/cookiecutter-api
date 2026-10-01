@@ -2,7 +2,7 @@
 {%- set ops = resource.operations -%}
 {%- set with_id = ('get_by_id' in ops) or ('update' in ops) or ('replace' in ops) or ('delete' in ops) -%}
 {%- set with_body = ('create' in ops) or ('update' in ops) or ('replace' in ops) -%}
-{%- from '_macros.jinja' import model_names -%}
+{%- from 'python/_macros.jinja' import model_names -%}
 {%- set models = model_names(resource) -%}
 {%- set helpers = [] -%}
 {%- if with_body %}{% set _ = helpers.append('parse_body') %}{% endif -%}

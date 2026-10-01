@@ -2,7 +2,7 @@
 {%- set ops = resource.operations -%}
 {%- set ep = resource.endpoint -%}
 {%- set uses_body = resource.has_body -%}
-{%- set uses_id = resource.has_id -%}
+{%- set uses_id = resource.has_item -%}
 {%- set uses_user = ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set routes = [

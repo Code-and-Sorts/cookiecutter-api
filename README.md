@@ -31,22 +31,46 @@ pipx inject copier jinja2-strcase jinja2-time
 python -m pip install --user copier jinja2-strcase jinja2-time
 ```
 
-Each language lives in its own template directory (`python`, `typescript`, `dotnet`,
-`go`). Copier reads the configuration from the directory you point it at, so clone the
-repository and generate from the language you want:
+The repository is one Copier template. Its first question is `language` (`python`,
+`typescript`, `dotnet` or `go`); answer it at the prompt or pass it with `--data`:
 
 ```console
+copier copy --trust gh:Code-and-Sorts/cookiecutter-api ./my-api
+
+# Or from a clone, choosing the language up front
 git clone https://github.com/Code-and-Sorts/cookiecutter-api.git
-copier copy ./cookiecutter-api/{LANGUAGE_OPTION} ./my-api
+copier copy --trust --data language=python ./cookiecutter-api ./my-api
 ```
 
-Follow the prompts to configure your project. The generated project includes a
-`.copier-answers.yml` file, so you can pull in future template changes with:
+`--trust` is needed because the template uses Jinja extensions. Follow the prompts to
+configure your project. The generated project includes a `.copier-answers.yml` file that
+records the template and the commit it came from, so you can pull in future template
+changes with:
 
 ```console
 cd my-api
-copier update
+copier update --trust
 ```
+
+### Migrating a project generated from a language folder
+
+Projects generated before the single template (from `./cookiecutter-api/python` and the
+like) record the language folder as `_src_path` and no `_commit`, because the folder was
+not a Git repository root. `copier update` stops on them with "Cannot update because cannot
+obtain old template references". To move such a project to the single template, edit its
+`.copier-answers.yml`:
+
+1. Point `_src_path` at the repository, not the language folder (for example
+   `gh:Code-and-Sorts/cookiecutter-api`, or the root of your clone).
+2. Add `language: python` (or `typescript`, `dotnet`, `go`).
+3. Then either:
+   - Add `_commit:` set to the first commit of the single template, which renders the same
+     files the language folders did (`git log --diff-filter=A --format=%H -1 -- copier.yml`
+     in a clone prints it), commit, and run `copier update --trust`. Copier applies every
+     template change since that commit and keeps your own edits. Template changes made
+     between your project's generation and that commit are not replayed.
+   - Or run `copier recopy --trust --overwrite`, which renders the template again from your
+     answers over the project, then review `git diff` and restore your own edits.
 
 ### Multiple resources
 
@@ -66,7 +90,7 @@ resources:
 ```
 
 ```console
-copier copy --data-file resources.yml ./cookiecutter-api/{LANGUAGE_OPTION} ./my-api
+copier copy --trust --data language=typescript --data-file resources.yml gh:Code-and-Sorts/cookiecutter-api ./my-api
 ```
 
 `name` is the PascalCase type name, `endpoint` the URL segment, and `container` the storage
@@ -107,6 +131,9 @@ emulator's Docker network with `env.emulator.json`. Each generated README covers
 credentials, limitations and troubleshooting.
 
 ## Supported Templates
+
+Pick a row with the `language` answer (`python`, `typescript`, `dotnet` or `go`) and a
+column with `cloud_service`.
 
 <table width="100%">
   <tr>

@@ -1,10 +1,10 @@
 name: Setup Copier Template
-description: Render one of the language templates with Copier.
+description: Render the root Copier template for one language.
 
 inputs:
   template-language:
     required: true
-    description: Template language directory (python, typescript, dotnet or go).
+    description: Template language (python, typescript, dotnet or go), passed as the language answer.
   template-cloud-service:
     required: true
     description: Template cloud service.
@@ -77,14 +77,16 @@ runs:
         if [ -n "$PROJECT_ENDPOINT" ]; then
           extra_args+=(--data project_endpoint="$PROJECT_ENDPOINT")
         fi
-        copier copy --defaults --trust \
+        # HEAD renders the checked-out commit (plus local edits) rather than the newest tag.
+        copier copy --defaults --trust --vcs-ref HEAD \
           --data project_name="$PROJECT_NAME" \
           --data project_description="$PROJECT_DESCRIPTION" \
           --data author="$AUTHOR" \
+          --data language="$LANGUAGE" \
           --data cloud_service="$CLOUD" \
           --data open_source_license="$LICENSE" \
           "${extra_args[@]}" \
-          "./$LANGUAGE" "./$OUTPUT"
+          . "./$OUTPUT"
       shell: bash
 
     # A static check only: running the emulators is the integration tests' job. macOS runners have no Docker.

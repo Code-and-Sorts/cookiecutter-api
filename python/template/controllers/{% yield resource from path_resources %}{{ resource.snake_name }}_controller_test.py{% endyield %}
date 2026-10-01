@@ -1,7 +1,7 @@
 {%- set r = resource.name -%}
 {%- set slug = r | to_snake -%}
 {%- set ops = resource.operations -%}
-{%- from '_macros.jinja' import model_names -%}
+{%- from 'python/_macros.jinja' import model_names -%}
 {%- set models = model_names(resource, with_update=false) -%}
 import asyncio
 import pytest

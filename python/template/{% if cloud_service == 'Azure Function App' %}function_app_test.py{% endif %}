@@ -1,4 +1,4 @@
-{%- from '_macros.jinja' import routes -%}
+{%- from 'python/_macros.jinja' import routes -%}
 {%- set writes = ['create', 'update', 'replace', 'delete'] -%}
 import asyncio
 import json
