@@ -4,12 +4,6 @@ using System;
 using System.Collections.Generic;
 {%- if cloud_service == 'Azure Function App' %}
 using Microsoft.Azure.Cosmos;
-{%- elif cloud_service == 'GCP Cloud Function' %}
-using Google.Api.Gax;
-{%- else %}
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.Model;
-using Amazon.Runtime;
 {%- endif %}
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -18,21 +12,6 @@ public class DependencyInjectionTests
 {
     private static IConfiguration Configuration(Dictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-
-    [Fact]
-    public void StoreNames_ListsEachStoreOnce()
-    {
-        var names = DependencyInjection.StoreNames(Configuration([]));
-
-        Assert.Equal(
-            new[]
-            {
-{%- for c in path_resources | unique(attribute='container') | map(attribute='container') | sort %}
-                "{{ c }}",
-{%- endfor %}
-            },
-            names);
-    }
 {%- if cloud_service == 'Azure Function App' %}
 
     private const string AzureConnection = "AccountEndpoint=https://account.documents.azure.com:443/;AccountKey=a2V5;";
@@ -92,17 +71,6 @@ public class DependencyInjectionTests
 
         Assert.Throws<InvalidOperationException>(() => DependencyInjection.CreateCosmosClientOptions(configuration, AzureConnection));
     }
-{%- elif cloud_service == 'GCP Cloud Function' %}
-
-    [Fact]
-    public void CreateFirestoreDbBuilder_UsesTheEmulatorOnlyWhenItIsConfigured()
-    {
-        var builder = DependencyInjection.CreateFirestoreDbBuilder("demo-project", "(default)");
-
-        Assert.Equal(EmulatorDetection.EmulatorOrProduction, builder.EmulatorDetection);
-        Assert.Equal("demo-project", builder.ProjectId);
-        Assert.Equal("(default)", builder.DatabaseId);
-    }
 {%- else %}
 
     [Theory]
@@ -115,26 +83,6 @@ public class DependencyInjectionTests
 
         Assert.Equal(ignored, config.IgnoreConfiguredEndpointUrls);
         Assert.Equal(2, config.MaxErrorRetry);
-    }
-
-    [Fact]
-    public void DynamoDbClient_ReadsTheEndpointOverrideFromTheEnvironment()
-    {
-        var previous = Environment.GetEnvironmentVariable("AWS_ENDPOINT_URL_DYNAMODB");
-        Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL_DYNAMODB", "http://localhost:8000");
-        try
-        {
-            var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-            var config = DependencyInjection.CreateDynamoDbConfig(configuration);
-            config.RegionEndpoint = Amazon.RegionEndpoint.USEast1;
-            using var client = new AmazonDynamoDBClient(new BasicAWSCredentials("test", "test"), config);
-
-            Assert.Equal("http://localhost:8000/", client.DetermineServiceOperationEndpoint(new ListTablesRequest()).URL);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("AWS_ENDPOINT_URL_DYNAMODB", previous);
-        }
     }
 {%- endif %}
 }

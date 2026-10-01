@@ -144,18 +144,17 @@ public static class DependencyInjection
             throw new InvalidOperationException("Firestore configuration is missing or incomplete.");
         }
 
-        services.AddSingleton(provider => CreateFirestoreDbBuilder(projectId, databaseId).Build());
-    }
-
-    public static FirestoreDbBuilder CreateFirestoreDbBuilder(string projectId, string databaseId) => new()
-    {
-        ProjectId = projectId,
-        DatabaseId = databaseId,
-        // Without this the builder ignores FIRESTORE_EMULATOR_HOST.
-        EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
         // Bounded so a failing database answers well inside the platform timeout.
-        Settings = new FirestoreSettings { CallSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(5))) },
-    };
+        services.AddSingleton(provider =>
+            new FirestoreDbBuilder
+            {
+                ProjectId = projectId,
+                DatabaseId = databaseId,
+                EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+                Settings = new FirestoreSettings { CallSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(5))) },
+            }.Build()
+        );
+    }
 
     private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity, new() =>
         new FirestoreDocumentStore<T>(provider.GetRequiredService<FirestoreDb>(), containerName);

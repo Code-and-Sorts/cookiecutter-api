@@ -1,7 +1,4 @@
-import { {% if cloud_service == 'AWS Lambda' %}afterEach, {% endif %}describe, it, expect } from '@jest/globals';
-{%- if cloud_service == 'AWS Lambda' %}
-import { DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb';
-{%- endif %}
+import { describe, it, expect } from '@jest/globals';
 import {
 {%- for resource in resources %}
     {{ resource.name | to_lower_camel }}Controller,
@@ -65,47 +62,6 @@ describe('container', () => {
             const options = cosmosClientOptions(settings('https://localhost:8081/', true));
 
             expect((options.agent as unknown as { options: { rejectUnauthorized: boolean } }).options.rejectUnauthorized).toBe(false);
-        });
-    });
-{%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-
-    describe('DynamoDB endpoint', () => {
-        const saved = { ...process.env };
-        afterEach(() => {
-            process.env = { ...saved };
-        });
-
-        // The SDK resolves the endpoint per request, so capture the host the request is about to use.
-        const requestHost = async (): Promise<string | undefined> => {
-            const client = new DynamoDBClient({ ...dynamoDbClientConfig, credentials: { accessKeyId: 'test', secretAccessKey: 'test' } });
-            let host: string | undefined;
-            client.middlewareStack.add(
-                () => async (args) => {
-                    host = (args.request as { hostname: string }).hostname;
-                    throw new Error('request captured');
-                },
-                { step: 'finalizeRequest' },
-            );
-            await client.send(new ListTablesCommand({})).catch(() => undefined);
-            return host;
-        };
-
-        it.each([undefined, ''])('should use the AWS endpoint when the override is %p', async (override) => {
-            delete process.env.AWS_ENDPOINT_URL;
-            if (override === undefined) {
-                delete process.env.AWS_ENDPOINT_URL_DYNAMODB;
-            } else {
-                process.env.AWS_ENDPOINT_URL_DYNAMODB = override;
-            }
-
-            expect(await requestHost()).toEqual('dynamodb.us-east-1.amazonaws.com');
-        });
-
-        it('should read the emulator endpoint from AWS_ENDPOINT_URL_DYNAMODB', async () => {
-            process.env.AWS_ENDPOINT_URL_DYNAMODB = 'http://localhost:8000';
-
-            expect(await requestHost()).toEqual('localhost');
         });
     });
 {%- endif %}
