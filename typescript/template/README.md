@@ -205,11 +205,11 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
 yarn install
 yarn emulator:up      # docker compose up -d --wait: returns once the emulator is healthy
 yarn emulator:seed    # {% if cloud_service == 'Azure Function App' %}creates the database and one container per storage container{% elif cloud_service == 'GCP Cloud Function' %}waits until the emulator answers (collections are created on first write){% else %}creates one table per storage container{% endif %}; safe to re-run
-yarn start:emulator  # {% if cloud_service == 'Azure Function App' %}yarn build, then func start{% elif cloud_service == 'GCP Cloud Function' %}yarn build, then functions-framework on http://localhost:8080{% else %}yarn build and sam build, then sam local start-api on http://127.0.0.1:3000{% endif %} with the emulator settings
-yarn emulator:down   # docker compose down -v: stops the emulator and discards its data
+yarn start:emulator   # {% if cloud_service == 'Azure Function App' %}yarn build, then func start{% elif cloud_service == 'GCP Cloud Function' %}yarn build, then functions-framework on http://localhost:8080{% else %}yarn build and sam build, then sam local start-api on http://127.0.0.1:3000{% endif %} with the emulator settings
+yarn emulator:down    # docker compose down -v: stops the emulator and discards its data
 ```
 
-`yarn emulator:logs` follows the emulator's logs. {% if cloud_service == 'AWS Lambda' %}`yarn emulator:seed` loads the settings in `.env.emulator` (through `DOTENV_CONFIG_PATH`, overriding variables already set), and `yarn start:emulator` passes `env.emulator.json` to `sam local`.{% else %}`yarn emulator:seed` and `yarn start:emulator` load the settings in `.env.emulator` instead of `.env` (through `DOTENV_CONFIG_PATH`), overriding variables already set{% if cloud_service == 'Azure Function App' %}, including those from `local.settings.json`{% endif %}.{% endif %} `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json`, {% endif %}`.env` or `.env.local`, which git ignores. The emulator stores nothing on disk, so `yarn emulator:down` (or removing the container) discards every record.
+`yarn emulator:logs` follows the emulator's logs. {% if cloud_service == 'AWS Lambda' %}`yarn emulator:seed` loads the settings in `.env.emulator` (through `DOTENV_CONFIG_PATH`, overriding variables already set), and `yarn start:emulator` passes `env.emulator.json` to `sam local`.{% else %}`yarn emulator:seed` and `yarn start:emulator` load the settings in `.env.emulator` instead of `.env` (through `DOTENV_CONFIG_PATH`), overriding variables already set{% if cloud_service == 'Azure Function App' %}, including those from `local.settings.json`{% endif %}.{% endif %} `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json`, {% endif %}`.env` or `.env.local`, which git ignores. The emulator keeps no data outside its container, so `yarn emulator:down` (or removing the container) discards every record.
 {%- if cloud_service == 'Azure Function App' %}
 
 | Port | Purpose |
@@ -245,7 +245,7 @@ Startup takes {% if cloud_service == 'Azure Function App' %}about 10 to 60 secon
 Troubleshooting:
 
 - **Port already in use:** another emulator or service holds a port above. Stop it, or change the host port in `docker-compose.yml` and in `.env.emulator`.
-- **`emulator-up` fails or never turns healthy:** check `yarn emulator:logs`, and that Docker has enough free memory for the emulator.
+- **`yarn emulator:up` fails or never turns healthy:** check `yarn emulator:logs`, and that Docker has enough free memory for the emulator.
 - **Requests fail right after starting:** {% if cloud_service == 'GCP Cloud Function' %}check that `yarn emulator:seed` passes and that the API was started with `yarn start:emulator`, which sets `FIRESTORE_EMULATOR_HOST`{% else %}run `yarn emulator:seed`; the {% if cloud_service == 'Azure Function App' %}database and containers{% else %}tables{% endif %} do not exist until it has run, and `yarn emulator:down` deletes them{% endif %}.
 {%- if cloud_service == 'Azure Function App' %}
 - **A missing container returns 404 instead of 500:** the emulator reports a missing container without the sub-status a Cosmos DB account sends; run `yarn emulator:seed`.

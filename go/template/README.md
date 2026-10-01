@@ -311,7 +311,7 @@ make run-emulator     # {% if cloud_service == 'Azure Function App' %}go build, 
 make emulator-down    # docker compose down -v: stops the emulator and discards its data
 ```
 
-`make emulator-logs` follows the emulator's logs. `make emulator-seed` and `make run-emulator` export the settings in `.env.emulator`{% if cloud_service == 'Azure Function App' %}, which take precedence over `local.settings.json` (Core Tools skips any setting already in the environment){% endif %}. `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json` or {% endif %}`.env.local`, which git ignores. The emulator stores nothing on disk, so `make emulator-down` (or removing the container) discards every record.
+`make emulator-logs` follows the emulator's logs. `make emulator-seed` and `make run-emulator` export the settings in `.env.emulator`{% if cloud_service == 'Azure Function App' %}, which take precedence over `local.settings.json` (Core Tools skips any setting already in the environment){% endif %}. `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {% if cloud_service == 'Azure Function App' %}`local.settings.json` or {% endif %}`.env.local`, which git ignores. The emulator keeps no data outside its container, so `make emulator-down` (or removing the container) discards every record.
 {%- if cloud_service == 'Azure Function App' %}
 
 | Port | Purpose |
@@ -347,7 +347,7 @@ Startup takes {% if cloud_service == 'Azure Function App' %}about 10 to 60 secon
 Troubleshooting:
 
 - **Port already in use:** another emulator or service holds a port above. Stop it, or change the host port in `docker-compose.yml` and in `.env.emulator`.
-- **`emulator-up` fails or never turns healthy:** check `make emulator-logs`, and that Docker has enough free memory for the emulator.
+- **`make emulator-up` fails or never turns healthy:** check `make emulator-logs`, and that Docker has enough free memory for the emulator.
 - **Requests fail right after starting:** {% if cloud_service == 'GCP Cloud Function' %}check that `make emulator-seed` passes and that `FIRESTORE_EMULATOR_HOST` is exported (`make run-emulator` does this){% else %}run `make emulator-seed`; the {% if cloud_service == 'Azure Function App' %}database and containers{% else %}tables{% endif %} do not exist until it has run, and `make emulator-down` deletes them{% endif %}.
 {%- if cloud_service == 'Azure Function App' %}
 - **A missing container returns 404 instead of 500:** the emulator reports a missing container without the sub-status a Cosmos DB account sends, so `IsItemNotFound` cannot tell it from a missing item; run `make emulator-seed`.

@@ -25,7 +25,7 @@ services:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
       interval: 5s
       timeout: 5s
-      retries: 24
+      retries: 18
       start_period: 30s
 {%- else %}
   dynamodb:
@@ -38,7 +38,7 @@ services:
       test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000/ || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 24
+      retries: 22
       start_period: 10s
 {%- endif %}
 

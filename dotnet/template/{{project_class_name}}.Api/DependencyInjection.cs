@@ -153,7 +153,7 @@ public static class DependencyInjection
     {
         ProjectId = projectId,
         DatabaseId = databaseId,
-        // Uses FIRESTORE_EMULATOR_HOST when it is set; the builder ignores it otherwise.
+        // Without this the builder ignores FIRESTORE_EMULATOR_HOST.
         EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
         // Bounded so a failing database answers well inside the platform timeout.
         Settings = new FirestoreSettings { CallSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(5))) },
