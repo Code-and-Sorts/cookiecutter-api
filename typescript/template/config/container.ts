@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { Container } from 'inversify';
 {% if cloud_service == 'Azure Function App' -%}
-import { CosmosClient } from '@azure/cosmos';
+import { Agent } from 'node:https';
+import { CosmosClient, CosmosClientOptions } from '@azure/cosmos';
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 import { Firestore } from '@google-cloud/firestore';
@@ -44,11 +45,22 @@ export const cosmosConnectionPolicy = {
   retryOptions: { maxRetryAttemptCount: 2, fixedRetryIntervalInMilliseconds: 200, maxWaitTimeInSeconds: 5 },
 };
 
-const client = new CosmosClient({
-  endpoint: env.COSMOS_DB_URL,
-  key: env.COSMOS_DB_KEY,
-  connectionPolicy: cosmosConnectionPolicy,
-});
+type CosmosSettings = Pick<typeof env, 'COSMOS_DB_URL' | 'COSMOS_DB_KEY' | 'COSMOS_DB_EMULATOR'>;
+
+export const cosmosClientOptions = (settings: CosmosSettings): CosmosClientOptions => {
+  const options = { endpoint: settings.COSMOS_DB_URL, key: settings.COSMOS_DB_KEY, connectionPolicy: cosmosConnectionPolicy };
+  if (!settings.COSMOS_DB_EMULATOR) {
+    return options;
+  }
+  return {
+    ...options,
+    connectionPolicy: { ...cosmosConnectionPolicy, enableEndpointDiscovery: false },
+    // Only an emulator serving HTTPS gets here; its certificate is self-signed.
+    ...(settings.COSMOS_DB_URL.toLowerCase().startsWith('https:') && { agent: new Agent({ rejectUnauthorized: false }) }),
+  };
+};
+
+const client = new CosmosClient(cosmosClientOptions(env));
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 // Capped so a failing database gives the 500 within 10 seconds.

@@ -10,7 +10,8 @@ name: Publish Example Branches
 #
 # On a pull request only the language(s) whose template dir changed are
 # rendered (so a Python PR publishes only example/pr-<n>-python-* branches);
-# pushes to main render all four languages.
+# a change to the root copier.yml or shared/ affects every language, so it
+# renders all four, as do pushes to main.
 #
 # Full-fidelity publishing (including each generated project's own
 # .github/workflows/build-pipeline.yml) requires a Personal Access Token with
@@ -28,6 +29,8 @@ on:
       - python/**
       - typescript/**
       - dotnet/**
+      - copier.yml
+      - shared/**
       - .github/workflows/publish-examples.yml
       - .github/actions/setup-copier-template/**
   pull_request:
@@ -36,6 +39,8 @@ on:
       - python/**
       - typescript/**
       - dotnet/**
+      - copier.yml
+      - shared/**
       - .github/workflows/publish-examples.yml
       - .github/actions/setup-copier-template/**
   workflow_dispatch:
@@ -75,8 +80,11 @@ jobs:
                 sel+=("${l}")
               fi
             done
-            # If only shared files changed (e.g. the workflow itself), render all.
-            if [ ${#sel[@]} -eq 0 ]; then sel=("${all[@]}"); fi
+            # Render all when the root copier.yml or shared/ changed (every language uses
+            # them), or when no language dir changed (e.g. the workflow itself).
+            if [ ${#sel[@]} -eq 0 ] || grep -qE '^(copier\.yml$|shared/)' <<<"${changed}"; then
+              sel=("${all[@]}")
+            fi
           else
             sel=("${all[@]}")
           fi

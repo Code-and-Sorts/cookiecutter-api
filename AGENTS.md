@@ -10,10 +10,12 @@ This is a [Copier](https://github.com/copier-org/copier) template repository tha
 
 ```
 cookiecutter-api/
-├── python/                  # Python template (Azure + GCP + AWS)
-├── typescript/              # TypeScript/Node.js template (Azure + GCP + AWS)
-├── dotnet/                  # .NET/C# template (Azure + GCP + AWS)
-├── go/                      # Go template (Azure + GCP + AWS)
+├── copier.yml               # The one Copier config: questions, derived values, validators
+├── shared/                  # Files identical across languages, included by each language's copy
+├── python/template/         # Python template (Azure + GCP + AWS)
+├── typescript/template/     # TypeScript/Node.js template (Azure + GCP + AWS)
+├── dotnet/template/         # .NET/C# template (Azure + GCP + AWS)
+├── go/template/             # Go template (Azure + GCP + AWS)
 ├── .github/
 │   ├── actions/             # Shared composite actions and resource fixtures
 │   └── workflows/           # CI pipelines per language, example publishing
@@ -21,10 +23,21 @@ cookiecutter-api/
 └── README.md                # Support matrix and usage docs
 ```
 
-Each language directory contains:
-- `copier.yml` — Questions, derived values, validators, and Jinja extension config
-- `template/` — The template project root (declared via `_subdirectory: template`); its
-  contents are rendered directly into the destination directory
+The repository root is the Copier template root. `copier.yml` asks `language` first and sets
+`_subdirectory: "{{ language }}/template"`, so only that language's tree is rendered into the
+destination; `shared/`, the other languages and the repository files are never copied. Template
+files include and import by path from the repository root, for example
+`{% include 'shared/LICENSE' -%}` or `{% from 'python/_macros.jinja' import routes %}`
+(Copier forbids includes outside the template root, which is why the root is the repository).
+
+### Shared files
+
+A file that would be identical in two or more languages lives once in `shared/`, and each
+language's copy is a one-line `{% include 'shared/<path>' -%}` (the `-` keeps the included
+file's own trailing newline as the only one). `shared/` mirrors the generated path
+(`shared/LICENSE`, `shared/.vscode/extensions.json`); a partial that is included into a
+differently named file starts with `_`. Only share what is really the same: a file that
+differs by language or needs per-language conditionals stays in each `template/`.
 
 ## Template Architecture
 
@@ -58,12 +71,16 @@ The default is a single resource derived from the project name with `list`, `get
   example `controllers/{% yield resource from path_resources %}{{ resource.lower_camel_name }}.controller.ts{% endyield %}`;
   Copier renders it once per resource with `resource` in context (`resources` is still the
   full list). Git for Windows cannot check out a path containing `|`, so paths never use
-  Jinja filters: `path_resources` (a derived `when: false` copy of `resources`) adds the
-  `snake_name` and `lower_camel_name` stems. Keep every repository path under about 200 characters too: Git for
-  Windows fails checkout past 260 characters including the clone directory, so long
+  Jinja filters: `path_resources` (a derived `when: false` copy of `resources`, the same for
+  every language) precomputes the names and flags templates need: `snake_name`,
+  `lower_camel_name`, `container_key` (`-` becomes `_`), `env_key` (that, upper case),
+  `container_class` (PascalCase container), `has_body`, `has_collection`, `has_item` and
+  `has_dto`. Keep every repository path under about 200 characters too: Git for
+  Windows fails checkout past 260 characters including the clone directory (Copier clones the
+  template into the system temp directory), so long
   conditions belong in a derived value (for example .NET's `azure_dir`/`gcp_dir`/`aws_dir`, which
   render the cloud's folder name or nothing, and `body_resources` for resources that accept a request body). Only one `yield` is allowed per path segment and none inside file contents,
-  so shared files (base repository, base entity, errors, DI wiring, env schema, barrels)
+  so files common to all resources (base repository, base entity, errors, DI wiring, env schema, barrels)
   still loop over `resources`. This needs Copier 9.18.2+ (`_min_copier_version`).
 - Controllers, services, routes and repositories expose only the resource's `operations`
   (`update` is PATCH, `replace` is PUT). Database code lives once per cloud, never per
@@ -80,8 +97,10 @@ The default is a single resource derived from the project name with `list`, `get
   `health`) and generated only when that answer is non-empty.
 - The `resources` validator rejects an endpoint equal to `health_endpoint`, the name `Health`, duplicate
   operations, names or containers that collide after case and separator normalization, and
-  per-language reserved names. Only add a reserved name after rendering it and watching
-  the generated project fail to build.
+  per-language reserved names. It is one validator in the root `copier.yml`: checks every
+  language shares run for all, and reserved names and generated-name clashes branch on
+  `language`. Only add a reserved name after rendering it and watching the generated project
+  fail to build.
 
 ### API Contract
 
@@ -118,9 +137,49 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 
 Cloud-specific code is handled through:
 
-1. **Jinja2 conditionals** — `{% if cloud_service == '...' %}` blocks within shared files (repositories, configs, package manifests)
+1. **Jinja2 conditionals** — `{% if cloud_service == '...' %}` blocks within files every cloud uses (repositories, configs, package manifests)
 2. **Separate entry point files** — Each cloud has its own entry point (e.g., `functions/` for Azure, `main.ts` for GCP, `lambda.ts` for AWS)
 3. **Conditional file/directory names** — Cloud-specific files and directories are named with a Jinja conditional (e.g. `{% if cloud_service == 'AWS Lambda' %}lambda.ts{% endif %}`). Copier skips any path that renders to an empty string, which replaces Cookiecutter's post-generation cleanup hooks.
+
+### Local Emulators
+
+Every generated project runs against a local emulator with no cloud account (running them in CI
+and integration tests is separate work). The cross-cloud parts live once in `shared/`:
+
+- `shared/docker-compose.yml` — Jinja renders only the chosen cloud's emulator (Cosmos DB vNext on
+  8081 + Data Explorer 1234, Firestore on host 8085, DynamoDB Local `-inMemory -sharedDb` on 8000),
+  with a healthcheck, pinned image tags (bumped by a Renovate regex manager), no volumes and the
+  fixed network `{{project_endpoint}}-emulator`.
+- `shared/.env.emulator` — the public emulator settings (committed; real credentials stay in untracked
+  files). GCP and AWS settings are the same everywhere; the Azure block picks each language's Cosmos
+  setting names with `language`.
+- `shared/env.emulator.json` — the AWS `sam local start-api --env-vars ... --docker-network ...`
+  settings, which reach `http://dynamodb:8000` and name one table per container.
+- `shared/_Makefile.emulator` — the `COMPOSE` variable and the `emulator-up`, `emulator-seed`,
+  `emulator-down` and `emulator-logs` targets plus the `run-emulator` header; each Makefile sets
+  `emulator_seed` (its bootstrap command) before including it and writes its own `run-emulator` recipe.
+- `shared/_README.emulator.md` — the "Run locally against the emulator" README section; each README
+  sets `emulator` (make or yarn, setting names and per-language notes) and `emulator_settings`.
+
+Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scripts, and the client options.
+
+- A language-native bootstrap that reuses the app's store name settings and client options:
+  Python `scripts/bootstrap_emulator.py`, TypeScript `scripts/bootstrapEmulator.ts`, Go
+  `cmd/bootstrap`, .NET `<Project>.Bootstrap` (in the solution). It creates one Cosmos DB container
+  (partition key `/id`) or DynamoDB table (hash key `id`, on-demand) per unique `container`, only
+  checks Firestore is reachable, refuses to run unless the emulator settings are present, retries
+  for 2 minutes and is safe to re-run. Never create stores at app startup.
+- Make targets `emulator-up`, `emulator-seed`, `emulator-down`, `emulator-logs`, `run-emulator`
+  (Python, Go, .NET, from `shared/_Makefile.emulator`); package scripts `emulator:up`, `emulator:seed`, `emulator:down`,
+  `emulator:logs`, `start:emulator` (TypeScript, through dotenv's `DOTENV_CONFIG_PATH`).
+- Clients switch only on emulator settings, so production paths are unchanged: a Cosmos flag
+  (`Cosmos_Db_Emulator`, `COSMOS_DB_EMULATOR`, `CosmosDbEmulator`) turns off endpoint discovery
+  (.NET: Gateway mode + `LimitToEndpoint`) and skips certificate checks only for an `https://`
+  endpoint; DynamoDB and Firestore rely on the SDKs reading `AWS_ENDPOINT_URL_DYNAMODB` and
+  `FIRESTORE_EMULATOR_HOST` (.NET Firestore needs `EmulatorDetection.EmulatorOrProduction`). SAM
+  templates declare `AWS_ENDPOINT_URL_DYNAMODB` behind the `DynamoDbEndpoint` parameter so
+  deployed stacks omit it; `sam local` passes it empty otherwise, which .NET must ignore.
+- Azure `local.settings.json` uses `"AzureWebJobsStorage": ""`: every trigger is HTTP, so no Azurite.
 
 ### Cloud → Database Mapping
 
@@ -134,7 +193,7 @@ Cloud-specific code is handled through:
 
 To add a new cloud provider to an existing language template:
 
-1. **Update `copier.yml`** — Add the new option to the `cloud_service` question's `choices`
+1. **Update the root `copier.yml`** — Add the new option to the `cloud_service` question's `choices` (shared by every language; gate any per-language derived value or reserved name on `language`)
 2. **Create the entry point** — Add the cloud-specific function entry point file(s) and any per-resource handlers (TypeScript `functions/` or `routes/`, Python `blueprints/`, .NET `Functions/` or `Handlers/`, Go `handlers/`), naming them with a `{% if cloud_service == '...' %}...{% endif %}` conditional so they are only generated for that cloud
 3. **Add Jinja2 conditionals** to these files:
    - `package.json` / `pyproject.toml` / `.csproj` / `go.mod` — Cloud-specific dependencies
@@ -143,28 +202,41 @@ To add a new cloud provider to an existing language template:
    - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` / `function.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
 4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
-5. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
-6. **Update `README.md`** — Change the support table cell from planned to complete
+5. **Add the local emulator** (see [Local Emulators](#local-emulators)) — a service in `shared/docker-compose.yml`,
+   its branch in `shared/_README.emulator.md`, its settings in `shared/.env.emulator`, an emulator-only client
+   option with unit tests, and a bootstrap branch
+6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
+7. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
 
-1. Create a new top-level directory (e.g., `java/`)
-2. Add `copier.yml` with `_min_copier_version: "9.18.2"`, the standard questions (`project_name`, `project_endpoint`, `project_class_name`, `cloud_service`, `resources`, etc.), the `_jinja_extensions`, `_templates_suffix: ""`, and `_subdirectory: template` settings
-3. Put the template project under `template/`
-4. Add input validation as a `validator:` on the prompted `project_name` and `resources` questions (Copier only runs validators for prompted questions, not for `when: false` derived values)
+1. Put the template project under `<language>/template/` (e.g., `java/template/`); there is no per-language `copier.yml`
+2. In the root `copier.yml`, add the language to the `language` question's `choices`. The shared questions
+   (`project_name`, `cloud_service`, `resources`, etc.) and `path_resources` already apply; add any derived value
+   only this language needs as a `when: false` question gated on `language`
+3. Add the language's input validation as `language` branches in the existing `project_name` and `resources`
+   validators (Copier only runs validators for prompted questions, not for `when: false` derived values):
+   its reserved names and any generated-name clashes
+4. Include files that are identical to another language's from `shared/` (see [Shared files](#shared-files))
+   instead of copying them, and move a file to `shared/` when it becomes identical
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Create `.github/workflows/build-{language}-pipeline.yaml`
-7. Update the root `README.md` support table
+6. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names),
+   `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
+   a bootstrap command and the run command (see [Local Emulators](#local-emulators))
+7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
+   and add the language to `publish-examples.yml`, the `template-setup.yml` language map and the setup issue form
+8. Update the root `README.md` support table
 
 ## Template Variables
 
 | Variable | Description | Example |
 |---|---|---|
+| `language` | Template language, asked first; picks `<language>/template` | `"python"`, `"typescript"`, `"dotnet"`, `"go"` |
 | `project_name` | Human-readable name | `"My API"` |
 | `project_endpoint` | REST endpoint (kebab-case) | `"my-api"` |
 | `project_class_name` | PascalCase class name | `"MyApi"` |
-| `project_lower_camel_name` | lowerCamelCase (TS/C#) | `"myApi"` |
-| `project_slug` | snake_case (Python only) | `"my_api"` |
+| `project_lower_camel_name` | lowerCamelCase | `"myApi"` |
+| `project_slug` | snake_case (the Python module name) | `"my_api"` |
 | `cloud_service` | Target cloud platform | `"Azure Function App"` |
 | `health_endpoint` | Health check URL segment; empty skips the health check | `"health"` |
 | `resources` | REST resources to generate | see [Resources](#resources) |
@@ -182,15 +254,19 @@ tag used in `LICENSE`.
 ### CI Pipelines
 
 Each language has a GitHub Actions workflow that:
-1. Generates a project with `copier copy --defaults --trust`
+1. Generates a project with `copier copy --defaults --trust --data language=<language>` from the repository root
 2. Installs dependencies
 3. Builds and lints the project
 4. Runs unit tests
 
-The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
-Its `resources-fixture` input renders `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
+The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2,
+and on Linux runners also validates the emulator files (`docker compose config`, and `env.emulator.json`
+as JSON) without starting them.
+Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
+`fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
 names of differing lengths) and no health check. `multi` only feeds the published example branches.
+Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
 
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
 - Ubuntu: every cloud service, with the default single resource and with `edge`
@@ -207,19 +283,25 @@ To verify changes locally, generate a template and test it:
 # Install dependencies
 pip install copier jinja2-strcase jinja2-time
 
-# Generate a project
-copier copy --defaults --trust \
+# Generate a project from the repository root, outside the repository
+copier copy --defaults --trust --vcs-ref HEAD \
+  --data language="typescript" \
   --data project_name="TestProject" \
   --data cloud_service="GCP Cloud Function" \
   --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml \
-  ./typescript ./TestProject
+  . ../TestProject
 
 # Build and test
-cd TestProject
+cd ../TestProject
 yarn install --no-immutable
 yarn build
 yarn test:unit
 ```
+
+The repository root is a Git repository, so Copier renders from a clone of it: `--vcs-ref HEAD` picks the
+checked-out commit rather than the newest tag, and uncommitted changes (including new, unignored files) are
+added on top with a `DirtyLocalWarning`. Render outside the repository so a generated project is not swept
+into the next render.
 
 ### Dependency Updates
 

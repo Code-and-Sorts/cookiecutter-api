@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - typescript/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-typescript-pipeline.yaml
       - .github/actions/setup-copier-template/**
     branches:
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - typescript/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-typescript-pipeline.yaml
       - .github/actions/setup-copier-template/**
 

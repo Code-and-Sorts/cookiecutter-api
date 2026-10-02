@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - go/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-go-pipeline.yaml
       - .github/actions/setup-copier-template/**
     branches:
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - go/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-go-pipeline.yaml
       - .github/actions/setup-copier-template/**
 

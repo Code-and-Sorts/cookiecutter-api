@@ -9,10 +9,23 @@ Metadata:
       ignore_checks:
         - W3005
 
+Parameters:
+  DynamoDbEndpoint:
+    Type: String
+    Default: ""
+    Description: DynamoDB endpoint override for a local emulator; leave empty to use DynamoDB.
+
+Conditions:
+  HasDynamoDbEndpoint: !Not [!Equals [!Ref DynamoDbEndpoint, ""]]
+
 Globals:
   Function:
     Timeout: 30
     Runtime: python3.14
+    Environment:
+      Variables:
+        # sam local only sets variables the template declares; deployed stacks omit it.
+        AWS_ENDPOINT_URL_DYNAMODB: !If [HasDynamoDbEndpoint, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
   Api:
     Auth:
       ApiKeyRequired: true
@@ -34,12 +47,12 @@ Resources:
       Environment:
         Variables:
 {%- for c in containers %}
-          DYNAMODB_TABLE_NAME_{{ c.env_name }}: !Ref {{ c.table_id }}Table
+          DYNAMODB_TABLE_NAME_{{ c.env_key }}: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Policies:
 {%- for c in containers %}
         - DynamoDBCrudPolicy:
-            TableName: !Ref {{ c.table_id }}Table
+            TableName: !Ref {{ c.container_class }}Table
 {%- endfor %}
       Events:
 {%- if health_endpoint %}
@@ -98,7 +111,7 @@ Resources:
 {%- endfor %}
 
 {% for c in containers %}
-  {{ c.table_id }}Table:
+  {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: {{ c.container }}

@@ -4,6 +4,7 @@ import {
     {{ resource.name | to_lower_camel }}Controller,
 {%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
+    cosmosClientOptions,
     cosmosConnectionPolicy,
 {%- elif cloud_service == 'GCP Cloud Function' %}
     firestoreRetryParams,
@@ -39,4 +40,29 @@ describe('container', () => {
         expect(dynamoDbClientConfig.requestHandler.requestTimeout * dynamoDbClientConfig.maxAttempts).toBeLessThanOrEqual(DATABASE_DEADLINE_MS);
 {%- endif %}
     });
+{%- if cloud_service == 'Azure Function App' %}
+
+    describe('cosmosClientOptions', () => {
+        const settings = (url: string, emulator: boolean) => ({ COSMOS_DB_URL: url, COSMOS_DB_KEY: 'key', COSMOS_DB_EMULATOR: emulator });
+
+        it('should configure the client as in production without the emulator flag', () => {
+            const options = cosmosClientOptions(settings('https://account.documents.azure.com:443/', false));
+
+            expect(options).toEqual({ endpoint: 'https://account.documents.azure.com:443/', key: 'key', connectionPolicy: cosmosConnectionPolicy });
+        });
+
+        it('should keep the configured endpoint for the emulator', () => {
+            const options = cosmosClientOptions(settings('http://localhost:8081/', true));
+
+            expect(options.connectionPolicy).toEqual({ ...cosmosConnectionPolicy, enableEndpointDiscovery: false });
+            expect(options.agent).toBeUndefined();
+        });
+
+        it('should skip certificate checks only for an https emulator', () => {
+            const options = cosmosClientOptions(settings('https://localhost:8081/', true));
+
+            expect((options.agent as unknown as { options: { rejectUnauthorized: boolean } }).options.rejectUnauthorized).toBe(false);
+        });
+    });
+{%- endif %}
 });

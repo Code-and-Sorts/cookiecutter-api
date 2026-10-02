@@ -34,6 +34,19 @@
 {%- if cloud_service == 'AWS Lambda' %}
     "start": "node dist/lambda.js",
 {%- endif %}
+    "emulator:up": "docker compose up -d --wait",
+    "emulator:seed": "rm -rf dist-scripts && tsc -p tsconfig.scripts.json && tsc-alias -p tsconfig.scripts.json && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true node dist-scripts/scripts/bootstrapEmulator.js",
+    "emulator:down": "docker compose down -v",
+    "emulator:logs": "docker compose logs -f",
+{%- if cloud_service == 'Azure Function App' %}
+    "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true func start --typescript",
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+    "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true functions-framework --target=api",
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+    "start:emulator": "yarn build && sam build && AWS_ACCESS_KEY_ID=emulator AWS_SECRET_ACCESS_KEY=emulator sam local start-api --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator",
+{%- endif %}
     "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --verbose --coverage",
     "lint": "eslint .",
     "format": "eslint --fix . && prettier --write .",

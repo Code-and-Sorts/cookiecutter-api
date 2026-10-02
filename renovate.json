@@ -31,6 +31,13 @@
       "depNameTemplate": "yarn",
       "packageNameTemplate": "@yarnpkg/cli-dist",
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "Emulator images; the Jinja blocks in this file stop the docker-compose manager from parsing it",
+      "managerFilePatterns": ["/^shared/docker-compose\\.yml$/"],
+      "matchStrings": ["image: (?<depName>[^:\\s]+):(?<currentValue>\\S+)"],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -59,6 +66,11 @@
       "description": "Group GitHub Actions updates together",
       "matchManagers": ["github-actions"],
       "groupName": "github actions"
+    },
+    {
+      "description": "The Cosmos DB vNext emulator is tagged by release date (vnext-EN<yyyymmdd>)",
+      "matchPackageNames": ["mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator"],
+      "versioning": "regex:^vnext-EN(?<major>\\d{8})$"
     },
     {
       "description": "@types/node follows the Node.js runtime the clouds support, so its major moves with the runtime",

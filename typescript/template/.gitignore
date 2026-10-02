@@ -34,6 +34,7 @@ appsettings.json
 
 node_modules
 dist
+dist-scripts
 
 .python_packages/
 

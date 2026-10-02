@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - dotnet/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
     branches:
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - dotnet/**
+      - copier.yml
+      - shared/**
       - .github/workflows/build-dotnet-pipeline.yaml
       - .github/actions/setup-copier-template/**
 

@@ -1,6 +1,6 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- from '_macros.jinja' import model_names, routes -%}
+{%- from 'python/_macros.jinja' import model_names, routes -%}
 {%- set hidden = [] -%}
 {%- for route in routes if route[0] not in ops -%}{% set _ = hidden.append(route[1]) %}{%- endfor -%}
 import asyncio

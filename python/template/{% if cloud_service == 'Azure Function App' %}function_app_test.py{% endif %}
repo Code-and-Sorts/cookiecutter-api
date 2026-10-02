@@ -1,4 +1,4 @@
-{%- from '_macros.jinja' import routes -%}
+{%- from 'python/_macros.jinja' import routes -%}
 {%- set writes = ['create', 'update', 'replace', 'delete'] -%}
 import asyncio
 import json
@@ -163,7 +163,7 @@ def describe_build_controller():
 def describe_get_container():
     @pytest.fixture(autouse=True)
     def settings():
-        settings = MagicMock(cosmos_db_uri="https://cosmos", cosmos_db_key="key", cosmos_db_database_name="db")
+        settings = MagicMock(cosmos_db_uri="https://cosmos", cosmos_db_key="key", cosmos_db_database_name="db", cosmos_db_emulator=False)
         settings.container_names = {"container": "container-name"}
         with patch.object(database, "get_settings", return_value=settings), \
                 patch.object(database, "_client", None):
@@ -184,3 +184,21 @@ def describe_get_container():
         client.get_database_client.assert_called_with("db")
         client.get_database_client.return_value.get_container_client.assert_called_with("container-name")
         assert first is second
+
+
+def describe_cosmos_client_options():
+    def _options(uri, emulator):
+        return database.cosmos_client_options(MagicMock(cosmos_db_uri=uri, cosmos_db_emulator=emulator))
+
+    def test_leaves_the_client_unchanged_without_the_emulator_flag():
+        assert _options("https://account.documents.azure.com:443/", False) == database.CLIENT_OPTIONS
+        assert _options("http://localhost:8081/", False) == database.CLIENT_OPTIONS
+
+    def test_emulator_keeps_the_configured_endpoint():
+        result = _options("http://localhost:8081/", True)
+        assert result["enable_endpoint_discovery"] is False
+        assert "connection_verify" not in result
+        assert result["retry_total"] == database.CLIENT_OPTIONS["retry_total"]
+
+    def test_emulator_over_https_skips_certificate_checks():
+        assert _options("https://localhost:8081/", True)["connection_verify"] is False

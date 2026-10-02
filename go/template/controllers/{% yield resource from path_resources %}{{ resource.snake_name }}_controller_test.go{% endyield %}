@@ -1,7 +1,7 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set uses_body = resource.has_body -%}
-{%- set uses_id = resource.has_id -%}
+{%- set uses_id = resource.has_item -%}
 package controllers
 
 import (
