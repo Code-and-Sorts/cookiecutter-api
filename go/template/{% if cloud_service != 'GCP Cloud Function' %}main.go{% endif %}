@@ -12,11 +12,9 @@ import (
 {%- endif %}
 	"os"
 {%- if cloud_service == 'Azure Function App' %}
-	"time"
+	"strconv"
 {%- endif %}
 {% if cloud_service == 'Azure Function App' %}
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- else %}
 	"github.com/aws/aws-lambda-go/lambda"
@@ -64,18 +62,13 @@ func newCosmosClient() (*azcosmos.Client, string) {
 		exitOnError("Missing settings", errors.New("CosmosDbEndpoint, CosmosDbKey and CosmosDbDatabaseName are required"))
 	}
 
+	emulator, err := strconv.ParseBool(utils.Getenv("CosmosDbEmulator", "false"))
+	exitOnError("CosmosDbEmulator must be true or false", err)
+
 	cred, err := azcosmos.NewKeyCredential(key)
 	exitOnError("Failed to create Cosmos DB credential", err)
 
-	// The SDK's first account read ignores the request deadline and could wait a minute on an unreachable Cosmos DB.
-	options := &azcosmos.ClientOptions{ClientOptions: azcore.ClientOptions{
-		Retry: policy.RetryOptions{
-			MaxRetries: 1,
-			TryTimeout: 3 * time.Second,
-			RetryDelay: 500 * time.Millisecond,
-		},
-	}}
-	client, err := azcosmos.NewClientWithKey(endpoint, cred, options)
+	client, err := azcosmos.NewClientWithKey(endpoint, cred, repositories.CosmosClientOptions(endpoint, emulator))
 	exitOnError("Failed to create Cosmos DB client", err)
 
 	return client, databaseName

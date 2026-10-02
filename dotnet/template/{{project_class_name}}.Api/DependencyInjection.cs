@@ -11,6 +11,7 @@ using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Repositories;
 using {{project_class_name}}.Api.Services;
 {%- if cloud_service == 'Azure Function App' %}
+using System.Data.Common;
 using {{project_class_name}}.Api.Utils;
 using Microsoft.Azure.Cosmos;
 {%- elif cloud_service == 'GCP Cloud Function' %}
@@ -65,6 +66,16 @@ public static class DependencyInjection
         return services;
     }
 
+    public static IReadOnlyList<string> StoreNames(IConfiguration configuration) =>
+    [
+        ..new SortedSet<string>(StringComparer.Ordinal)
+        {
+{%- for c in path_resources | unique(attribute='container') %}
+            ContainerName(configuration, "{{ c[key_attr] }}", "{{ c.container }}"),
+{%- endfor %}
+        },
+    ];
+
     private static string ContainerName(IConfiguration configuration, string settingKey, string fallback) =>
         configuration[ContainerSetting + settingKey] ?? fallback;
 {%- if cloud_service == 'Azure Function App' %}
@@ -79,6 +90,13 @@ public static class DependencyInjection
             throw new InvalidOperationException("CosmosDb configuration is missing or incomplete.");
         }
 
+        var cosmosOptions = CreateCosmosClientOptions(configuration, cosmosConnectionString);
+        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString, cosmosOptions));
+        services.AddSingleton(provider => provider.GetRequiredService<CosmosClient>().GetDatabase(databaseName));
+    }
+
+    public static CosmosClientOptions CreateCosmosClientOptions(IConfiguration configuration, string connectionString)
+    {
         // The Linux Cosmos DB emulator only supports Gateway mode, so local.settings.json sets it.
         string connectionModeSetting = configuration.GetValue<string>("CosmosDbConnectionMode") ?? nameof(ConnectionMode.Direct);
         if (!Enum.TryParse(connectionModeSetting, ignoreCase: true, out ConnectionMode connectionMode) || !Enum.IsDefined(connectionMode))
@@ -87,7 +105,7 @@ public static class DependencyInjection
         }
 
         // Bounded so a failing database answers well inside the platform timeout.
-        var cosmosOptions = new CosmosClientOptions
+        var options = new CosmosClientOptions
         {
             ConnectionMode = connectionMode,
             RequestTimeout = TimeSpan.FromSeconds(5),
@@ -95,8 +113,21 @@ public static class DependencyInjection
             MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(3),
             UseSystemTextJsonSerializerWithOptions = Json.Options,
         };
-        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString, cosmosOptions));
-        services.AddSingleton(provider => provider.GetRequiredService<CosmosClient>().GetDatabase(databaseName));
+        if (!configuration.GetValue<bool>("CosmosDbEmulator"))
+        {
+            return options;
+        }
+
+        options.ConnectionMode = ConnectionMode.Gateway;
+        options.LimitToEndpoint = true;
+        var connection = new DbConnectionStringBuilder { ConnectionString = connectionString };
+        if (connection.TryGetValue("AccountEndpoint", out object? endpoint)
+            && endpoint?.ToString()?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // Only an emulator serving HTTPS gets here; its certificate is self-signed.
+            options.ServerCertificateCustomValidationCallback = (_, _, _) => true;
+        }
+        return options;
     }
 
     private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity, new() =>
@@ -131,13 +162,18 @@ public static class DependencyInjection
 
     private static void AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
-        // Bounded so a failing database answers well inside the Lambda timeout.
-        services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient(new AmazonDynamoDBConfig
-        {
-            MaxErrorRetry = 2,
-            Timeout = TimeSpan.FromSeconds(3),
-        }));
+        var dynamoDbConfig = CreateDynamoDbConfig(configuration);
+        services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient(dynamoDbConfig));
     }
+
+    public static AmazonDynamoDBConfig CreateDynamoDbConfig(IConfiguration configuration) => new()
+    {
+        // Bounded so a failing database answers well inside the Lambda timeout.
+        MaxErrorRetry = 2,
+        Timeout = TimeSpan.FromSeconds(3),
+        // sam local sets the variable to "" when no emulator is configured, and the SDK would use "" as the endpoint.
+        IgnoreConfiguredEndpointUrls = configuration["AWS_ENDPOINT_URL_DYNAMODB"] is "",
+    };
 
     private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity, new() =>
         new DynamoDocumentStore<T>(provider.GetRequiredService<IAmazonDynamoDB>(), containerName);

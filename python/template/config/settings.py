@@ -14,11 +14,14 @@ class Settings(BaseSettings):
     cosmos_db_uri: str
     cosmos_db_key: str
     cosmos_db_database_name: str
+    cosmos_db_emulator: bool = False
 {%- elif cloud_service == 'GCP Cloud Function' %}
     gcp_project_id: str
     firestore_database: str = "(default)"
+    firestore_emulator_host: str | None = None
 {%- else %}
     aws_region: str = "us-east-1"
+    aws_endpoint_url_dynamodb: str | None = None
 {%- endif %}
 {%- for c in containers %}
     {{ prefix }}_{{ c.container_key | lower }}: str = "{{ c.container }}"

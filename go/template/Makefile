@@ -20,6 +20,21 @@ run: ## Run the function app
 	@sam local start-api
 {%- endif %}
 
+{% set emulator_seed = 'go run ./cmd/bootstrap' -%}
+{% include 'shared/_Makefile.emulator' -%}
+{%- if cloud_service == 'Azure Function App' %}
+	@echo "Running Function App against the Cosmos DB emulator"
+	@go build -o handler
+	@set -a && . ./.env.emulator && set +a && func start
+{%- elif cloud_service == 'GCP Cloud Function' %}
+	@echo "Running the api function against the Firestore emulator on port 8080"
+	@set -a && . ./.env.emulator && set +a && FUNCTION_TARGET=api PORT=8080 go run ./cmd
+{%- elif cloud_service == 'AWS Lambda' %}
+	@echo "Building and running Lambda API locally via SAM against DynamoDB Local"
+	@sam build
+	@set -a && . ./.env.emulator && set +a && sam local start-api --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator
+{%- endif %}
+
 .PHONY: build
 build: ## Build the code
 {%- if cloud_service == 'Azure Function App' %}

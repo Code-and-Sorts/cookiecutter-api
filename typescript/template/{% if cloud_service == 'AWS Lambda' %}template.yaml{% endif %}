@@ -9,10 +9,23 @@ Metadata:
       ignore_checks:
         - W3005
 
+Parameters:
+  DynamoDbEndpoint:
+    Type: String
+    Default: ""
+    Description: DynamoDB endpoint override for a local emulator; leave empty to use DynamoDB.
+
+Conditions:
+  HasDynamoDbEndpoint: !Not [!Equals [!Ref DynamoDbEndpoint, ""]]
+
 Globals:
   Function:
     Timeout: 30
     Runtime: nodejs24.x
+    Environment:
+      Variables:
+        # sam local only sets variables the template declares; deployed stacks omit it.
+        AWS_ENDPOINT_URL_DYNAMODB: !If [HasDynamoDbEndpoint, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
   Api:
     Auth:
       ApiKeyRequired: true

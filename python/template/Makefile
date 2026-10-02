@@ -19,6 +19,22 @@ run: ## Run function app.
 	@sam local start-api
 {%- endif %}
 
+{% set emulator_seed = 'poetry run python -m scripts.bootstrap_emulator' -%}
+{% include 'shared/_Makefile.emulator' -%}
+{%- if cloud_service == 'Azure Function App' %}
+	@echo "🚀 Running Function App against the Cosmos DB emulator"
+	@set -a && . ./.env.emulator && set +a && poetry run func start
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+	@echo "🚀 Running the api Cloud Function against the Firestore emulator on http://localhost:8080"
+	@set -a && . ./.env.emulator && set +a && poetry run functions-framework --target=api --source=main.py --port=8080
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+	@echo "🚀 Building and running Lambda API locally via SAM against DynamoDB Local"
+	@sam build
+	@set -a && . ./.env.emulator && set +a && sam local start-api --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator
+{%- endif %}
+
 {% if cloud_service == 'AWS Lambda' -%}
 .PHONY: build
 build: install ## Build the Lambda package with SAM
@@ -39,7 +55,7 @@ build-{{ project_class_name }}Function:
 		--implementation cp --python-version 3.14 --only-binary=:all: \
 		$(addprefix --platform ,$(LAMBDA_PLATFORMS))
 	rm "$(ARTIFACTS_DIR)/requirements.txt"
-	find . -name '*.py' ! -name '*_test.py' ! -name conftest.py ! -path './.*' | while read -r file; do \
+	find . -name '*.py' ! -name '*_test.py' ! -name conftest.py ! -path './.*' ! -path './scripts/*' | while read -r file; do \
 		mkdir -p "$(ARTIFACTS_DIR)/$$(dirname "$$file")" && cp "$$file" "$(ARTIFACTS_DIR)/$$file"; \
 	done
 {%- else -%}

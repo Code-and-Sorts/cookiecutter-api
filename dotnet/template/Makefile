@@ -18,6 +18,21 @@ run: ## Run the API locally
 	@cd {{project_class_name}}.Api && sam build && sam local start-api
 {%- endif %}
 
+{% set emulator_seed = 'dotnet run --project ' ~ project_class_name ~ '.Bootstrap' -%}
+{% include 'shared/_Makefile.emulator' -%}
+{%- if cloud_service == 'Azure Function App' %}
+	@echo "🚀 Running Function App against the Cosmos DB emulator"
+	@set -a && . ./.env.emulator && set +a && cd {{project_class_name}}.Api && func start
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' %}
+	@echo "🚀 Running Cloud Function against the Firestore emulator"
+	@set -a && . ./.env.emulator && set +a && cd {{project_class_name}}.Api && dotnet run
+{%- endif %}
+{%- if cloud_service == 'AWS Lambda' %}
+	@echo "🚀 Running Lambda API locally via SAM against DynamoDB Local"
+	@set -a && . ./.env.emulator && set +a && cd {{project_class_name}}.Api && sam build && sam local start-api --env-vars ../env.emulator.json --docker-network {{ project_endpoint }}-emulator
+{%- endif %}
+
 .PHONY: build
 build: ## Build the code
 	@echo "🎡 Building file"
