@@ -150,6 +150,9 @@ and integration tests is separate work). The cross-cloud parts live once in `sha
   8081 + Data Explorer 1234, Firestore on host 8085, DynamoDB Local `-inMemory -sharedDb` on 8000),
   with a healthcheck, pinned image tags (bumped by a Renovate regex manager), no volumes and the
   fixed network `{{project_endpoint}}-emulator`.
+- `shared/.env.emulator` — the public emulator settings (committed; real credentials stay in untracked
+  files). GCP and AWS settings are the same everywhere; the Azure block picks each language's Cosmos
+  setting names with `language`.
 - `shared/env.emulator.json` — the AWS `sam local start-api --env-vars ... --docker-network ...`
   settings, which reach `http://dynamodb:8000` and name one table per container.
 - `shared/_Makefile.emulator` — the `COMPOSE` variable and the `emulator-up`, `emulator-seed`,
@@ -158,8 +161,7 @@ and integration tests is separate work). The cross-cloud parts live once in `sha
 - `shared/_README.emulator.md` — the "Run locally against the emulator" README section; each README
   sets `emulator` (make or yarn, setting names and per-language notes) and `emulator_settings`.
 
-Per language: `.env.emulator` (committed, public emulator values only; the Cosmos setting names
-differ), the bootstrap, the `run-emulator` recipe or TypeScript package scripts, and the client options.
+Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scripts, and the client options.
 
 - A language-native bootstrap that reuses the app's store name settings and client options:
   Python `scripts/bootstrap_emulator.py`, TypeScript `scripts/bootstrapEmulator.ts`, Go
@@ -201,7 +203,7 @@ To add a new cloud provider to an existing language template:
    - `types/models/baseEnv.schema` — Environment variable definitions
 4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
 5. **Add the local emulator** (see [Local Emulators](#local-emulators)) — a service in `shared/docker-compose.yml`,
-   its branch in `shared/_README.emulator.md`, its settings in every `.env.emulator`, an emulator-only client
+   its branch in `shared/_README.emulator.md`, its settings in `shared/.env.emulator`, an emulator-only client
    option with unit tests, and a bootstrap branch
 6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
 7. **Update `README.md`** — Change the support table cell from planned to complete
@@ -218,9 +220,9 @@ To add a new cloud provider to an existing language template:
 4. Include files that are identical to another language's from `shared/` (see [Shared files](#shared-files))
    instead of copying them, and move a file to `shared/` when it becomes identical
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Include `shared/docker-compose.yml`, `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and
-   `shared/_README.emulator.md`, and add `.env.emulator`, a bootstrap command and the run command (see
-   [Local Emulators](#local-emulators))
+6. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names),
+   `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
+   a bootstrap command and the run command (see [Local Emulators](#local-emulators))
 7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
    and add the language to `publish-examples.yml`, the `template-setup.yml` language map and the setup issue form
 8. Update the root `README.md` support table
