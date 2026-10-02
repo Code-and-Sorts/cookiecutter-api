@@ -1,0 +1,413 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KittenClaws",
+    "version": "1.0.0",
+    "summary": "Kitties got claws...beware",
+    "description": "Every response, including errors, is JSON. Errors are `{\"errorMessage\": \"...\"}`: 400 for a malformed or non-object body, a missing, empty or non-string `name`, any other field, or an invalid `X-User-Id` header; 404 for an unknown path or an id that is unknown, soft-deleted or not a UUID; 405 for a method a path does not list (when the request reaches the function); 500, with the details logged, for anything else. `X-User-Id` is taken as sent and is not authenticated.",
+    "contact": {
+      "name": "Sir Meowsalots"
+    },
+    "license": {
+      "name": "MIT License",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{region}-{projectId}.cloudfunctions.net/{functionName}",
+      "description": "Deployed Cloud Run function; its routes have no prefix.",
+      "variables": {
+        "region": {
+          "default": "us-central1"
+        },
+        "projectId": {
+          "default": "my-project"
+        },
+        "functionName": {
+          "default": "kittenclaws",
+          "description": "Name the function was deployed with."
+        }
+      }
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Functions Framework."
+    }
+  ],
+  "security": [
+    {
+      "identityToken": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Service",
+      "description": "Operational endpoints."
+    },
+    {
+      "name": "KittenClaws",
+      "description": "KittenClaws records, stored in the `kittenclaws` container."
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "operationId": "getHealth",
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "The service is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/kittenclaws": {
+      "get": {
+        "tags": [
+          "KittenClaws"
+        ],
+        "operationId": "listKittenClaws",
+        "summary": "List KittenClaws records",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The records that are not deleted (`[]` when there are none).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KittenClaws"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "KittenClaws"
+        ],
+        "operationId": "createKittenClaws",
+        "summary": "Create a KittenClaws",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KittenClawsCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KittenClaws"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/kittenclaws/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "KittenClaws"
+        ],
+        "operationId": "getKittenClawsById",
+        "summary": "Get a KittenClaws",
+        "responses": {
+          "200": {
+            "description": "The record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KittenClaws"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "KittenClaws"
+        ],
+        "operationId": "updateKittenClaws",
+        "summary": "Update a KittenClaws's fields",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KittenClawsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KittenClaws"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "KittenClaws"
+        ],
+        "operationId": "deleteKittenClaws",
+        "summary": "Soft-delete a KittenClaws",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The record is marked deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "identityToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Google-signed identity token of a caller with the Cloud Run Invoker role, for example from `gcloud auth print-identity-token`. The Functions Framework does not check it locally."
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Record id; anything other than a UUID is answered with 404.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Most records to return. Values above 1000 are capped at 1000; invalid values fall back to 100.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100
+        }
+      },
+      "UserId": {
+        "name": "X-User-Id",
+        "in": "header",
+        "required": false,
+        "description": "Caller id stored as `createdBy` (on create) and `updatedBy`; surrounding whitespace is trimmed and a write without it removes `updatedBy`. Not authenticated.",
+        "schema": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The body or the `X-User-Id` header is invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No record has this id, it is deleted, or the id is not a UUID.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected error; the details are logged, never returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "errorMessage"
+        ],
+        "properties": {
+          "errorMessage": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "examples": [
+              "<Name> with id <id> was deleted successfully."
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "KittenClaws": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "KittenClawsCreateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "KittenClawsUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
