@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - claude/integration-tests-116 # TEMPORARY: validate the matrix before merge
     paths:
       - go/**
       - python/**
