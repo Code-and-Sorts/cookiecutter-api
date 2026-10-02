@@ -19,9 +19,11 @@ FIRESTORE_VALUE_TYPES = {str: "stringValue", bool: "booleanValue"}
 
 
 class Store(Protocol):
-    def get(self, container: str, item_id: str) -> dict | None: ...
+    def get(self, container: str, item_id: str) -> dict | None:
+        """The record as stored, without the database's own fields, or None when the id is absent."""
 
-    def put(self, container: str, record: dict) -> None: ...
+    def put(self, container: str, record: dict) -> None:
+        """Writes the record as given, replacing any with the same id."""
 
 
 def timestamp() -> str:

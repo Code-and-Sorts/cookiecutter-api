@@ -64,7 +64,6 @@ class Api:
 
     def wait_until_ready(self, path: str, timeout: float) -> None:
         deadline = time.monotonic() + timeout
-        last = "no response"
         while True:
             try:
                 response = self.http.get(path)
