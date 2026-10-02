@@ -88,3 +88,15 @@ runs:
           "${extra_args[@]}" \
           . "./$OUTPUT"
       shell: bash
+
+    # A static check only: running the emulators is the integration tests' job. macOS runners have no Docker.
+    - name: Validate emulator files
+      if: runner.os == 'Linux'
+      env:
+        OUTPUT: ${{ inputs.output-dir }}
+      run: |
+        docker compose --project-directory "./$OUTPUT" config --quiet
+        if [ -f "./$OUTPUT/env.emulator.json" ]; then
+          python -m json.tool "./$OUTPUT/env.emulator.json" > /dev/null
+        fi
+      shell: bash

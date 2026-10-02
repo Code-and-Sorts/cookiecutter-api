@@ -141,6 +141,46 @@ Cloud-specific code is handled through:
 2. **Separate entry point files** — Each cloud has its own entry point (e.g., `functions/` for Azure, `main.ts` for GCP, `lambda.ts` for AWS)
 3. **Conditional file/directory names** — Cloud-specific files and directories are named with a Jinja conditional (e.g. `{% if cloud_service == 'AWS Lambda' %}lambda.ts{% endif %}`). Copier skips any path that renders to an empty string, which replaces Cookiecutter's post-generation cleanup hooks.
 
+### Local Emulators
+
+Every generated project runs against a local emulator with no cloud account (running them in CI
+and integration tests is separate work). The cross-cloud parts live once in `shared/`:
+
+- `shared/docker-compose.yml` — Jinja renders only the chosen cloud's emulator (Cosmos DB vNext on
+  8081 + Data Explorer 1234, Firestore on host 8085, DynamoDB Local `-inMemory -sharedDb` on 8000),
+  with a healthcheck, pinned image tags (bumped by a Renovate regex manager), no volumes and the
+  fixed network `{{project_endpoint}}-emulator`.
+- `shared/.env.emulator` — the public emulator settings (committed; real credentials stay in untracked
+  files). GCP and AWS settings are the same everywhere; the Azure block picks each language's Cosmos
+  setting names with `language`.
+- `shared/env.emulator.json` — the AWS `sam local start-api --env-vars ... --docker-network ...`
+  settings, which reach `http://dynamodb:8000` and name one table per container.
+- `shared/_Makefile.emulator` — the `COMPOSE` variable and the `emulator-up`, `emulator-seed`,
+  `emulator-down` and `emulator-logs` targets plus the `run-emulator` header; each Makefile sets
+  `emulator_seed` (its bootstrap command) before including it and writes its own `run-emulator` recipe.
+- `shared/_README.emulator.md` — the "Run locally against the emulator" README section; each README
+  sets `emulator` (make or yarn, setting names and per-language notes) and `emulator_settings`.
+
+Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scripts, and the client options.
+
+- A language-native bootstrap that reuses the app's store name settings and client options:
+  Python `scripts/bootstrap_emulator.py`, TypeScript `scripts/bootstrapEmulator.ts`, Go
+  `cmd/bootstrap`, .NET `<Project>.Bootstrap` (in the solution). It creates one Cosmos DB container
+  (partition key `/id`) or DynamoDB table (hash key `id`, on-demand) per unique `container`, only
+  checks Firestore is reachable, refuses to run unless the emulator settings are present, retries
+  for 2 minutes and is safe to re-run. Never create stores at app startup.
+- Make targets `emulator-up`, `emulator-seed`, `emulator-down`, `emulator-logs`, `run-emulator`
+  (Python, Go, .NET, from `shared/_Makefile.emulator`); package scripts `emulator:up`, `emulator:seed`, `emulator:down`,
+  `emulator:logs`, `start:emulator` (TypeScript, through dotenv's `DOTENV_CONFIG_PATH`).
+- Clients switch only on emulator settings, so production paths are unchanged: a Cosmos flag
+  (`Cosmos_Db_Emulator`, `COSMOS_DB_EMULATOR`, `CosmosDbEmulator`) turns off endpoint discovery
+  (.NET: Gateway mode + `LimitToEndpoint`) and skips certificate checks only for an `https://`
+  endpoint; DynamoDB and Firestore rely on the SDKs reading `AWS_ENDPOINT_URL_DYNAMODB` and
+  `FIRESTORE_EMULATOR_HOST` (.NET Firestore needs `EmulatorDetection.EmulatorOrProduction`). SAM
+  templates declare `AWS_ENDPOINT_URL_DYNAMODB` behind the `DynamoDbEndpoint` parameter so
+  deployed stacks omit it; `sam local` passes it empty otherwise, which .NET must ignore.
+- Azure `local.settings.json` uses `"AzureWebJobsStorage": ""`: every trigger is HTTP, so no Azurite.
+
 ### Cloud → Database Mapping
 
 | Cloud Provider | Database | TypeScript Client | Python Client | .NET Client | Go Client |
@@ -162,8 +202,11 @@ To add a new cloud provider to an existing language template:
    - `config/container.ts` (TypeScript), blueprint wiring (Python), `DependencyInjection.cs` (.NET) or `main.go` / `function.go` (Go) — dependency wiring
    - `types/models/baseEnv.schema` — Environment variable definitions
 4. **Name any cloud-specific files/directories conditionally** so they are omitted for the other clouds
-5. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
-6. **Update `README.md`** — Change the support table cell from planned to complete
+5. **Add the local emulator** (see [Local Emulators](#local-emulators)) — a service in `shared/docker-compose.yml`,
+   its branch in `shared/_README.emulator.md`, its settings in `shared/.env.emulator`, an emulator-only client
+   option with unit tests, and a bootstrap branch
+6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
+7. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
 
@@ -177,9 +220,12 @@ To add a new cloud provider to an existing language template:
 4. Include files that are identical to another language's from `shared/` (see [Shared files](#shared-files))
    instead of copying them, and move a file to `shared/` when it becomes identical
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
+6. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names),
+   `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
+   a bootstrap command and the run command (see [Local Emulators](#local-emulators))
+7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
    and add the language to `publish-examples.yml`, the `template-setup.yml` language map and the setup issue form
-7. Update the root `README.md` support table
+8. Update the root `README.md` support table
 
 ## Template Variables
 
@@ -213,7 +259,9 @@ Each language has a GitHub Actions workflow that:
 3. Builds and lints the project
 4. Runs unit tests
 
-The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2.
+The shared composite action at `.github/actions/setup-copier-template/action.yaml` handles steps 1-2,
+and on Linux runners also validates the emulator files (`docker compose config`, and `env.emulator.json`
+as JSON) without starting them.
 Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
 `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,

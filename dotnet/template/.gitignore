@@ -1,6 +1,9 @@
 # Azure Functions localsettings file
 local.settings.json
 
+.env
+.env.local
+
 # User-specific files
 *.suo
 *.user

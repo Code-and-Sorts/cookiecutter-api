@@ -8,7 +8,7 @@ export default defineConfig(
   tseslint.configs.recommended,
   eslintConfigPrettier,
   {
-    ignores: ['dist/', 'coverage/', 'node_modules/', 'jest.config.js'],
+    ignores: ['dist/', 'dist-scripts/', 'coverage/', 'node_modules/', 'jest.config.js'],
   },
   {
     rules: {

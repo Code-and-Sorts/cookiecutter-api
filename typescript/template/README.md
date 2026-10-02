@@ -124,11 +124,14 @@ Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTi
 | `COSMOS_DB_URL` | yes | Cosmos DB account endpoint |
 | `COSMOS_DB_KEY` | yes | Cosmos DB account key |
 | `COSMOS_DB_DATABASE_NAME` | no | Database name (default `{{ project_endpoint }}s-sql-db`) |
+| `COSMOS_DB_EMULATOR` | no | `true` only for the local emulator (default `false`); see [Run locally against the emulator](#run-locally-against-the-emulator) |
 {%- elif cloud_service == 'GCP Cloud Function' %}
 | `GCP_PROJECT_ID` | yes | Google Cloud project that hosts Firestore |
 | `FIRESTORE_DATABASE` | no | Firestore database id (default `(default)`) |
+| `FIRESTORE_EMULATOR_HOST` | no | Firestore emulator address, read by the client library; local development only |
 {%- else %}
 | `AWS_REGION` | no | Region of the DynamoDB tables (default `us-east-1`; set by Lambda at runtime) |
+| `AWS_ENDPOINT_URL_DYNAMODB` | no | DynamoDB endpoint override, read by the AWS SDK; local development only |
 {%- endif %}
 {%- for container in containers %}
 | `{{ env_prefix }}{{ container | upper | replace('-', '_') }}` | no | {{ store_word }} for `{{ container }}` (default `{{ container }}`) |
@@ -143,10 +146,10 @@ Locally the variables are read from the process environment and from a `.env` fi
 {%- if cloud_service == 'Azure Function App' %}
 - [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) v4 (installed as a dev dependency)
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/) and an Azure subscription
-- A Cosmos DB for NoSQL account, in Azure or the [emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator)
+- A Cosmos DB for NoSQL account in Azure, or Docker for the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator))
 {%- elif cloud_service == 'GCP Cloud Function' %}
 - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) and a Google Cloud project
-- A Firestore database in Native mode, or the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator)
+- A Firestore database in Native mode, or Docker for the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator))
 {%- else %}
 - [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) and [Docker](https://www.docker.com/) for local runs
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and an AWS account
@@ -179,7 +182,7 @@ yarn build
 yarn start
 ```
 
-The API is served at `http://localhost:8080`. To use the Firestore emulator, also set `FIRESTORE_EMULATOR_HOST`.
+The API is served at `http://localhost:8080`. To run against the Firestore emulator instead, see [Run locally against the emulator](#run-locally-against-the-emulator).
 {%- else -%}
 Build the project, then start API Gateway and Lambda locally with SAM (requires Docker):
 
@@ -189,11 +192,31 @@ sam build
 sam local start-api
 ```
 
-The API is served at `http://127.0.0.1:3000`. The functions reach DynamoDB with your local AWS credentials; the table names come from `template.yaml`.
+The API is served at `http://127.0.0.1:3000`. The functions reach DynamoDB with your local AWS credentials; the table names come from `template.yaml`. To use DynamoDB Local instead, see [Run locally against the emulator](#run-locally-against-the-emulator).
 {%- endif %}
 
 The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation, a few error cases, and a `baseUrl` that matches the local server above.
 
+{% set emulator_settings -%}
+{%- if cloud_service == 'AWS Lambda' -%}
+`yarn emulator:seed` loads the settings in `.env.emulator` (through `DOTENV_CONFIG_PATH`, overriding variables already set), and `yarn start:emulator` passes `env.emulator.json` to `sam local`.
+{%- else -%}
+`yarn emulator:seed` and `yarn start:emulator` load the settings in `.env.emulator` instead of `.env` (through `DOTENV_CONFIG_PATH`), overriding variables already set{% if cloud_service == 'Azure Function App' %}, including those from `local.settings.json`{% endif %}.
+{%- endif %}
+{%- endset %}
+{%- set emulator = {
+    'tool': 'yarn',
+    'core_tools': false,
+    'run_note': {'Azure Function App': 'yarn build, then func start', 'GCP Cloud Function': 'yarn build, then functions-framework on http://localhost:8080', 'AWS Lambda': 'yarn build and sam build, then sam local start-api on http://127.0.0.1:3000'}[cloud_service],
+    'secret_files': ('`local.settings.json`, ' if cloud_service == 'Azure Function App' else '') ~ '`.env` or `.env.local`',
+    'cosmos_key': '`COSMOS_DB_KEY`',
+    'cosmos_flag': '`COSMOS_DB_EMULATOR=true` turns off endpoint discovery, so the client keeps using `COSMOS_DB_URL` instead of the address the emulator advertises, and, for an `https://` endpoint only, skips certificate verification.',
+    'cosmos_https': 'set `COSMOS_DB_URL=https://localhost:8081/`',
+    'missing_container': '',
+    'firestore_client': 'With `FIRESTORE_EMULATOR_HOST` set, the Firestore client connects to the emulator without credentials.',
+    'sdk_note': 'Every AWS SDK reads the variable natively.',
+} -%}
+{% include 'shared/_README.emulator.md' %}
 ## Deploy
 
 {% if cloud_service == 'Azure Function App' -%}
@@ -273,6 +296,7 @@ yarn audit       # yarn npm audit --severity moderate
 Each resource gets its own file in every layer, named after the resource in lowerCamelCase{% if resources | length > 1 %} (for example `{{ resources[0].name | to_lower_camel }}.controller.ts`){% endif %}. Each layer's `index.ts` re-exports them.
 
 ```text
+├── .env.emulator                   - Public settings for the local emulator
 ├── .thunderclient                  - Thunder Client collection, one folder per resource
 ├── config
 │   └── container.ts                - Wiring of repositories, services and controllers
@@ -307,6 +331,8 @@ Each resource gets its own file in every layer, named after the resource in lowe
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.routes.ts
 {%- endfor %}
 {%- endif %}
+├── scripts
+│   └── bootstrapEmulator.ts        - Prepares the local emulator (yarn emulator:seed)
 ├── services                        - Business logic
 │   ├── schemaValidator.service.ts
 {%- for resource in resources %}
@@ -323,7 +349,9 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- if cloud_service == 'GCP Cloud Function' %}
 ├── main.ts                         - Functions Framework entry point and JSON final handler
 {%- endif %}
+├── docker-compose.yml              - Local {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} emulator
 {%- if cloud_service == 'AWS Lambda' %}
+├── env.emulator.json               - sam local settings for the emulator
 ├── lambda.ts                       - Lambda handler
 ├── template.yaml                   - AWS SAM template
 {%- endif %}

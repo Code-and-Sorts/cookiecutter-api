@@ -138,7 +138,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - Azure Account: An active Azure subscription for deploying the Function App. Python 3.14 apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
 
-- Cosmos DB NoSQL Account either deployed in Azure or [emulated](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator?tabs=docker-linux%2Ccsharp&pivots=api-nosql).
+- Cosmos DB NoSQL Account either deployed in Azure or emulated locally (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
 - [Google Cloud SDK (gcloud CLI)](https://cloud.google.com/sdk/docs/install): To deploy and manage GCP Cloud Functions.
@@ -149,7 +149,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - GCP Account: An active Google Cloud Platform account with billing enabled.
 
-- Firestore Database: Set up a Firestore database in your GCP project.
+- Firestore Database: Set up a Firestore database in your GCP project, or use the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
 - [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html): To run the Lambda functions locally.
@@ -175,6 +175,7 @@ Settings are read from environment variables (case-insensitive).
 | `Cosmos_Db_Uri` | Cosmos DB account endpoint | required |
 | `Cosmos_Db_Key` | Cosmos DB account key | required |
 | `Cosmos_Db_Database_Name` | Cosmos DB database name | required |
+| `Cosmos_Db_Emulator` | `true` only for the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator)) | `false` |
 {%- for c in containers %}
 | `Container_Name_{{ c.container_key }}` | Cosmos DB container for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
@@ -182,12 +183,14 @@ Settings are read from environment variables (case-insensitive).
 {%- if cloud_service == 'GCP Cloud Function' %}
 | `GCP_PROJECT_ID` | GCP project ID | required |
 | `FIRESTORE_DATABASE` | Firestore database name | `(default)` |
+| `FIRESTORE_EMULATOR_HOST` | Firestore emulator address, read by the client library; local development only | unset |
 {%- for c in containers %}
 | `FIRESTORE_COLLECTION_{{ c.env_key }}` | Firestore collection for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 | `AWS_REGION` | AWS region | `us-east-1` |
+| `AWS_ENDPOINT_URL_DYNAMODB` | DynamoDB endpoint override, read by the AWS SDK; local development only | unset |
 {%- for c in containers %}
 | `DYNAMODB_TABLE_NAME_{{ c.env_key }}` | DynamoDB table for `{{ c.container }}` | `{{ c.container }}` |
 {%- endfor %}
@@ -267,7 +270,7 @@ Settings are read from environment variables (case-insensitive).
     make run
     ```
 
-    This serves the `api` function with the Functions Framework (`poetry run functions-framework --target=api --source=main.py --port=8080`), so every route is available under `http://localhost:8080`. To use the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator), also set `FIRESTORE_EMULATOR_HOST` (for example `localhost:8085`).
+    This serves the `api` function with the Functions Framework (`poetry run functions-framework --target=api --source=main.py --port=8080`), so every route is available under `http://localhost:8080`. To run against the Firestore emulator instead of a GCP project, see [Run locally against the emulator](#run-locally-against-the-emulator).
 
 6. Deploy to GCP
 
@@ -324,7 +327,7 @@ Settings are read from environment variables (case-insensitive).
     This command starts the local API Gateway using SAM CLI, where you can interact with your API endpoints.
 
     > **Note:** API endpoints that interact with DynamoDB require a running DynamoDB instance.
-    > For local development, you can use [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
+    > For local development, use DynamoDB Local (see [Run locally against the emulator](#run-locally-against-the-emulator))
     > or connect to deployed DynamoDB tables by configuring your AWS credentials and setting the
     > per-container table variables in `template.yaml`:
 {%- for c in containers %}
@@ -350,6 +353,22 @@ Settings are read from environment variables (case-insensitive).
     `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `poetry.lock` (run `make install` first), installs them as Linux x86_64 wheels for Python 3.14 with the pip of the Poetry environment (`poetry env info --executable`, override with `make LAMBDA_PYTHON=...`), and copies every project module except the tests. It needs `make` and Poetry, but not Docker.
 {%- endif %}
 
+{% set emulator_settings -%}
+`make emulator-seed` and `make run-emulator` export the settings in `.env.emulator`{% if cloud_service == 'Azure Function App' %}, which take precedence over `local.settings.json` (Core Tools skips any setting already in the environment){% endif %}.
+{%- endset %}
+{%- set emulator = {
+    'tool': 'make',
+    'core_tools': true,
+    'run_note': {'Azure Function App': 'func start', 'GCP Cloud Function': 'functions-framework on http://localhost:8080', 'AWS Lambda': 'sam build, then sam local start-api on http://127.0.0.1:3000'}[cloud_service],
+    'secret_files': ('`local.settings.json` or ' if cloud_service == 'Azure Function App' else '') ~ '`.env.local`',
+    'cosmos_key': '`Cosmos_Db_Key`',
+    'cosmos_flag': '`Cosmos_Db_Emulator=true` turns off endpoint discovery, so the client keeps using `Cosmos_Db_Uri` instead of the address the emulator advertises, and, for an `https://` endpoint only, skips certificate verification.',
+    'cosmos_https': 'set `Cosmos_Db_Uri=https://localhost:8081/`',
+    'missing_container': '',
+    'firestore_client': 'With `FIRESTORE_EMULATOR_HOST` set, the Firestore client connects to the emulator without credentials.',
+    'sdk_note': 'Every AWS SDK reads the variable natively.',
+} -%}
+{% include 'shared/_README.emulator.md' %}
 ## Development Workflow
 
 ### Adding a New Dependency
@@ -417,12 +436,19 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_repository.py") }}- {{ resource.name }}Repository
 {%- endfor %}
+{{ "%-34s" | format("├── scripts") }}
+{{ "%-34s" | format("│   └── bootstrap_emulator.py") }}- Prepares the local emulator (`make emulator-seed`)
 {{ "%-34s" | format("├── services") }}- Business logic
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
 {%- endfor %}
 {{ "%-34s" | format("├── utils") }}- JSON responses, error handling, database deadline, `X-User-Id` header{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
+{{ "%-34s" | format("├── .env.emulator") }}- Public settings for the local emulator
 {{ "%-34s" | format("├── conftest.py") }}- Constants shared by the unit tests
+{{ "%-34s" | format("├── docker-compose.yml") }}- Local {{ db }} emulator
+{%- if cloud_service == 'AWS Lambda' %}
+{{ "%-34s" | format("├── env.emulator.json") }}- `sam local` settings for the emulator
+{%- endif %}
 {%- if health_endpoint %}
 {{ "%-34s" | format("├── health_test.py") }}- Health check unit tests
 {%- endif %}
