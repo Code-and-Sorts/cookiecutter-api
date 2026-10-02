@@ -3,7 +3,6 @@ from . import (
 {%- if health_endpoint %}
     health,
 {%- endif %}
-    openapi,
 {%- for resource in resources %}
     {{ resource.name | to_snake }},
 {%- endfor %}
@@ -13,7 +12,6 @@ BLUEPRINTS = [
 {%- if health_endpoint %}
     health.bp,
 {%- endif %}
-    openapi.bp,
 {%- for resource in resources %}
     {{ resource.name | to_snake }}.bp,
 {%- endfor %}
@@ -25,7 +23,6 @@ from . import (
 {%- if health_endpoint %}
     health,
 {%- endif %}
-    openapi,
 {%- for resource in resources %}
     {{ resource.name | to_snake }},
 {%- endfor %}
@@ -38,7 +35,6 @@ ROUTES = {
 {%- if health_endpoint %}
         health,
 {%- endif %}
-        openapi,
 {%- for resource in resources %}
         {{ resource.name | to_snake }},
 {%- endfor %}

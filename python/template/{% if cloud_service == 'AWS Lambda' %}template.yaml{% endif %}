@@ -51,13 +51,6 @@ Resources:
             Auth:
               ApiKeyRequired: false
 {%- endif %}
-        OpenApi:
-          Type: Api
-          Properties:
-            Path: /openapi.json
-            Method: get
-            Auth:
-              ApiKeyRequired: false
 {%- for resource in resources %}
 {%- set cn = resource.name | to_camel %}
 {%- if "list" in resource.operations %}

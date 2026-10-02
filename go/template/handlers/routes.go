@@ -11,11 +11,10 @@ type Controllers struct {
 {%- endfor %}
 }
 
-func RegisterRoutes(router {% if cloud_service == 'AWS Lambda' %}*Router{% else %}Mux{% endif %}, c Controllers, openAPISpec []byte) {
+func RegisterRoutes(router {% if cloud_service == 'AWS Lambda' %}*Router{% else %}Mux{% endif %}, c Controllers) {
 {%- if health_endpoint %}
 	RegisterHealthRoute(router)
 {%- endif %}
-	RegisterOpenAPIRoute(router, openAPISpec)
 {%- for resource in resources %}
 	Register{{ resource.name }}Routes(router, c.{{ resource.name }})
 {%- endfor %}

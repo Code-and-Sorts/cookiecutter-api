@@ -8,9 +8,6 @@ import (
 {%- endif %}
 	"encoding/json"
 	"net/http"
-{%- if cloud_service != 'AWS Lambda' %}
-	"net/http/httptest"
-{%- endif %}
 	"os"
 	"sort"
 	"strings"
@@ -33,13 +30,13 @@ type openAPIDocument struct {
 	} `json:"components"`
 }
 
-func loadOpenAPI(t *testing.T) ([]byte, openAPIDocument) {
+func loadOpenAPI(t *testing.T) openAPIDocument {
 	t.Helper()
 	spec, err := os.ReadFile("../openapi.json")
 	require.NoError(t, err)
 	var doc openAPIDocument
 	require.NoError(t, json.Unmarshal(spec, &doc))
-	return spec, doc
+	return doc
 }
 
 func (doc openAPIDocument) routes() []string {
@@ -64,34 +61,11 @@ func (r *routeRecorder) HandleFunc(pattern string, handler func(http.ResponseWri
 	r.patterns = append(r.patterns, pattern)
 }
 
-func TestOpenAPI_Get_ServesSpec(t *testing.T) {
-	mux := NewRouter()
-	RegisterOpenAPIRoute(mux, []byte(`{"openapi": "3.1.0"}`))
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "{{ route_prefix }}/openapi.json", nil))
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
-	assert.JSONEq(t, `{"openapi": "3.1.0"}`, w.Body.String())
-}
-
-func TestOpenAPI_OtherMethod_Returns405(t *testing.T) {
-	mux := NewRouter()
-	RegisterOpenAPIRoute(mux, nil)
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "{{ route_prefix }}/openapi.json", nil))
-
-	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
-	assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, w.Body.String())
-}
-
 func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
-	spec, doc := loadOpenAPI(t)
+	doc := loadOpenAPI(t)
 	recorder := &routeRecorder{}
 
-	RegisterRoutes(recorder, Controllers{}, spec)
+	RegisterRoutes(recorder, Controllers{})
 
 	var routes []string
 	for _, pattern := range recorder.patterns {
@@ -108,40 +82,14 @@ func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
 }
 {%- else %}
 
-func serveSpec(method string, spec []byte) events.APIGatewayProxyResponse {
-	router := NewRouter()
-	RegisterOpenAPIRoute(router, spec)
-	response, _ := router.ServeRequest(context.Background(), events.APIGatewayProxyRequest{
-		HTTPMethod: method,
-		Resource:   "/openapi.json",
-		Path:       "/openapi.json",
-	})
-	return response
-}
-
-func TestOpenAPI_Get_ServesSpec(t *testing.T) {
-	response := serveSpec(http.MethodGet, []byte(`{"openapi": "3.1.0"}`))
-
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, "application/json", response.Headers["Content-Type"])
-	assert.JSONEq(t, `{"openapi": "3.1.0"}`, response.Body)
-}
-
-func TestOpenAPI_OtherMethod_Returns405(t *testing.T) {
-	response := serveSpec(http.MethodPost, nil)
-
-	assert.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
-	assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, response.Body)
-}
-
 func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
-	spec, doc := loadOpenAPI(t)
+	doc := loadOpenAPI(t)
 	var fakes Controllers
 {%- for resource in resources %}
 	fakes.{{ resource.name }} = &fake{{ resource.name }}Controller{}
 {%- endfor %}
 	router := NewRouter()
-	RegisterRoutes(router, fakes, spec)
+	RegisterRoutes(router, fakes)
 	const id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 
 	var routes []string
@@ -166,7 +114,7 @@ func TestOpenAPI_SpecListsExactlyTheRegisteredRoutes(t *testing.T) {
 {%- endif %}
 
 func TestOpenAPI_RequestSchemasMatchValidator(t *testing.T) {
-	_, doc := loadOpenAPI(t)
+	doc := loadOpenAPI(t)
 	validatorSchemas := controllers.RequestSchemas()
 	specToValidator := map[string]string{}
 {%- for resource in path_resources %}

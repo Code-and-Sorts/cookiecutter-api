@@ -7,7 +7,6 @@ import {
 {%- endif %}
   jsonResponse,
   notFound,
-  openApiRoutes,
 {%- for resource in resources %}
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
@@ -47,7 +46,6 @@ export const routes = new Map<string, Route>([
 {%- if health_endpoint %}
   ['{{ health_endpoint }}', healthRoutes],
 {%- endif %}
-  ['openapi.json', openApiRoutes],
 {%- for resource in resources %}
   ['{{ resource.endpoint }}', {{ resource.name | to_lower_camel }}Routes],
 {%- endfor %}

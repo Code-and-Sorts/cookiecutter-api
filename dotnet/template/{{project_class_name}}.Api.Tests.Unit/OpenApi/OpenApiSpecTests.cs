@@ -2,9 +2,7 @@ namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
 using System.Collections.Generic;
-{%- if cloud_service == 'AWS Lambda' %}
 using System.IO;
-{%- endif %}
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
@@ -23,34 +21,18 @@ using NSubstitute;
 using Xunit;
 using {{project_class_name}}.Api;
 {%- if cloud_service == 'GCP Cloud Function' %}
-using {{project_class_name}}.Api.Handlers;
 using {{project_class_name}}.Api.Interfaces;
-{%- else %}
-using {{project_class_name}}.Api.Functions;
 {%- endif %}
-using {{project_class_name}}.Api.Utils;
 
 public class OpenApiSpecTests
 {
     private static readonly Assembly Api = typeof(DependencyInjection).Assembly;
-    private static readonly JsonElement Spec = JsonDocument.Parse(OpenApiDocument.Json).RootElement;
+    private static readonly JsonElement Spec = JsonDocument.Parse(File.ReadAllText("openapi.json")).RootElement;
 {%- if cloud_service == 'GCP Cloud Function' %}
     private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
     private const string NotFoundBody = "{\"errorMessage\":\"Not found.\"}";
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
-
-    [Fact]
-    public void OpenApi_ServesTheSpecAnonymously()
-    {
-        var trigger = typeof(OpenApiFunctions).GetMethod(nameof(OpenApiFunctions.OpenApi))!
-            .GetParameters()[0].GetCustomAttribute<HttpTriggerAttribute>()!;
-
-        var result = new OpenApiFunctions().OpenApi(Mocks.CreateHttpRequestData());
-
-        Assert.Equal(AuthorizationLevel.Anonymous, trigger.AuthLevel);
-        Assert.Equal((200, OpenApiDocument.Json), Mocks.ReadJsonResult(result));
-    }
 
     [Fact]
     public void Spec_ListsExactlyTheRegisteredRoutes()
@@ -68,30 +50,6 @@ public class OpenApiSpecTests
 {%- elif cloud_service == 'AWS Lambda' %}
 
     [Fact]
-    public void OpenApi_ServesTheSpec()
-    {
-        var request = Mocks.CreateApiGatewayRequest();
-        request.Resource = "/openapi.json";
-
-        var response = new OpenApiFunctions().OpenApi(request);
-
-        Assert.Equal(200, response.StatusCode);
-        Assert.Equal("application/json", response.Headers["Content-Type"]);
-        Assert.Equal(OpenApiDocument.Json, response.Body);
-    }
-
-    [Fact]
-    public void OpenApi_ReturnsMethodNotAllowed_ForAnotherMethod()
-    {
-        var request = Mocks.CreateApiGatewayRequest("POST");
-        request.Resource = "/openapi.json";
-
-        var response = new OpenApiFunctions().OpenApi(request);
-
-        Assert.Equal(405, response.StatusCode);
-    }
-
-    [Fact]
     public void Spec_ListsExactlyTheTemplateRoutes()
     {
         var lines = File.ReadLines("template.yaml").Select(line => line.Trim()).ToList();
@@ -107,25 +65,6 @@ public class OpenApiSpecTests
         Assert.Equal(SpecRoutes(), Sorted(routes));
     }
 {%- else %}
-
-    [Theory]
-    [InlineData("GET", null, 200)]
-    [InlineData("POST", null, 405)]
-    [InlineData("GET", "extra", 404)]
-    public async Task OpenApi_ServesTheSpecOnGetOnly(string method, string? id, int status)
-    {
-        var handler = new OpenApiHandler();
-        var httpContext = Mocks.CreateHttpContext(method, "/openapi.json");
-
-        await handler.HandleAsync(httpContext, id);
-
-        Assert.Equal("openapi.json", handler.Endpoint);
-        Assert.Equal(status, httpContext.Response.StatusCode);
-        if (status == 200)
-        {
-            Assert.Equal(OpenApiDocument.Json, Mocks.ReadResponseBody(httpContext));
-        }
-    }
 
     [Fact]
     public async Task Spec_ListsExactlyTheRoutesTheFunctionServes()

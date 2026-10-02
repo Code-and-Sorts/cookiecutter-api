@@ -78,8 +78,10 @@ servers:
 security:
   - {{ scheme }}: []
 tags:
+{%- if health_endpoint %}
   - name: Service
     description: Operational endpoints.
+{%- endif %}
 {%- for resource in resources %}
   - name: {{ resource.name }}
     description: {{ resource.name }} records, stored in the `{{ resource.container }}` container.
@@ -99,21 +101,6 @@ paths:
           description: The service is up.
           {{ json_body('Health') | indent(10) }}
 {%- endif %}
-  /openapi.json:
-    get:
-      tags: [Service]
-      operationId: getOpenApi
-      summary: This OpenAPI document
-{%- if cloud_service != 'GCP Cloud Function' %}
-      security: []
-{%- endif %}
-      responses:
-        '200':
-          description: The OpenAPI document.
-          content:
-            application/json:
-              schema:
-                type: object
 {%- for resource in resources %}
 {%- set r = resource.name %}
 {%- set ops = resource.operations %}

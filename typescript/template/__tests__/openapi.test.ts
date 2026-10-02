@@ -24,7 +24,7 @@ import { MockFn{% if cloud_service != 'Azure Function App' %}, mockController{% 
 
 jest.unstable_mockModule('@azure/functions', () => ({ app: { http: jest.fn<MockFn>() } }));
 
-type Registration = { methods: string[]; route: string; authLevel: string; handler: () => Promise<{ status: number; body: string }> };
+type Registration = { methods: string[]; route: string };
 let registrations: Record<string, Registration>;
 
 beforeAll(async () => {
@@ -136,13 +136,6 @@ const jsonSchema = (schema: z.ZodType): Record<string, unknown> => {
 
 describe('openapi.json', () => {
 {%- if cloud_service == 'Azure Function App' %}
-    it('should be served anonymously at GET /openapi.json', async () => {
-        expect(registrations.openapi).toMatchObject({ methods: ['GET'], route: 'openapi.json', authLevel: 'anonymous' });
-        const response = await registrations.openapi.handler();
-        expect(response.status).toEqual(200);
-        expect(JSON.parse(response.body)).toEqual(spec);
-    });
-
     it('should list exactly the registered routes', () => {
         expect(registeredRoutes()).toEqual(specRoutes());
     });

@@ -31,17 +31,16 @@ The API follows a controller → service → repository layout wired together by
 ## Endpoints
 
 {% if cloud_service == 'Azure Function App' -%}
-Azure Functions serves HTTP functions under the `/api` route prefix. Every route except {% if health_endpoint %}`/api/{{ health_endpoint }}` and {% endif %}`/api/openapi.json` uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+Azure Functions serves HTTP functions under the `/api` route prefix. Every route{% if health_endpoint %} except `/api/{{ health_endpoint }}`{% endif %} uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
 {%- elif cloud_service == 'GCP Cloud Function' -%}
 Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally). The deployed function is not public; see [Deploy](#deploy) for calling it.
 {%- else -%}
-Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`). Every route except {% if health_endpoint %}`/{{ health_endpoint }}` and {% endif %}`/openapi.json` requires an API key sent as `x-api-key: <value>`; see [Deploy](#deploy) for reading it.
+Paths are relative to the API Gateway stage URL (for example `https://<api-id>.execute-api.<region>.amazonaws.com/Prod`, or `http://127.0.0.1:3000` with `sam local start-api`). Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires an API key sent as `x-api-key: <value>`; see [Deploy](#deploy) for reading it.
 {%- endif %}{{ "\n" }}
 
 {%- if health_endpoint %}
 - `GET {{ base_path }}/{{ health_endpoint }}` — health check
 {%- endif %}
-- `GET {{ base_path }}/openapi.json` — the [OpenAPI document](#openapi){% if cloud_service == 'Azure Function App' %}, anonymous{% elif cloud_service == 'AWS Lambda' %}, no API key{% endif %}
 {%- for resource in resources %}
 - **{{ resource.name }}** (storage: `{{ resource.container }}`)
 {%- if "list" in resource.operations %}
@@ -63,17 +62,6 @@ Paths are relative to the API Gateway stage URL (for example `https://<api-id>.e
   - `DELETE {{ base_path }}/{{ resource.endpoint }}/{id}` — soft delete
 {%- endif %}
 {%- endfor %}
-
-## OpenAPI
-
-[`openapi.json`](openapi.json) is an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) description of every endpoint above, generated from the same template answers. The build copies it to `dist/`, and the API serves it at `GET {{ base_path }}/openapi.json`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% else %}, behind the same IAM check as every other route{% endif %}.
-
-`__tests__/openapi.test.ts` fails when the spec's routes differ from the {% if cloud_service == 'Azure Function App' %}functions registered in `functions/`{% else %}routes `{{ 'main.ts' if cloud_service == 'GCP Cloud Function' else 'lambda.ts' }}` serves{% endif %}, or its request schemas from the Zod schemas, so a change to a route must update `openapi.json` too. Lint it, or build an HTML reference, with [Redocly CLI](https://redocly.com/docs/cli/):
-
-```console
-npx @redocly/cli lint openapi.json
-npx @redocly/cli build-docs openapi.json
-```
 
 ## Requests and responses
 
@@ -261,7 +249,7 @@ sam build
 sam deploy --guided
 ```
 
-SAM creates an API key and usage plan for the API. Every route except {% if health_endpoint %}`/{{ health_endpoint }}` and {% endif %}`/openapi.json` requires the key in an `x-api-key` header. Read its value from the `{{ project_class_name }}ApiKeyId` stack output:
+SAM creates an API key and usage plan for the API. Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires the key in an `x-api-key` header. Read its value from the `{{ project_class_name }}ApiKeyId` stack output:
 
 ```console
 aws apigateway get-api-key --api-key <api-key-id> --include-value --query value --output text
@@ -278,6 +266,17 @@ yarn lint        # ESLint
 yarn format      # ESLint --fix and Prettier
 yarn test:unit   # Jest with coverage thresholds
 yarn audit       # yarn npm audit --severity moderate
+```
+
+## OpenAPI
+
+[`openapi.json`](openapi.json) is an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) description of the API: every route above with its request and response schemas, the `X-User-Id` header, `?limit=` on list, and the {% if cloud_service == 'Azure Function App' %}Azure Functions{% elif cloud_service == 'GCP Cloud Function' %}Cloud Run function{% else %}API Gateway{% endif %} servers and authentication. It is generated from the same template answers as the routes, so `copier update` regenerates both; the API does not serve it.
+
+`__tests__/openapi.test.ts` fails when the spec's routes differ from {% if cloud_service == 'Azure Function App' %}the functions registered in `functions/`{% else %}the routes `{{ 'main.ts' if cloud_service == 'GCP Cloud Function' else 'lambda.ts' }}` serves{% endif %}, or its request schemas from the Zod schemas, so a change to a route must update `openapi.json` too. Lint it, or build an HTML reference, with [Redocly CLI](https://redocly.com/docs/cli/):
+
+```console
+npx @redocly/cli lint openapi.json
+npx @redocly/cli build-docs openapi.json
 ```
 
 ## Repository structure
@@ -298,7 +297,6 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- if health_endpoint %}
 │   ├── health.ts
 {%- endif %}
-│   ├── openapi.ts                  - Serves openapi.json
 │   ├── response.ts                 - JSON responses and the shared handler wrapper
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.ts
@@ -316,7 +314,6 @@ Each resource gets its own file in every layer, named after the resource in lowe
 {%- if health_endpoint %}
 │   ├── health.routes.ts
 {%- endif %}
-│   ├── openapi.routes.ts           - Serves openapi.json
 │   ├── response.ts
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.routes.ts

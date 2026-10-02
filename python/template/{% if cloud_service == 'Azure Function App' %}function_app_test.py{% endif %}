@@ -68,7 +68,7 @@ def describe_function_app():
 {%- endif %}
 
     def test_registers_only_the_enabled_operations():
-        assert set(_FUNCTIONS) == {route[1] for route in _ROUTES} | {{ '{"health", "openapi"}' if health_endpoint else '{"openapi"}' }}
+        assert set(_FUNCTIONS) == {route[1] for route in _ROUTES}{% if health_endpoint %} | {"health"}{% endif %}
 
     @pytest.mark.parametrize("module, name, method, route, item_id, body, query, action, args, status", _ROUTES)
     def test_routes_to_controller(module, name, method, route, item_id, body, query, action, args, status):

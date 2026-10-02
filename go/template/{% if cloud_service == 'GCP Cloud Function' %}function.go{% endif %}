@@ -3,7 +3,6 @@ package function
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -18,9 +17,6 @@ import (
 	"{{project_endpoint}}/services"
 	"{{project_endpoint}}/utils"
 )
-
-//go:embed openapi.json
-var openAPISpec []byte
 
 func init() {
 	slog.SetDefault(utils.NewLogger())
@@ -42,7 +38,7 @@ func newAPI() http.Handler {
 {%- endfor %}
 
 	router := handlers.NewRouter()
-	handlers.RegisterRoutes(router, resources, openAPISpec)
+	handlers.RegisterRoutes(router, resources)
 	return handlers.Middleware(router)
 }
 

@@ -152,19 +152,6 @@ Resources:
             Auth:
               ApiKeyRequired: false
 {%- endif %}
-  OpenApiFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: {{project_class_name}}.Api::{{project_class_name}}.Api.Functions.OpenApiFunctions_OpenApi_Generated::OpenApi
-      CodeUri: ./
-      Events:
-        OpenApi:
-          Type: Api
-          Properties:
-            Path: /openapi.json
-            Method: GET
-            Auth:
-              ApiKeyRequired: false
 {%- for c in path_resources | unique(attribute='container') %}
   {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table

@@ -32,6 +32,9 @@
   </ItemGroup>
 {%- endif %}
   <ItemGroup>
+    <None Include="../openapi.json" Link="openapi.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../{{project_class_name}}.Api/{{project_class_name}}.Api.csproj" />
   </ItemGroup>
 </Project>

@@ -21,7 +21,7 @@ public class LambdaDeploymentTests
             .Select(line => line["Handler: ".Length..].Split("::"))
             .ToList();
 
-        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + (2 if health_endpoint else 1) }}, handlers.Count);
+        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + (1 if health_endpoint else 0) }}, handlers.Count);
         foreach (var handler in handlers)
         {
             Assert.Equal(typeof(Startup).Assembly.GetName().Name, handler[0]);
@@ -41,7 +41,7 @@ public class LambdaDeploymentTests
             .Select(line => line["Path: ".Length..])
             .ToList();
 
-        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + (2 if health_endpoint else 1) }}, paths.Count);
+        Assert.Equal({{ (resources | map(attribute='operations') | map('length') | sum) + (1 if health_endpoint else 0) }}, paths.Count);
         Assert.All(paths, path => Assert.DoesNotContain("/api/", path));
         Assert.Contains("/{{ resources[0].endpoint }}{{ '/{id}' if (resources[0].operations | reject('in', ['list', 'create']) | list) else '' }}", paths);
     }
@@ -50,7 +50,6 @@ public class LambdaDeploymentTests
 {%- if health_endpoint %}
     [InlineData(typeof(HealthFunctions))]
 {%- endif %}
-    [InlineData(typeof(OpenApiFunctions))]
 {%- for resource in resources %}
     [InlineData(typeof({{ resource.name }}Functions))]
 {%- endfor %}

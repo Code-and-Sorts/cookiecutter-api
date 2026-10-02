@@ -139,7 +139,7 @@ resources:
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
     {%- set generated_suffixes = [] -%}
     {%- if language == "python" -%}
-    {%- set reserved_names = ["Base", "Repository", "Health", "Openapi", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
+    {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
     {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
     {%- set generated_suffixes = ["Controller", "Repository", "Response", "Service", "Update"] -%}
     {%- elif language == "typescript" -%}
@@ -153,8 +153,8 @@ resources:
     {%- set ns = namespace(err="", eps=[], names=[], containers=[], idents={}, own=[], clash="", ident="", name_clash="") -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
-    {%- elif language == "dotnet" and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 64 > 127 -%}
-    {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the OpenAPI handler string would exceed the 127-character limit." -%}
+    {%- elif language == "dotnet" and health_endpoint and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 61 > 127 -%}
+    {%- set ns.err = "Project name '" ~ project_name ~ "' is too long for AWS Lambda: the health handler string would exceed the 127-character limit." -%}
     {%- endif -%}
     {%- for r in resources -%}
     {%- if not ns.err -%}
@@ -188,8 +188,6 @@ resources:
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a name the generated " ~ cloud_service ~ " project already uses. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
-    {%- elif language in ["typescript", "dotnet"] and name_key == "openapi" -%}
-    {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: its files would collide with the OpenAPI document's." -%}
     {%- elif language == "python" and (r.name | to_snake) in python_keywords -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
     {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}

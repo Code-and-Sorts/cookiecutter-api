@@ -3,13 +3,10 @@ import json
 from pathlib import Path
 import pytest
 {%- if cloud_service == 'Azure Function App' %}
-import asyncio
-import azure.functions as func
 from function_app import app
 {%- else %}
 from blueprints import ROUTES
 {%- endif %}
-from blueprints import openapi
 import models
 
 _SPEC = json.loads(Path(__file__).with_name("openapi.json").read_text(encoding="utf-8"))
@@ -53,29 +50,6 @@ def _json_schema(model):
         field.pop("title", None)
         field.pop("default", None)
     return schema
-
-
-def describe_openapi_route():
-{%- if cloud_service == 'Azure Function App' %}
-    def test_is_an_anonymous_get():
-        (builder,) = openapi.bp._function_builders
-        trigger = builder._function.get_trigger()
-        assert trigger.route == "openapi.json"
-        assert [str(m) for m in trigger.methods] == ["GET"]
-        assert trigger.auth_level == func.AuthLevel.ANONYMOUS
-
-    def test_serves_the_spec():
-        fn = openapi.bp._function_builders[0]._function.get_user_function()
-        response = asyncio.run(fn(func.HttpRequest(method="GET", url="/api/openapi.json", body=b"")))
-        assert (response.status_code, response.mimetype) == (200, "application/json")
-        assert json.loads(response.get_body()) == _SPEC
-{%- else %}
-    def test_serves_the_spec():
-        assert openapi.openapi(None, None) == (200, _SPEC)
-
-    def test_route_table_is_get_only():
-        assert openapi.ROUTES == {("GET", False): openapi.openapi}
-{%- endif %}
 
 
 def describe_openapi_spec():

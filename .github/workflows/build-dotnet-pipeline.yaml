@@ -65,7 +65,7 @@ jobs:
       - name: Lint the OpenAPI spec
         uses: ./.github/actions/lint-openapi
         with:
-          specs: KittenClaws/KittenClaws.Api/openapi.json
+          specs: KittenClaws/openapi.json
 
       - name: Setup dotnet ${{ matrix.dotnet-version }}
         uses: actions/setup-dotnet@v6

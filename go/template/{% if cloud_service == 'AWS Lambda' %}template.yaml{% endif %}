@@ -93,13 +93,6 @@ Resources:
             Auth:
               ApiKeyRequired: false
 {%- endif %}
-        OpenApi:
-          Type: Api
-          Properties:
-            Path: /openapi.json
-            Method: get
-            Auth:
-              ApiKeyRequired: false
 {% for c in path_resources | unique(attribute='container') %}
   {{ c.container_class }}Table:
     Type: AWS::DynamoDB::Table

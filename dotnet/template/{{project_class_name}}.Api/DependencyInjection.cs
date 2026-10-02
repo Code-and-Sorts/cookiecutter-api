@@ -48,7 +48,6 @@ public static class DependencyInjection
 {%- if health_endpoint %}
         services.AddSingleton<IResourceHandler, HealthHandler>();
 {%- endif %}
-        services.AddSingleton<IResourceHandler, OpenApiHandler>();
 
         return services;
     }

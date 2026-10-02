@@ -42,7 +42,6 @@ build-{{ project_class_name }}Function:
 	find . -name '*.py' ! -name '*_test.py' ! -name conftest.py ! -path './.*' | while read -r file; do \
 		mkdir -p "$(ARTIFACTS_DIR)/$$(dirname "$$file")" && cp "$$file" "$(ARTIFACTS_DIR)/$$file"; \
 	done
-	cp openapi.json "$(ARTIFACTS_DIR)/openapi.json"
 {%- else -%}
 .PHONY: requirements
 requirements: ## Export the main dependencies from poetry.lock to requirements.txt for deployment
