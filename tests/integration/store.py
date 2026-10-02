@@ -13,8 +13,9 @@ from project import Project
 
 # The vNext emulator's gateway and Microsoft's published well-known key, the same for every language.
 COSMOS_ENDPOINT = "http://localhost:8081/"
-FIRESTORE_VALUE_TYPES = {str: "stringValue", bool: "booleanValue"}
 COSMOS_KEY = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
+
+FIRESTORE_VALUE_TYPES = {str: "stringValue", bool: "booleanValue"}
 
 
 class Store(Protocol):
@@ -37,7 +38,7 @@ def open_store(project: Project) -> Store:
 
 
 class CosmosStore:
-    def __init__(self, env: dict[str, str]):
+    def __init__(self, _env: dict[str, str]):
         self._client = CosmosClient(COSMOS_ENDPOINT, COSMOS_KEY, enable_endpoint_discovery=False)
         self._containers = {}
 

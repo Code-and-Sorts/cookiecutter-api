@@ -5,7 +5,6 @@ from pathlib import Path
 
 import yaml
 
-OPERATIONS = ("list", "get_by_id", "create", "update", "replace", "delete")
 CLOUDS = {"Azure Function App": "azure", "GCP Cloud Function": "gcp", "AWS Lambda": "aws"}
 
 
@@ -34,6 +33,7 @@ class Project:
     def load(cls, directory: Path) -> "Project":
         answers = yaml.safe_load((directory / ".copier-answers.yml").read_text())
         resources = tuple(
+            # YAML loads a numeric container id as an int.
             Resource(r["name"], r["endpoint"], str(r["container"]), frozenset(r["operations"]))
             for r in answers["resources"]
         )

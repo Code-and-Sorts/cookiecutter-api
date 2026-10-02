@@ -31,7 +31,8 @@ on:
         default: all
       fixture:
         type: choice
-        options: [all, single, multi, edge]
+        description: all runs single and edge; multi only adds cases those two cover.
+        options: [all, single, edge, multi]
         default: all
 
 permissions:
@@ -39,7 +40,8 @@ permissions:
 
 concurrency:
   group: integration-${{ github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}
-  cancel-in-progress: true
+  # Only a newer dispatch replaces a run; every push to main is tested.
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
 
 jobs:
   plan:
@@ -58,7 +60,7 @@ jobs:
           pick() { jq -c --arg pick "$1" '[.[] | select($pick == "all" or (.slug? // .) == $pick)]'; }
           languages=$(pick "$LANGUAGE" <<< '["python", "typescript", "dotnet", "go"]')
           clouds=$(pick "$CLOUD" <<< '[{"name": "Azure Function App", "slug": "azure"}, {"name": "GCP Cloud Function", "slug": "gcp"}, {"name": "AWS Lambda", "slug": "aws"}]')
-          fixtures=$(pick "$FIXTURE" <<< '["single", "multi", "edge"]')
+          if [ "$FIXTURE" = multi ]; then fixtures='["multi"]'; else fixtures=$(pick "$FIXTURE" <<< '["single", "edge"]'); fi
           matrix=$(jq -cn --argjson l "$languages" --argjson c "$clouds" --argjson f "$fixtures" '{language: $l, cloud: $c, fixture: $f}')
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "Matrix: $matrix"
@@ -115,7 +117,7 @@ jobs:
           EOF
 
       - name: Collect emulator logs
-        if: failure()
+        if: failure() && hashFiles('KittenClaws/docker-compose.yml') != ''
         working-directory: KittenClaws
         run: docker compose logs --no-color > emulator.log 2>&1 || true
 
@@ -129,7 +131,7 @@ jobs:
             KittenClaws
             !KittenClaws/**/node_modules
             !KittenClaws/.venv
-            !KittenClaws/.aws-sam
+            !KittenClaws/**/.aws-sam
             !KittenClaws/**/bin
             !KittenClaws/**/obj
           if-no-files-found: ignore

@@ -45,7 +45,7 @@
 | --- | --- |
 | 8000 | DynamoDB Local (`-inMemory -sharedDb`, so tables do not depend on the region or access key) |
 
-- `{{ cmd.seed }}` runs on your machine and reaches DynamoDB Local at `http://localhost:8000` (`.env.emulator`). `sam local start-api` runs the function in a container on the `{{ project_endpoint }}-emulator` Docker network, so `env.emulator.json` points it at `http://dynamodb:8000` and sets the table names, which `sam local` would otherwise take from the template's logical ids.
+- `{{ cmd.seed }}` runs on your machine and reaches DynamoDB Local at `http://localhost:8000` (`.env.emulator`). `sam local start-api` runs the function in a container on the `{{ project_endpoint }}-emulator` Docker network, so `env.emulator.json` points it at `http://dynamodb:8000` and sets the table names, which `sam local` would otherwise take from the template's logical ids. `--warm-containers LAZY` keeps each function's container running between requests and restarts it when the build changes.
 - `template.yaml` declares `AWS_ENDPOINT_URL_DYNAMODB` only so `sam local` can set it; deployed stacks leave it out unless you pass the `DynamoDbEndpoint` parameter. {{ emulator.sdk_note }}
 - `{{ cmd.seed }}` and `{{ cmd.run }}` use dummy credentials, which replace your own for these commands. DynamoDB Local 3 accepts only letters and digits in an access key id.
 {%- endif %}

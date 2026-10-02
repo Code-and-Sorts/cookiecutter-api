@@ -1,8 +1,7 @@
 import pytest
 
-from api import BODY_OPERATIONS, unique_name
+from api import BODY_OPERATIONS, ITEM_OPERATIONS
 
-ITEM_OPERATIONS = ("get_by_id", "update", "replace", "delete")
 WRITE_OPERATIONS = ("create", "update", "replace", "delete")
 
 INVALID_BODIES = {
@@ -74,5 +73,5 @@ def test_an_overlong_user_id_is_rejected(api, resource, operation, make_record):
 
 @pytest.mark.ops("create")
 def test_a_user_id_of_256_characters_is_accepted(api, resource):
-    response = api.send("create", resource, json={"name": unique_name(resource)}, user_id="u" * 256)
+    response = api.send("create", resource, user_id="u" * 256)
     assert response.status_code == 201, response.text

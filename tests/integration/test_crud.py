@@ -40,10 +40,11 @@ def test_list_honours_limit(api, resource, make_record):
 
 @pytest.mark.ops("list")
 @pytest.mark.parametrize("limit", ["0", "-1", "abc", "1000000"])
-def test_list_falls_back_on_an_out_of_range_limit(api, resource, limit):
+def test_list_falls_back_on_an_out_of_range_limit(api, resource, limit, make_record):
+    make_record(resource)
     response = api.send("list", resource, params={"limit": limit})
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    assert len(response.json()) >= 1
 
 
 @pytest.mark.each_operation("update", "replace")

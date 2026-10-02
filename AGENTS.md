@@ -130,7 +130,8 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **Auth:** resource routes need credentials and health is open where the platform allows it. Azure: function keys,
   anonymous health function. AWS: API Gateway API keys (`x-api-key`, SAM usage plan), health exempt. GCP: IAM
   invoker (deployed with `--no-allow-unauthenticated`); the one function means health needs the token too.
-- `?limit=` on list is honoured everywhere.
+- `?limit=` on list is honoured everywhere; a missing, non-numeric or non-positive limit means 100, and more than
+  1000 means 1000.
 - A failing database yields the generic 500 within 10 seconds: database calls use a per-request deadline or
   capped retries, so the answer arrives well inside the platform timeout.
 
@@ -208,8 +209,8 @@ To add a new cloud provider to an existing language template:
    option with unit tests, and a bootstrap branch
 6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
 7. **Add it to the integration tests** — its host tool and base URL in `.github/actions/start-local-api`, the cloud in
-   the `integration-tests.yaml` plan, its `CLOUDS` slug in `tests/integration/project.py`, and a store in
-   `tests/integration/store.py`
+   the `integration-tests.yaml` plan, its `CLOUDS` slug in `tests/integration/project.py`, its `NOT_ROUTED`
+   statuses in `tests/integration/test_operations.py`, and a store in `tests/integration/store.py`
 8. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
@@ -271,8 +272,7 @@ as JSON) without starting them.
 Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
 `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
-names of differing lengths) and no health check. `multi` feeds the published example branches and the
-integration tests.
+names of differing lengths) and no health check. `multi` only feeds the published example branches.
 Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
 
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
@@ -292,8 +292,8 @@ and `@pytest.mark.each_operation` pick the resources and operations a test needs
 Jinja. `store.py` reads records straight from the emulator, and seeds a container for a resource that cannot
 `create`. Contract changes go into the suite with the template change.
 
-`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single`, `multi`, `edge`) on
-pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
+`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single` and `edge`; `multi` on
+request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
 contract or emulator change. Each job renders the project, then `.github/actions/start-local-api` starts the
 emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the
 TypeScript `yarn` scripts) and outputs the base URL. Failed jobs upload the host and emulator logs, the JUnit
@@ -331,7 +331,8 @@ into the next render.
 
 Renovate keeps package versions current and merges its own PRs once every check passes
 (see `renovate.json`). Runtime versions (Node, Python, .NET, Go) are bumped by hand once
-Azure Functions, Cloud Run functions and AWS Lambda all support the new version GA.
+Azure Functions, Cloud Run functions and AWS Lambda all support the new version GA, in the build pipelines and
+`.github/actions/start-local-api` together.
 
 ## Code Conventions
 

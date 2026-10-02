@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from api import Api, unique_name
-from project import OPERATIONS, Project
+from api import OPERATIONS, Api, unique_name
+from project import Project
 from store import new_record, open_store
 
 PROJECT = pytest.StashKey[Project]()
@@ -69,12 +69,12 @@ def pytest_generate_tests(metafunc):
             _parametrize(metafunc, f"writer,{argname}", cases, "no pair of resources fits")
 
 
-def _probe_path(project: Project) -> str:
-    """A route that reaches app code, so waiting on it also warms a sam local container."""
+def _probe_path(project: Project) -> str | None:
+    """A route that answers 200 once app code runs; it also starts a sam local container before the tests."""
     if project.health_endpoint:
         return f"/{project.health_endpoint}"
-    resource = next((r for r in project.resources if r.has("list")), project.resources[0])
-    return f"/{resource.endpoint}"
+    lister = next((r for r in project.resources if r.has("list")), None)
+    return f"/{lister.endpoint}" if lister else None
 
 
 @pytest.fixture(scope="session")
@@ -83,9 +83,10 @@ def project(pytestconfig) -> Project:
 
 
 @pytest.fixture(scope="session")
-def api(pytestconfig, project) -> Api:
+def api(pytestconfig, project):
     api = Api(pytestconfig.option.base_url)
-    api.wait_until_ready(_probe_path(project), pytestconfig.option.ready_timeout)
+    if probe := _probe_path(project):
+        api.wait_until_ready(probe, pytestconfig.option.ready_timeout)
     yield api
     api.http.close()
 
@@ -101,7 +102,7 @@ def make_record(api, store):
 
     def make(resource, *, user_id: str | None = None) -> dict:
         if resource.has("create"):
-            response = api.send("create", resource, json={"name": unique_name(resource)}, user_id=user_id)
+            response = api.send("create", resource, user_id=user_id)
             assert response.status_code == 201, response.text
             return response.json()
         record = new_record(unique_name(resource))

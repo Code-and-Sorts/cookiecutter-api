@@ -139,9 +139,9 @@ credentials, limitations and troubleshooting. The compose file, `.env.emulator`,
 over HTTP for every language and cloud: each enabled operation, validation, soft deletes, shared
 containers, `?limit=`, the health check and the stored record format (read straight from the
 emulator). It reads the resources from the project's `.copier-answers.yml`, so every fixture is
-covered without changes. The `Integration Tests` workflow runs it for every language, cloud and
-resources fixture on pushes to `main`; run it on a branch with **Run workflow**, choosing a language,
-cloud and fixture or `all`.
+covered without changes. The `Integration Tests` workflow runs it for every language and cloud with
+the `single` and `edge` resources fixtures on pushes to `main`; run it on a branch with **Run workflow**,
+choosing a language, cloud and fixture or `all`.
 
 To run it locally, render a project, start it against its emulator (see above) and point the suite at
 it. You need Docker plus the host tool for the cloud (Azure Functions Core Tools or the SAM CLI):

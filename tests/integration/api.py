@@ -16,7 +16,10 @@ ROUTES = {
     "replace": ("PUT", True),
     "delete": ("DELETE", True),
 }
+OPERATIONS = tuple(ROUTES)
+ITEM_OPERATIONS = tuple(op for op, (_, addresses_item) in ROUTES.items() if addresses_item)
 BODY_OPERATIONS = ("create", "update", "replace")
+LIST_MAX = 1000
 
 
 def unique_name(resource: Resource) -> str:
@@ -29,7 +32,7 @@ def user_headers(user_id: str | None) -> dict[str, str]:
 
 class Api:
     def __init__(self, base_url: str):
-        # Generous: sam local starts a container for a request when none is warm.
+        # Generous: sam local starts a function's container on its first request.
         self.http = httpx.Client(base_url=base_url.rstrip("/"), timeout=60)
 
     def send(
@@ -52,19 +55,24 @@ class Api:
         return self.http.request(method, path, headers=headers, **kwargs)
 
     def list_ids(self, resource: Resource) -> set[str]:
-        response = self.send("list", resource, params={"limit": 1000})
+        response = self.send("list", resource, params={"limit": LIST_MAX})
         assert response.status_code == 200, response.text
-        return {item["id"] for item in response.json()}
+        items = response.json()
+        # A full page could leave out the record under test; stores list in key order, not insertion order.
+        assert len(items) < LIST_MAX, f"{resource.container} holds too many records; reset the emulator"
+        return {item["id"] for item in items}
 
     def wait_until_ready(self, path: str, timeout: float) -> None:
-        """Waits for app code to answer, which also starts a sam local container."""
         deadline = time.monotonic() + timeout
+        last = "no response"
         while True:
             try:
-                if self.http.get(path).status_code < 500:
+                response = self.http.get(path)
+                if response.status_code == 200:
                     return
-            except httpx.TransportError:
-                pass
+                last = f"{response.status_code} {response.text[:200]}"
+            except httpx.TransportError as error:
+                last = repr(error)
             if time.monotonic() > deadline:
-                raise TimeoutError(f"GET {self.http.base_url}{path} did not answer within {timeout:.0f}s")
+                raise TimeoutError(f"GET {self.http.base_url}{path} did not return 200 within {timeout:.0f}s: {last}")
             time.sleep(2)
