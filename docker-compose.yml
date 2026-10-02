@@ -1,0 +1,17 @@
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.1
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # DynamoDB Local answers a bare GET with 400, so any HTTP response means it is up.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 22
+      start_period: 10s
+
+networks:
+  default:
+    name: kittenclaws-emulator
