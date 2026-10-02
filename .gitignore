@@ -1,0 +1,29 @@
+# Binaries
+handler
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+*.test
+
+*.out
+
+go.work
+go.work.sum
+
+.idea/
+*.swp
+*.swo
+
+local.settings.json
+
+# Azurite
+__azurite_*.json
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+
+.env
+.env.local
