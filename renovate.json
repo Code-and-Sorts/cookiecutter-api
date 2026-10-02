@@ -63,6 +63,11 @@
       "groupName": "go dependencies (non-major)"
     },
     {
+      "matchFileNames": ["tests/integration/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "integration test dependencies (non-major)"
+    },
+    {
       "description": "Group GitHub Actions updates together",
       "matchManagers": ["github-actions"],
       "groupName": "github actions"

@@ -10,6 +10,7 @@
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-typescript-pipeline.yaml?branch=main&label=Typescript-Build&style=for-the-badge)
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-dotnet-pipeline.yaml?branch=main&label=Dotnet-Build&style=for-the-badge)
 ![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/build-go-pipeline.yaml?branch=main&label=Go-Build&style=for-the-badge)
+![](https://img.shields.io/github/actions/workflow/status/Code-and-Sorts/cookiecutter-api/integration-tests.yaml?branch=main&label=Integration-Tests&style=for-the-badge)
 
 [![](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](./LICENSE)
 
@@ -131,6 +132,32 @@ emulator's Docker network with `env.emulator.json`. Each generated README covers
 credentials, limitations and troubleshooting. The compose file, `.env.emulator`,
 `env.emulator.json`, the shared Make targets and that README section are kept once in
 `shared/` for every language.
+
+### Integration tests
+
+`tests/integration` is one black-box pytest suite that checks the [API contract](./AGENTS.md#api-contract)
+over HTTP for every language and cloud: each enabled operation, validation, soft deletes, shared
+containers, `?limit=`, the health check and the stored record format (read straight from the
+emulator). It reads the resources from the project's `.copier-answers.yml`, so every fixture is
+covered without changes. The `Integration Tests` workflow runs it for every language, cloud and
+resources fixture on pushes to `main`; run it on a branch with **Run workflow**, choosing a language,
+cloud and fixture or `all`.
+
+To run it locally, render a project, start it against its emulator (see above) and point the suite at
+it. You need Docker plus the host tool for the cloud (Azure Functions Core Tools or the SAM CLI):
+
+```console
+copier copy --defaults --trust --vcs-ref HEAD --data language=go --data cloud_service="GCP Cloud Function" \
+  --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml . ../KittenClaws
+(cd ../KittenClaws && make install emulator-up emulator-seed && make run-emulator) &
+
+pip install -r tests/integration/requirements.txt
+pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080
+```
+
+The base URL includes the route prefix: `http://localhost:7071/api` on Azure, `http://localhost:8080` on
+GCP and `http://localhost:3000` on AWS. The suite waits up to `--ready-timeout` seconds (180) for the API
+to answer, writes to the emulator and leaves its records there; `make emulator-down` discards them.
 
 ## Supported Templates
 

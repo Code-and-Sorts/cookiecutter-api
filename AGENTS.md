@@ -18,7 +18,8 @@ cookiecutter-api/
 ├── go/template/             # Go template (Azure + GCP + AWS)
 ├── .github/
 │   ├── actions/             # Shared composite actions and resource fixtures
-│   └── workflows/           # CI pipelines per language, example publishing
+│   └── workflows/           # CI pipelines per language, integration tests, example publishing
+├── tests/integration/       # Black-box HTTP suite for the API contract, run against the emulators
 ├── .docs/                   # Documentation assets (images, SVGs)
 └── README.md                # Support matrix and usage docs
 ```
@@ -113,8 +114,8 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **Responses:** always JSON. Create 201; get, update, replace 200 with `{"id", "name"}`; list 200 with an array
   (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
   with `{"status": "ok"}`.
-- **Errors:** `{"errorMessage": "..."}`. 400 for malformed JSON, a non-object body, a missing, empty or non-string
-  `name`, or any unknown field (including `id` and system fields, so a create can never overwrite a record);
+- **Errors:** `{"errorMessage": "..."}`. 400 for malformed JSON, a non-object body, a missing (create and replace;
+  update keeps the stored name), empty or non-string `name`, or any unknown field (including `id` and system fields, so a create can never overwrite a record);
   404 for unknown, deleted or non-UUID ids and unknown paths; 405 for a method the resource does not enable
   when the request reaches app code; 500 with a generic message for anything else, logged with its stack trace
   and never echoed to the client. API Gateway (403) and the Azure host (404) answer some unmapped methods
@@ -206,7 +207,10 @@ To add a new cloud provider to an existing language template:
    its branch in `shared/_README.emulator.md`, its settings in `shared/.env.emulator`, an emulator-only client
    option with unit tests, and a bootstrap branch
 6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
-7. **Update `README.md`** — Change the support table cell from planned to complete
+7. **Add it to the integration tests** — its host tool and base URL in `.github/actions/start-local-api`, the cloud in
+   the `integration-tests.yaml` plan, its `CLOUDS` slug in `tests/integration/project.py`, and a store in
+   `tests/integration/store.py`
+8. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
 
@@ -225,7 +229,9 @@ To add a new cloud provider to an existing language template:
    a bootstrap command and the run command (see [Local Emulators](#local-emulators))
 7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
    and add the language to `publish-examples.yml`, the `template-setup.yml` language map and the setup issue form
-8. Update the root `README.md` support table
+8. Add the language to the integration tests: its runtime, install and emulator commands in
+   `.github/actions/start-local-api` and the language in the `integration-tests.yaml` plan
+9. Update the root `README.md` support table
 
 ## Template Variables
 
@@ -265,7 +271,8 @@ as JSON) without starting them.
 Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
 `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
-names of differing lengths) and no health check. `multi` only feeds the published example branches.
+names of differing lengths) and no health check. `multi` feeds the published example branches and the
+integration tests.
 Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
 
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
@@ -274,6 +281,23 @@ Pipelines use a small matrix, one job per distinct risk rather than every combin
 - The newest GA runtime each cloud supports: Node 24 (Node 22 on Azure Functions), Python 3.14, .NET 10, Go 1.27
 
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
+
+### Integration Tests
+
+`tests/integration` is one pytest suite for every language and cloud. It talks to a running project over HTTP
+and checks the [API contract](#api-contract): each enabled operation, validation and ids, soft deletes, disabled
+operations, shared and separate containers, `?limit=`, the health check, `X-User-Id` and the stored record
+format. It reads `resources` from the project's `.copier-answers.yml` and parametrizes itself (`@pytest.mark.ops`
+and `@pytest.mark.each_operation` pick the resources and operations a test needs), so never render tests with
+Jinja. `store.py` reads records straight from the emulator, and seeds a container for a resource that cannot
+`create`. Contract changes go into the suite with the template change.
+
+`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single`, `multi`, `edge`) on
+pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
+contract or emulator change. Each job renders the project, then `.github/actions/start-local-api` starts the
+emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the
+TypeScript `yarn` scripts) and outputs the base URL. Failed jobs upload the host and emulator logs, the JUnit
+XML and the project.
 
 ### Local Verification
 

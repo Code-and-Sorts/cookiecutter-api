@@ -1,0 +1,140 @@
+name: Start Local API
+description: >-
+  Start a generated project's database emulator and local function host in the background,
+  using the project's own emulator commands, and wait until the host answers.
+
+inputs:
+  language:
+    required: true
+    description: Template language (python, typescript, dotnet or go).
+  cloud-service:
+    required: true
+    description: Template cloud service, as answered to Copier.
+  project-dir:
+    required: false
+    default: "KittenClaws"
+    description: Directory of the generated project.
+  ready-timeout:
+    required: false
+    default: "300"
+    description: Seconds to wait for the host to accept requests.
+
+outputs:
+  base-url:
+    description: Base URL of the API, including the route prefix.
+    value: ${{ steps.start.outputs.base-url }}
+
+runs:
+  using: "composite"
+
+  # Runtime versions match the build pipelines: the newest GA version every cloud supports.
+  steps:
+    - name: Set up Python
+      if: inputs.language == 'python'
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+
+    - name: Install Poetry
+      if: inputs.language == 'python'
+      env:
+        POETRY_VERSION: "2.5.1"
+      run: |
+        curl -sSL https://install.python-poetry.org | python - -y
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      shell: bash
+
+    - name: Set up Node
+      if: inputs.language == 'typescript' || inputs.cloud-service == 'Azure Function App'
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.cloud-service == 'Azure Function App' && '22.x' || '24.x' }}
+
+    - name: Enable Corepack
+      if: inputs.language == 'typescript'
+      run: corepack enable
+      shell: bash
+
+    - name: Set up .NET
+      if: inputs.language == 'dotnet'
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: "10.0.x"
+
+    - name: Set up Go
+      if: inputs.language == 'go'
+      uses: actions/setup-go@v7
+      with:
+        go-version: "1.27"
+
+    # TypeScript projects bring Core Tools as a dev dependency.
+    - name: Install Azure Functions Core Tools
+      if: inputs.cloud-service == 'Azure Function App' && inputs.language != 'typescript'
+      run: npm install --global azure-functions-core-tools@4 --unsafe-perm true
+      shell: bash
+
+    - name: Set up SAM CLI
+      if: inputs.cloud-service == 'AWS Lambda'
+      uses: aws-actions/setup-sam@v3
+      with:
+        use-installer: true
+
+    - name: Install dependencies
+      working-directory: ${{ inputs.project-dir }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+      run: |
+        if [ "$LANGUAGE" = typescript ]; then
+          yarn install --no-immutable
+        else
+          make install
+        fi
+      shell: bash
+
+    - name: Start the emulator
+      working-directory: ${{ inputs.project-dir }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+      run: |
+        if [ "$LANGUAGE" = typescript ]; then
+          yarn emulator:up && yarn emulator:seed
+        else
+          make emulator-up emulator-seed
+        fi
+      shell: bash
+
+    - name: Start the host
+      id: start
+      working-directory: ${{ inputs.project-dir }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+        CLOUD: ${{ inputs.cloud-service }}
+        READY_TIMEOUT: ${{ inputs.ready-timeout }}
+      run: |
+        case "$CLOUD" in
+          "Azure Function App") base_url=http://localhost:7071/api ;;
+          "GCP Cloud Function") base_url=http://localhost:8080 ;;
+          "AWS Lambda") base_url=http://localhost:3000 ;;
+        esac
+        if [ "$LANGUAGE" = typescript ]; then run=(yarn start:emulator); else run=(make run-emulator); fi
+        nohup "${run[@]}" > host.log 2>&1 &
+        pid=$!
+
+        # Any HTTP status means the host is listening; the suite then waits for app code itself.
+        deadline=$((SECONDS + READY_TIMEOUT))
+        until curl -s -o /dev/null "$base_url/"; do
+          if ! kill -0 "$pid" 2> /dev/null; then
+            echo "::error::The host exited before it started listening."
+            cat host.log
+            exit 1
+          fi
+          if [ "$SECONDS" -ge "$deadline" ]; then
+            echo "::error::The host did not listen on $base_url within ${READY_TIMEOUT}s."
+            cat host.log
+            exit 1
+          fi
+          sleep 3
+        done
+        echo "Host is listening on $base_url"
+        echo "base-url=$base_url" >> "$GITHUB_OUTPUT"
+      shell: bash

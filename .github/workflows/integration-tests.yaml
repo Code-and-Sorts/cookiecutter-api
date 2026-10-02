@@ -1,0 +1,137 @@
+name: Integration Tests
+
+# Renders each language x cloud x resources fixture, starts the project's database emulator
+# and local function host, and runs tests/integration against it over HTTP. Too slow for
+# pull requests; run it on a branch with workflow_dispatch.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - go/**
+      - python/**
+      - typescript/**
+      - dotnet/**
+      - copier.yml
+      - shared/**
+      - tests/integration/**
+      - .github/workflows/integration-tests.yaml
+      - .github/actions/setup-copier-template/**
+      - .github/actions/start-local-api/**
+  workflow_dispatch:
+    inputs:
+      language:
+        type: choice
+        options: [all, python, typescript, dotnet, go]
+        default: all
+      cloud:
+        type: choice
+        options: [all, azure, gcp, aws]
+        default: all
+      fixture:
+        type: choice
+        options: [all, single, multi, edge]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Build the matrix
+        id: plan
+        env:
+          LANGUAGE: ${{ inputs.language || 'all' }}
+          CLOUD: ${{ inputs.cloud || 'all' }}
+          FIXTURE: ${{ inputs.fixture || 'all' }}
+        run: |
+          set -euo pipefail
+          pick() { jq -c --arg pick "$1" '[.[] | select($pick == "all" or (.slug? // .) == $pick)]'; }
+          languages=$(pick "$LANGUAGE" <<< '["python", "typescript", "dotnet", "go"]')
+          clouds=$(pick "$CLOUD" <<< '[{"name": "Azure Function App", "slug": "azure"}, {"name": "GCP Cloud Function", "slug": "gcp"}, {"name": "AWS Lambda", "slug": "aws"}]')
+          fixtures=$(pick "$FIXTURE" <<< '["single", "multi", "edge"]')
+          matrix=$(jq -cn --argjson l "$languages" --argjson c "$clouds" --argjson f "$fixtures" '{language: $l, cloud: $c, fixture: $f}')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Matrix: $matrix"
+
+  integration:
+    name: ${{ matrix.language }} / ${{ matrix.cloud.slug }} / ${{ matrix.fixture }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Setup Copier Template
+        uses: ./.github/actions/setup-copier-template
+        with:
+          template-language: ${{ matrix.language }}
+          template-cloud-service: ${{ matrix.cloud.name }}
+          resources-fixture: ${{ matrix.fixture }}
+
+      - name: Install the integration suite
+        run: pip install -r tests/integration/requirements.txt
+
+      - name: Start the local API
+        id: host
+        uses: ./.github/actions/start-local-api
+        with:
+          language: ${{ matrix.language }}
+          cloud-service: ${{ matrix.cloud.name }}
+
+      - name: Run the integration suite
+        env:
+          BASE_URL: ${{ steps.host.outputs.base-url }}
+        run: pytest tests/integration --project-dir KittenClaws --base-url "$BASE_URL" --junitxml=junit.xml
+
+      - name: Summarize results
+        if: ${{ !cancelled() && hashFiles('junit.xml') != '' }}
+        env:
+          COMBO: "${{ matrix.language }} | ${{ matrix.cloud.name }} | ${{ matrix.fixture }}"
+        run: |
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import os
+          import xml.etree.ElementTree as ET
+
+          suite = ET.parse("junit.xml").getroot().find("testsuite")
+          total, skipped = int(suite.get("tests")), int(suite.get("skipped"))
+          failed = int(suite.get("failures")) + int(suite.get("errors"))
+          print("| Language | Cloud | Fixture | Passed | Failed | Skipped |")
+          print("| --- | --- | --- | --- | --- | --- |")
+          print(f"| {os.environ['COMBO']} | {total - failed - skipped} | {failed} | {skipped} |")
+          EOF
+
+      - name: Collect emulator logs
+        if: failure()
+        working-directory: KittenClaws
+        run: docker compose logs --no-color > emulator.log 2>&1 || true
+
+      - name: Upload logs and the generated project
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
+          path: |
+            junit.xml
+            KittenClaws
+            !KittenClaws/**/node_modules
+            !KittenClaws/.venv
+            !KittenClaws/.aws-sam
+            !KittenClaws/**/bin
+            !KittenClaws/**/obj
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
