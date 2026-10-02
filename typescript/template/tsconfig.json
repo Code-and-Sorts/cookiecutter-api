@@ -24,6 +24,7 @@
       "@utils": ["./utils/index"]
     }
   },
+  "exclude": ["node_modules", "dist", "dist-scripts", "scripts"],
   "tsc-alias": {
     "resolveFullPaths": true
   }

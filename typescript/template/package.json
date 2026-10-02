@@ -35,7 +35,7 @@
     "start": "node dist/lambda.js",
 {%- endif %}
     "emulator:up": "docker compose up -d --wait",
-    "emulator:seed": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true node dist/scripts/bootstrapEmulator.js",
+    "emulator:seed": "rm -rf dist-scripts && tsc -p tsconfig.scripts.json && tsc-alias -p tsconfig.scripts.json && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true node dist-scripts/scripts/bootstrapEmulator.js",
     "emulator:down": "docker compose down -v",
     "emulator:logs": "docker compose logs -f",
 {%- if cloud_service == 'Azure Function App' %}
