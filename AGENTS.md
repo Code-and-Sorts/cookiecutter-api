@@ -330,9 +330,9 @@ into the next render.
 ### Dependency Updates
 
 Renovate keeps package versions current and merges its own PRs once every check passes
-(see `renovate.json`). Runtime versions (Node, Python, .NET, Go) are bumped by hand once
-Azure Functions, Cloud Run functions and AWS Lambda all support the new version GA, in the build pipelines and
-`.github/actions/start-local-api` together.
+(see `renovate.json`), except integration test dependencies, which wait for a review. Runtime versions
+(Node, Python, .NET, Go) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all support
+the new version GA, in the build pipelines and `.github/actions/start-local-api` together.
 
 ## Code Conventions
 

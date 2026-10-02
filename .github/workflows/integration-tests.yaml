@@ -38,10 +38,10 @@ on:
 permissions:
   contents: read
 
+# Each push gets its own group so every commit to main is tested; a newer dispatch replaces an older one.
 concurrency:
-  group: integration-${{ github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}
-  # Only a newer dispatch replaces a run; every push to main is tested.
-  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+  group: integration-${{ github.event_name == 'push' && github.sha || github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}
+  cancel-in-progress: true
 
 jobs:
   plan:

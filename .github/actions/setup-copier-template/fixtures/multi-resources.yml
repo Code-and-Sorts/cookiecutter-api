@@ -1,4 +1,4 @@
-# Showcase for the published example branches only; CI uses edge.
+# Showcase for the published example branches (and an integration tests dispatch); CI uses edge.
 resources:
   - name: "Cat"
     endpoint: "cats"
