@@ -1,0 +1,16 @@
+services:
+  firestore:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:587.0.0-emulators
+    command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080"]
+    ports:
+      - "8085:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+networks:
+  default:
+    name: kittenclaws-emulator
