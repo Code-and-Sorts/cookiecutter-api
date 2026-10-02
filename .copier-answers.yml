@@ -1,0 +1,21 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: f294d69
+_src_path: .
+author: Sir Meowsalots
+cloud_service: AWS Lambda
+health_endpoint: health
+language: python
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: kittenclaws
+    endpoint: kittenclaws
+    name: KittenClaws
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - delete
+
