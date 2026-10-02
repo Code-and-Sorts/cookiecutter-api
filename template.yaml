@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+Metadata:
+  cfn-lint:
+    config:
+      # SAM's generated usage plan resources carry a redundant DependsOn.
+      ignore_checks:
+        - W3005
+
+Parameters:
+  DynamoDbEndpoint:
+    Type: String
+    Default: ""
+    Description: DynamoDB endpoint override for a local emulator; leave empty to use DynamoDB.
+
+Conditions:
+  HasDynamoDbEndpoint: !Not [!Equals [!Ref DynamoDbEndpoint, ""]]
+
+Globals:
+  Function:
+    Timeout: 30
+    Environment:
+      Variables:
+        # sam local only sets variables the template declares; deployed stacks omit it.
+        AWS_ENDPOINT_URL_DYNAMODB: !If [HasDynamoDbEndpoint, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
+
+Resources:
+  KittenClawsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      Handler: bootstrap
+      Runtime: provided.al2023
+      CodeUri: .
+      Description: Kitties got claws...beware
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        GetCatById:
+          Type: Api
+          Properties:
+            Path: /cats/{id}
+            Method: get
+        GetCatList:
+          Type: Api
+          Properties:
+            Path: /cats
+            Method: get
+        CreateCat:
+          Type: Api
+          Properties:
+            Path: /cats
+            Method: post
+        UpdateCat:
+          Type: Api
+          Properties:
+            Path: /cats/{id}
+            Method: patch
+        DeleteCat:
+          Type: Api
+          Properties:
+            Path: /cats/{id}
+            Method: delete
+        GetDogById:
+          Type: Api
+          Properties:
+            Path: /dogs/{id}
+            Method: get
+        GetDogList:
+          Type: Api
+          Properties:
+            Path: /dogs
+            Method: get
+        CreateDog:
+          Type: Api
+          Properties:
+            Path: /dogs
+            Method: post
+        ReplaceDog:
+          Type: Api
+          Properties:
+            Path: /dogs/{id}
+            Method: put
+        DeleteDog:
+          Type: Api
+          Properties:
+            Path: /dogs/{id}
+            Method: delete
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+            Auth:
+              ApiKeyRequired: false
+
+  AnimalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: animals
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  KittenClawsApi:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  KittenClawsApiKeyId:
+    Description: API key id; read the key with aws apigateway get-api-key --api-key <id> --include-value --query value --output text
+    Value: !Ref ServerlessRestApiApiKey
+  KittenClawsFunction:
+    Description: Lambda Function ARN
+    Value: !GetAtt KittenClawsFunction.Arn
+  AnimalsTableName:
+    Description: DynamoDB table name for the animals container
+    Value: !Ref AnimalsTable
