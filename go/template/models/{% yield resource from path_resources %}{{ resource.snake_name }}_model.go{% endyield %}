@@ -1,106 +1,34 @@
-{%- from 'go/_model.jinja' import default_pointer, entity_rows, json_rows, literal, struct_fields -%}
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'go/_model.jinja' import field_rows, read_value, request_types, struct_fields -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set fields = resource.fields -%}
-{%- set create_fields = fields | selectattr("in_create") | list -%}
-{%- set replace_fields = fields | selectattr("in_replace") | list -%}
-{%- set update_fields = fields | selectattr("in_update") | list -%}
-{%- set create_extras = fields | rejectattr("in_create") | selectattr("has_default") | list -%}
-{%- set defaulted = (create_fields if "create" in ops else []) + (create_extras if "create" in ops else []) + (replace_fields if "replace" in ops else []) -%}
-{%- set needs_uuid = defaulted | selectattr("dynamic", "equalto", "uuid") | list -%}
+{%- set create_extras = fields | rejectattr("in_create") | selectattr("defaulted") | list -%}
+{%- set defaulted = (fields | selectattr("in_create") | list + create_extras if "create" in ops else []) + (fields | selectattr("in_replace") | list if "replace" in ops else []) -%}
 package models
-{%- if needs_uuid %}
+{%- if defaulted | selectattr("dynamic", "equalto", "uuid") | list %}
 
 import "github.com/google/uuid"
 {%- endif %}
 
 type {{ r }} struct {
 	BaseEntity
-{{- struct_fields(entity_rows(fields) | from_json) if fields }}
+{{- struct_fields(field_rows(fields, stored=true) | from_json) }}
 }
 
 type {{ r }}Dto struct {
 	BaseResponse
-{{- struct_fields(json_rows(fields | rejectattr("hidden")) | from_json) if fields | rejectattr("hidden") | list }}
+{{- struct_fields(field_rows(fields | rejectattr("hidden")) | from_json) }}
 }
 
 func To{{ r }}Dto(item {{ r }}) {{ r }}Dto {
 	dto := {{ r }}Dto{BaseResponse: NewBaseResponse(item.BaseEntity)}
 {%- for f in fields | rejectattr("hidden") %}
-{%- if f.has_default and not f.dynamic and not f.nullable and f.default is not none %}
-	dto.{{ f.pascal }} = orDefault(item.{{ f.pascal }}, {{ literal(f, f.default) }})
-{%- else %}
-	dto.{{ f.pascal }} = item.{{ f.pascal }}
-{%- endif %}
+	dto.{{ f.pascal }} = {{ read_value(f, "item") }}
 {%- endfor %}
 	return dto
 }
-{%- if "create" in ops %}
+{%- for op, kind in REQUEST_KINDS if op in ops %}
 
-type Create{{ r }}Request struct {
-	BaseCreateRequest
-{{- struct_fields(json_rows(create_fields) | from_json) if create_fields }}
-}
-
-// Holds the defaults a create body overrides; a field the body leaves out keeps its default.
-func NewCreate{{ r }}Request() Create{{ r }}Request {
-	req := Create{{ r }}Request{BaseCreateRequest: NewBaseCreateRequest()}
-{%- for f in create_fields if f.has_default and f.default is not none or f.dynamic %}
-	req.{{ f.pascal }} = {{ default_pointer(f) }}
+{{ request_types(op, kind ~ r ~ "Request", r, "Base" ~ kind ~ "Request", r ~ "{BaseEntity: r.BaseCreateRequest.ToEntity()}", fields | selectattr("in_" ~ op) | list, create_extras) }}
 {%- endfor %}
-	return req
-}
-
-// The record a create stores; fields the body cannot set get their defaults.
-func (r Create{{ r }}Request) ToEntity() {{ r }} {
-	item := {{ r }}{BaseEntity: r.BaseCreateRequest.ToEntity()}
-{%- for f in create_fields %}
-	item.{{ f.pascal }} = r.{{ f.pascal }}
-{%- endfor %}
-{%- for f in create_extras if f.default is not none or f.dynamic %}
-	item.{{ f.pascal }} = {{ default_pointer(f) }}
-{%- endfor %}
-	return item
-}
-{%- endif %}
-{%- if "replace" in ops %}
-
-type Replace{{ r }}Request struct {
-	BaseReplaceRequest
-{{- struct_fields([("Id", "string", "`json:\"-\"`")] + (json_rows(replace_fields) | from_json)) }}
-}
-
-// Holds the defaults a replace body overrides: a field left out gets its default or no value.
-func NewReplace{{ r }}Request() Replace{{ r }}Request {
-	req := Replace{{ r }}Request{BaseReplaceRequest: NewBaseReplaceRequest()}
-{%- for f in replace_fields if f.has_default and f.default is not none or f.dynamic %}
-	req.{{ f.pascal }} = {{ default_pointer(f) }}
-{%- endfor %}
-	return req
-}
-
-// Overwrites every field a replace accepts; the others keep their stored values.
-func (r Replace{{ r }}Request) ApplyTo(item *{{ r }}) {
-	r.BaseReplaceRequest.ApplyTo(&item.BaseEntity)
-{%- for f in replace_fields %}
-	item.{{ f.pascal }} = r.{{ f.pascal }}
-{%- endfor %}
-}
-{%- endif %}
-{%- if "update" in ops %}
-
-type Update{{ r }}Request struct {
-	BaseUpdateRequest
-{{- struct_fields([("Id", "string", "`json:\"-\"`")] + (json_rows(update_fields) | from_json)) }}
-}
-
-// Changes only the fields the body sent.
-func (r Update{{ r }}Request) ApplyTo(item *{{ r }}) {
-	r.BaseUpdateRequest.ApplyTo(&item.BaseEntity)
-{%- for f in update_fields %}
-	if r.Sent["{{ f.name }}"] {
-		item.{{ f.pascal }} = r.{{ f.pascal }}
-	}
-{%- endfor %}
-}
-{%- endif %}

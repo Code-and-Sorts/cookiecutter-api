@@ -348,8 +348,14 @@ base_fields:
     {%- from 'shared/_fields.jinja' import base_fields_json -%}
     {{ base_fields_json(base_model) }}
 
+# The base_model fields a client may set: every one but the built-in fields.
+client_base_fields:
+  type: yaml
+  when: false
+  default: "{{ base_fields | rejectattr('system') | list | tojson }}"
+
 # Git for Windows can't check out paths containing "|", so paths yield from this copy, which precomputes filtered names.
-# fields holds each resource's normalized fields (the default when an older answers file has none).
+# fields falls back to the default when an older answers file has none; client_fields prepends client_base_fields.
 path_resources:
   type: yaml
   when: false
@@ -358,8 +364,10 @@ path_resources:
     [{%- for r in resources -%}
     {%- set ops = r.operations -%}
     {%- set container_key = r.container | string | replace('-', '_') -%}
+    {%- set fields = resource_fields_json(r) | from_json -%}
     {{ dict(r,
-    fields=(resource_fields_json(r) | from_json),
+    fields=fields,
+    client_fields=client_base_fields + fields,
     snake_name=(r.name | to_snake),
     lower_camel_name=(r.name | to_lower_camel),
     container_key=container_key,

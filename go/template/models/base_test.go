@@ -1,6 +1,6 @@
 {%- from 'go/_model.jinja' import json_string, pointer -%}
 {%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
-{%- set user_fields = base_fields | rejectattr("system") | list -%}
+{%- set user_fields = client_base_fields -%}
 package models
 
 import (
@@ -93,6 +93,6 @@ func TestNewBaseResponse_HoldsTheIdAndTheShownBaseFields(t *testing.T) {
 	assert.JSONEq(t, `"x"`, string(properties["id"]))
 	assert.Len(t, properties, {{ 1 + (user_fields | rejectattr("hidden") | list | length) }})
 {%- for f in user_fields | rejectattr("hidden") %}
-	assert.JSONEq(t, {{ json_string(f.default if (f.has_default and not f.dynamic and not f.nullable) else none) }}, string(properties["{{ f.name }}"]))
+	assert.JSONEq(t, {{ json_string(f.read_default) }}, string(properties["{{ f.name }}"]))
 {%- endfor %}
 }

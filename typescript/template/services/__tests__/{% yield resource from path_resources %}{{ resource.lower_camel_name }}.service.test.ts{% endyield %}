@@ -1,11 +1,8 @@
-{%- from 'typescript/_model.jinja' import literal -%}
+{%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 {%- set shown = client | rejectattr("hidden") | list -%}
-{%- macro sample(fields) -%}
-{ {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
-{%- endmacro -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Service } from '@services';
 import { {{ r }}Repository } from '@repositories';
@@ -20,7 +17,7 @@ describe('{{ r }}Service', () => {
     };
     const service = new {{ r }}Service(repository as unknown as {{ r }}Repository);
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockFields = {{ sample(client) }};
+    const mockFields = {{ sample_object(client) }};
     const mockRecord = {
         id: mockId,
         ...mockFields,
@@ -30,7 +27,7 @@ describe('{{ r }}Service', () => {
         createdBy: 'mockUser',
         updatedBy: 'mockUser',
     };
-    const mockResponse = { id: mockId, ...{{ sample(shown) }} };
+    const mockResponse = { id: mockId, ...{{ sample_object(shown) }} };
 
     beforeEach(() => {
         jest.resetAllMocks();
@@ -56,7 +53,7 @@ describe('{{ r }}Service', () => {
         expect(await service.get(mockId)).toEqual({
             id: mockId,
 {%- for f in shown %}
-            {{ f.name }}: {{ literal(f.default if (f.has_default and not f.dynamic and not f.nullable) else none) }},
+            {{ f.name }}: {{ literal(f.read_default) }},
 {%- endfor %}
         });
     });

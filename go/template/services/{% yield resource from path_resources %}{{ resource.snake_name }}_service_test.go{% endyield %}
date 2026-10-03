@@ -1,7 +1,7 @@
 {%- from 'go/_model.jinja' import pointer -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 package services
 
 import (

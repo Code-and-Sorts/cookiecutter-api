@@ -65,7 +65,7 @@
 {%- set item_url = url ~ '/{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
 {%- set id_var = (resource.name | to_lower_camel) ~ 'Id' %}
 {%- set folder = "00000000-0000-4000-9000-" ~ ('%012d' % loop.index) %}
-{%- set body_fields = (base_fields | rejectattr('system') | list) + resource.fields %}
+{%- set body_fields = resource.client_fields %}
 {%- if "create" in resource.operations %}
 {%- if ns.n %},{% endif %}{%- set ns.n = ns.n + 1 %}
 {{ request(ns.n, 'Create ' ~ resource.name, url, 'POST', 201, sample_body_json(body_fields | selectattr('in_create')), id_var, folder) }}

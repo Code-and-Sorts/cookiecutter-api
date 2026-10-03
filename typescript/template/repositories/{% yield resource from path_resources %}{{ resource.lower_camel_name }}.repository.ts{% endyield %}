@@ -4,7 +4,7 @@
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
 {%- from 'typescript/_model.jinja' import default_value %}
-{%- set extras = resource.fields | rejectattr("in_create") | selectattr("has_default") | rejectattr("default", "none") | list + resource.fields | rejectattr("in_create") | selectattr("dynamic") | list %}
+{%- set extras = resource.fields | rejectattr("in_create") | selectattr("defaulted") | list %}
 import {
     env,
     clientFieldsOf,

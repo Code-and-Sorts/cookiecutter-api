@@ -1,5 +1,5 @@
-{%- set client = (base_fields | rejectattr("system") | list) + (path_resources | map(attribute="fields") | sum(start=[])) -%}
-{%- set read_defaults = client | rejectattr("hidden") | rejectattr("nullable") | selectattr("has_default") | rejectattr("dynamic") | rejectattr("default", "none") | list -%}
+{%- set client = client_base_fields + (path_resources | map(attribute="fields") | sum(start=[])) -%}
+{%- set read_defaults = client | rejectattr("hidden") | selectattr("has_read_default") | list -%}
 package models
 
 import (

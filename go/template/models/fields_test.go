@@ -1,5 +1,6 @@
-{%- set client = (base_fields | rejectattr("system") | list) + (path_resources | map(attribute="fields") | sum(start=[])) -%}
-{%- set read_defaults = client | rejectattr("hidden") | rejectattr("nullable") | selectattr("has_default") | rejectattr("dynamic") | rejectattr("default", "none") | list -%}
+{%- set client = client_base_fields + (path_resources | map(attribute="fields") | sum(start=[])) -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
+{%- set read_defaults = client | rejectattr("hidden") | selectattr("has_read_default") | list -%}
 package models
 
 import (
@@ -12,7 +13,7 @@ import (
 func TestDateTime_StoresUTCWithMilliseconds(t *testing.T) {
 	cases := [][2]string{
 		{`"2026-01-31T09:30:00Z"`, "2026-01-31T09:30:00.000Z"},
-		{`"2026-01-31T11:30:00.1239+02:00"`, "2026-01-31T09:30:00.123Z"},
+		{`"{{ DATE_TIME_EXAMPLE.sent }}"`, "{{ DATE_TIME_EXAMPLE.stored }}"},
 		{`"2026-01-31T00:30:00.123456789-01:00"`, "2026-01-31T01:30:00.123Z"},
 		{`"not a date-time"`, "not a date-time"},
 	}

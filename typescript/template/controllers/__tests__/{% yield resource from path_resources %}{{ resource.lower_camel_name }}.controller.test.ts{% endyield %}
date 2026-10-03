@@ -1,12 +1,10 @@
-{%- from 'typescript/_model.jinja' import literal -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
+{%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 {%- set system = base_fields | selectattr("system") | list -%}
 {%- set body_ops = [("create", "post"), ("update", "update"), ("replace", "replace")] | selectattr(0, "in", ops) | list -%}
-{%- macro sample(fields) -%}
-{ {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
-{%- endmacro -%}
 {%- macro call(op, method, body, user="") -%}
 mockController.{{ method }}({% if op != "create" %}mockValidGuid, {% endif %}{{ body }}{% if user %}, '{{ user }}'{% endif %})
 {%- endmacro -%}
@@ -53,15 +51,13 @@ describe('{{ r }}Controller', () => {
         await expect(call).rejects.toMatchObject({ statusCode: 400 });
     };
 
-    // Server-managed fields a body may never set.
-    const systemFields: Record<string, unknown> = {{ sample(system) }};
+    const systemFields: Record<string, unknown> = {{ sample_object(system) }};
     // Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
     const invalidValues: Record<string, unknown[]> = {
 {%- for f in client %}
-        {{ f.name }}: [{{ literal(f.invalid) }}{% if not f.nullable %}, null{% endif %}{% for v in f.violations %}, {{ literal(v) }}{% endfor %}],
+        {{ f.name }}: {{ literal(f.rejected) }},
 {%- endfor %}
     };
-    // Values exactly on a rule's bound, which a body may hold.
     const boundaryValues: [string, unknown][] = [
 {%- for f in client %}
 {%- for v in f.boundaries %}
@@ -85,11 +81,11 @@ describe('{{ r }}Controller', () => {
 {%- for op, method in body_ops %}
 {%- set accepted = client | selectattr("in_" ~ op) | list %}
 {%- set refused = client | rejectattr("in_" ~ op) | list %}
-{%- set required = accepted | selectattr("required") | rejectattr("has_default") | list if op != "update" else [] %}
+{%- set required = accepted | selectattr("needs_value") | list if op != "update" else [] %}
 {%- set mock = {"create": "mockCreate", "update": "mockUpdate", "replace": "mockReplace"}[op] %}
 
     describe('{{ method }}', () => {
-        const valid: Record<string, unknown> = {{ sample(accepted) }};
+        const valid: Record<string, unknown> = {{ sample_object(accepted) }};
 
         it('should pass the validated body and user id to the service', async () => {
             await {{ call(op, method, "valid", "mockUser") }};
@@ -109,11 +105,11 @@ describe('{{ r }}Controller', () => {
         });
 {%- endfor %}
 {%- else %}
-{%- set left_out = accepted | rejectattr("required") | list + accepted | selectattr("required") | selectattr("has_default") | list %}
+{%- set left_out = accepted | rejectattr("needs_value") | list %}
 {%- if left_out %}
 
         it('should give fields left out their defaults', async () => {
-            await {{ call(op, method, sample(required)) }};
+            await {{ call(op, method, sample_object(required)) }};
             const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
 {%- for f in left_out %}
 {%- if f.dynamic %}
@@ -130,13 +126,13 @@ describe('{{ r }}Controller', () => {
 {%- for f in accepted if f.type == "date-time" %}
 
         it('should hold {{ f.name }} in UTC with milliseconds', async () => {
-            await {{ call(op, method, "{ ...valid, " ~ f.name ~ ": '2026-01-31T11:30:00+02:00' }") }};
+            await {{ call(op, method, "{ ...valid, " ~ f.name ~ ": " ~ (DATE_TIME_EXAMPLE.sent | tojson) ~ " }") }};
             const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
-            expect(sent.{{ f.name }}).toEqual('2026-01-31T09:30:00.000Z');
+            expect(sent.{{ f.name }}).toEqual({{ DATE_TIME_EXAMPLE.stored | tojson }});
         });
 {%- endfor %}
 
-        it.each(invalidBodies(valid, {{ required | map(attribute="name") | list | tojson }}, {{ sample(refused) }}))('should return 400 for %j', async (body) => {
+        it.each(invalidBodies(valid, {{ required | map(attribute="name") | list | tojson }}, {{ sample_object(refused) }}))('should return 400 for %j', async (body) => {
             await expectBadRequest({{ call(op, method, "body") }});
             expect({{ mock }}).not.toHaveBeenCalled();
         });

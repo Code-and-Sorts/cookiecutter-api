@@ -3,7 +3,7 @@
 {%- set ops = resource.operations -%}
 {%- from 'python/_macros.jinja' import model_names -%}
 {%- from 'python/_model.jinja' import sample_dict -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 {%- set models = model_names(resource) -%}
 import asyncio
 import pytest

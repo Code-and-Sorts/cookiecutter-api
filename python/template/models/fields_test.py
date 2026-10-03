@@ -1,3 +1,4 @@
+{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
 import re
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -47,7 +48,7 @@ def describe_clock():
 def describe_value_types():
     @pytest.mark.parametrize("raw, stored", [
         ("2026-01-31T09:30:00Z", "2026-01-31T09:30:00.000Z"),
-        ("2026-01-31T11:30:00.1239+02:00", "2026-01-31T09:30:00.123Z"),
+        ("{{ DATE_TIME_EXAMPLE.sent }}", "{{ DATE_TIME_EXAMPLE.stored }}"),
         ("2026-01-31T00:30:00.123456789-01:00", "2026-01-31T01:30:00.123Z"),
     ])
     def test_date_time_is_stored_in_utc_with_milliseconds(raw, stored):

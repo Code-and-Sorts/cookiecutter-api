@@ -1,10 +1,10 @@
+{%- from 'shared/_fields.jinja' import PATTERNS -%}
 import { z } from 'zod';
 
-// The value formats every language checks the same way.
-export const DATE_TIME_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$/;
-export const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-export const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-export const URI_PATTERN = /^[A-Za-z][A-Za-z0-9+.-]*:\S+$/;
+export const DATE_TIME_PATTERN = new RegExp({{ PATTERNS.date_time | tojson }});
+export const UUID_PATTERN = new RegExp({{ PATTERNS.uuid | tojson }});
+export const EMAIL_PATTERN = new RegExp({{ PATTERNS.email | tojson }});
+export const URI_PATTERN = new RegExp({{ PATTERNS.uri | tojson }});
 
 export const dateSchema = z.iso.date();
 

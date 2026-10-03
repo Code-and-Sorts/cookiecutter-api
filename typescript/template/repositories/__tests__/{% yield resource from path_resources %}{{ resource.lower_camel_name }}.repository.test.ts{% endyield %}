@@ -1,11 +1,8 @@
-{%- from 'typescript/_model.jinja' import literal -%}
+{%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
-{%- set extras = resource.fields | rejectattr("in_create") | selectattr("has_default") | rejectattr("default", "none") | list + resource.fields | rejectattr("in_create") | selectattr("dynamic") | list -%}
-{%- macro sample(fields) -%}
-{ {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
-{%- endmacro -%}
+{%- set client = resource.client_fields -%}
+{%- set extras = resource.fields | rejectattr("in_create") | selectattr("defaulted") | list -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Repository, StoreFactory } from '@repositories';
 import { MockFn, mockStore } from '../../test/mocks';
@@ -20,7 +17,7 @@ describe('{{ r }}Repository', () => {
     // Untyped view, since the base methods are protected.
     const base = mockRepository as unknown as Record<string, MockFn>;
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockFields = {{ sample(client) }};
+    const mockFields = {{ sample_object(client) }};
     const mockRecord = {
         id: mockId,
         ...mockFields,

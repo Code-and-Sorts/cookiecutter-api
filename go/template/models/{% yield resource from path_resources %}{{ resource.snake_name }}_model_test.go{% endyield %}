@@ -2,7 +2,17 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set fields = resource.fields -%}
-{%- set shown = (base_fields | rejectattr("system") | rejectattr("hidden") | list) + (fields | rejectattr("hidden") | list) -%}
+{%- set shown = resource.client_fields | rejectattr("hidden") | list -%}
+{#- Asserts a field a body left out holds its default: a fresh value for a dynamic one, none without a default. -#}
+{%- macro expect_default(f, record) -%}
+{%- if f.dynamic -%}
+assert.NotNil(t, {{ record }}.{{ f.pascal }})
+{%- elif f.defaulted -%}
+assert.Equal(t, {{ pointer(f, f.default) }}, {{ record }}.{{ f.pascal }})
+{%- else -%}
+assert.Nil(t, {{ record }}.{{ f.pascal }})
+{%- endif -%}
+{%- endmacro -%}
 package models
 
 import (
@@ -12,13 +22,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// A stored record holding every field's sample value.
 func sample{{ r }}() {{ r }} {
 	item := {{ r }}{BaseEntity: NewBaseEntity()}
-{%- for f in base_fields | rejectattr("system") %}
-	item.{{ f.pascal }} = {{ pointer(f, f.sample) }}
-{%- endfor %}
-{%- for f in fields %}
+{%- for f in resource.client_fields %}
 	item.{{ f.pascal }} = {{ pointer(f, f.sample) }}
 {%- endfor %}
 	return item
@@ -43,7 +49,7 @@ func Test{{ r }}Dto_ReadsAMissingFieldAsItsStaticDefault(t *testing.T) {
 	properties := map[string]json.RawMessage{}
 	assert.NoError(t, json.Unmarshal(data, &properties))
 {%- for f in shown %}
-	assert.JSONEq(t, {{ json_string(f.default if (f.has_default and not f.dynamic and not f.nullable) else none) }}, string(properties["{{ f.name }}"]))
+	assert.JSONEq(t, {{ json_string(f.read_default) }}, string(properties["{{ f.name }}"]))
 {%- endfor %}
 }
 {%- if "create" in ops %}
@@ -52,17 +58,8 @@ func TestCreate{{ r }}Request_DefaultsFieldsTheBodyLeavesOut(t *testing.T) {
 	item := NewCreate{{ r }}Request().ToEntity()
 
 	assert.Len(t, item.Id, 36)
-{%- for f in fields if f.has_default %}
-{%- if f.dynamic %}
-	assert.NotNil(t, item.{{ f.pascal }})
-{%- elif f.default is none %}
-	assert.Nil(t, item.{{ f.pascal }})
-{%- else %}
-	assert.Equal(t, {{ pointer(f, f.default) }}, item.{{ f.pascal }})
-{%- endif %}
-{%- endfor %}
-{%- for f in fields if not f.has_default %}
-	assert.Nil(t, item.{{ f.pascal }})
+{%- for f in fields %}
+	{{ expect_default(f, "item") }}
 {%- endfor %}
 }
 {%- endif %}
@@ -78,12 +75,8 @@ func TestReplace{{ r }}Request_ResetsAcceptedFieldsAndKeepsTheRest(t *testing.T)
 {%- for f in fields %}
 {%- if not f.in_replace %}
 	assert.Equal(t, {{ pointer(f, f.sample) }}, stored.{{ f.pascal }})
-{%- elif f.dynamic %}
-	assert.NotNil(t, stored.{{ f.pascal }})
-{%- elif f.default is none %}
-	assert.Nil(t, stored.{{ f.pascal }})
 {%- else %}
-	assert.Equal(t, {{ pointer(f, f.default) }}, stored.{{ f.pascal }})
+	{{ expect_default(f, "stored") }}
 {%- endif %}
 {%- endfor %}
 }

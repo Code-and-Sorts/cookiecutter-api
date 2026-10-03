@@ -1,8 +1,9 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
 {%- from 'python/_model.jinja' import entity_field, imports, request_field, response_field -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set bases = [] -%}
-{%- for kind, op in [("Create", "create"), ("Replace", "replace"), ("Update", "update")] if op in ops %}{% set _ = bases.append("Base" ~ kind ~ "Request") %}{% endfor -%}
+{%- for op, kind in REQUEST_KINDS if op in ops %}{% set _ = bases.append("Base" ~ kind ~ "Request") %}{% endfor -%}
 {%- set body %}
 
 
@@ -12,7 +13,7 @@ class {{ r }}Entity(BaseEntity):
 {%- else %}
     pass
 {%- endfor %}
-{%- for kind, op in [("Create", "create"), ("Replace", "replace"), ("Update", "update")] if op in ops %}
+{%- for op, kind in REQUEST_KINDS if op in ops %}
 {%- set fields = resource.fields | selectattr("in_" ~ op) | list %}
 
 

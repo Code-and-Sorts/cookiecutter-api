@@ -1,2 +1,2 @@
 {%- from 'go/_model.jinja' import request_schema -%}
-{{ request_schema((base_fields | rejectattr("system") | selectattr("in_create") | list) + (resource.fields | selectattr("in_create") | list), required=true) }}
+{{ request_schema(resource.client_fields | selectattr("in_create") | list, required=true) }}

@@ -46,7 +46,7 @@
 {%- if op in ["create", "update", "replace"] %}
             "body": {
                 "type": "json",
-                "raw": {{ sample_body_json(((base_fields | rejectattr("system") | list) + resource.fields) | selectattr("in_" ~ op)) | tojson }},
+                "raw": {{ sample_body_json(resource.client_fields | selectattr("in_" ~ op)) | tojson }},
                 "form": []
             },
 {%- endif %}

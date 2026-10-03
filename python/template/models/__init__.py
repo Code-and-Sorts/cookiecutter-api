@@ -1,5 +1,4 @@
 from .base import (
-    SYSTEM_FIELDS,
     BaseCreateRequest,
     BaseEntity,
     BaseReplaceRequest,
@@ -26,7 +25,6 @@ from .{{ resource.snake_name }} import (
 {%- endfor %}
 
 __all__ = [
-    "SYSTEM_FIELDS",
     "BaseCreateRequest",
     "BaseEntity",
     "BaseReplaceRequest",

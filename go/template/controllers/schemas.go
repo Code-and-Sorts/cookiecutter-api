@@ -31,9 +31,7 @@ func RequestSchemas() map[string]string {
 }
 {%- if ns.schemas %}
 
-// Validating the raw body first rejects unknown fields and wrongly typed values. Decoding into a
-// target that already holds defaults keeps them for fields the body leaves out. The returned set names
-// the properties the body sent, so an update can tell an absent field from an explicit null.
+// Returns the properties the body sent, so an update can tell an absent field from an explicit null.
 func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaName string, target any) (map[string]bool, error) {
 	data, err := io.ReadAll(body)
 	if err != nil {

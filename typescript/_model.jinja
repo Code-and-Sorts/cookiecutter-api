@@ -62,7 +62,7 @@ z.array({{ ITEM_SCHEMAS[f.item_type] }})
 
 {#- A response value; a record without the field reads as its static default (nullable fields as null). -#}
 {%- macro read_value(f) -%}
-record.{{ f.name }} ?? {{ literal(f.default) if (f.has_default and not f.dynamic and not f.nullable and f.default is not none) else "null" }}
+record.{{ f.name }} ?? {{ literal(f.read_default) }}
 {%- endmacro -%}
 
 {#- The value imports a models module needs, given its rendered body. -#}
@@ -74,4 +74,9 @@ record.{{ f.name }} ?? {{ literal(f.default) if (f.has_default and not f.dynamic
 {% endif -%}
 {%- if used.clock %}import { {{ used.clock | join(", ") }} } from '../../utils/clock.util';
 {% endif -%}
+{%- endmacro -%}
+
+{#- An object literal holding each field's sample value, for tests. -#}
+{%- macro sample_object(fields) -%}
+{ {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
 {%- endmacro -%}

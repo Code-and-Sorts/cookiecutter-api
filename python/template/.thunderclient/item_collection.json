@@ -69,7 +69,7 @@
             "headers": [],
 {%- endif %}
 {%- if op in ['create', 'update', 'replace'] %}
-{%- set body_fields = (base_fields | rejectattr('system') | list) + resource.fields %}
+{%- set body_fields = resource.client_fields %}
             "body": {
                 "type": "json",
                 "raw": {{ sample_body_json(body_fields | selectattr('in_' ~ op)) | tojson }},

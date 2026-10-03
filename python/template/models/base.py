@@ -1,5 +1,6 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
 {%- from 'python/_model.jinja' import entity_field, imports, request_field, response_field -%}
-{%- set user_fields = base_fields | rejectattr("system") | list -%}
+{%- set user_fields = client_base_fields -%}
 {%- set system_names = base_fields | selectattr("system") | map(attribute="name") | list -%}
 {%- set body %}
 
@@ -35,7 +36,7 @@ class BaseEntity(BaseModel):
         """Evaluated per call, so dynamic defaults are fresh on every write."""
         return {name: cls.model_fields[name].get_default(call_default_factory=True) for name in cls.client_fields()}
 
-{% for kind, op in [("Create", "create"), ("Replace", "replace"), ("Update", "update")] %}
+{% for op, kind in REQUEST_KINDS %}
 class Base{{ kind }}Request(RequestModel):
 {%- set fields = user_fields | selectattr("in_" ~ op) | list %}
 {%- if op == "update" and fields %}

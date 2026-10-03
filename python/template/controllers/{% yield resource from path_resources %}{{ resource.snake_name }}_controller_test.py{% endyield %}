@@ -4,12 +4,9 @@
 {%- from 'python/_macros.jinja' import model_names -%}
 {%- from 'python/_model.jinja' import expect, literal, sample_dict -%}
 {%- set models = model_names(resource) -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 {%- set system = base_fields | selectattr("system") | list -%}
 {%- set body_ops = ops | select("in", ["create", "update", "replace"]) | list -%}
-{%- macro values(f) -%}
-[{{ literal(f.invalid) }}{% if not f.nullable %}, None{% endif %}{% for v in f.violations %}, {{ literal(v) }}{% endfor %}]
-{%- endmacro -%}
 import asyncio
 {%- if body_ops %}
 import json
@@ -31,15 +28,13 @@ from conftest import ITEM_ID
 _response = {{ r }}Response(id=ITEM_ID, **{{ sample_dict(client | rejectattr("hidden")) }})
 {%- endif %}
 {%- if body_ops %}
-# Server-managed fields a body may never set.
 _SYSTEM_FIELDS = {{ sample_dict(system) }}
 # Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
 _INVALID_VALUES = {
 {%- for f in client %}
-    "{{ f.name }}": {{ values(f) }},
+    "{{ f.name }}": {{ literal(f.rejected) }},
 {%- endfor %}
 }
-# Values exactly on a rule's bound, which a body may hold.
 _BOUNDARY_VALUES = [
 {%- for f in client %}
 {%- for v in f.boundaries %}
@@ -68,7 +63,7 @@ def _invalid_bodies(valid: dict, required: list[str], refused: dict) -> list:
 _{{ op | upper }}_BODY = {{ sample_dict(accepted) }}
 _{{ op | upper }}_INVALID = _invalid_bodies(
     _{{ op | upper }}_BODY,
-    {{ (accepted | selectattr("required") | rejectattr("has_default") | map(attribute="name") | list if op != "update" else []) | tojson }},
+    {{ (accepted | selectattr("needs_value") | map(attribute="name") | list if op != "update" else []) | tojson }},
     {{ sample_dict(refused) }},
 )
 _{{ op | upper }}_BOUNDARIES = [(name, value) for name, value in _BOUNDARY_VALUES if name in _{{ op | upper }}_BODY]
@@ -151,12 +146,12 @@ def describe_{{ slug }}_controller():
             assert mock_service.update.call_args.args[1].model_dump(exclude_unset=True) == {"{{ f.name }}": None}
 {%- endfor %}
 {%- else %}
-{%- set left_out = accepted | rejectattr("required") | list + accepted | selectattr("required") | selectattr("has_default") | list %}
+{%- set left_out = accepted | rejectattr("needs_value") | list %}
 {%- if left_out %}
 
         def test_fields_left_out_get_their_defaults(controller, mock_service):
             mock_service.{{ op }}.return_value = _response
-            minimal = {{ sample_dict(accepted | selectattr("required") | rejectattr("has_default")) }}
+            minimal = {{ sample_dict(accepted | selectattr("needs_value")) }}
 
             asyncio.run({{ call }}_encode(minimal)))
             sent = mock_service.{{ op }}.call_args.args[-2].model_dump()

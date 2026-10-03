@@ -1,5 +1,4 @@
-"""Value types the generated models share; every language validates them the same way."""
-
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS -%}
 import re
 import uuid
 from datetime import date, datetime, timezone
@@ -7,16 +6,15 @@ from typing import Annotated, Union
 from pydantic import AfterValidator, Field, StrictFloat, StrictInt, StrictStr
 
 # JavaScript numbers hold integers exactly only up to here, so every language caps integers at it.
-MAX_SAFE_INTEGER = 9007199254740991
+MAX_SAFE_INTEGER = {{ MAX_SAFE_INTEGER }}
 
-_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
-_DATE_TIME = re.compile(
-    r"(?P<seconds>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
-    r"(?P<fraction>\.[0-9]{1,9})?(?P<zone>Z|[+-][0-9]{2}:[0-9]{2})"
-)
-_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
-_URI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:\S+")
+_DATE = re.compile({{ PATTERNS.date | tojson }})
+_DATE_TIME = re.compile({{ PATTERNS.date_time | tojson }})
+_UUID = re.compile({{ PATTERNS.uuid | tojson }})
+_EMAIL = re.compile({{ PATTERNS.email | tojson }})
+_URI = re.compile({{ PATTERNS.uri | tojson }})
+# datetime parses at most six fractional digits.
+_EXTRA_DIGITS = re.compile(r"(\.[0-9]{6})[0-9]+")
 
 
 def format_timestamp(value: datetime) -> str:
@@ -44,12 +42,9 @@ def check_date(value: str) -> str:
 
 def to_utc_timestamp(value: str) -> str:
     """Accepts RFC 3339 with any offset and stores UTC with milliseconds, like the system timestamps."""
-    match = _DATE_TIME.fullmatch(value)
-    if not match:
+    if not _DATE_TIME.fullmatch(value):
         raise ValueError("must be a date-time with a time zone, such as 2026-01-31T09:30:00Z")
-    fraction = (match["fraction"] or "")[:7]
-    zone = "+00:00" if match["zone"] == "Z" else match["zone"]
-    return format_timestamp(datetime.fromisoformat(match["seconds"] + fraction + zone))
+    return format_timestamp(datetime.fromisoformat(_EXTRA_DIGITS.sub(r"\1", value)))
 
 
 def check_uuid(value: str) -> str:

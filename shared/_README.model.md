@@ -17,7 +17,7 @@ The built-in fields are set by the server and never accepted in a request body: 
 `isDeleted` (soft delete), `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for
 example `2026-09-29T22:49:26.625Z`; a create reads the clock once for both), and `createdBy`/`updatedBy`
 (the `X-User-Id` header, stored only when it is sent). Only `id` is returned.
-{%- set user_base = base_fields | rejectattr("system") | list %}
+{%- set user_base = client_base_fields %}
 {%- if user_base %}
 
 `base_model` adds these fields to every resource:

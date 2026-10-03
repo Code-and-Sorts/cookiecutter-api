@@ -1,16 +1,12 @@
-{%- from 'go/_model.jinja' import json_string -%}
+{%- from 'go/_model.jinja' import json_string, sample_body -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
 {%- set r = resource.name -%}
 {%- set lc = resource.lower_camel_name -%}
 {%- set ops = resource.operations -%}
 {%- set uses_body = resource.has_body -%}
 {%- set uses_id = resource.has_item -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 {%- set system = base_fields | selectattr("system") | list -%}
-{%- macro body_of(fields) -%}
-{%- set ns = namespace(body={}) -%}
-{%- for f in fields %}{% set ns.body = dict(ns.body, **{f.name: f.sample}) %}{% endfor -%}
-{{ json_string(ns.body) }}
-{%- endmacro -%}
 {%- macro call(op, body, user="") -%}
 controller.{{ op | capitalize }}(context.Background(), {% if op != "create" %}test{{ resource.name }}ID, {% endif %}"{{ user }}", strings.NewReader({{ body }}))
 {%- endmacro -%}
@@ -126,7 +122,6 @@ func with{{ r }}Property(body, name, value string) string {
 	return string(data)
 }
 
-// The request as JSON, so tests compare it field by field with the body sent.
 func {{ lc }}RequestProperties(t *testing.T, req any) map[string]json.RawMessage {
 	t.Helper()
 	data, err := json.Marshal(req)
@@ -136,8 +131,7 @@ func {{ lc }}RequestProperties(t *testing.T, req any) map[string]json.RawMessage
 	return properties
 }
 
-// Bodies every write must reject: a property the server sets, an unknown one, and each field's wrongly
-// typed value, null unless nullable, and values just outside its rules.
+// Bodies the operation must reject: server-set, unknown or refused properties, rejected values, missing required ones.
 func invalid{{ r }}Bodies(valid string, required, refused []string) []string {
 	bodies := []string{`[]`, `null`, `{not json`, with{{ r }}Property(valid, "not_a_field", `1`)}
 	for _, property := range [][2]string{
@@ -154,12 +148,8 @@ func invalid{{ r }}Bodies(valid string, required, refused []string) []string {
 	_ = json.Unmarshal([]byte(valid), &properties)
 	for _, value := range [][2]string{
 {%- for f in client %}
-		{"{{ f.name }}", {{ json_string(f.invalid) }}},
-{%- if not f.nullable %}
-		{"{{ f.name }}", "null"},
-{%- endif %}
-{%- for v in f.violations %}
-		{"{{ f.name }}", {{ json_string(v) }}},
+{%- for value in f.rejected %}
+		{"{{ f.name }}", {{ json_string(value) }}},
 {%- endfor %}
 {%- endfor %}
 	} {
@@ -250,9 +240,9 @@ func TestGet{{ r }}List_ReturnsServiceError(t *testing.T) {
 {%- set Op = op | capitalize %}
 {%- set accepted = client | selectattr("in_" ~ op) | list %}
 {%- set refused = client | rejectattr("in_" ~ op) | list %}
-{%- set required = accepted | selectattr("required") | rejectattr("has_default") | list if op != "update" else [] %}
+{%- set required = accepted | selectattr("needs_value") | list if op != "update" else [] %}
 
-const valid{{ r }}{{ Op }}Body = {{ body_of(accepted) }}
+const valid{{ r }}{{ Op }}Body = {{ sample_body(accepted) }}
 
 func Test{{ Op }}{{ r }}_PassesTheValidatedRequest(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -303,7 +293,7 @@ func TestUpdate{{ r }}_NullClears{{ f.pascal }}(t *testing.T) {
 }
 {%- endfor %}
 {%- else %}
-{%- set left_out = accepted | rejectattr("required") | list + accepted | selectattr("required") | selectattr("has_default") | list %}
+{%- set left_out = accepted | rejectattr("needs_value") | list %}
 {%- if left_out %}
 
 func Test{{ Op }}{{ r }}_GivesFieldsLeftOutTheirDefaults(t *testing.T) {
@@ -311,7 +301,7 @@ func Test{{ Op }}{{ r }}_GivesFieldsLeftOutTheirDefaults(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
 
-	_, err := {{ call(op, body_of(required)) }}
+	_, err := {{ call(op, sample_body(required)) }}
 
 	assert.NoError(t, err)
 	properties := {{ lc }}RequestProperties(t, mockService.Calls[0].Arguments.Get(1))
@@ -332,11 +322,11 @@ func Test{{ Op }}{{ r }}_Stores{{ f.pascal }}InUTC(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
 
-	_, err := {{ call(op, "with" ~ r ~ "Property(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"2026-01-31T11:30:00+02:00\"`)") }}
+	_, err := {{ call(op, "with" ~ r ~ "Property(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"" ~ DATE_TIME_EXAMPLE.sent ~ "\"`)") }}
 
 	assert.NoError(t, err)
 	properties := {{ lc }}RequestProperties(t, mockService.Calls[0].Arguments.Get(1))
-	assert.JSONEq(t, `"2026-01-31T09:30:00.000Z"`, string(properties["{{ f.name }}"]))
+	assert.JSONEq(t, `"{{ DATE_TIME_EXAMPLE.stored }}"`, string(properties["{{ f.name }}"]))
 }
 {%- endfor %}
 

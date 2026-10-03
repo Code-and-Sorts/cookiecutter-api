@@ -44,7 +44,6 @@ import (
 const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 {%- if uses_json %}
 
-// What the fake controller returns, as the handler should write it.
 func fake{{ r }}JSON() string {
 	data, _ := json.Marshal(models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: test{{ r }}ID}})
 	return string(data)

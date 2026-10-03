@@ -78,8 +78,7 @@ Annotated[{{ base }}, {{ extras | join(", ") }}]
 
 {#- A response field; a stored record without the value reads as its static default (nullable fields as null). -#}
 {%- macro response_field(f) -%}
-{%- set read_default = f.default if (f.has_default and not f.dynamic and not f.nullable) else none -%}
-{{ f.name }}: {{ read_type(f) }} | None = {{ default_expression(dict(f, dynamic="", default=read_default)) }}
+{{ f.name }}: {{ read_type(f) }} | None = {{ default_expression(dict(f, dynamic="", default=f.read_default)) }}
 {%- endmacro -%}
 
 {#- Imports for a models module whose class bodies are rendered in body. -#}
