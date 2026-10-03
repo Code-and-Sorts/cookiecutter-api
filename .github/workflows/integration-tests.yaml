@@ -84,8 +84,16 @@ jobs:
           template-cloud-service: ${{ matrix.cloud.name }}
           resources-fixture: ${{ matrix.fixture }}
 
+      # The suite and Python projects both use it, so start-local-api expects it on PATH.
+      - name: Install Poetry
+        env:
+          POETRY_VERSION: "2.5.1"
+        run: |
+          curl -sSL https://install.python-poetry.org | python - -y
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Install the integration suite
-        run: pip install -r tests/integration/requirements.txt
+        run: poetry --project tests/integration install --no-interaction --without dev
 
       - name: Start the local API
         id: host
@@ -97,7 +105,9 @@ jobs:
       - name: Run the integration suite
         env:
           BASE_URL: ${{ steps.host.outputs.base-url }}
-        run: pytest tests/integration --project-dir KittenClaws --base-url "$BASE_URL" --junitxml=junit.xml
+        run: >-
+          poetry --project tests/integration run
+          pytest tests/integration --project-dir KittenClaws --base-url "$BASE_URL" --junitxml=junit.xml
 
       - name: Summarize results
         if: ${{ !cancelled() && hashFiles('junit.xml') != '' }}

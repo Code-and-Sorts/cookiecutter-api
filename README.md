@@ -144,15 +144,16 @@ the `single` and `edge` resources fixtures on pushes to `main`; run it on a bran
 choosing a language, cloud and fixture or `all`.
 
 To run it locally, render a project, start it against its emulator (see above) and point the suite at
-it. You need Docker plus the host tool for the cloud (Azure Functions Core Tools or the SAM CLI):
+it. You need Docker, [Poetry](https://python-poetry.org/) and the host tool for the cloud (Azure Functions Core
+Tools or the SAM CLI):
 
 ```console
 copier copy --defaults --trust --vcs-ref HEAD --data language=go --data cloud_service="GCP Cloud Function" \
   --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml . ../KittenClaws
 (cd ../KittenClaws && make install emulator-up emulator-seed && make run-emulator) &
 
-pip install -r tests/integration/requirements.txt
-pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080
+poetry --project tests/integration install
+poetry --project tests/integration run pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080
 ```
 
 The base URL includes the route prefix: `http://localhost:7071/api` on Azure, `http://localhost:8080` on

@@ -1,7 +1,8 @@
 name: Start Local API
 description: >-
   Start a generated project's database emulator and local function host in the background,
-  using the project's own emulator commands, and wait until the host answers.
+  using the project's own emulator commands, and wait until the host answers. Python projects
+  need Poetry on PATH.
 
 inputs:
   language:
@@ -34,15 +35,6 @@ runs:
       uses: actions/setup-python@v7
       with:
         python-version: "3.14"
-
-    - name: Install Poetry
-      if: inputs.language == 'python'
-      env:
-        POETRY_VERSION: "2.5.1"
-      run: |
-        curl -sSL https://install.python-poetry.org | python - -y
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      shell: bash
 
     - name: Set up Node
       if: inputs.language == 'typescript' || inputs.cloud-service == 'Azure Function App'
