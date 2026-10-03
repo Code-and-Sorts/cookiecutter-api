@@ -1,11 +1,12 @@
 {#- The "Data model" README section, rendered from base_model and each resource's fields. -#}
+{%- from 'shared/_fields.jinja' import as_json -%}
 {%- macro cell(f) -%}
 {%- set rules = [] -%}
-{%- for key, value in f.rules.items() %}{% set _ = rules.append(key ~ ": " ~ (value | tojson)) %}{% endfor -%}
+{%- for key, value in f.rules.items() %}{% set _ = rules.append(key ~ ": " ~ as_json(value)) %}{% endfor -%}
 {%- if f.enum_values %}{% set _ = rules.append("one of " ~ (f.enum_values | join(", "))) %}{% endif -%}
 {%- set bodies = [] -%}
 {%- for op, label in [("create", "POST"), ("replace", "PUT"), ("update", "PATCH")] if f["in_" ~ op] %}{% set _ = bodies.append(label) %}{% endfor -%}
-| `{{ f.name }}` | {{ f.type }}{% if f.item_type %} of {{ f.item_type }}{% endif %} | {{ "yes" if f.required else "no" }} | {{ "yes" if f.nullable else "no" }} | {% if f.dynamic %}`${{ f.dynamic }}`{% elif f.has_default %}`{{ f.default | tojson | replace("|", "\\|") }}`{% else %}none{% endif %} | {{ (rules | join("; ") | replace("|", "\\|")) or "none" }} | {{ (bodies | join(", ")) or "none" }} | {{ "no" if f.hidden else "yes" }} |
+| `{{ f.name }}` | {{ f.type }}{% if f.item_type %} of {{ f.item_type }}{% endif %} | {{ "yes" if f.needs_value else "no" }} | {{ "yes" if f.nullable else "no" }} | {% if f.dynamic %}`${{ f.dynamic }}`{% elif f.has_default %}`{{ as_json(f.default) | replace("|", "\\|") }}`{% else %}none{% endif %} | {{ (rules | join("; ") | replace("|", "\\|")) or "none" }} | {{ (bodies | join(", ")) or "none" }} | {{ "no" if f.hidden else "yes" }} | {{ (f.description | replace("\n", " ") | replace("|", "\\|")) or "none" }} |
 {%- endmacro -%}
 ## Data model
 
@@ -22,8 +23,8 @@ example `2026-09-29T22:49:26.625Z`; a create reads the clock once for both), and
 
 `base_model` adds these fields to every resource:
 
-| Field | Type | Required | Nullable | Default | Rules | Accepted by | Returned |
-|---|---|---|---|---|---|---|---|
+| Field | Type | Required | Nullable | Default | Rules | Accepted by | Returned | Description |
+|---|---|---|---|---|---|---|---|---|
 {%- for f in user_base %}
 {{ cell(f) }}
 {%- endfor %}
@@ -33,8 +34,8 @@ example `2026-09-29T22:49:26.625Z`; a create reads the clock once for both), and
 `{{ resource.name }}` (`/{{ resource.endpoint }}`) fields:
 {%- if resource.fields %}
 
-| Field | Type | Required | Nullable | Default | Rules | Accepted by | Returned |
-|---|---|---|---|---|---|---|---|
+| Field | Type | Required | Nullable | Default | Rules | Accepted by | Returned | Description |
+|---|---|---|---|---|---|---|---|---|
 {%- for f in resource.fields %}
 {{ cell(dict(f, in_create=f.in_create and "create" in resource.operations, in_replace=f.in_replace and "replace" in resource.operations, in_update=f.in_update and "update" in resource.operations)) }}
 {%- endfor %}

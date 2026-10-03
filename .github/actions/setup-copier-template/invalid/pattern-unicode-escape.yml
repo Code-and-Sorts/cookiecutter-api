@@ -1,0 +1,9 @@
+# expect: uses \u
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: code, type: string, example: AA, rules: {pattern: '^\u0041+$'}}

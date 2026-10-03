@@ -126,29 +126,26 @@ base_model:
   multiline: true
   help: >-
     Fields every resource stores, on top of its own fields. The six pre-populated fields are built in and
-    locked (only description may change): the server sets them, they are never accepted in a request body,
-    and only id is returned. createdBy and updatedBy come from the X-User-Id header ($user) and are stored
+    cannot change: the server sets them, they are never accepted in a request body, and only id is returned. createdBy and updatedBy come from the X-User-Id header ($user) and are stored
     only when it is sent. Add your own fields after them, for example {name: tenantId, type: string,
     required: true}; they use the same keys as resource fields (see resources).
   default: |
-    - {name: id, type: uuid, required: true, managed: create, default: $uuid}
-    - {name: isDeleted, type: boolean, required: true, managed: create, default: false, hidden: true}
-    - {name: createdTimestamp, type: date-time, required: true, managed: create, default: $now, hidden: true}
-    - {name: updatedTimestamp, type: date-time, required: true, managed: write, default: $now, hidden: true}
-    - {name: createdBy, type: string, managed: create, default: $user, hidden: true}
-    - {name: updatedBy, type: string, managed: write, default: $user, hidden: true}
+    {%- from 'shared/_fields.jinja' import LOCKED_FIELDS, field_yaml -%}
+    {%- for f in LOCKED_FIELDS -%}
+    - {{ field_yaml(f) }}
+    {% endfor -%}
   validator: >-
-    {%- from 'shared/_fields.jinja' import LOCKED_FIELDS, LOCKED_YAML, check_field -%}
+    {%- from 'shared/_fields.jinja' import LOCKED_FIELDS, LOCKED_NAMES, check_field, field_yaml -%}
     {%- set ns = namespace(err="", names=[]) -%}
     {%- if base_model is string or base_model is mapping or base_model is not iterable -%}
     {%- set ns.err = "base_model must be a list of fields." -%}
     {%- endif -%}
     {%- for f in base_model if not ns.err -%}
     {%- set name = f.name if f is mapping and f.name is string else "" -%}
-    {%- if name in LOCKED_FIELDS -%}
-    {%- set view = {"type": f.type | default(none), "required": f.required | default(false), "nullable": f.nullable | default(false), "immutable": f.immutable | default(false), "hidden": f.hidden | default(false), "managed": f.managed | default(""), "default": f.default | default(none)} -%}
-    {%- if view != LOCKED_FIELDS[name] or (f | reject("in", ["name", "type", "required", "nullable", "immutable", "hidden", "managed", "default", "description"]) | list) -%}
-    {%- set ns.err = "base_model field '" ~ name ~ "' is built in: only its description may change. Write it as " ~ LOCKED_YAML[name] ~ "." -%}
+    {%- if name in LOCKED_NAMES -%}
+    {%- set locked = LOCKED_FIELDS[LOCKED_NAMES.index(name)] -%}
+    {%- if f != locked -%}
+    {%- set ns.err = "base_model field '" ~ name ~ "' is built in and cannot change. Write it as " ~ field_yaml(locked) ~ "." -%}
     {%- endif -%}
     {%- else -%}
     {%- set ns.err = check_field(f, "base_model") | trim -%}
@@ -158,8 +155,8 @@ base_model:
     {%- endif -%}
     {%- set ns.names = ns.names + [name] -%}
     {%- endfor -%}
-    {%- for name in LOCKED_FIELDS if not ns.err and name not in ns.names -%}
-    {%- set ns.err = "base_model must keep the built-in field '" ~ name ~ "': " ~ LOCKED_YAML[name] ~ "." -%}
+    {%- for locked in LOCKED_FIELDS if not ns.err and locked.name not in ns.names -%}
+    {%- set ns.err = "base_model must keep the built-in field '" ~ locked.name ~ "': " ~ field_yaml(locked) ~ "." -%}
     {%- endfor -%}
     {{ ns.err }}
 
@@ -205,7 +202,7 @@ resources:
     {%- else -%}
     {%- set reserved_names = ["Health", "BaseEntity", "BaseCreateRequest", "BaseReplaceRequest", "BaseUpdateRequest", "BaseResponse", "BaseError", "DateTime", "NotFoundError", "Now", "Today", "ValidationError"] -%}
     {%- endif -%}
-    {%- set ns = namespace(err="", eps=[], names=[], containers=[], idents={}, own=[], clash="", ident="", name_clash="", fnames=[]) -%}
+    {%- set ns = namespace(err="", eps=[], names=[], containers=[], idents={}, own=[], clash="", ident="", name_clash="", fnames=[], stored={}) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
     {%- elif language == "dotnet" and health_endpoint and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 61 > 127 -%}
@@ -322,6 +319,17 @@ resources:
     {%- for f in fields if not ns.err and "create" in requests and f.required | default(false) and "default" not in f and f.name not in requests["create"] -%}
     {%- set ns.err = "Resource '" ~ name ~ "': requests.create must list '" ~ f.name ~ "', which is required and has no default." -%}
     {%- endfor -%}
+    {#- Resources in one container read each other's records, so a shared field must hold the same kind of value. -#}
+    {%- set store = container_id | tojson -%}
+    {%- for f in fields if not ns.err -%}
+    {%- set shape = [f.type, f.get("items"), f.rules.get("format") if f.rules is mapping else none, f.get("values")] -%}
+    {%- set seen = ns.stored.get(store, {}).get(f.name) -%}
+    {%- if seen and seen[0] != shape -%}
+    {%- set ns.err = "Resources '" ~ seen[1] ~ "' and '" ~ name ~ "' share container '" ~ container ~ "' but define field '" ~ f.name ~ "' differently; a shared field needs the same type, items, format and enum values." -%}
+    {%- elif not seen -%}
+    {%- set ns.stored = dict(ns.stored, **{store: dict(ns.stored.get(store, {}), **{f.name: [shape, name]})}) -%}
+    {%- endif -%}
+    {%- endfor -%}
     {%- endif -%}
     {%- endif -%}
     {%- if not ns.err and language == "dotnet" and cloud_service == "AWS Lambda" -%}
@@ -352,7 +360,9 @@ base_fields:
 client_base_fields:
   type: yaml
   when: false
-  default: "{{ base_fields | rejectattr('system') | list | tojson }}"
+  default: >-
+    {%- from 'shared/_fields.jinja' import as_json -%}
+    {{ as_json(base_fields | rejectattr('system') | list) }}
 
 # Git for Windows can't check out paths containing "|", so paths yield from this copy, which precomputes filtered names.
 # fields falls back to the default when an older answers file has none; client_fields prepends client_base_fields.
@@ -360,12 +370,12 @@ path_resources:
   type: yaml
   when: false
   default: >-
-    {%- from 'shared/_fields.jinja' import resource_fields_json -%}
+    {%- from 'shared/_fields.jinja' import as_json, resource_fields_json -%}
     [{%- for r in resources -%}
     {%- set ops = r.operations -%}
     {%- set container_key = r.container | string | replace('-', '_') -%}
     {%- set fields = resource_fields_json(r) | from_json -%}
-    {{ dict(r,
+    {{ as_json(dict(r,
     fields=fields,
     client_fields=client_base_fields + fields,
     snake_name=(r.name | to_snake),
@@ -376,7 +386,7 @@ path_resources:
     has_body=("create" in ops or "update" in ops or "replace" in ops),
     has_collection=("list" in ops or "create" in ops),
     has_item=("get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops),
-    has_dto=(ops | reject("equalto", "delete") | list | length > 0)) | tojson }}{{ "," if not loop.last }}
+    has_dto=(ops | reject("equalto", "delete") | list | length > 0))) }}{{ "," if not loop.last }}
     {%- endfor -%}]
 
 # .NET request and validation model paths loop over this to stay under Git for Windows' 260-character limit.
@@ -384,6 +394,7 @@ body_resources:
   type: yaml
   when: false
   default: >-
+    {%- from 'shared/_fields.jinja' import as_json -%}
     [{%- for r in path_resources if r.has_body -%}
-    {{ r | tojson }}{{ "," if not loop.last }}
+    {{ as_json(r) }}{{ "," if not loop.last }}
     {%- endfor -%}]

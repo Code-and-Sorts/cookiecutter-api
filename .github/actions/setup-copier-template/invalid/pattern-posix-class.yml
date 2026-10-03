@@ -1,4 +1,4 @@
-# expect: is reserved
+# expect: has [ inside a character class
 resources:
   - name: "Cat"
     endpoint: "cats"
@@ -6,4 +6,4 @@ resources:
     operations: ["list", "get_by_id", "create", "update", "delete"]
     fields:
       - {name: name, type: string, required: true}
-      - {name: createdDate, type: date-time}
+      - {name: code, type: string, example: abc, rules: {pattern: '^[[:alpha:]]+$'}}

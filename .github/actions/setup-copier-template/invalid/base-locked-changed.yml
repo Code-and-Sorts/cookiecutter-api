@@ -1,4 +1,4 @@
-# expect: is built in: only its description may change
+# expect: is built in and cannot change
 base_model:
   - {name: id, type: uuid, required: true, managed: create, default: $uuid}
   - {name: isDeleted, type: boolean, required: true, managed: create, default: false, hidden: true}

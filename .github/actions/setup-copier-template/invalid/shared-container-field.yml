@@ -1,0 +1,16 @@
+# expect: share container 'animals' but define field 'age' differently
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: age, type: integer}
+  - name: "Dog"
+    endpoint: "dogs"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: age, type: string}
