@@ -19,6 +19,7 @@ on:
       - .github/workflows/integration-tests.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/start-local-api/**
+  pull_request: # TEMPORARY: validate the Poetry switch on PR #124
   workflow_dispatch:
     inputs:
       language:
