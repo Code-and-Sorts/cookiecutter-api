@@ -22,29 +22,48 @@
     "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except",
     "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass",
     "raise", "return", "try", "while", "with", "yield",
-    "str", "int", "float", "bool", "dict", "json", "schema", "copy", "validate", "construct",
+    "str", "int", "float", "bool", "dict", "json", "schema", "copy", "validate", "construct", "classmethod",
     "constructor", "hasownproperty", "isprototypeof", "propertyisenumerable", "tolocalestring", "tostring",
     "valueof", "ttl",
     "equals", "gethashcode", "gettype", "memberwiseclone",
-    "applyto", "sent", "toentity", "stampcreate", "stampwrite", "base", "baseentity", "basecreaterequest",
+    "applyto", "sent", "toentity", "fields", "stampcreate", "stampwrite", "base", "baseentity", "basecreaterequest",
     "basereplacerequest", "baseupdaterequest", "baseresponse",
 ] -%}
+{#- The date and time parts the date and date-time formats share; year 0000 is rejected, hours run to 23 and any
+    offset up to 23:59 is accepted, as RFC 3339 allows. -#}
+{%- set DATE_PART = "(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])" -%}
+{%- set TIME_PART = "([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]" -%}
 {#- The value formats every language checks with these same expressions, written in the syntax pattern_error allows. -#}
 {%- set PATTERNS = {
     "uuid": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-    "date": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
-    "date_time": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$",
+    "date": "^" ~ DATE_PART ~ "$",
+    "date_time": "^" ~ DATE_PART ~ "T" ~ TIME_PART ~ "(\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
     "email": "^[^@ \\t\\n]+@[^@ \\t\\n]+\\.[^@ \\t\\n]+$",
     "uri": "^[A-Za-z][A-Za-z0-9+.-]*:[^ \\t\\n]+$",
 } -%}
 {#- The characters a pattern may escape: \n, \t and the metacharacters, which every target engine reads literally. -#}
 {%- set PATTERN_ESCAPES = "nt\\^$.|?*+()[]{}-/" -%}
 {#- Static date-time defaults and examples must already be in the stored form. -#}
-{%- set CANONICAL_DATE_TIME_PATTERN = "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$" -%}
-{#- Date-times every language rejects: a leap second, and offsets that move the UTC value outside years 0001-9999. -#}
-{%- set OUT_OF_RANGE_DATE_TIMES = ["2026-01-31T23:59:60Z", "0001-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00"] -%}
-{#- A date-time with an offset and the UTC millisecond form every language stores it in, for tests. -#}
+{%- set CANONICAL_DATE_TIME_PATTERN = "^" ~ DATE_PART ~ "T" ~ TIME_PART ~ "\\.[0-9]{3}Z$" -%}
+{#- A character outside the BMP: lengths count it once, as every language counts code points. -#}
+{%- set WIDE_CHARACTER = "😺" -%}
+{#- Dates every language rejects: an impossible day, month 13 and year 0000. -#}
+{%- set INVALID_DATES = ["2026-02-30", "2026-13-01", "0000-01-01"] -%}
+{#- Date-times every language rejects: no offset, hour 24, a leap second, offset minute 60, year 0000, and offsets that
+    move the UTC value outside years 0001-9999. -#}
+{%- set INVALID_DATE_TIMES = [
+    "2026-01-31T09:30:00", "2026-01-31T24:00:00Z", "2026-01-31T23:59:60Z", "2026-01-31T09:30:00+14:60",
+    "0000-12-31T23:00:00-01:00", "0001-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00",
+] -%}
+{#- Date-times with an offset and the UTC millisecond form every language stores them in, for tests. -#}
 {%- set DATE_TIME_EXAMPLE = {"sent": "2026-01-31T11:30:00.1239+02:00", "stored": "2026-01-31T09:30:00.123Z"} -%}
+{%- set DATE_TIME_CASES = [
+    DATE_TIME_EXAMPLE,
+    {"sent": "2026-01-31T00:30:00.123456789+23:59", "stored": "2026-01-30T00:31:00.123Z"},
+    {"sent": "2026-01-31T23:30:00-23:59", "stored": "2026-02-01T23:29:00.000Z"},
+    {"sent": "0001-01-01T00:00:00-00:00", "stored": "0001-01-01T00:00:00.000Z"},
+    {"sent": "9999-12-31T23:59:59.999Z", "stored": "9999-12-31T23:59:59.999Z"},
+] -%}
 
 {#- JSON with text as written: Copier reads derived values as YAML, which splits an escaped emoji into lone surrogates. -#}
 {%- macro as_json(value) -%}
@@ -66,11 +85,9 @@
 must be a date such as "2026-01-31"
 {%- else -%}
 {%- set year = value[0:4] | int -%}
-{%- set month = value[5:7] | int -%}
-{%- set day = value[8:10] | int -%}
 {%- set leap = (year % 4 == 0 and year % 100 != 0) or year % 400 == 0 -%}
 {%- set days = [31, 29 if leap else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] -%}
-{%- if month < 1 or month > 12 or day < 1 or day > days[month - 1] -%}
+{%- if (value[8:10] | int) > days[(value[5:7] | int) - 1] -%}
 must be a real calendar date
 {%- endif -%}
 {%- endif -%}
@@ -92,7 +109,7 @@ must be a quoted string
 {%- elif type == "date" -%}
 {{ date_error(value) }}
 {%- elif type == "date-time" -%}
-{%- if not (value | regex_search(CANONICAL_DATE_TIME_PATTERN)) or (date_error(value[0:10]) | trim) or (value[11:13] | int) > 23 or (value[14:16] | int) > 59 or (value[17:19] | int) > 59 -%}
+{%- if not (value | regex_search(CANONICAL_DATE_TIME_PATTERN)) or (date_error(value[0:10]) | trim) -%}
 must be a UTC date-time with milliseconds, such as "2026-01-31T09:30:00.000Z"
 {%- endif -%}
 {%- elif type == "uuid" -%}
@@ -155,19 +172,45 @@ must be less than {{ rules.exclusive_maximum }}
 {%- endif -%}
 {%- endmacro -%}
 
-{#- Why a pattern is outside the subset RE2 (Go), ECMAScript, .NET, Python and Rust (pydantic) all read the same way, or nothing. -#}
+{#- Records a quantifier: bound is its largest count, or 0 for *, + and ?, whose repeats engines do not count. -#}
+{%- macro quantify(ns, c, bound) -%}
+{%- if ns.after_open -%}
+{%- set ns.err = "repeats nothing with " ~ c ~ ": a quantifier must follow a character, class or group; escape it for a literal" -%}
+{%- elif ns.quantified == 1 and c == "?" -%}
+{%- set ns.quantified = 2 -%}
+{%- elif ns.quantified -%}
+{%- set ns.err = "has a quantifier right after another, as in a++ or a{2}*, which JavaScript and Go reject; only one ? may follow a quantifier, to make it lazy" -%}
+{%- else -%}
+{%- set ns.quantified = 1 -%}
+{%- set ns.last = ns.last * ([bound, 1] | max) -%}
+{%- set ns.stack = ns.stack[:-1] + [[ns.stack[-1], ns.last] | max] -%}
+{%- if ns.last > 1000 -%}
+{%- set ns.err = "repeats up to " ~ ns.last ~ " times through nested counted repeats; RE2 (Go) allows at most 1000" -%}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Records an atom: a character, class, group or anchor that a quantifier may follow, repeated count times. -#}
+{%- macro atom(ns, count=1) -%}
+{%- set ns.last = count -%}
+{%- set ns.quantified = 0 -%}
+{%- set ns.after_open = false -%}
+{%- endmacro -%}
+
+{#- Why a pattern is outside the syntax RE2 (Go), ECMAScript with the u flag, .NET, Python and Rust (pydantic) all read
+    the same way, counting code points, or nothing. -#}
 {%- macro pattern_error(pattern) -%}
-{%- set ns = namespace(err="", escaped=false, in_class=false, class_text="", depth=0, opened=false, group=false, braces=none, after_open=true) -%}
+{%- set ns = namespace(err="", escaped=false, in_class=false, class_text="", class_prev="", opened=false, group=false, braces=none, after_open=true, quantified=0, stack=[1], last=1) -%}
 {%- for c in pattern if not ns.err -%}
-{%- set literal = ns.escaped or ns.in_class -%}
 {%- set opened = ns.opened -%}
 {%- set ns.opened = false -%}
-{%- if ns.in_class %}{% set ns.class_text = ns.class_text ~ c %}{% endif -%}
-{%- if ns.group and c != ":" -%}
+{%- if c > "￾" -%}
+{%- set ns.err = "uses a character beyond U+FFFE, which .NET matches as two characters; patterns may only name characters up to U+FFFE" -%}
+{%- elif ns.group -%}
+{%- set ns.group = false -%}
+{%- if c != ":" -%}
 {%- set ns.err = "uses (?" ~ c ~ ", but only (?: groups are allowed: lookarounds, named groups and inline flags differ between the target regex engines" -%}
 {%- endif -%}
-{%- set ns.group = false -%}
-{%- if ns.err -%}
 {%- elif ns.braces is not none -%}
 {%- if c == "}" -%}
 {%- set counts = ns.braces.split(",") -%}
@@ -175,45 +218,68 @@ must be less than {{ rules.exclusive_maximum }}
 {%- set high = (counts[1] | int) if counts[1:] and counts[1] else low -%}
 {%- if not (ns.braces | regex_search("^[0-9]+(,[0-9]*)?$")) or high > 1000 or high < low -%}
 {%- set ns.err = "has {" ~ ns.braces ~ "}, but a repeat must be {n}, {n,} or {n,m} with n <= m <= 1000; write \\{ for a literal brace" -%}
+{%- else -%}
+{{- quantify(ns, "{", high) -}}
 {%- endif -%}
 {%- set ns.braces = none -%}
 {%- else -%}
 {%- set ns.braces = ns.braces ~ c -%}
 {%- endif -%}
 {%- elif ns.escaped -%}
-{%- if c not in PATTERN_ESCAPES -%}
-{%- set ns.err = "uses \\" ~ c ~ ", but only \\n, \\t and escaped metacharacters such as \\. are allowed: classes such as \\d and \\w, anchors such as \\b and \\A, backreferences and \\u, \\x or \\p escapes differ between the target regex engines" -%}
-{%- endif -%}
 {%- set ns.escaped = false -%}
+{%- if c not in PATTERN_ESCAPES or (c == "-" and not ns.in_class) -%}
+{%- set ns.err = "uses \\" ~ c ~ ", but only \\n, \\t and escaped metacharacters such as \\. are allowed (\\- only inside a class): classes such as \\d and \\w, anchors such as \\b and \\A, backreferences and \\u, \\x or \\p escapes differ between the target regex engines" -%}
+{%- elif ns.in_class -%}
+{%- set ns.class_text = ns.class_text ~ "\\" ~ c -%}
+{%- set ns.class_prev = "" -%}
+{%- else -%}
+{{- atom(ns) -}}
+{%- endif -%}
 {%- elif c == "\\" -%}
 {%- set ns.escaped = true -%}
 {%- elif ns.in_class -%}
 {%- if c == "[" -%}
 {%- set ns.err = "has [ inside a character class, which the target regex engines read differently (as in [[:alpha:]]); write \\[" -%}
-{%- elif c == "]" and ns.class_text in ["]", "^]"] -%}
+{%- elif c == "]" and ns.class_text in ["", "^"] -%}
 {%- set ns.err = "starts a character class with ], which the target regex engines read differently; write \\]" -%}
 {%- elif c == "]" -%}
 {%- set ns.in_class = false -%}
+{{- atom(ns) -}}
+{%- elif c in "&~-" and ns.class_prev == c -%}
+{%- set ns.err = "has " ~ c ~ c ~ " inside a character class, which pydantic's engine reads as a set operation; write one of them escaped" -%}
+{%- else -%}
+{%- set ns.class_text = ns.class_text ~ c -%}
+{%- set ns.class_prev = c -%}
 {%- endif -%}
 {%- elif c == "[" -%}
 {%- set ns.in_class = true -%}
 {%- set ns.class_text = "" -%}
-{%- elif c == "{" and ns.after_open -%}
-{%- set ns.err = "repeats nothing with {: a repeat must follow a character, class or group; write \\{ for a literal brace" -%}
+{%- set ns.class_prev = "" -%}
 {%- elif c == "{" -%}
 {%- set ns.braces = "" -%}
-{%- elif c == "}" -%}
-{%- set ns.err = "has an unmatched }; write \\} for a literal brace" -%}
+{%- elif c in "}]" -%}
+{%- set ns.err = "has an unmatched " ~ c ~ ", which JavaScript's u flag rejects; write \\" ~ c ~ " for a literal" -%}
 {%- elif c == "(" -%}
-{%- set ns.depth = ns.depth + 1 -%}
+{%- set ns.stack = ns.stack + [1] -%}
 {%- set ns.opened = true -%}
+{%- set ns.after_open = true -%}
+{%- set ns.quantified = 0 -%}
+{%- elif c == ")" and ns.stack | length == 1 -%}
+{%- set ns.err = "has an unmatched )" -%}
 {%- elif c == ")" -%}
-{%- if ns.depth == 0 %}{% set ns.err = "has an unmatched )" %}{% endif -%}
-{%- set ns.depth = ns.depth - 1 -%}
+{%- set inner = ns.stack[-1] -%}
+{%- set ns.stack = ns.stack[:-1] -%}
+{{- atom(ns, inner) -}}
 {%- elif c == "?" and opened -%}
 {%- set ns.group = true -%}
+{%- elif c in "*+?" -%}
+{{- quantify(ns, c, 0) -}}
+{%- elif c in "^|" -%}
+{{- atom(ns) -}}
+{%- set ns.after_open = true -%}
+{%- else -%}
+{{- atom(ns) -}}
 {%- endif -%}
-{%- set ns.after_open = not literal and c in "(|^" -%}
 {%- endfor -%}
 {%- if ns.err -%}
 {{ ns.err }}
@@ -225,12 +291,28 @@ ends with a lone \
 has an unclosed [
 {%- elif ns.braces is not none -%}
 has an unclosed {
-{%- elif ns.depth > 0 -%}
+{%- elif ns.stack | length > 1 -%}
 has an unclosed (
-{#- Compiling raises for anything else Python rejects, and Copier reports the exception as the error. -#}
-{%- elif ("" | regex_search(pattern)) is undefined -%}
-does not compile
+{%- else -%}
+{{ compile_check(pattern) }}
 {%- endif -%}
+{%- endmacro -%}
+
+{#- Compiles the pattern with Python's re and renders nothing: a pattern it rejects raises, and Copier reports the
+    exception as the validator's message. -#}
+{%- macro compile_check(pattern) -%}
+{%- set _ = "" | regex_search(pattern) -%}
+{%- endmacro -%}
+
+{#- The pattern as every language renders it: . becomes [^\n], since JavaScript's . also refuses \r, U+2028 and U+2029. -#}
+{%- macro portable_pattern(pattern) -%}
+{%- set ns = namespace(text="", escaped=false, in_class=false) -%}
+{%- for c in pattern -%}
+{%- set ns.text = ns.text ~ ("[^\\n]" if c == "." and not ns.escaped and not ns.in_class else c) -%}
+{%- if not ns.escaped and c == "[" %}{% set ns.in_class = true %}{% elif not ns.escaped and c == "]" %}{% set ns.in_class = false %}{% endif -%}
+{%- set ns.escaped = c == "\\" and not ns.escaped -%}
+{%- endfor -%}
+{{ ns.text }}
 {%- endmacro -%}
 
 {%- macro rules_error(f) -%}
@@ -341,7 +423,6 @@ must be a quoted string
 {%- if "default" in f and f.default is string and f.default.startswith("$") and not f.default.startswith("$$") %}{{ f.default }}{% endif -%}
 {%- endmacro -%}
 
-{#- A static default as written, with a leading $$ unescaped to $. -#}
 {%- macro static_default_json(f) -%}
 {%- if "default" not in f or (dynamic_token(f) | trim) -%}null
 {%- elif f.default is string and f.default.startswith("$$") -%}{{ f.default[1:] | tojson }}
@@ -394,6 +475,8 @@ must be a quoted string
 {%- set ns.err = label ~ ": managed is reserved for the built-in base fields; the server only sets id, isDeleted, the timestamps, createdBy and updatedBy." -%}
 {%- elif "description" in f and f.description is not string -%}
 {%- set ns.err = label ~ ": description must be a string." -%}
+{%- elif "description" in f and f.description | regex_search("[\x00-\x1f\x7f\x85\u2028\u2029]") -%}
+{%- set ns.err = label ~ ": description must be one line without control characters, since it becomes a code comment." -%}
 {%- elif f.type == "enum" and (f["values"] is not defined or f["values"] is string or f["values"] is mapping or f["values"] is not iterable or not f["values"]) -%}
 {%- set ns.err = label ~ ": an enum needs a non-empty values list." -%}
 {%- elif f.type == "enum" and (f["values"] | reject("string") | list) -%}
@@ -448,6 +531,8 @@ must be a quoted string
 {%- if f.type == "string" -%}
 {%- if rules.min_length %}{% set _ = values.append("s" * (rules.min_length - 1)) %}{% endif -%}
 {%- if rules.max_length is defined %}{% set _ = values.append("s" * (rules.max_length + 1)) %}{% endif -%}
+{%- if rules.min_length and rules.pattern is not defined and rules.format is not defined %}{% set _ = values.append(WIDE_CHARACTER * (rules.min_length - 1)) %}{% endif -%}
+{%- if rules.max_length is defined and rules.pattern is not defined and rules.format is not defined %}{% set _ = values.append(WIDE_CHARACTER * (rules.max_length + 1)) %}{% endif -%}
 {%- if rules.pattern is defined and ("!" | regex_search(rules.pattern)) is none %}{% set _ = values.append("!") %}{% endif -%}
 {%- if rules.format == "email" %}{% set _ = values.append("not-an-email") %}{% endif -%}
 {%- if rules.format == "uri" %}{% set _ = values.append("not a uri") %}{% endif -%}
@@ -467,22 +552,24 @@ must be a quoted string
 {%- set _ = values.append(ns.items) -%}
 {%- endif -%}
 {%- elif f.type == "date" -%}
-{%- set _ = values.append("2026-02-30") -%}
+{%- set _ = values.extend(INVALID_DATES) -%}
 {%- elif f.type == "date-time" -%}
-{%- set _ = values.extend(["2026-01-31T09:30:00"] + OUT_OF_RANGE_DATE_TIMES) -%}
+{%- set _ = values.extend(INVALID_DATE_TIMES) -%}
 {%- elif f.type == "enum" -%}
 {%- set _ = values.append(f["values"][0] | upper if (f["values"][0] | upper) not in f["values"] else "__invalid__") -%}
 {%- endif -%}
 {{ values | tojson }}
 {%- endmacro -%}
 
-{#- Valid edge values as a JSON list, for tests: rule bounds, the date-time year limits and an integer written as a float. -#}
+{#- Valid edge values as a JSON list, for tests: rule bounds (lengths also in wide characters), the date-time year limits
+    and an integer written as a float. -#}
 {%- macro boundaries_json(f) -%}
 {%- set rules = f.rules if f.rules is mapping else {} -%}
 {%- set values = [] -%}
 {%- if f.type == "string" and rules.pattern is not defined and rules.format is not defined -%}
-{%- if rules.min_length is defined %}{% set _ = values.append("s" * rules.min_length) %}{% endif -%}
-{%- if rules.max_length is defined %}{% set _ = values.append("s" * rules.max_length) %}{% endif -%}
+{%- for length in [rules.min_length, rules.max_length] if length is defined -%}
+{%- set _ = values.extend(["s" * length, WIDE_CHARACTER * length]) -%}
+{%- endfor -%}
 {%- elif f.type in ["integer", "number"] -%}
 {%- if rules.minimum is defined %}{% set _ = values.append(rules.minimum) %}{% endif -%}
 {%- if rules.maximum is defined %}{% set _ = values.append(rules.maximum) %}{% endif -%}
@@ -553,7 +640,6 @@ must be a quoted string
 {%- endfor -%}]
 {%- endmacro -%}
 
-{#- A pretty-printed JSON request body holding every given field's sample value. -#}
 {%- macro sample_body_json(fields) -%}
 {%- set ns = namespace(body={}) -%}
 {%- for f in fields %}{% set ns.body = dict(ns.body, **{f.name: f.sample}) %}{% endfor -%}

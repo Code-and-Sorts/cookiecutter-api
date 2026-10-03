@@ -322,10 +322,10 @@ resources:
     {#- Resources in one container read each other's records, so a shared field must hold the same kind of value. -#}
     {%- set store = container_id | tojson -%}
     {%- for f in fields if not ns.err -%}
-    {%- set shape = [f.type, f.get("items"), f.rules.get("format") if f.rules is mapping else none, f.get("values")] -%}
+    {%- set shape = [f.type, f.get("items"), f.rules.get("format") if f.rules is mapping else none, f.get("values", []) | sort, f.get("hidden", false)] -%}
     {%- set seen = ns.stored.get(store, {}).get(f.name) -%}
     {%- if seen and seen[0] != shape -%}
-    {%- set ns.err = "Resources '" ~ seen[1] ~ "' and '" ~ name ~ "' share container '" ~ container ~ "' but define field '" ~ f.name ~ "' differently; a shared field needs the same type, items, format and enum values." -%}
+    {%- set ns.err = "Resources '" ~ seen[1] ~ "' and '" ~ name ~ "' share container '" ~ container ~ "' but define field '" ~ f.name ~ "' differently; a shared field needs the same type, items, format, enum values and hidden flag." -%}
     {%- elif not seen -%}
     {%- set ns.stored = dict(ns.stored, **{store: dict(ns.stored.get(store, {}), **{f.name: [shape, name]})}) -%}
     {%- endif -%}
@@ -356,7 +356,6 @@ base_fields:
     {%- from 'shared/_fields.jinja' import base_fields_json -%}
     {{ base_fields_json(base_model) }}
 
-# The base_model fields a client may set: every one but the built-in fields.
 client_base_fields:
   type: yaml
   when: false
