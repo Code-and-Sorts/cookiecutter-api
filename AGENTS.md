@@ -230,9 +230,10 @@ To add a new cloud provider to an existing language template:
    same names to `COSMOS_SETTINGS` in `tests/integration/store.py`),
    `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
    a bootstrap command and the run command (see [Local Emulators](#local-emulators))
-7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
-   and add the language to `publish-examples.yml`, the `template-setup.yml` language map and the setup issue form
-8. Add the language to the integration tests: its runtime, install and emulator commands in
+7. Add the language's runtime to `.github/actions/setup-runtime`, create `.github/workflows/build-{language}-pipeline.yaml`
+   (its path filters include `copier.yml` and `shared/**`), and add the language to `publish-examples.yml`, the
+   `template-setup.yml` language map and the setup issue form
+8. Add the language to the integration tests: its install and emulator commands in
    `.github/actions/start-local-api` and the language in the `integration-tests.yaml` plan
 9. Update the root `README.md` support table
 
@@ -276,11 +277,14 @@ Its `template-language` input is passed as the `language` answer, and its `resou
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
 names of differing lengths) and no health check. `multi` only feeds the published example branches.
 Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
+`.github/actions/setup-runtime` sets up the language's runtime and package manager for the build
+pipelines and the integration tests alike.
 
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
 - Ubuntu: every cloud service, with the default single resource and with `edge`
 - Windows (path length, checkout) and macOS (BSD tools) once each, on different clouds
-- The newest GA runtime each cloud supports: Node 24 (Node 22 on Azure Functions), Python 3.14, .NET 10, Go 1.27
+- The newest GA runtime each cloud supports, set once in `setup-runtime`: Node 24 (Node 22 on Azure Functions),
+  Python 3.14, .NET 10, Go 1.27
 
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
 
@@ -334,7 +338,7 @@ into the next render.
 Renovate keeps package versions current and merges its own PRs once every check passes
 (see `renovate.json`), except integration test dependencies, which wait for a review. Runtime versions
 (Node, Python, .NET, Go) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all support
-the new version GA, in the build pipelines and `.github/actions/start-local-api` together.
+the new version GA, in `.github/actions/setup-runtime`.
 
 ## Code Conventions
 

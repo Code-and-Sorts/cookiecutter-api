@@ -1,0 +1,68 @@
+name: Setup Runtime
+description: >-
+  Set up the runtime and package manager a generated project needs. The versions here are the only
+  copy: the newest GA version every cloud supports.
+
+inputs:
+  language:
+    required: true
+    description: Template language (python, typescript, dotnet or go).
+  cloud-service:
+    required: true
+    description: Template cloud service; Azure Functions caps the Node version.
+  poetry:
+    required: false
+    default: "false"
+    description: Install Poetry for any language ("true"); Python projects always get it.
+
+outputs:
+  python-version:
+    description: The exact Python version set up for a Python project.
+    value: ${{ steps.python.outputs.python-version }}
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Set up Python
+      id: python
+      if: inputs.language == 'python'
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+
+    - name: Install Poetry
+      if: inputs.language == 'python' || inputs.poetry == 'true'
+      env:
+        POETRY_VERSION: "2.5.1"
+      run: |
+        curl -sSL https://install.python-poetry.org | python - -y
+        if [ "$RUNNER_OS" = Windows ]; then
+          echo "$HOME\\AppData\\Roaming\\Python\\Scripts" >> "$GITHUB_PATH"
+        else
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        fi
+      shell: bash
+
+    - name: Set up Node
+      if: inputs.language == 'typescript'
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.cloud-service == 'Azure Function App' && '22.x' || '24.x' }}
+
+    - name: Enable Corepack
+      if: inputs.language == 'typescript'
+      run: corepack enable
+      shell: bash
+
+    - name: Set up .NET
+      if: inputs.language == 'dotnet'
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: "10.x"
+
+    - name: Set up Go
+      if: inputs.language == 'go'
+      uses: actions/setup-go@v7
+      with:
+        go-version: "1.27"

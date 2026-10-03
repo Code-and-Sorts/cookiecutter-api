@@ -1,8 +1,8 @@
 name: Start Local API
 description: >-
   Start a generated project's database emulator and local function host in the background,
-  using the project's own emulator commands, and wait until the host answers. Python projects
-  need Poetry on PATH.
+  using the project's own emulator commands, and wait until the host answers. Run setup-runtime
+  first: this action adds only the cloud's host tool.
 
 inputs:
   language:
@@ -28,38 +28,8 @@ outputs:
 runs:
   using: "composite"
 
-  # Runtime versions match the build pipelines: the newest GA version every cloud supports.
   steps:
-    - name: Set up Python
-      if: inputs.language == 'python'
-      uses: actions/setup-python@v7
-      with:
-        python-version: "3.14"
-
-    - name: Set up Node
-      if: inputs.language == 'typescript' || inputs.cloud-service == 'Azure Function App'
-      uses: actions/setup-node@v7
-      with:
-        node-version: ${{ inputs.cloud-service == 'Azure Function App' && '22.x' || '24.x' }}
-
-    - name: Enable Corepack
-      if: inputs.language == 'typescript'
-      run: corepack enable
-      shell: bash
-
-    - name: Set up .NET
-      if: inputs.language == 'dotnet'
-      uses: actions/setup-dotnet@v6
-      with:
-        dotnet-version: "10.x"
-
-    - name: Set up Go
-      if: inputs.language == 'go'
-      uses: actions/setup-go@v7
-      with:
-        go-version: "1.27"
-
-    # TypeScript projects bring Core Tools as a dev dependency.
+    # TypeScript projects bring Core Tools as a dev dependency; the others use the runner's Node.
     - name: Install Azure Functions Core Tools
       if: inputs.cloud-service == 'Azure Function App' && inputs.language != 'typescript'
       run: npm install --global azure-functions-core-tools@4

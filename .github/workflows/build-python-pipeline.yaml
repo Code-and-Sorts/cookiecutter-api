@@ -8,6 +8,7 @@ on:
       - shared/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/setup-runtime/**
     branches:
       - main
   pull_request:
@@ -17,6 +18,7 @@ on:
       - shared/**
       - .github/workflows/build-python-pipeline.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/setup-runtime/**
 
 jobs:
   build-python:
@@ -32,8 +34,6 @@ jobs:
           - "Azure Function App"
           - "GCP Cloud Function"
           - "AWS Lambda"
-        python-version:
-          - "3.14"
         fixture:
           - single
           - edge
@@ -41,12 +41,10 @@ jobs:
           - os: windows-latest
             template-type: python
             cloud-service: "Azure Function App"
-            python-version: "3.14"
             fixture: single
           - os: macos-latest
             template-type: python
             cloud-service: "AWS Lambda"
-            python-version: "3.14"
             fixture: single
       fail-fast: false
     steps:
@@ -59,23 +57,13 @@ jobs:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
-          python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        env:
-          POETRY_VERSION: "2.5.1"
-        run: curl -sSL https://install.python-poetry.org | python - -y
-        shell: bash
-
-      - name: Add Poetry to Path (Linux and macOS)
-        if: runner.os != 'Windows'
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-        shell: bash
-
-      - name: Add Poetry to Path (Windows)
-        if: runner.os == 'Windows'
-        run: echo "$HOME\\AppData\\Roaming\\Python\\Scripts" >> $GITHUB_PATH
-        shell: bash
+      - name: Setup runtime
+        id: runtime
+        uses: ./.github/actions/setup-runtime
+        with:
+          language: ${{ matrix.template-type }}
+          cloud-service: ${{ matrix.cloud-service }}
 
       - name: Configure Poetry virtual environment in project
         run: poetry config virtualenvs.in-project true
@@ -86,7 +74,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.cloud-service }}-${{ matrix.fixture }}-${{ hashFiles('**/pyproject.toml') }}
+          key: venv-${{ runner.os }}-${{ steps.runtime.outputs.python-version }}-${{ matrix.cloud-service }}-${{ matrix.fixture }}-${{ hashFiles('**/pyproject.toml') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'

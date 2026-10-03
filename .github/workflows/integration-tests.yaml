@@ -18,6 +18,7 @@ on:
       - tests/integration/**
       - .github/workflows/integration-tests.yaml
       - .github/actions/setup-copier-template/**
+      - .github/actions/setup-runtime/**
       - .github/actions/start-local-api/**
   pull_request: # TEMPORARY: validate the Poetry switch on PR #124
   workflow_dispatch:
@@ -85,13 +86,13 @@ jobs:
           template-cloud-service: ${{ matrix.cloud.name }}
           resources-fixture: ${{ matrix.fixture }}
 
-      # The suite and Python projects both use it, so start-local-api expects it on PATH.
-      - name: Install Poetry
-        env:
-          POETRY_VERSION: "2.5.1"
-        run: |
-          curl -sSL https://install.python-poetry.org | python - -y
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # Poetry for every language: the suite uses it too.
+      - name: Setup runtime
+        uses: ./.github/actions/setup-runtime
+        with:
+          language: ${{ matrix.language }}
+          cloud-service: ${{ matrix.cloud.name }}
+          poetry: "true"
 
       - name: Install the integration suite
         run: poetry --project tests/integration install --no-interaction --without dev
