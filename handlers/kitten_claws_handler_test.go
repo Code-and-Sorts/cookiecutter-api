@@ -1,0 +1,202 @@
+package handlers
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"testing"
+
+	"github.com/aws/aws-lambda-go/events"
+
+	"kittenclaws/models"
+
+	"github.com/stretchr/testify/assert"
+)
+
+const testKittenClawsID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+
+func fakeKittenClawsJSON() string {
+	data, _ := json.Marshal(models.KittenClawsDto{BaseResponse: models.BaseResponse{Id: testKittenClawsID}})
+	return string(data)
+}
+
+type fakeKittenClawsController struct {
+	err    error
+	id     string
+	limit  int
+	body   string
+	userID string
+}
+
+func (f *fakeKittenClawsController) Get(ctx context.Context, id string) (*models.KittenClawsDto, error) {
+	f.id = id
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.KittenClawsDto{BaseResponse: models.BaseResponse{Id: id}}, nil
+}
+
+func (f *fakeKittenClawsController) GetList(ctx context.Context, limit int) ([]models.KittenClawsDto, error) {
+	f.limit = limit
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []models.KittenClawsDto{}, nil
+}
+
+func (f *fakeKittenClawsController) Create(ctx context.Context, userID string, body io.Reader) (*models.KittenClawsDto, error) {
+	data, _ := io.ReadAll(body)
+	f.body, f.userID = string(data), userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.KittenClawsDto{BaseResponse: models.BaseResponse{Id: testKittenClawsID}}, nil
+}
+
+func (f *fakeKittenClawsController) Update(ctx context.Context, id, userID string, body io.Reader) (*models.KittenClawsDto, error) {
+	data, _ := io.ReadAll(body)
+	f.id, f.body, f.userID = id, string(data), userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.KittenClawsDto{BaseResponse: models.BaseResponse{Id: id}}, nil
+}
+
+func (f *fakeKittenClawsController) Delete(ctx context.Context, id, userID string) (map[string]string, error) {
+	f.id, f.userID = id, userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return map[string]string{"message": "Fake deleted."}, nil
+}
+
+func callKittenClaws(t *testing.T, controller *fakeKittenClawsController, method string, item bool, query, body string) (int, string) {
+	t.Helper()
+	request := events.APIGatewayProxyRequest{
+		HTTPMethod: method,
+		Resource:   "/kittenclaws",
+		Headers:    map[string]string{"x-user-id": "alice"},
+		Body:       body,
+	}
+	if item {
+		request.Resource = "/kittenclaws/{id}"
+		request.PathParameters = map[string]string{"id": testKittenClawsID}
+	}
+	if query != "" {
+		request.QueryStringParameters = map[string]string{"limit": query[len("?limit="):]}
+	}
+	router := NewRouter()
+	RegisterKittenClawsRoutes(router, controller)
+
+	response, err := router.ServeRequest(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "application/json", response.Headers["Content-Type"])
+	return response.StatusCode, response.Body
+}
+
+func TestGetKittenClawsList_ReturnsJSONArray(t *testing.T) {
+	controller := &fakeKittenClawsController{}
+
+	status, body := callKittenClaws(t, controller, http.MethodGet, false, "?limit=5", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `[]`, body)
+	assert.Equal(t, 5, controller.limit)
+}
+
+func TestGetKittenClawsList_IgnoresInvalidLimit(t *testing.T) {
+	controller := &fakeKittenClawsController{}
+
+	status, _ := callKittenClaws(t, controller, http.MethodGet, false, "?limit=abc", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, 0, controller.limit)
+}
+
+func TestGetKittenClaws_ReturnsItem(t *testing.T) {
+	controller := &fakeKittenClawsController{}
+
+	status, body := callKittenClaws(t, controller, http.MethodGet, true, "", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, fakeKittenClawsJSON(), body)
+	assert.Equal(t, testKittenClawsID, controller.id)
+}
+
+func TestCreateKittenClaws_Returns201WithItem(t *testing.T) {
+	controller := &fakeKittenClawsController{}
+
+	status, body := callKittenClaws(t, controller, http.MethodPost, false, "", `{"any": "body"}`)
+
+	assert.Equal(t, http.StatusCreated, status)
+	assert.JSONEq(t, fakeKittenClawsJSON(), body)
+	assert.Equal(t, `{"any": "body"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
+}
+
+func TestUpdateKittenClaws_ReturnsItem(t *testing.T) {
+	controller := &fakeKittenClawsController{}
+
+	status, body := callKittenClaws(t, controller, http.MethodPatch, true, "", `{"any": "body"}`)
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, fakeKittenClawsJSON(), body)
+	assert.Equal(t, testKittenClawsID, controller.id)
+	assert.Equal(t, `{"any": "body"}`, controller.body)
+	assert.Equal(t, "alice", controller.userID)
+}
+
+func TestDeleteKittenClaws_ReturnsMessage(t *testing.T) {
+	controller := &fakeKittenClawsController{}
+
+	status, body := callKittenClaws(t, controller, http.MethodDelete, true, "", "")
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `{"message": "Fake deleted."}`, body)
+	assert.Equal(t, testKittenClawsID, controller.id)
+	assert.Equal(t, "alice", controller.userID)
+}
+
+func TestKittenClawsRoutes_ReturnControllerErrorsAsJSON(t *testing.T) {
+	requests := []struct {
+		method string
+		item   bool
+	}{
+		{http.MethodGet, false},
+		{http.MethodPost, false},
+		{http.MethodGet, true},
+		{http.MethodPatch, true},
+		{http.MethodDelete, true},
+	}
+
+	for _, request := range requests {
+		controller := &fakeKittenClawsController{err: models.NewNotFoundError("KittenClaws", testKittenClawsID)}
+
+		status, body := callKittenClaws(t, controller, request.method, request.item, "", `{"any": "body"}`)
+
+		assert.Equal(t, http.StatusNotFound, status, request.method)
+		assert.JSONEq(t, `{"errorMessage": "KittenClaws with id `+testKittenClawsID+` was not found."}`, body)
+	}
+}
+
+func TestKittenClawsRoutes_DisabledMethod_Returns405(t *testing.T) {
+	requests := []struct {
+		method string
+		item   bool
+	}{
+		{http.MethodPut, true},
+		{http.MethodPut, false},
+		{http.MethodPatch, false},
+		{http.MethodDelete, false},
+		{http.MethodPost, true},
+	}
+
+	for _, request := range requests {
+		status, body := callKittenClaws(t, &fakeKittenClawsController{}, request.method, request.item, "", "")
+
+		assert.Equal(t, http.StatusMethodNotAllowed, status, request.method)
+		assert.JSONEq(t, `{"errorMessage": "Method not allowed."}`, body)
+	}
+}
