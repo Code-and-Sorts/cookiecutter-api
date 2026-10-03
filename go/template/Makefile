@@ -32,7 +32,7 @@ run: ## Run the function app
 {%- elif cloud_service == 'AWS Lambda' %}
 	@echo "Building and running Lambda API locally via SAM against DynamoDB Local"
 	@sam build
-	@set -a && . ./.env.emulator && set +a && sam local start-api --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator
+	@set -a && . ./.env.emulator && set +a && sam local start-api --warm-containers LAZY --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator
 {%- endif %}
 
 .PHONY: build

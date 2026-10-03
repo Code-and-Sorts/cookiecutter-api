@@ -1,0 +1,66 @@
+name: Start Local API
+description: >-
+  Start a generated project's database emulator and local function host in the background,
+  using the project's own emulator commands, and wait until the host answers. Run setup-runtime
+  first: this action adds only the cloud's host tool.
+
+inputs:
+  language:
+    required: true
+    description: Template language (python, typescript, dotnet or go).
+  cloud-service:
+    required: true
+    description: Template cloud service, as answered to Copier.
+  project-dir:
+    required: false
+    default: "KittenClaws"
+    description: Directory of the generated project.
+  ready-timeout:
+    required: false
+    default: "300"
+    description: Seconds to wait for the host to accept requests.
+
+outputs:
+  base-url:
+    description: Base URL of the API, including the route prefix.
+    value: ${{ steps.start.outputs.base-url }}
+
+runs:
+  using: "composite"
+
+  steps:
+    # TypeScript projects bring Core Tools as a dev dependency; the others use the runner's Node.
+    - name: Install Azure Functions Core Tools
+      if: inputs.cloud-service == 'Azure Function App' && inputs.language != 'typescript'
+      run: npm install --global azure-functions-core-tools@4
+      shell: bash
+
+    - name: Set up SAM CLI
+      if: inputs.cloud-service == 'AWS Lambda'
+      uses: aws-actions/setup-sam@v3
+      with:
+        use-installer: true
+
+    - name: Install dependencies
+      working-directory: ${{ inputs.project-dir }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+      run: ${{ github.action_path }}/start-local-api.sh install
+      shell: bash
+
+    - name: Start the emulator
+      working-directory: ${{ inputs.project-dir }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+      run: ${{ github.action_path }}/start-local-api.sh emulator
+      shell: bash
+
+    - name: Start the host
+      id: start
+      working-directory: ${{ inputs.project-dir }}
+      env:
+        LANGUAGE: ${{ inputs.language }}
+        CLOUD: ${{ inputs.cloud-service }}
+        READY_TIMEOUT: ${{ inputs.ready-timeout }}
+      run: ${{ github.action_path }}/start-local-api.sh host
+      shell: bash

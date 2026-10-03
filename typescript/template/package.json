@@ -45,7 +45,7 @@
     "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true functions-framework --target=api",
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    "start:emulator": "yarn build && sam build && AWS_ACCESS_KEY_ID=emulator AWS_SECRET_ACCESS_KEY=emulator sam local start-api --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator",
+    "start:emulator": "yarn build && sam build && AWS_ACCESS_KEY_ID=emulator AWS_SECRET_ACCESS_KEY=emulator sam local start-api --warm-containers LAZY --env-vars env.emulator.json --docker-network {{ project_endpoint }}-emulator",
 {%- endif %}
     "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --verbose --coverage",
     "lint": "eslint .",

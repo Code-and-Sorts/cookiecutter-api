@@ -30,7 +30,7 @@ run: ## Run the API locally
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 	@echo "🚀 Running Lambda API locally via SAM against DynamoDB Local"
-	@set -a && . ./.env.emulator && set +a && cd {{project_class_name}}.Api && sam build && sam local start-api --env-vars ../env.emulator.json --docker-network {{ project_endpoint }}-emulator
+	@set -a && . ./.env.emulator && set +a && cd {{project_class_name}}.Api && sam build && sam local start-api --warm-containers LAZY --env-vars ../env.emulator.json --docker-network {{ project_endpoint }}-emulator
 {%- endif %}
 
 .PHONY: build

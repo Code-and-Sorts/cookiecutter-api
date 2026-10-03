@@ -1,6 +1,6 @@
 {%- set prefix = {'Azure Function App': 'COSMOS_CONTAINER_', 'GCP Cloud Function': 'FIRESTORE_COLLECTION_', 'AWS Lambda': 'DYNAMODB_TABLE_NAME_'}[cloud_service] -%}
 {%- if cloud_service == 'Azure Function App' %}
-import { CosmosClient } from '@azure/cosmos';
+import { CosmosClient, PartitionKeyKind } from '@azure/cosmos';
 import { cosmosClientOptions } from '@config/container';
 {%- elif cloud_service == 'AWS Lambda' %}
 import { CreateTableCommand, DynamoDBClient, waitUntilTableExists } from '@aws-sdk/client-dynamodb';
@@ -31,7 +31,11 @@ const bootstrap = async (): Promise<void> => {
   try {
     const { database } = await client.databases.createIfNotExists({ id: env.COSMOS_DB_DATABASE_NAME });
     for (const name of storeNames()) {
-      await database.containers.createIfNotExists({ id: name, partitionKey: { paths: ['/id'] } });
+      // The emulator stores the definition as sent, and SDKs in other languages require its kind.
+      await database.containers.createIfNotExists({
+        id: name,
+        partitionKey: { paths: ['/id'], kind: PartitionKeyKind.Hash },
+      });
       console.log(`Container ${env.COSMOS_DB_DATABASE_NAME}/${name} is ready.`);
     }
   } finally {
