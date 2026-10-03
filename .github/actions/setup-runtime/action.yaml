@@ -10,39 +10,27 @@ inputs:
   cloud-service:
     required: true
     description: Template cloud service; Azure Functions caps the Node version.
-  poetry:
+  uv:
     required: false
     default: "false"
-    description: Install Poetry for any language ("true"); Python projects always get it.
-
-outputs:
-  python-version:
-    description: The exact Python version set up for a Python project.
-    value: ${{ steps.python.outputs.python-version }}
+    description: Install uv for any language ("true"); Python projects always get it.
 
 runs:
   using: "composite"
 
   steps:
     - name: Set up Python
-      id: python
       if: inputs.language == 'python'
       uses: actions/setup-python@v7
       with:
         python-version: "3.14"
 
-    - name: Install Poetry
-      if: inputs.language == 'python' || inputs.poetry == 'true'
-      env:
-        POETRY_VERSION: "2.5.1"
-      run: |
-        curl -sSL https://install.python-poetry.org | python - -y
-        if [ "$RUNNER_OS" = Windows ]; then
-          echo "$HOME\\AppData\\Roaming\\Python\\Scripts" >> "$GITHUB_PATH"
-        else
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-        fi
-      shell: bash
+    - name: Set up uv
+      if: inputs.language == 'python' || inputs.uv == 'true'
+      uses: astral-sh/setup-uv@v10.2.0
+      with:
+        version: "0.12.22"
+        enable-cache: true
 
     - name: Set up Node
       if: inputs.language == 'typescript'

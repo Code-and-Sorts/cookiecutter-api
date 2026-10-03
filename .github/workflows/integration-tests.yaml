@@ -85,16 +85,16 @@ jobs:
           template-cloud-service: ${{ matrix.cloud.name }}
           resources-fixture: ${{ matrix.fixture }}
 
-      # Poetry for every language: the suite uses it too.
+      # uv for every language: the suite uses it too.
       - name: Setup runtime
         uses: ./.github/actions/setup-runtime
         with:
           language: ${{ matrix.language }}
           cloud-service: ${{ matrix.cloud.name }}
-          poetry: "true"
+          uv: "true"
 
       - name: Install the integration suite
-        run: poetry --project tests/integration install --no-interaction --without dev
+        run: uv sync --project tests/integration --no-dev --locked
 
       - name: Start the local API
         id: host
@@ -107,7 +107,7 @@ jobs:
         env:
           BASE_URL: ${{ steps.host.outputs.base-url }}
         run: >-
-          poetry --project tests/integration run
+          uv run --project tests/integration --no-dev
           pytest tests/integration --project-dir KittenClaws --base-url "$BASE_URL" --junitxml=junit.xml
 
       - name: Summarize results
