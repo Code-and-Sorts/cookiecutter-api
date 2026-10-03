@@ -1,0 +1,9 @@
+# expect: rule 'min_length' does not apply to integer fields
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: age, type: integer, rules: {min_length: 1}}

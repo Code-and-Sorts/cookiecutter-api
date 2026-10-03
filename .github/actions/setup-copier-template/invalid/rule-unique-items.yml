@@ -1,0 +1,9 @@
+# expect: rule unique_items must be true or false
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: tags, type: array, items: string, rules: {unique_items: 1}}

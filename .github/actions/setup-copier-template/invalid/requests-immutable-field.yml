@@ -1,0 +1,9 @@
+# expect: which is immutable (accepted on create only)
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, immutable: true}
+    requests: {update: [name]}

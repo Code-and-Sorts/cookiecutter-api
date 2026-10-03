@@ -1,0 +1,9 @@
+# expect: default must be a quoted string
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: born, type: date, default: 2026-01-01}

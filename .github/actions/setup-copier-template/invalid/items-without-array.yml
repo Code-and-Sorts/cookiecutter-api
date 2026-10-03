@@ -1,0 +1,9 @@
+# expect: items only applies to array fields
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: tag, type: string, items: string}

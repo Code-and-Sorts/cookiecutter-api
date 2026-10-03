@@ -1,0 +1,9 @@
+# expect: description must be a string
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: fur, type: string, description: [grey]}

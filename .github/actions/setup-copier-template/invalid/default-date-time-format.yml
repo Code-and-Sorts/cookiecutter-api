@@ -1,0 +1,9 @@
+# expect: must be a UTC date-time with milliseconds
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: seen, type: date-time, default: "2026-01-01T00:00:00Z"}

@@ -1,0 +1,7 @@
+# expect: requests.replace is set but the resource does not enable replace
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    requests: {replace: [name]}

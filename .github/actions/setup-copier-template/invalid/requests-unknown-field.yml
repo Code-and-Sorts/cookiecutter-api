@@ -1,0 +1,7 @@
+# expect: names 'colour', which is not one of its fields
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    requests: {update: [colour]}

@@ -1,0 +1,7 @@
+# expect: fields must be a list of fields
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields: {name: name, type: string}

@@ -1,0 +1,9 @@
+# expect: must be a real calendar date
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: born, type: date, default: "2026-02-30"}

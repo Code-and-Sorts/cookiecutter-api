@@ -1,0 +1,9 @@
+# expect: rule min_length must not exceed max_length
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: fur, type: string, rules: {min_length: 5, max_length: 2}}

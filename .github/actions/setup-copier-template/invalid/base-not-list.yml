@@ -1,0 +1,2 @@
+# expect: base_model must be a list of fields
+base_model: {name: tenantId, type: string}

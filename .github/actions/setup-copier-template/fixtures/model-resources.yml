@@ -1,0 +1,49 @@
+# Every field type, rule and kind of default, a custom base_model field, a requests subset and a resource
+# that relies on the default fields; CI builds it next to single and edge.
+base_model:
+  - {name: id, type: uuid, required: true, managed: create, default: $uuid}
+  - {name: isDeleted, type: boolean, required: true, managed: create, default: false, hidden: true}
+  - {name: createdTimestamp, type: date-time, required: true, managed: create, default: $now, hidden: true}
+  - {name: updatedTimestamp, type: date-time, required: true, managed: write, default: $now, hidden: true}
+  - {name: createdBy, type: string, managed: create, default: $user, hidden: true}
+  - {name: updatedBy, type: string, managed: write, default: $user, hidden: true}
+  - {name: tenantId, type: string, required: true, default: "public", rules: {min_length: 1, max_length: 64}, description: Owning tenant}
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "replace", "delete"]
+    fields:
+      - {name: name, type: string, required: true, rules: {min_length: 1, max_length: 100}}
+      - {name: breed, type: enum, values: [siamese, persian, tabby], default: tabby}
+      - {name: ageYears, type: integer, required: true, default: 0, rules: {minimum: 0, maximum: 40}}
+      - {name: weightKg, type: number, nullable: true, default: null, rules: {exclusive_minimum: 0, exclusive_maximum: 100}}
+      - {name: indoor, type: boolean, default: true}
+      - {name: birthDate, type: date, default: $today}
+      - {name: microchipId, type: uuid, immutable: true, default: $uuid}
+      - {name: ownerEmail, type: string, default: "unknown@example.com", rules: {format: email}}
+      - {name: website, type: string, nullable: true, rules: {format: uri}}
+      - {name: tagCode, type: string, example: "ABC-123", rules: {pattern: "^[A-Z]{3}-[0-9]{3}$"}}
+      - {name: tags, type: array, items: string, default: [], rules: {max_items: 3, unique_items: true}}
+      - {name: scores, type: array, items: integer, nullable: true, rules: {min_items: 1}}
+      - {name: adoptedAt, type: date-time, nullable: true, default: $now}
+      - {name: lastVisit, type: date-time, default: "2026-01-01T00:00:00.000Z"}
+      - {name: notes, type: string, hidden: true, default: "$$none"}
+    requests:
+      update: [name, ageYears, weightKg, indoor, tags, ownerEmail, adoptedAt, website, notes]
+  - name: "Dog"
+    endpoint: "dogs"
+    container: "dogs"
+    operations: ["list", "get_by_id", "create", "replace", "delete"]
+  - name: "Visit"
+    endpoint: "visits"
+    container: "visits"
+    operations: ["get_by_id", "create", "update"]
+    fields:
+      - {name: reason, type: string, required: true, immutable: true}
+      - {name: visitedOn, type: date, required: true}
+      - {name: cost, type: number, rules: {minimum: 0}}
+      - {name: paid, type: boolean, required: true, default: false}
+      - {name: checkedAt, type: array, items: date-time}
+    requests:
+      create: [reason, visitedOn, cost]
