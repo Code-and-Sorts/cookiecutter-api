@@ -1,0 +1,235 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Kitties got claws...beware
+Metadata:
+  cfn-lint:
+    config:
+      # SAM's generated usage plan resources carry a redundant DependsOn.
+      ignore_checks:
+        - W3005
+Parameters:
+  DynamoDbEndpoint:
+    Type: String
+    Default: ""
+    Description: DynamoDB endpoint override for a local emulator; leave empty to use DynamoDB.
+Conditions:
+  HasDynamoDbEndpoint: !Not [!Equals [!Ref DynamoDbEndpoint, ""]]
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: dotnet10
+    MemorySize: 256
+    Environment:
+      Variables:
+        # sam local only sets variables the template declares; deployed stacks omit it.
+        AWS_ENDPOINT_URL_DYNAMODB: !If [HasDynamoDbEndpoint, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
+  Api:
+    Auth:
+      ApiKeyRequired: true
+      UsagePlan:
+        CreateUsagePlan: PER_API
+Resources:
+  GetCatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.CatFunctions_GetCat_Generated::GetCat
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /cats/{id}
+            Method: GET
+  GetCatListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.CatFunctions_GetCatList_Generated::GetCatList
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        GetList:
+          Type: Api
+          Properties:
+            Path: /cats
+            Method: GET
+  CreateCatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.CatFunctions_CreateCat_Generated::CreateCat
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /cats
+            Method: POST
+  UpdateCatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.CatFunctions_UpdateCat_Generated::UpdateCat
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        Update:
+          Type: Api
+          Properties:
+            Path: /cats/{id}
+            Method: PATCH
+  DeleteCatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.CatFunctions_DeleteCat_Generated::DeleteCat
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        Delete:
+          Type: Api
+          Properties:
+            Path: /cats/{id}
+            Method: DELETE
+  GetDogFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.DogFunctions_GetDog_Generated::GetDog
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        GetById:
+          Type: Api
+          Properties:
+            Path: /dogs/{id}
+            Method: GET
+  GetDogListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.DogFunctions_GetDogList_Generated::GetDogList
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        GetList:
+          Type: Api
+          Properties:
+            Path: /dogs
+            Method: GET
+  CreateDogFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.DogFunctions_CreateDog_Generated::CreateDog
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        Create:
+          Type: Api
+          Properties:
+            Path: /dogs
+            Method: POST
+  ReplaceDogFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.DogFunctions_ReplaceDog_Generated::ReplaceDog
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        Replace:
+          Type: Api
+          Properties:
+            Path: /dogs/{id}
+            Method: PUT
+  DeleteDogFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.DogFunctions_DeleteDog_Generated::DeleteDog
+      CodeUri: ./
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME_ANIMALS: !Ref AnimalsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnimalsTable
+      Events:
+        Delete:
+          Type: Api
+          Properties:
+            Path: /dogs/{id}
+            Method: DELETE
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: KittenClaws.Api::KittenClaws.Api.Functions.HealthFunctions_Health_Generated::Health
+      CodeUri: ./
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+            Auth:
+              ApiKeyRequired: false
+  AnimalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: animals
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  ApiKeyId:
+    Description: API key id; read its value with aws apigateway get-api-key --api-key <id> --include-value --query value --output text
+    Value: !Ref ServerlessRestApiApiKey
+  AnimalsTableName:
+    Description: DynamoDB table name for the animals container
+    Value: !Ref AnimalsTable

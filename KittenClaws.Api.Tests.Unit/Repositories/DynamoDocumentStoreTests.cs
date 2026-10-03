@@ -1,0 +1,179 @@
+namespace KittenClaws.Api.Tests.Unit;
+
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using KittenClaws.Api.Repositories;
+using KittenClaws.Api.Utils;
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using NSubstitute;
+using Xunit;
+
+public class DynamoDocumentStoreTests
+{
+    private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+    private const string StoredTimestamp = "2026-01-01T00:00:00.000Z";
+    private readonly IAmazonDynamoDB _mockDynamoClient = Substitute.For<IAmazonDynamoDB>();
+    private readonly DynamoDocumentStore<TestRecord> _store;
+
+    public DynamoDocumentStoreTests()
+    {
+        _store = new DynamoDocumentStore<TestRecord>(_mockDynamoClient, "mockTableName");
+    }
+
+    private static Dictionary<string, AttributeValue> StoredItem(string id = ItemId, string text = "mock", bool isDeleted = false) => new()
+    {
+        { "id", new AttributeValue { S = id } },
+        { "text", new AttributeValue { S = text } },
+        { "isDeleted", new AttributeValue { BOOL = isDeleted } },
+        { "createdTimestamp", new AttributeValue { S = StoredTimestamp } },
+        { "updatedTimestamp", new AttributeValue { S = StoredTimestamp } },
+        { "createdBy", new AttributeValue { S = "User2" } },
+    };
+
+    [Fact]
+    public async Task GetAsync_MapsBaseFieldsAndEntityFields()
+    {
+        _mockDynamoClient.GetItemAsync(Arg.Is<GetItemRequest>(req => req.TableName == "mockTableName" && req.Key["id"].S == ItemId), Arg.Any<CancellationToken>())
+            .Returns(new GetItemResponse { Item = StoredItem(isDeleted: true) });
+
+        var item = await _store.GetAsync(ItemId, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(item);
+        Assert.Equal(ItemId, item.Id);
+        Assert.Equal("mock", item.Text);
+        Assert.True(item.IsDeleted);
+        Assert.Equal(StoredTimestamp, item.CreatedTimestamp);
+        Assert.Equal("User2", item.CreatedBy);
+        Assert.Null(item.UpdatedBy);
+        Assert.Null(item.Count);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsNull_WhenTheItemIsMissing()
+    {
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse());
+
+        Assert.Null(await _store.GetAsync(ItemId, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task GetLiveListAsync_ScansLiveItemsWithTheLimit()
+    {
+        _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanResponse { Items = [StoredItem(ItemId, "first")] });
+
+        var items = await _store.GetLiveListAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal("first", Assert.Single(items).Text);
+        await _mockDynamoClient.Received(1).ScanAsync(
+            Arg.Is<ScanRequest>(req => req.Limit == 1 && req.FilterExpression == "isDeleted = :isDeleted" && req.ExpressionAttributeValues[":isDeleted"].BOOL == false),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetLiveListAsync_KeepsScanning_UntilTheLimitIsReached()
+    {
+        var lastKey = new Dictionary<string, AttributeValue> { { "id", new AttributeValue { S = ItemId } } };
+        _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new ScanResponse { Items = [StoredItem(ItemId, "first")], LastEvaluatedKey = lastKey },
+                new ScanResponse { Items = [StoredItem("5615ff05-3032-4459-88ad-b6a4c3e51ca0", "second")] });
+
+        var items = await _store.GetLiveListAsync(5, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new[] { "first", "second" }, items.Select(item => item.Text).ToArray());
+        await _mockDynamoClient.Received(2).ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetLiveListAsync_ReturnsEmpty_WhenTheScanReturnsNoItems()
+    {
+        _mockDynamoClient.ScanAsync(Arg.Any<ScanRequest>(), Arg.Any<CancellationToken>()).Returns(new ScanResponse());
+
+        Assert.Empty(await _store.GetLiveListAsync(100, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CreateAsync_PutsTheItemWithoutUnsetFields()
+    {
+        var item = new TestRecord { Id = ItemId, Text = "mock", CreatedTimestamp = StoredTimestamp, UpdatedTimestamp = StoredTimestamp };
+
+        await _store.CreateAsync(item, TestContext.Current.CancellationToken);
+
+        await _mockDynamoClient.Received(1).PutItemAsync(
+            Arg.Is<PutItemRequest>(req => req.TableName == "mockTableName" && req.Item.Count == 5 && req.Item["text"].S == "mock"
+                && req.Item["isDeleted"].BOOL == false && !req.Item.ContainsKey("createdBy") && !req.Item.ContainsKey("updatedBy")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SetsItsOwnFieldsAndRemovesUnsetOnes()
+    {
+        UpdateItemRequest? request = null;
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse { Item = StoredItem() });
+        _mockDynamoClient.UpdateItemAsync(Arg.Do<UpdateItemRequest>(sent => request = sent), Arg.Any<CancellationToken>()).Returns(new UpdateItemResponse());
+
+        await _store.UpdateAsync(ItemId, item => (item.Text, item.UpdatedBy) = ("mock", null), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(request);
+        var names = request.ExpressionAttributeNames.ToDictionary(name => name.Value, name => name.Key);
+        Assert.Equal("mockTableName", request.TableName);
+        Assert.Equal(ItemId, request.Key["id"].S);
+        Assert.Equal("attribute_exists(id)", request.ConditionExpression);
+        Assert.DoesNotContain("id", names.Keys);
+        Assert.Contains($"{names["text"]} = :{names["text"][1..]}", request.UpdateExpression);
+        Assert.Equal("mock", request.ExpressionAttributeValues[$":{names["text"][1..]}"].S);
+        Assert.Equal("User2", request.ExpressionAttributeValues[$":{names["createdBy"][1..]}"].S);
+        Assert.Matches($"REMOVE .*{names["updatedBy"]}\\b", request.UpdateExpression);
+        Assert.Matches($"REMOVE .*{names["count"]}\\b", request.UpdateExpression);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReturnsNull_WhenTheItemIsMissing()
+    {
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse());
+
+        Assert.Null(await _store.UpdateAsync(ItemId, _ => { }, TestContext.Current.CancellationToken));
+        await _mockDynamoClient.DidNotReceiveWithAnyArgs().UpdateItemAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public void ToItem_StoresEachTypeAsItsDynamoDbType()
+    {
+        var item = DynamoDocumentStore<TestRecord>.ToItem(TestRecord.Sample());
+
+        Assert.Equal("stored", item["text"].S);
+        Assert.Equal(Fields.MaxSafeInteger.ToString(CultureInfo.InvariantCulture), item["count"].N);
+        Assert.Equal("1.5", item["ratio"].N);
+        Assert.False(item["flag"].BOOL);
+        Assert.Equal(new[] { "a", "b" }, item["tags"].L.Select(value => value.S));
+        Assert.Equal(new[] { "0", "-2" }, item["counts"].L.Select(value => value.N));
+        Assert.Equal(new[] { "0.25", "3" }, item["ratios"].L.Select(value => value.N));
+        Assert.Equal(new bool?[] { true, false }, item["flags"].L.Select(value => value.BOOL));
+        Assert.Empty(item["empty"].L);
+        Assert.True(item["empty"].IsLSet);
+    }
+
+    [Fact]
+    public void FromItem_ReadsBackEveryTypeWithoutLoss()
+    {
+        var record = TestRecord.Sample();
+
+        var read = DynamoDocumentStore<TestRecord>.FromItem(DynamoDocumentStore<TestRecord>.ToItem(record));
+
+        Assert.Equal(Json.Serialize(record), Json.Serialize(read));
+    }
+
+    [Fact]
+    public void FromItem_ReadsANullAttributeAsNoValue()
+    {
+        var item = StoredItem();
+        item["count"] = new AttributeValue { NULL = true };
+
+        Assert.Null(DynamoDocumentStore<TestRecord>.FromItem(item).Count);
+    }
+}

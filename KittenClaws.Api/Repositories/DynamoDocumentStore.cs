@@ -1,0 +1,138 @@
+namespace KittenClaws.Api.Repositories;
+
+using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using KittenClaws.Api.Entities;
+using KittenClaws.Api.Interfaces;
+using KittenClaws.Api.Utils;
+
+public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : IDocumentStore<T> where T : BaseEntity
+{
+    public async Task<T?> GetAsync(string id, CancellationToken ct = default)
+    {
+        var response = await client.GetItemAsync(new GetItemRequest
+        {
+            TableName = tableName,
+            Key = new Dictionary<string, AttributeValue> { { "id", new AttributeValue { S = id } } },
+        }, ct);
+
+        return response.Item is { Count: > 0 } ? FromItem(response.Item) : null;
+    }
+
+    public async Task<IReadOnlyList<T>> GetLiveListAsync(int limit, CancellationToken ct = default)
+    {
+        var results = new List<T>();
+        Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
+
+        // A scan's Limit counts items before the isDeleted filter, so page until enough are found.
+        do
+        {
+            var response = await client.ScanAsync(new ScanRequest
+            {
+                TableName = tableName,
+                FilterExpression = "isDeleted = :isDeleted",
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue> { { ":isDeleted", new AttributeValue { BOOL = false } } },
+                ExclusiveStartKey = lastEvaluatedKey,
+                Limit = limit,
+            }, ct);
+
+            results.AddRange((response.Items ?? []).Select(FromItem));
+            lastEvaluatedKey = response.LastEvaluatedKey is { Count: > 0 } ? response.LastEvaluatedKey : null;
+        } while (lastEvaluatedKey != null && results.Count < limit);
+
+        return results;
+    }
+
+    public Task CreateAsync(T item, CancellationToken ct = default) =>
+        client.PutItemAsync(new PutItemRequest { TableName = tableName, Item = ToItem(item) }, ct);
+
+    // Resources sharing the table may store fields this type does not know, so the write updates only its own.
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
+    {
+        var item = await GetAsync(id, ct);
+        if (item != null)
+        {
+            change(item);
+            await client.UpdateItemAsync(ToUpdate(item), ct);
+        }
+        return item;
+    }
+
+    private UpdateItemRequest ToUpdate(T entity)
+    {
+        var fields = Json.StoredFields(entity).Where(field => field.Name != "id").Select((field, index) => (field.Name, field.Value, Key: $"f{index}")).ToList();
+        var set = fields.Where(field => field.Value != null).ToList();
+        var remove = fields.Where(field => field.Value == null).Select(field => $"#{field.Key}").ToList();
+        return new UpdateItemRequest
+        {
+            TableName = tableName,
+            Key = new Dictionary<string, AttributeValue> { { "id", new AttributeValue { S = entity.Id } } },
+            UpdateExpression = $"SET {string.Join(", ", set.Select(field => $"#{field.Key} = :{field.Key}"))}" + (remove.Count > 0 ? $" REMOVE {string.Join(", ", remove)}" : ""),
+            ConditionExpression = "attribute_exists(id)",
+            ExpressionAttributeNames = fields.ToDictionary(field => $"#{field.Key}", field => field.Name),
+            ExpressionAttributeValues = set.ToDictionary(field => $":{field.Key}", field => ToAttribute(field.Value!.Value)),
+        };
+    }
+
+    // The entity's JSON is the stored shape, as on Cosmos DB: every field type maps and unset fields are left out.
+    public static Dictionary<string, AttributeValue> ToItem(T entity) =>
+        JsonSerializer.SerializeToElement(entity, Json.Options).EnumerateObject().ToDictionary(property => property.Name, property => ToAttribute(property.Value));
+
+    public static T FromItem(Dictionary<string, AttributeValue> item)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            foreach (var (name, value) in item)
+            {
+                writer.WritePropertyName(name);
+                WriteAttribute(writer, value);
+            }
+            writer.WriteEndObject();
+        }
+        return JsonSerializer.Deserialize<T>(buffer.WrittenSpan, Json.Options)!;
+    }
+
+    private static AttributeValue ToAttribute(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => new AttributeValue { S = value.GetString() },
+        JsonValueKind.Number => new AttributeValue { N = value.GetRawText() },
+        JsonValueKind.True or JsonValueKind.False => new AttributeValue { BOOL = value.GetBoolean() },
+        JsonValueKind.Array => new AttributeValue { L = value.EnumerateArray().Select(ToAttribute).ToList() },
+        _ => new AttributeValue { NULL = true },
+    };
+
+    private static void WriteAttribute(Utf8JsonWriter writer, AttributeValue value)
+    {
+        if (value.S != null)
+        {
+            writer.WriteStringValue(value.S);
+        }
+        else if (value.N != null)
+        {
+            writer.WriteRawValue(value.N);
+        }
+        else if (value.BOOL != null)
+        {
+            writer.WriteBooleanValue(value.BOOL.Value);
+        }
+        else if (value.L != null)
+        {
+            writer.WriteStartArray();
+            value.L.ForEach(item => WriteAttribute(writer, item));
+            writer.WriteEndArray();
+        }
+        else
+        {
+            writer.WriteNullValue();
+        }
+    }
+}
