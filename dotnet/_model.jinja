@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as C# properties, FluentValidation rules and test values. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, portable_pattern, sample_body_json, string_literal -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, PORTABLE, rewrite_pattern, sample_body_json, string_literal -%}
 {%- set CS_TYPES = {"string": "string", "integer": "long", "number": "double", "boolean": "bool", "date": "string", "date-time": "string", "uuid": "string", "enum": "string"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "Fields.Now()", "today": "Fields.Today()", "uuid": "Fields.NewUuid()"} -%}
 {#- Checks of a value's shape, as (Fields method, description); arrays apply them to every item. -#}
@@ -41,13 +41,12 @@
 
 {#- A C# verbatim string for a pattern; .NET's $ also matches before a final newline, so it becomes \z. -#}
 {%- macro regex(pattern) -%}
-{%- set ns = namespace(text="", escaped=false, in_class=false) -%}
-{%- for c in pattern -%}
-{%- set ns.text = ns.text ~ ("\\z" if c == "$" and not ns.escaped and not ns.in_class else c) -%}
-{%- if not ns.escaped and c == "[" %}{% set ns.in_class = true %}{% elif not ns.escaped and c == "]" %}{% set ns.in_class = false %}{% endif -%}
-{%- set ns.escaped = c == "\\" and not ns.escaped -%}
-{%- endfor -%}
-@"{{ ns.text | replace('"', '""') }}"
+@"{{ rewrite_pattern(pattern, {"$": "\\z"}) | replace('"', '""') }}"
+{%- endmacro -%}
+
+{#- A C# verbatim string for a field's pattern, rendered as every language renders it. -#}
+{%- macro field_regex(pattern) -%}
+{{ regex(rewrite_pattern(pattern, PORTABLE)) }}
 {%- endmacro -%}
 
 {#- The value a create or replace gives a field the body leaves out; dynamic defaults are read per request. -#}
@@ -140,7 +139,7 @@ namespace {{ project_class_name ~ ".Api." ~ namespace }};
 {%- endmacro -%}
 
 {%- macro matches(pattern) -%}
-Must(value => value == null || Fields.Matches(value, {{ regex(pattern) }}))
+Must(value => value == null || Fields.Matches(value, {{ pattern }}))
 {%- endmacro -%}
 
 {%- macro bound(f, value) -%}
@@ -173,10 +172,10 @@ Must(value => value == null || Fields.Matches(value, {{ regex(pattern) }}))
 {{ rule(p, method ~ "(" ~ bound(f, f.rules[key]) ~ ")", f.name ~ " must be " ~ text ~ " " ~ f.rules[key] ~ ".") }}
 {%- endfor -%}
 {%- if "pattern" in f.rules -%}
-{{ rule(p, matches(portable_pattern(f.rules.pattern)), f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
+{{ rule(p, matches(field_regex(f.rules.pattern)), f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
 {%- endif -%}
 {%- if "format" in f.rules -%}
-{{ rule(p, matches(PATTERNS[f.rules.format]), f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
+{{ rule(p, matches(regex(PATTERNS[f.rules.format])), f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
 {%- endif -%}
 {%- if f.rules.unique_items -%}
 {%- set items = "values.Select(value => Fields.UtcDateTime(value))" if f.item_type == "date-time" else "values" -%}

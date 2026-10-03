@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as Go structs and JSON Schemas. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, REQUEST_KINDS, portable_pattern, sample_body_json, string_literal -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, REQUEST_KINDS, PORTABLE, rewrite_pattern, sample_body_json, string_literal -%}
 {%- set GO_TYPES = {"string": "string", "integer": "int64", "number": "float64", "boolean": "bool", "date": "string", "date-time": "DateTime", "uuid": "string", "enum": "string"} -%}
 {%- set SCHEMA_TYPES = {"integer": "integer", "number": "number", "boolean": "boolean", "array": "array"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "new(DateTime(Now()))", "today": "new(Today())", "uuid": "new(uuid.NewString())"} -%}
@@ -144,7 +144,7 @@ func (r {{ name }}) ToEntity() {{ target }} {
 {%- set schema = {"type": [type, "null"] if f.nullable else type} -%}
 {%- if f.type == "string" -%}
 {%- for rule, key in [("min_length", "minLength"), ("max_length", "maxLength")] if rules[rule] is defined %}{% set _ = schema.update({key: rules[rule]}) %}{% endfor -%}
-{%- if rules.pattern is defined %}{% set _ = schema.update({"pattern": portable_pattern(rules.pattern)}) %}{% endif -%}
+{%- if rules.pattern is defined %}{% set _ = schema.update({"pattern": rewrite_pattern(rules.pattern, PORTABLE)}) %}{% endif -%}
 {%- if rules.format is defined %}{% set _ = schema.update({"allOf": [{"pattern": PATTERNS[rules.format]}]}) %}{% endif -%}
 {%- elif f.type in ["integer", "number"] -%}
 {%- if f.type == "integer" %}{% set _ = schema.update({"minimum": -MAX_SAFE_INTEGER, "maximum": MAX_SAFE_INTEGER}) %}{% endif -%}

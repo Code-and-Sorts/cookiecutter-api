@@ -121,8 +121,8 @@ written once, as `LOCKED_FIELDS` in `shared/_fields.jinja`, which also renders t
   `resources` validators, which stop at the first error and name the resource or `base_model` and the
   field), the value `PATTERNS`, `MAX_SAFE_INTEGER`, `REQUEST_KINDS`, the test values `DATE_TIME_CASES`,
   `INVALID_DATE_TIMES`, `INVALID_DATES` and `WIDE_CHARACTER`, `DEFAULT_FIELDS`, `string_literal` (every string a
-  template writes into code, so emoji are never escaped as surrogate pairs), `portable_pattern` (every pattern a
-  template writes) and the derived field data. Add a rule, type or derived value
+  template writes into code, so emoji are never escaped as surrogate pairs), `rewrite_pattern` with `PORTABLE` (every pattern a
+  template writes) and `matches` (every template-side check, anchored at the true end) and the derived field data. Add a rule, type or derived value
   there, never per language. The integration suite renders the same macros (`tests/integration/project.py`)
   instead of re-deriving values.
 - Templates never read the raw answers for fields: `base_fields`, `client_base_fields` and
@@ -172,7 +172,7 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   (U+FFFF, which no pattern may name). Resources sharing a container keep each other's fields on every write, and
   a Cosmos DB write after a read sends the ETag it read (If-Match), so a racing write is a 500, never lost.
   `pattern_error` allows only syntax RE2, ECMAScript with the `u` flag, .NET, Python and Rust (pydantic) read the
-  same way, and `portable_pattern` renders `.` as `[^\n]`, since JavaScript's `.` also refuses `\r`, U+2028 and
+  same way, and `rewrite_pattern(pattern, PORTABLE)` renders `.` as `[^\n]`, since JavaScript's `.` also refuses `\r`, U+2028 and
   U+2029; widen the allowed syntax only after checking all five engines.
 - **Storage:** `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
   `Z`) and every field that has a value (a field without one is not stored, never `null`), plus

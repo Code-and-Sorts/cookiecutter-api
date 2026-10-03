@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as Pydantic model fields. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import portable_pattern, string_literal -%}
+{%- from 'shared/_fields.jinja' import PORTABLE, rewrite_pattern, string_literal -%}
 {%- set DYNAMIC_FACTORIES = {"now": "generate_utc_timestamp", "today": "utc_today", "uuid": "new_uuid"} -%}
 {%- set ITEM_TYPES = {"string": "StrictStr", "integer": "SafeInt", "number": "Number", "boolean": "StrictBool", "date": "DateStr", "date-time": "DateTimeStr", "uuid": "UuidStr"} -%}
 {%- set READ_TYPES = {"string": "str", "integer": "int", "number": "int | float", "boolean": "bool", "date": "str", "date-time": "str", "uuid": "str", "enum": "str"} -%}
@@ -21,7 +21,7 @@
 {%- if f.type == "string" -%}
 {%- if rules.min_length is defined %}{% set _ = constraints.append("min_length=" ~ rules.min_length) %}{% endif -%}
 {%- if rules.max_length is defined %}{% set _ = constraints.append("max_length=" ~ rules.max_length) %}{% endif -%}
-{%- if rules.pattern is defined %}{% set _ = constraints.append("pattern=" ~ string_literal(portable_pattern(rules.pattern))) %}{% endif -%}
+{%- if rules.pattern is defined %}{% set _ = constraints.append("pattern=" ~ string_literal(rewrite_pattern(rules.pattern, PORTABLE))) %}{% endif -%}
 {%- if rules.format == "email" %}{% set _ = checks.append("AfterValidator(check_email)") %}{% endif -%}
 {%- if rules.format == "uri" %}{% set _ = checks.append("AfterValidator(check_uri)") %}{% endif -%}
 {%- set base = "StrictStr" -%}

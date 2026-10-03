@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as Zod schemas. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import portable_pattern, string_literal -%}
+{%- from 'shared/_fields.jinja' import PORTABLE, rewrite_pattern, string_literal -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "nowIso", "today": "todayIso", "uuid": "newId"} -%}
 {%- set ITEM_SCHEMAS = {"string": "z.string()", "integer": "z.int()", "number": "z.number()", "boolean": "z.boolean()", "date": "dateSchema", "date-time": "dateTimeSchema", "uuid": "uuidSchema"} -%}
 
@@ -17,7 +17,7 @@
 z.string()
 {%- if rules.min_length is defined %}.min({{ rules.min_length }}){% endif -%}
 {%- if rules.max_length is defined %}.max({{ rules.max_length }}){% endif -%}
-{%- if rules.pattern is defined %}.regex(new RegExp({{ string_literal(portable_pattern(rules.pattern)) }}, 'u')){% endif -%}
+{%- if rules.pattern is defined %}.regex(new RegExp({{ string_literal(rewrite_pattern(rules.pattern, PORTABLE)) }}, 'u')){% endif -%}
 {%- if rules.format == "email" %}.regex(EMAIL_PATTERN, 'must be an email address'){% endif -%}
 {%- if rules.format == "uri" %}.regex(URI_PATTERN, 'must be an absolute URI'){% endif -%}
 {%- elif f.type in ["integer", "number"] -%}

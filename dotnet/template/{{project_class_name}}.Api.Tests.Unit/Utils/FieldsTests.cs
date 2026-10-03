@@ -1,4 +1,5 @@
-{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, DATE_TIME_EXAMPLE, INVALID_DATE_TIMES, INVALID_DATES, WIDE_CHARACTER -%}
+{%- from 'dotnet/_model.jinja' import field_regex -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, INVALID_DATES, INVALID_DATE_TIMES, WIDE_CHARACTER -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -44,13 +45,13 @@ public class FieldsTests
     }
 
     [Theory]
-    [InlineData("{{ WIDE_CHARACTER }}", "^.$", true)]
-    [InlineData("a{{ WIDE_CHARACTER }}", "^[^b]{2}$", true)]
-    [InlineData("{{ WIDE_CHARACTER }}", "^..$", false)]
-    [InlineData("a\n", "^a$", false)]
+    [InlineData("{{ WIDE_CHARACTER }}", {{ field_regex("^.$") }}, true)]
+    [InlineData("a{{ WIDE_CHARACTER }}", {{ field_regex("^[^b]{2}$") }}, true)]
+    [InlineData("{{ WIDE_CHARACTER }}", {{ field_regex("^..$") }}, false)]
+    [InlineData("a\n", {{ field_regex("^a$") }}, false)]
     public void Matches_ReadsEachCodePointAsOneCharacter(string value, string pattern, bool expected)
     {
-        Assert.Equal(expected, Fields.Matches(value, pattern.Replace("$", "\\z")));
+        Assert.Equal(expected, Fields.Matches(value, pattern));
     }
 
     [Theory]
@@ -108,7 +109,7 @@ public class FieldsTests
     [Fact]
     public void UtcDateTimes_ConvertsEveryItem()
     {
-        Assert.Equal(new[] { "{{ DATE_TIME_EXAMPLE.stored }}" }, Fields.UtcDateTimes(["{{ DATE_TIME_EXAMPLE.sent }}"]));
+        Assert.Equal(new[] { "{{ DATE_TIME_CASES[0].stored }}" }, Fields.UtcDateTimes(["{{ DATE_TIME_CASES[0].sent }}"]));
         Assert.Null(Fields.UtcDateTimes(null));
     }
 }

@@ -1,5 +1,5 @@
 {%- from 'go/_model.jinja' import json_string, sample_body -%}
-{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES -%}
 {%- set r = resource.name -%}
 {%- set lc = resource.lower_camel_name -%}
 {%- set ops = resource.operations -%}
@@ -276,11 +276,11 @@ func Test{{ Op }}{{ r }}_Stores{{ f.pascal }}InUTC(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
 
-	_, err := {{ call(op, "withProperty(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"" ~ DATE_TIME_EXAMPLE.sent ~ "\"`)") }}
+	_, err := {{ call(op, "withProperty(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"" ~ DATE_TIME_CASES[0].sent ~ "\"`)") }}
 
 	assert.NoError(t, err)
 	properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
-	assert.JSONEq(t, `"{{ DATE_TIME_EXAMPLE.stored }}"`, string(properties["{{ f.name }}"]))
+	assert.JSONEq(t, `"{{ DATE_TIME_CASES[0].stored }}"`, string(properties["{{ f.name }}"]))
 }
 {%- endfor %}
 

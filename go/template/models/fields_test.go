@@ -1,5 +1,5 @@
 {%- set client = client_base_fields + (path_resources | map(attribute="fields") | sum(start=[])) -%}
-{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, DATE_TIME_EXAMPLE, INVALID_DATE_TIMES -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, INVALID_DATE_TIMES -%}
 {%- set read_defaults = client | rejectattr("hidden") | selectattr("has_read_default") | list -%}
 package models
 
@@ -32,9 +32,9 @@ func TestDateTime_RejectsInvalidValues(t *testing.T) {
 
 func TestUniqueDateTimes_ComparesInstantsInUTC(t *testing.T) {
 	var values UniqueDateTimes
-	assert.Error(t, json.Unmarshal([]byte(`["{{ DATE_TIME_EXAMPLE.sent }}", "{{ DATE_TIME_EXAMPLE.stored }}"]`), &values))
-	assert.NoError(t, json.Unmarshal([]byte(`["{{ DATE_TIME_EXAMPLE.sent }}", "2026-01-31T09:30:00Z"]`), &values))
-	assert.Equal(t, UniqueDateTimes{"{{ DATE_TIME_EXAMPLE.stored }}", "2026-01-31T09:30:00.000Z"}, values)
+	assert.Error(t, json.Unmarshal([]byte(`["{{ DATE_TIME_CASES[0].sent }}", "{{ DATE_TIME_CASES[0].stored }}"]`), &values))
+	assert.NoError(t, json.Unmarshal([]byte(`["{{ DATE_TIME_CASES[0].sent }}", "2026-01-31T09:30:00Z"]`), &values))
+	assert.Equal(t, UniqueDateTimes{"{{ DATE_TIME_CASES[0].stored }}", "2026-01-31T09:30:00.000Z"}, values)
 	assert.Error(t, json.Unmarshal([]byte(`[42]`), &values))
 }
 

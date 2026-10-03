@@ -31,8 +31,9 @@ public static partial class Fields
     public static int Length(string value) => value.EnumerateRunes().Count();
 
     // Matches as other languages do, one character per code point: each character beyond the BMP becomes one.
+    // NonBacktracking runs in linear time, so a pattern cannot hang a request.
     public static bool Matches(string value, string pattern) =>
-        Regex.IsMatch(string.Concat(value.EnumerateRunes().Select(rune => rune.IsBmp ? rune.ToString() : WideCharacter.ToString())), pattern);
+        Regex.IsMatch(string.Concat(value.EnumerateRunes().Select(rune => rune.IsBmp ? rune.ToString() : WideCharacter.ToString())), pattern, RegexOptions.NonBacktracking);
 
     public static bool IsDate(string? value) =>
         value == null || (DatePattern().IsMatch(value) && DateOnly.TryParseExact(value, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out _));

@@ -1,4 +1,4 @@
-{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, DATE_TIME_EXAMPLE, INVALID_DATE_TIMES, INVALID_DATES -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, INVALID_DATES, INVALID_DATE_TIMES -%}
 import { describe, it, expect } from '@jest/globals';
 import { z } from 'zod';
 import { dateSchema, dateTimeSchema, hasUniqueItems } from '@models';
@@ -18,7 +18,7 @@ describe('dateTimeSchema', () => {
 
     it('should compare unique items as instants in UTC', () => {
         const schema = z.array(dateTimeSchema).refine(hasUniqueItems);
-        expect(schema.safeParse(['{{ DATE_TIME_EXAMPLE.sent }}', '{{ DATE_TIME_EXAMPLE.stored }}']).success).toBe(false);
+        expect(schema.safeParse(['{{ DATE_TIME_CASES[0].sent }}', '{{ DATE_TIME_CASES[0].stored }}']).success).toBe(false);
     });
 });
 

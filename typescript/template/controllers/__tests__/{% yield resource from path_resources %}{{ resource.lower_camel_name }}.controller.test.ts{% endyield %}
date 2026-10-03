@@ -1,4 +1,4 @@
-{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES -%}
 {%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
@@ -111,9 +111,9 @@ describe('{{ r }}Controller', () => {
 {%- for f in accepted if f.type == "date-time" %}
 
         it('should hold {{ f.name }} in UTC with milliseconds', async () => {
-            await {{ call(op, method, "{ ...valid, " ~ f.name ~ ": " ~ (DATE_TIME_EXAMPLE.sent | tojson) ~ " }") }};
+            await {{ call(op, method, "{ ...valid, " ~ f.name ~ ": " ~ (DATE_TIME_CASES[0].sent | tojson) ~ " }") }};
             const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
-            expect(sent.{{ f.name }}).toEqual({{ DATE_TIME_EXAMPLE.stored | tojson }});
+            expect(sent.{{ f.name }}).toEqual({{ DATE_TIME_CASES[0].stored | tojson }});
         });
 {%- endfor %}
 

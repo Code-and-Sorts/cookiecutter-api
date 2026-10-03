@@ -117,7 +117,8 @@ health_endpoint:
   default: "health"
   help: URL segment for the health check (kebab-case); leave empty to generate no health check.
   validator: >-
-    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- from 'shared/_fields.jinja' import matches -%}
+    {%- if health_endpoint and not (matches(health_endpoint, '^[a-z0-9][a-z0-9\-]*$') | trim) -%}
     Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
     {%- endif -%}
 
@@ -185,7 +186,7 @@ resources:
         - {name: name, type: string, required: true, rules: {min_length: 1}}
   # Only reserve a name after watching the generated project fail to build with it.
   validator: >-
-    {%- from 'shared/_fields.jinja' import DEFAULT_FIELDS, check_field -%}
+    {%- from 'shared/_fields.jinja' import DEFAULT_FIELDS, check_field, matches -%}
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
     {%- set resource_keys = ["name", "endpoint", "container", "operations", "fields", "requests", "base"] -%}
     {%- set base_names = base_model | map(attribute="name") | map("lower") | list -%}
@@ -236,17 +237,17 @@ resources:
     {%- set ns.name_clash = p -%}
     {%- endif -%}
     {%- endfor -%}
-    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- if not r.name or not (matches(r.name | string, '^[A-Z][A-Za-z0-9]*$') | trim) -%}
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a name the generated " ~ cloud_service ~ " project already uses. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif language == "python" and (r.name | to_snake) in python_keywords -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
-    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- elif not r.endpoint or not (matches(r.endpoint | string, '^[a-z0-9][a-z0-9\-]*$') | trim) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
     {%- elif health_endpoint and r.endpoint == health_endpoint -%}
     {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
-    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
+    {%- elif not r.container or not (matches(r.container | string, '^[A-Za-z0-9_\-]+$') | trim) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
     {%- elif (r.operations | default([]) | length) < 1 -%}
     {%- set ns.err = "Resource '" ~ r.name ~ "' must enable at least one operation." -%}
