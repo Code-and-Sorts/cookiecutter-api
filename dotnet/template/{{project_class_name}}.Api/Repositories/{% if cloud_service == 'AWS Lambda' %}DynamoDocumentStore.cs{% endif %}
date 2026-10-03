@@ -1,15 +1,18 @@
 namespace {{project_class_name}}.Api.Repositories;
 
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
 
-public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : IDocumentStore<T> where T : BaseEntity, new()
+public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : IDocumentStore<T> where T : BaseEntity
 {
     public async Task<T?> GetAsync(string id, CancellationToken ct = default)
     {
@@ -51,39 +54,58 @@ public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : 
     public Task SaveAsync(T item, CancellationToken ct = default) =>
         client.PutItemAsync(new PutItemRequest { TableName = tableName, Item = ToItem(item) }, ct);
 
-    private static Dictionary<string, AttributeValue> ToItem(T entity)
+    // The entity's JSON is the stored shape, as on Cosmos DB: every field type maps and unset fields are left out.
+    public static Dictionary<string, AttributeValue> ToItem(T entity) =>
+        JsonSerializer.SerializeToElement(entity, Json.Options).EnumerateObject().ToDictionary(property => property.Name, property => ToAttribute(property.Value));
+
+    public static T FromItem(Dictionary<string, AttributeValue> item)
     {
-        var item = new Dictionary<string, AttributeValue>
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
         {
-            { "id", new AttributeValue { S = entity.Id } },
-            { "isDeleted", new AttributeValue { BOOL = entity.IsDeleted } },
-            { "createdTimestamp", new AttributeValue { S = entity.CreatedTimestamp } },
-            { "updatedTimestamp", new AttributeValue { S = entity.UpdatedTimestamp } },
-        };
-        if (entity.CreatedBy != null)
-        {
-            item["createdBy"] = new AttributeValue { S = entity.CreatedBy };
+            writer.WriteStartObject();
+            foreach (var (name, value) in item)
+            {
+                writer.WritePropertyName(name);
+                WriteAttribute(writer, value);
+            }
+            writer.WriteEndObject();
         }
-        if (entity.UpdatedBy != null)
-        {
-            item["updatedBy"] = new AttributeValue { S = entity.UpdatedBy };
-        }
-        entity.WriteAttributes(item);
-        return item;
+        return JsonSerializer.Deserialize<T>(buffer.WrittenSpan, Json.Options)!;
     }
 
-    private static T FromItem(Dictionary<string, AttributeValue> item)
+    private static AttributeValue ToAttribute(JsonElement value) => value.ValueKind switch
     {
-        var entity = new T
+        JsonValueKind.String => new AttributeValue { S = value.GetString() },
+        JsonValueKind.Number => new AttributeValue { N = value.GetRawText() },
+        JsonValueKind.True or JsonValueKind.False => new AttributeValue { BOOL = value.GetBoolean() },
+        JsonValueKind.Array => new AttributeValue { L = value.EnumerateArray().Select(ToAttribute).ToList() },
+        _ => new AttributeValue { NULL = true },
+    };
+
+    private static void WriteAttribute(Utf8JsonWriter writer, AttributeValue value)
+    {
+        if (value.S != null)
         {
-            Id = item.TryGetValue("id", out var id) ? id.S : string.Empty,
-            IsDeleted = item.TryGetValue("isDeleted", out var isDeleted) && isDeleted.BOOL == true,
-            CreatedTimestamp = item.TryGetValue("createdTimestamp", out var createdTimestamp) ? createdTimestamp.S : string.Empty,
-            UpdatedTimestamp = item.TryGetValue("updatedTimestamp", out var updatedTimestamp) ? updatedTimestamp.S : string.Empty,
-            CreatedBy = item.TryGetValue("createdBy", out var createdBy) ? createdBy.S : null,
-            UpdatedBy = item.TryGetValue("updatedBy", out var updatedBy) ? updatedBy.S : null,
-        };
-        entity.ReadAttributes(item);
-        return entity;
+            writer.WriteStringValue(value.S);
+        }
+        else if (value.N != null)
+        {
+            writer.WriteRawValue(value.N);
+        }
+        else if (value.BOOL != null)
+        {
+            writer.WriteBooleanValue(value.BOOL.Value);
+        }
+        else if (value.L != null)
+        {
+            writer.WriteStartArray();
+            value.L.ForEach(item => WriteAttribute(writer, item));
+            writer.WriteEndArray();
+        }
+        else
+        {
+            writer.WriteNullValue();
+        }
     }
 }

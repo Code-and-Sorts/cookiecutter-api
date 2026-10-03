@@ -1,0 +1,32 @@
+{%- from 'dotnet/_model.jinja' import body_json, literal -%}
+{%- set r = resource.name -%}
+{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+namespace {{project_class_name}}.Api.Tests.Unit;
+
+using {{project_class_name}}.Api.Dtos;
+using {{project_class_name}}.Api.Entities;
+
+public static class {{ r }}Samples
+{
+    public const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
+
+    public const string StoredTimestamp = "2026-01-01T00:00:00.000Z";
+{%- for op, Op in [("create", "Create"), ("update", "Update"), ("replace", "Replace")] if op in resource.operations %}
+
+    public const string {{ Op }}Body = {{ body_json(client | selectattr("in_" ~ op)) }};
+{%- endfor %}
+
+    public static {{ r }}Entity Entity() => new()
+    {
+        Id = ItemId,
+        CreatedTimestamp = StoredTimestamp,
+        UpdatedTimestamp = StoredTimestamp,
+        CreatedBy = "User2",
+        UpdatedBy = "User3",
+{%- for f in client %}
+        {{ f.pascal }} = {{ literal(f, f.sample) }},
+{%- endfor %}
+    };
+
+    public static {{ r }}Dto Dto() => new(Entity());
+}

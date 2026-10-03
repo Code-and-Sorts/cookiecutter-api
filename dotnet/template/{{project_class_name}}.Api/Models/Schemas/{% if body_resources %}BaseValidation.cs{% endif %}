@@ -1,0 +1,8 @@
+{%- from 'dotnet/_model.jinja' import csharp_file, validators with context -%}
+{%- set user_fields = base_fields | rejectattr("system") | list -%}
+{%- set ops = path_resources | map(attribute="operations") | sum(start=[]) | unique | list -%}
+{%- set classes = [] -%}
+{%- for op, Op in [("create", "Create"), ("replace", "Replace"), ("update", "Update")] if op in ops -%}
+{%- set _ = classes.append(("Base" ~ Op ~ "RequestValidator", "Base" ~ Op ~ "Request", user_fields | selectattr("in_" ~ op) | list, op, "")) -%}
+{%- endfor -%}
+{{ csharp_file("Validation", validators(classes), ["FluentValidation", "Requests"]) }}

@@ -1,7 +1,10 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 namespace {{project_class_name}}.Api.Repositories;
-{% if "list" in ops %}
+{% if "update" in ops or "replace" in ops %}
+using System;
+{%- endif %}
+{%- if "list" in ops %}
 using System.Collections.Generic;
 {%- endif %}
 using System.Threading;
@@ -13,7 +16,7 @@ using {{project_class_name}}.Api.Interfaces;
 public class {{ r }}Repository(IDocumentStore<{{ r }}Entity> store)
     : EntityRepository<{{ r }}Entity, {{ r }}Dto>(store, "{{ r }}"), I{{ r }}Repository
 {
-    protected override {{ r }}Dto ToDto({{ r }}Entity item) => new() { Id = item.Id, Name = item.Name };
+    protected override {{ r }}Dto ToDto({{ r }}Entity item) => new(item);
 {%- if "get_by_id" in ops %}
 
     public Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => GetDtoAsync(id, ct);
@@ -28,13 +31,13 @@ public class {{ r }}Repository(IDocumentStore<{{ r }}Entity> store)
 {%- endif %}
 {%- if "update" in ops %}
 
-    public Task<{{ r }}Dto> UpdateAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) =>
-        MergeAsync(item, (current, changes) => current.Name = changes.Name ?? current.Name, userId, ct);
+    public Task<{{ r }}Dto> UpdateAsync(string id, Action<{{ r }}Entity> apply, string? userId, CancellationToken ct = default) =>
+        MergeAsync(id, apply, userId, ct);
 {%- endif %}
 {%- if "replace" in ops %}
 
-    public Task<{{ r }}Dto> ReplaceAsync({{ r }}Entity item, string? userId, CancellationToken ct = default) =>
-        MergeAsync(item, (current, changes) => current.Name = changes.Name, userId, ct);
+    public Task<{{ r }}Dto> ReplaceAsync(string id, Action<{{ r }}Entity> apply, string? userId, CancellationToken ct = default) =>
+        MergeAsync(id, apply, userId, ct);
 {%- endif %}
 {%- if "delete" in ops %}
 

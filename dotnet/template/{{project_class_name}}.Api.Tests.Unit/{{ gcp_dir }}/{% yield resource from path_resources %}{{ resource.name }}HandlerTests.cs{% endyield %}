@@ -33,9 +33,8 @@ using {{project_class_name}}.Api.Interfaces;
 {% if resource.has_body -%}
 using {{project_class_name}}.Api.Requests;
 {% endif -%}
-{% if "delete" in ops -%}
 using {{project_class_name}}.Api.Utils;
-{% endif %}
+
 public class {{ r }}HandlerTests
 {
     private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
@@ -60,13 +59,13 @@ public class {{ r }}HandlerTests
     {
         var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
         await _handler.HandleAsync(httpContext, ItemId);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
         Assert.Equal("application/json", httpContext.Response.ContentType);
-        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal(Json.Serialize({{ r }}Samples.Dto()), Mocks.ReadResponseBody(httpContext));
     }
 {%- endif %}
 {%- if "list" in ops %}
@@ -78,14 +77,14 @@ public class {{ r }}HandlerTests
         _mock{{ r }}Controller.GetListAsync("2", Arg.Any<CancellationToken>())
             .Returns(new List<{{ r }}Dto>
             {
-                new() { Id = ItemId, Name = "mock{{ r }}1" },
-                new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
+                {{ r }}Samples.Dto(),
+                {{ r }}Samples.Dto(),
             });
 
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Equal($"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }},{{ '{{' }}\"id\":\"5615ff05-3032-4459-88ad-b6a4c3e51ca0\",\"name\":\"mock{{ r }}2\"{{ '}}' }}]", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal($"[{Json.Serialize({{ r }}Samples.Dto())},{Json.Serialize({{ r }}Samples.Dto())}]", Mocks.ReadResponseBody(httpContext));
     }
 
     [Fact]
@@ -105,21 +104,21 @@ public class {{ r }}HandlerTests
     [Fact]
     public async Task HandleAsync_Create{{ r }}_ReturnsCreated()
     {
-        var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST", "/{{ resource.endpoint }}");
+        var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request(), "POST", "/{{ resource.endpoint }}");
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(201, httpContext.Response.StatusCode);
-        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal(Json.Serialize({{ r }}Samples.Dto()), Mocks.ReadResponseBody(httpContext));
     }
 {%- if has_item %}
 
     [Fact]
     public async Task HandleAsync_PostWithId_ReturnsMethodNotAllowed()
     {
-        var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST", "/{{ resource.endpoint }}/" + ItemId);
+        var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request(), "POST", "/{{ resource.endpoint }}/" + ItemId);
 
         await _handler.HandleAsync(httpContext, ItemId);
 
@@ -134,9 +133,9 @@ public class {{ r }}HandlerTests
     [Fact]
     public async Task HandleAsync_Update{{ r }}_ReturnsOk()
     {
-        var httpContext = Mocks.CreateHttpContext(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", "/{{ resource.endpoint }}/" + ItemId);
+        var httpContext = Mocks.CreateHttpContext(new Update{{ r }}Request(), "PATCH", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
         await _handler.HandleAsync(httpContext, ItemId);
 
@@ -149,9 +148,9 @@ public class {{ r }}HandlerTests
     [Fact]
     public async Task HandleAsync_Replace{{ r }}_ReturnsOk()
     {
-        var httpContext = Mocks.CreateHttpContext(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", "/{{ resource.endpoint }}/" + ItemId);
+        var httpContext = Mocks.CreateHttpContext(new Replace{{ r }}Request(), "PUT", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
         await _handler.HandleAsync(httpContext, ItemId);
 
@@ -201,13 +200,13 @@ public class {{ r }}HandlerTests
         var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 {%- elif first_op[0] == 'create' %}
-        var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST", "/{{ resource.endpoint }}");
+        var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request(), "POST", "/{{ resource.endpoint }}");
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 {%- elif first_op[0] == 'update' %}
-        var httpContext = Mocks.CreateHttpContext(new Update{{ r }}Request { Name = "mock{{ r }}" }, "PATCH", "/{{ resource.endpoint }}/" + ItemId);
+        var httpContext = Mocks.CreateHttpContext(new Update{{ r }}Request(), "PATCH", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 {%- elif first_op[0] == 'replace' %}
-        var httpContext = Mocks.CreateHttpContext(new Replace{{ r }}Request { Name = "mock{{ r }}" }, "PUT", "/{{ resource.endpoint }}/" + ItemId);
+        var httpContext = Mocks.CreateHttpContext(new Replace{{ r }}Request(), "PUT", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 {%- else %}
         var httpContext = Mocks.CreateHttpContext("DELETE", "/{{ resource.endpoint }}/" + ItemId);

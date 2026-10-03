@@ -35,10 +35,10 @@ public abstract class EntityRepository<TEntity, TDto>(IDocumentStore<TEntity> st
         return ToDto(item);
     }
 
-    protected async Task<TDto> MergeAsync(TEntity changes, Action<TEntity, TEntity> applyFields, string? userId, CancellationToken ct)
+    protected async Task<TDto> MergeAsync(string id, Action<TEntity> apply, string? userId, CancellationToken ct)
     {
-        var current = await GetLiveAsync(changes.Id, ct);
-        applyFields(current, changes);
+        var current = await GetLiveAsync(id, ct);
+        apply(current);
         // Stores write the whole record, so a null user id drops a stale updatedBy.
         current.UpdatedBy = userId;
         current.UpdatedTimestamp = Timestamps.Now();

@@ -9,9 +9,6 @@ using System.Threading.Tasks;
 {% if resource.has_dto -%}
 using {{project_class_name}}.Api.Dtos;
 {% endif -%}
-{% if resource.has_body -%}
-using {{project_class_name}}.Api.Entities;
-{% endif -%}
 using {{project_class_name}}.Api.Interfaces;
 {% if resource.has_body -%}
 using {{project_class_name}}.Api.Requests;
@@ -35,32 +32,17 @@ public class {{ r }}Service : I{{ r }}Service
 {%- if "create" in resource.operations %}
 
     public async Task<{{ r }}Dto> CreateAsync(Create{{ r }}Request item, string? userId, CancellationToken ct = default) =>
-        await _repository.CreateAsync(new {{ r }}Entity { Name = item.Name }, userId, ct);
+        await _repository.CreateAsync(item.ToEntity(), userId, ct);
 {%- endif %}
 {%- if "update" in resource.operations %}
 
-    public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, string? userId, CancellationToken ct = default)
-    {
-        var updated{{ r }} = new {{ r }}Entity
-        {
-            Id = item.Id,
-            // A null name (not sent in the PATCH body) keeps the stored name.
-            Name = item.Name!,
-        };
-        return await _repository.UpdateAsync(updated{{ r }}, userId, ct);
-    }
+    public async Task<{{ r }}Dto> UpdateAsync(Update{{ r }}Request item, string? userId, CancellationToken ct = default) =>
+        await _repository.UpdateAsync(item.Id, item.ApplyTo, userId, ct);
 {%- endif %}
 {%- if "replace" in resource.operations %}
 
-    public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, string? userId, CancellationToken ct = default)
-    {
-        var replaced{{ r }} = new {{ r }}Entity
-        {
-            Id = item.Id,
-            Name = item.Name,
-        };
-        return await _repository.ReplaceAsync(replaced{{ r }}, userId, ct);
-    }
+    public async Task<{{ r }}Dto> ReplaceAsync(Replace{{ r }}Request item, string? userId, CancellationToken ct = default) =>
+        await _repository.ReplaceAsync(item.Id, item.ApplyTo, userId, ct);
 {%- endif %}
 {%- if "delete" in resource.operations %}
 

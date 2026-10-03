@@ -54,13 +54,13 @@ public class {{ r }}FunctionsTests
     public async Task Get{{ r }}_ReturnsOk_When{{ r }}IsFound()
     {
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
         var response = await _functions.Get{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest("GET", IdPath())));
 
         Assert.Equal(200, response.StatusCode);
         Assert.Equal("application/json", response.Headers["Content-Type"]);
-        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", response.Body);
+        Assert.Equal(Json.Serialize({{ r }}Samples.Dto()), response.Body);
     }
 
     [Fact]
@@ -93,8 +93,8 @@ public class {{ r }}FunctionsTests
         _mock{{ r }}Controller.GetListAsync("1", Arg.Any<CancellationToken>())
             .Returns(new List<{{ r }}Dto>
             {
-                new() { Id = ItemId, Name = "mock{{ r }}1" },
-                new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
+                {{ r }}Samples.Dto(),
+                {{ r }}Samples.Dto(),
             });
 
         var response = await _functions.Get{{ r }}List(OnRoute(Mocks.CreateApiGatewayRequest("GET", queryStringParameters: new() { { "limit", "1" } })));
@@ -102,7 +102,7 @@ public class {{ r }}FunctionsTests
 
         Assert.Equal(200, response.StatusCode);
         Assert.Equal(2, responseDtos!.Count);
-        Assert.StartsWith($"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }}", response.Body);
+        Assert.StartsWith("[" + Json.Serialize({{ r }}Samples.Dto()), response.Body);
     }
 
     [Fact]
@@ -132,14 +132,12 @@ public class {{ r }}FunctionsTests
     public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
     {
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
-        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
-        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
+        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request(), "POST")));
 
         Assert.Equal(201, response.StatusCode);
-        Assert.Equal(ItemId, responseDto!.Id);
-        Assert.Equal("mock{{ r }}", responseDto.Name);
+        Assert.Equal(Json.Serialize({{ r }}Samples.Dto()), response.Body);
     }
 
     [Fact]
@@ -159,7 +157,7 @@ public class {{ r }}FunctionsTests
     {
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST")));
+        var response = await _functions.Create{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Create{{ r }}Request(), "POST")));
 
         AssertUnexpectedError(response);
     }
@@ -170,13 +168,12 @@ public class {{ r }}FunctionsTests
     public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
     {
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
-        var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
-        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
+        var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request(), "PATCH", IdPath())));
 
         Assert.Equal(200, response.StatusCode);
-        Assert.Equal("mockUpdated{{ r }}", responseDto!.Name);
+        Assert.Equal(Json.Serialize({{ r }}Samples.Dto()), response.Body);
     }
 
     [Fact]
@@ -184,7 +181,7 @@ public class {{ r }}FunctionsTests
     {
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", IdPath())));
+        var response = await _functions.Update{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Update{{ r }}Request(), "PATCH", IdPath())));
 
         AssertUnexpectedError(response);
     }
@@ -195,13 +192,12 @@ public class {{ r }}FunctionsTests
     public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
     {
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+            .Returns({{ r }}Samples.Dto());
 
-        var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
-        var responseDto = JsonSerializer.Deserialize<{{ r }}Dto>(response.Body, Json.Options);
+        var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request(), "PUT", IdPath())));
 
         Assert.Equal(200, response.StatusCode);
-        Assert.Equal("mockReplaced{{ r }}", responseDto!.Name);
+        Assert.Equal(Json.Serialize({{ r }}Samples.Dto()), response.Body);
     }
 
     [Fact]
@@ -209,7 +205,7 @@ public class {{ r }}FunctionsTests
     {
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Throws(new Exception("Mock exception"));
 
-        var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", IdPath())));
+        var response = await _functions.Replace{{ r }}(OnRoute(Mocks.CreateApiGatewayRequest(new Replace{{ r }}Request(), "PUT", IdPath())));
 
         AssertUnexpectedError(response);
     }
