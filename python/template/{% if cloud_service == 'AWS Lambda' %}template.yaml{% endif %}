@@ -35,7 +35,7 @@ Globals:
 Resources:
   {{ project_class_name }}Function:
     Type: AWS::Serverless::Function
-    # SAM can't build from Poetry; the Makefile's build target packages poetry.lock.
+    # SAM can't build from uv; the Makefile's build target packages uv.lock.
     Metadata:
       BuildMethod: makefile
     Properties:

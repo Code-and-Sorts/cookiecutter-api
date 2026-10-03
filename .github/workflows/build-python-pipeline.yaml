@@ -59,40 +59,27 @@ jobs:
           resources-fixture: ${{ matrix.fixture }}
 
       - name: Setup runtime
-        id: runtime
         uses: ./.github/actions/setup-runtime
         with:
           language: ${{ matrix.template-type }}
           cloud-service: ${{ matrix.cloud-service }}
 
-      - name: Configure Poetry virtual environment in project
-        run: poetry config virtualenvs.in-project true
-        shell: bash
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v6
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.runtime.outputs.python-version }}-${{ matrix.cloud-service }}-${{ matrix.fixture }}-${{ hashFiles('**/pyproject.toml') }}
-
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
           cd "KittenClaws"
-          poetry install --no-interaction
+          uv sync
         shell: bash
 
       - name: Run lint
         run: |
           cd "KittenClaws"
-          poetry run ruff check .
+          uv run ruff check .
         shell: bash
 
       - name: Run unit tests
         run: |
             cd "KittenClaws"
-            poetry run pytest --cov
+            uv run pytest --cov
         shell: bash
 
       - name: Run Makefile targets
@@ -107,5 +94,5 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/dependency-audit
         with:
-          command: poetry run pip install -q pip-audit && poetry run pip-audit
+          command: uv run --with pip-audit pip-audit
           title: Python dependency vulnerability scan (${{ matrix.cloud-service }}, ${{ matrix.fixture }})

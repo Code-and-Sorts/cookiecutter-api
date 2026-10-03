@@ -86,13 +86,13 @@ If the database fails or cannot be reached, the request ends with that 500 withi
 Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Create sets both to the `X-User-Id` user; update, replace and delete set `updatedBy` to it, or remove `updatedBy` when the request has no user, so it always names whoever made the latest write. Update and replace keep the creation fields; delete sets `isDeleted` and refreshes `updatedTimestamp`.
 
 {% if cloud_service == 'Azure Function App' -%}
-Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
+Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
 {%- endif %}
 {% if cloud_service == 'GCP Cloud Function' -%}
-Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
+Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
 {%- endif %}
 {% if cloud_service == 'AWS Lambda' -%}
-Dependency management is handled using [Poetry](https://python-poetry.org/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
+Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensuring a streamlined and consistent environment for managing Python packages and their dependencies.
 {%- endif %}
 
 ## Features
@@ -102,7 +102,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - Python-Based: Written entirely in Python, leveraging its rich ecosystem and libraries for rapid development.
 
-- Poetry for Dependency Management: Manages all Python dependencies with Poetry, making the development environment consistent and easy to set up.
+- uv for Dependency Management: Manages all Python dependencies with uv, making the development environment consistent and easy to set up.
 
 - Cosmos DB NoSQL Account: This project uses Cosmos DB NoSQL database.
 {%- endif %}
@@ -111,7 +111,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - Python-Based: Written entirely in Python, leveraging its rich ecosystem and libraries for rapid development.
 
-- Poetry for Development: Manages all Python dependencies with Poetry, making the development environment consistent and easy to set up.
+- uv for Dependency Management: Manages all Python dependencies with uv, making the development environment consistent and easy to set up.
 
 - Firestore Database: This project uses Google Cloud Firestore as the NoSQL database.
 {%- endif %}
@@ -120,7 +120,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - Python-Based: Written entirely in Python, leveraging its rich ecosystem and libraries for rapid development.
 
-- Poetry for Dependency Management: Manages all Python dependencies with Poetry, making the development environment consistent and easy to set up.
+- uv for Dependency Management: Manages all Python dependencies with uv, making the development environment consistent and easy to set up.
 
 - DynamoDB: This project uses Amazon DynamoDB as the NoSQL database.
 {%- endif %}
@@ -134,7 +134,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/): To deploy and manage Azure Function Apps.
 
-- [Poetry](https://python-poetry.org/): For dependency management and virtual environment setup.
+- [uv](https://docs.astral.sh/uv/): For dependency management and virtual environment setup.
 
 - Azure Account: An active Azure subscription for deploying the Function App. Python 3.14 apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
 
@@ -145,7 +145,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - [Functions Framework](https://github.com/GoogleCloudPlatform/functions-framework-python): To run Cloud Functions locally.
 
-- [Poetry](https://python-poetry.org/): For dependency management and virtual environment setup.
+- [uv](https://docs.astral.sh/uv/): For dependency management and virtual environment setup.
 
 - GCP Account: An active Google Cloud Platform account with billing enabled.
 
@@ -156,7 +156,7 @@ Dependency management is handled using [Poetry](https://python-poetry.org/), ens
 
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html): To deploy and manage AWS resources.
 
-- [Poetry](https://python-poetry.org/): For dependency management and virtual environment setup.
+- [uv](https://docs.astral.sh/uv/): For dependency management and virtual environment setup.
 
 - AWS Account: An active AWS account for deploying Lambda functions.
 
@@ -203,13 +203,13 @@ Settings are read from environment variables (case-insensitive).
 
     Follow the [documentation](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=windows%2Cisolated-process%2Cnode-v4%2Cpython-v2%2Chttp-trigger%2Ccontainer-apps&pivots=programming-language-python#install-the-azure-functions-core-tools) to install Azure Function Core Tools based on your operating system.
 
-2. Install Poetry
+2. Install uv
 
-    If you haven't already installed Poetry, you can do so by following the [official installation guide](https://python-poetry.org/docs/).
+    If you haven't already installed uv, you can do so by following the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
 3. Install Dependencies
 
-    Install all dependencies and set up the virtual environment:
+    Install all dependencies and set up the virtual environment. `make install` runs `uv sync`, which writes `uv.lock` on the first run; commit it so every install and deploy uses the same versions:
 
     ```console
     make install
@@ -231,13 +231,13 @@ Settings are read from environment variables (case-insensitive).
 
 6. Deploy to Azure
 
-    Azure Functions installs Python dependencies from a `requirements.txt`. Generate it from `poetry.lock` (it is gitignored, so regenerate it before every publish):
+    Azure Functions installs Python dependencies from a `requirements.txt`. Generate it from `uv.lock` (it is gitignored, so regenerate it before every publish):
 
     ```console
     make requirements
     ```
 
-    This runs `poetry export --only main --output requirements.txt`; the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin is declared in `pyproject.toml` and installed by `make install`. Then publish with a remote build (`.funcignore` keeps the virtual environment, tests and Poetry files out of the package), and set the settings listed under [Configuration](#configuration) as application settings:
+    This runs `uv export --no-dev --format requirements-txt --output-file requirements.txt`, which pins every package with its hashes. Then publish with a remote build (`.funcignore` keeps the virtual environment, tests and uv files out of the package), and set the settings listed under [Configuration](#configuration) as application settings:
 
     ```console
     func azure functionapp publish <FunctionAppName> --python
@@ -248,13 +248,13 @@ Settings are read from environment variables (case-insensitive).
 
     Follow the [documentation](https://cloud.google.com/sdk/docs/install) to install the Google Cloud SDK based on your operating system.
 
-2. Install Poetry
+2. Install uv
 
-    If you haven't already installed Poetry, you can do so by following the [official installation guide](https://python-poetry.org/docs/).
+    If you haven't already installed uv, you can do so by following the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
 3. Install Dependencies
 
-    Install all dependencies and set up the virtual environment:
+    Install all dependencies and set up the virtual environment. `make install` runs `uv sync`, which writes `uv.lock` on the first run; commit it so every install and deploy uses the same versions:
 
     ```console
     make install
@@ -270,17 +270,17 @@ Settings are read from environment variables (case-insensitive).
     make run
     ```
 
-    This serves the `api` function with the Functions Framework (`poetry run functions-framework --target=api --source=main.py --port=8080`), so every route is available under `http://localhost:8080`. To run against the Firestore emulator instead of a GCP project, see [Run locally against the emulator](#run-locally-against-the-emulator).
+    This serves the `api` function with the Functions Framework (`uv run functions-framework --target=api --source=main.py --port=8080`), so every route is available under `http://localhost:8080`. To run against the Firestore emulator instead of a GCP project, see [Run locally against the emulator](#run-locally-against-the-emulator).
 
 6. Deploy to GCP
 
-    Cloud Run functions install dependencies from a `requirements.txt`. Generate it from `poetry.lock` (it is gitignored, so regenerate it before every deploy):
+    Cloud Run functions install dependencies from a `requirements.txt`. Generate it from `uv.lock` (it is gitignored, so regenerate it before every deploy):
 
     ```console
     make requirements
     ```
 
-    This runs `poetry export --only main --output requirements.txt`; the [poetry-plugin-export](https://github.com/python-poetry/poetry-plugin-export) plugin is declared in `pyproject.toml` and installed by `make install`.
+    This runs `uv export --no-dev --format requirements-txt --output-file requirements.txt`, which pins every package with its hashes.
 
     Then deploy the single `api` entry point:
 
@@ -306,13 +306,13 @@ Settings are read from environment variables (case-insensitive).
 
     Follow the [documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) to install the AWS SAM CLI based on your operating system.
 
-2. Install Poetry
+2. Install uv
 
-    If you haven't already installed Poetry, you can do so by following the [official installation guide](https://python-poetry.org/docs/).
+    If you haven't already installed uv, you can do so by following the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
 3. Install Dependencies
 
-    Install all dependencies and set up the virtual environment:
+    Install all dependencies and set up the virtual environment. `make install` runs `uv sync`, which writes `uv.lock` on the first run; commit it so every install and deploy uses the same versions:
 
     ```console
     make install
@@ -350,7 +350,7 @@ Settings are read from environment variables (case-insensitive).
     curl -H "x-api-key: $API_KEY" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 
-    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `poetry.lock` (run `make install` first), installs them as Linux x86_64 wheels for Python 3.14 with the pip of the Poetry environment (`poetry env info --executable`, override with `make LAMBDA_PYTHON=...`), and copies every project module except the tests. It needs `make` and Poetry, but not Docker.
+    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `uv.lock`, installs them as Linux x86_64 (manylinux) wheels for Python 3.14 with `uv pip install --python-platform x86_64-manylinux_2_34 --python-version 3.14 --only-binary :all:`, and copies every project module except the tests. It needs `make` and uv, but not Docker.
 {%- endif %}
 
 {% set emulator_settings -%}
@@ -374,13 +374,13 @@ Settings are read from environment variables (case-insensitive).
 ### Adding a New Dependency
 
 ```bash
-poetry add <package-name>
+uv add <package-name>
 ```
 
 ### Removing a Dependency
 
 ```bash
-poetry remove <package-name>
+uv remove <package-name>
 ```
 
 ## Running Tests
