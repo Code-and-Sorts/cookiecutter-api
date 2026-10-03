@@ -1,0 +1,63 @@
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { VisitRepository, StoreFactory } from '@repositories';
+import { MockFn, mockStore } from '../../test/mocks';
+
+describe('VisitRepository', () => {
+    const opened: string[] = [];
+    const openStore = (name: string) => {
+        opened.push(name);
+        return mockStore();
+    };
+    const mockRepository = new VisitRepository(openStore as unknown as StoreFactory);
+    // Untyped view, since the base methods are protected.
+    const base = mockRepository as unknown as Record<string, MockFn>;
+    const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
+    const mockFields = { tenantId: "public", region: "eu", priority: 1, rank: 1.5, labels: [], reason: "sample", visitedOn: "2026-01-01", cost: 1.5, paid: false, checkedAt: ["2026-01-15T10:00:00.000Z"] };
+    const mockRecord = {
+        id: mockId,
+        ...mockFields,
+        isDeleted: false,
+        createdTimestamp: '2024-03-24T00:00:00.000Z',
+        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+    };
+
+    beforeEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('should open the store named by its container setting', () => {
+        expect(opened).toEqual(['visits']);
+    });
+
+    it('should expose only its resource operations', () => {
+        const operations = ['create', 'get', 'list', 'update', 'replace', 'delete'];
+        const actual = operations.filter((operation) => typeof base[operation] === 'function');
+        expect(actual).toEqual(['create', 'get', 'update']);
+    });
+
+    it('should name the resource in not found errors', () => {
+        const error = (base['notFound'] as (id: string) => Error)(mockId);
+        expect(error.message).toEqual(`Visit with id ${mockId} was not found.`);
+    });
+
+    it('should delegate create to the base repository', async () => {
+        const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.create(mockFields as never, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith({
+            paid: false,
+            ...mockFields,
+        }, 'mockUser');
+    });
+
+    it('should delegate get to the base repository', async () => {
+        const spy = jest.spyOn(base, 'getRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.get(mockId)).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId);
+    });
+
+    it('should delegate update to the base repository', async () => {
+        const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRecord);
+        expect(await mockRepository.update(mockId, mockFields as never, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
+    });
+});
