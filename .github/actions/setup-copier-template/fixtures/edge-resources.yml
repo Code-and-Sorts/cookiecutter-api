@@ -1,10 +1,43 @@
-# Every resource shape the default single resource doesn't cover, in one CI render.
+# Every resource and model shape the default single resource doesn't cover, in one CI render: operation subsets,
+# shared and hyphenated containers, names of differing lengths, no health check, base_model fields, every field
+# type, rule and kind of default, requests subsets, and resources with different models in one container.
 health_endpoint: ""
+base_model:
+  - {name: id, type: uuid, required: true, managed: create, default: $uuid}
+  - {name: isDeleted, type: boolean, required: true, managed: create, default: false, hidden: true}
+  - {name: createdTimestamp, type: date-time, required: true, managed: create, default: $now, hidden: true}
+  - {name: updatedTimestamp, type: date-time, required: true, managed: write, default: $now, hidden: true}
+  - {name: createdBy, type: string, managed: create, default: $user, hidden: true}
+  - {name: updatedBy, type: string, managed: write, default: $user, hidden: true}
+  - {name: tenantId, type: string, required: true, default: "public", rules: {min_length: 1, max_length: 64}, description: Owning tenant}
+  - {name: region, type: enum, values: [eu, us], immutable: true, default: eu}
+  - {name: priority, type: integer, nullable: true, rules: {minimum: 0}}
+  - {name: rank, type: number, required: true}
+  - {name: labels, type: array, items: string, default: [], rules: {unique_items: true}}
 resources:
   - name: "Cat"
     endpoint: "cats"
     container: "animals"
     operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true, rules: {min_length: 1, max_length: 100}}
+      - {name: nickname, type: string, default: "Tom 😺", description: "What the cat answers to"}
+      - {name: breed, type: enum, values: [siamese, persian, tabby], default: tabby}
+      - {name: ageYears, type: integer, required: true, default: 0, rules: {minimum: 0, maximum: 40}}
+      - {name: weightKg, type: number, nullable: true, default: null, rules: {exclusive_minimum: 0, exclusive_maximum: 100}}
+      - {name: indoor, type: boolean, default: true}
+      - {name: birthDate, type: date, default: $today}
+      - {name: microchipId, type: uuid, immutable: true, default: $uuid}
+      - {name: ownerEmail, type: string, default: "unknown@example.com", rules: {format: email, max_length: 40}}
+      - {name: website, type: string, nullable: true, rules: {format: uri}}
+      - {name: tagCode, type: string, example: "ABC-123", rules: {pattern: "^[A-Z]{3}-[0-9]{3}$"}}
+      - {name: tags, type: array, items: string, default: [], rules: {max_items: 3, unique_items: true}}
+      - {name: scores, type: array, items: integer, nullable: true, rules: {min_items: 1}}
+      - {name: adoptedAt, type: date-time, nullable: true, default: $now}
+      - {name: lastVisit, type: date-time, default: "2026-01-01T00:00:00.000Z"}
+      - {name: notes, type: string, hidden: true, default: "$$none"}
+    requests:
+      update: [name, ageYears, weightKg, indoor, tags, ownerEmail, adoptedAt, website, notes]
   - name: "Dog"
     endpoint: "dogs"
     container: "animals"
@@ -29,7 +62,20 @@ resources:
     endpoint: "orders"
     container: "orders"
     operations: ["list", "get_by_id", "create", "update", "replace", "delete"]
+    fields:
+      - {name: reason, type: string, required: true, immutable: true}
+      - {name: visitedOn, type: date, required: true}
+      - {name: cost, type: number, rules: {minimum: 0}}
+      - {name: paid, type: boolean, required: true, default: false}
+      - {name: checkedAt, type: array, items: date-time, rules: {unique_items: true}}
+      - {name: lateBy, type: integer, rules: {maximum: -2000}}
+    requests:
+      create: [reason, visitedOn, cost, checkedAt, lateBy]
   - name: "OrderItem"
     endpoint: "order-items"
     container: "orders"
     operations: ["create"]
+    fields:
+      - {name: quantity, type: integer, default: 1, rules: {minimum: 1}}
+      - {name: giftWrap, type: boolean, default: true}
+      - {name: weightKg, type: number, nullable: true, rules: {exclusive_minimum: 0}}

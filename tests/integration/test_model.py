@@ -2,8 +2,9 @@
 
 import pytest
 
+from project import FIELDS
 from store import new_record
-from values import minimal_body, response, written
+from values import assert_stored, minimal_body, response, written
 
 
 @pytest.mark.ops("create")
@@ -14,12 +15,7 @@ def test_create_gives_fields_left_out_their_defaults(api, store, resource):
     item = created.json()
     values = written(resource, "create", body, None)
     assert item == response(resource, item["id"], values)
-    saved = store.get(resource.container, item["id"])
-    for field in resource.fields:
-        if values[field.name] is None:
-            assert field.name not in saved, f"{field.name} has no value, so it must not be stored"
-        else:
-            assert saved[field.name] == values[field.name], field.name
+    assert_stored(resource, store.get(resource.container, item["id"]), values)
 
 
 @pytest.mark.ops("replace")
@@ -52,13 +48,14 @@ def test_an_update_with_null_clears_a_nullable_field(api, store, resource, opera
 
 @pytest.mark.fields("date_time")
 def test_a_date_time_is_stored_in_utc_with_milliseconds(api, store, resource, operation, field):
-    body = {**minimal_body(resource, operation), field.name: "2026-01-31T11:30:00.1239+02:00"}
+    example = FIELDS.DATE_TIME_EXAMPLE
+    body = {**minimal_body(resource, operation), field.name: example["sent"]}
     created = api.send(operation, resource, json=body)
     assert created.status_code == 201, created.text
     item = created.json()
     if not field.hidden:
-        assert item[field.name] == "2026-01-31T09:30:00.123Z"
-    assert store.get(resource.container, item["id"])[field.name] == "2026-01-31T09:30:00.123Z"
+        assert item[field.name] == example["stored"]
+    assert store.get(resource.container, item["id"])[field.name] == example["stored"]
 
 
 @pytest.mark.ops("create")

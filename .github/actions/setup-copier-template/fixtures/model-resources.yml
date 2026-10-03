@@ -1,5 +1,5 @@
 # Every field type, rule and kind of default, a custom base_model field, a requests subset and a resource
-# that relies on the default fields; CI builds it next to single and edge.
+# that relies on the default fields: the showcase for the published model example branches; CI uses edge.
 base_model:
   - {name: id, type: uuid, required: true, managed: create, default: $uuid}
   - {name: isDeleted, type: boolean, required: true, managed: create, default: false, hidden: true}

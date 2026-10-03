@@ -1,7 +1,7 @@
 import pytest
 
 from api import BODY_OPERATIONS, ITEM_OPERATIONS
-from values import sample, valid_body
+from values import valid_body
 
 WRITE_OPERATIONS = ("create", "update", "replace", "delete")
 
@@ -42,7 +42,7 @@ def test_an_unknown_field_is_rejected(api, resource, operation, make_record):
 def test_a_server_managed_field_is_rejected(api, project, resource, operation, make_record):
     item_id = target_id(operation, make_record, resource)
     for field in project.system_fields:
-        body = {**valid_body(resource, operation), field.name: sample(field)}
+        body = {**valid_body(resource, operation), field.name: field.sample}
         assert_error(api.send(operation, resource, item_id, json=body), 400)
 
 
@@ -60,7 +60,7 @@ def test_a_body_without_a_required_field_is_rejected(api, resource, operation, f
 
 @pytest.mark.fields("refused")
 def test_a_field_the_operation_does_not_accept_is_rejected(api, resource, operation, field, make_record):
-    body = {**valid_body(resource, operation), field.name: sample(field)}
+    body = {**valid_body(resource, operation), field.name: field.sample}
     assert_error(api.send(operation, resource, target_id(operation, make_record, resource), json=body), 400)
 
 

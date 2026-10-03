@@ -6,7 +6,7 @@ import pytest
 from api import OPERATIONS, Api
 from project import BODY_OPERATIONS, Project
 from store import new_record, open_store
-from values import response_from_record, violations
+from values import response_from_record
 
 PROJECT = pytest.StashKey[Project]()
 
@@ -53,14 +53,12 @@ def _field_cases(kind: str, resources, needs) -> tuple[str, list]:
     ops = [(r, op) for r in resources if r.has(*needs) for op in BODY_OPERATIONS if r.has(op)]
     if kind == "invalid":
         return "resource,operation,field,value", [
-            (r, op, f, value) for r, op in ops for f in r.accepted(op) for value in violations(f)
+            (r, op, f, value) for r, op in ops for f in r.accepted(op) for value in f.rejected
         ]
     if kind == "required":
         return "resource,operation,field", [(r, op, f) for r, op in ops for f in r.accepted(op) if op in f.needed_on]
     if kind == "refused":
-        return "resource,operation,field", [
-            (r, op, f) for r, op in ops if op != "create" for f in r.fields if not f.accepted(op)
-        ]
+        return "resource,operation,field", [(r, op, f) for r, op in ops for f in r.fields if not f.accepted(op)]
     if kind == "nullable":
         return "resource,operation,field", [(r, op, f) for r, op in ops if op == "update" for f in r.accepted(op) if f.nullable]
     if kind == "date_time":

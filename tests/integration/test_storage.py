@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from values import valid_body, written
+from values import assert_stored, valid_body, written
 
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 REQUIRED_FIELDS = {"id", "isDeleted", "createdTimestamp", "updatedTimestamp"}
@@ -21,22 +21,13 @@ def stored(store, resource, item_id: str) -> dict:
     return record
 
 
-def assert_holds(resource, saved: dict, values: dict):
-    """Each client field holds its value; a field without one is not stored at all."""
-    for field in resource.fields:
-        if values[field.name] is None:
-            assert field.name not in saved, f"{field.name} has no value, so it must not be stored"
-        else:
-            assert saved.get(field.name) == values[field.name], field.name
-
-
 @pytest.mark.ops("create")
 def test_create_stores_the_contract_fields(api, resource, store):
     body = valid_body(resource, "create")
     created = api.send("create", resource, json=body)
     assert created.status_code == 201, created.text
     saved = stored(store, resource, created.json()["id"])
-    assert_holds(resource, saved, written(resource, "create", body, None))
+    assert_stored(resource, saved, written(resource, "create", body, None))
     assert saved["isDeleted"] is False
     assert saved["createdTimestamp"] == saved["updatedTimestamp"]
     assert not USER_FIELDS & saved.keys()
@@ -78,4 +69,4 @@ def test_a_write_stores_the_new_values(api, resource, operation, make_record, st
     assert api.send(operation, resource, record["id"], json=body).status_code == 200
     saved = stored(store, resource, record["id"])
     assert saved["isDeleted"] is False
-    assert_holds(resource, saved, written(resource, operation, body, before))
+    assert_stored(resource, saved, written(resource, operation, body, before))

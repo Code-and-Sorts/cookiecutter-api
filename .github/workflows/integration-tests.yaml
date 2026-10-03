@@ -16,6 +16,8 @@ on:
       - copier.yml
       - shared/**
       - tests/integration/**
+      - .github/scripts/integration_matrix.py
+      - .github/scripts/junit_summary.py
       - .github/workflows/integration-tests.yaml
       - .github/actions/setup-copier-template/**
       - .github/actions/setup-runtime/**
@@ -32,8 +34,8 @@ on:
         default: all
       fixture:
         type: choice
-        description: all runs single, edge, model and model-shared; multi only adds cases those cover.
-        options: [all, single, edge, model, model-shared, multi]
+        description: all runs single and edge; multi and model only add cases those cover.
+        options: [all, single, edge, model, multi]
         default: all
 
 permissions:
@@ -50,21 +52,18 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
       - name: Build the matrix
         id: plan
         env:
           LANGUAGE: ${{ inputs.language || 'all' }}
           CLOUD: ${{ inputs.cloud || 'all' }}
           FIXTURE: ${{ inputs.fixture || 'all' }}
-        run: |
-          set -euo pipefail
-          pick() { jq -c --arg pick "$1" '[.[] | select($pick == "all" or (.slug? // .) == $pick)]'; }
-          languages=$(pick "$LANGUAGE" <<< '["python", "typescript", "dotnet", "go"]')
-          clouds=$(pick "$CLOUD" <<< '[{"name": "Azure Function App", "slug": "azure"}, {"name": "GCP Cloud Function", "slug": "gcp"}, {"name": "AWS Lambda", "slug": "aws"}]')
-          if [ "$FIXTURE" = multi ]; then fixtures='["multi"]'; else fixtures=$(pick "$FIXTURE" <<< '["single", "edge", "model", "model-shared"]'); fi
-          matrix=$(jq -cn --argjson l "$languages" --argjson c "$clouds" --argjson f "$fixtures" '{language: $l, cloud: $c, fixture: $f}')
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "Matrix: $matrix"
+        run: >-
+          python .github/scripts/integration_matrix.py --language "$LANGUAGE" --cloud "$CLOUD" --fixture "$FIXTURE"
+          | tee -a "$GITHUB_OUTPUT"
 
   integration:
     name: ${{ matrix.language }} / ${{ matrix.cloud.slug }} / ${{ matrix.fixture }}
@@ -114,18 +113,7 @@ jobs:
         if: ${{ !cancelled() && hashFiles('junit.xml') != '' }}
         env:
           COMBO: "${{ matrix.language }} | ${{ matrix.cloud.name }} | ${{ matrix.fixture }}"
-        run: |
-          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
-          import os
-          import xml.etree.ElementTree as ET
-
-          suite = ET.parse("junit.xml").getroot().find("testsuite")
-          total, skipped = int(suite.get("tests")), int(suite.get("skipped"))
-          failed = int(suite.get("failures")) + int(suite.get("errors"))
-          print("| Language | Cloud | Fixture | Passed | Failed | Skipped |")
-          print("| --- | --- | --- | --- | --- | --- |")
-          print(f"| {os.environ['COMBO']} | {total - failed - skipped} | {failed} | {skipped} |")
-          EOF
+        run: python .github/scripts/junit_summary.py junit.xml "$COMBO" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect emulator logs
         if: failure() && hashFiles('KittenClaws/docker-compose.yml') != ''
