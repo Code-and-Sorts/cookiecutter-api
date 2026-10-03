@@ -1,0 +1,63 @@
+namespace KittenClaws.Api.Repositories;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Google.Cloud.Firestore;
+using KittenClaws.Api.Entities;
+using KittenClaws.Api.Interfaces;
+using KittenClaws.Api.Utils;
+
+public class FirestoreDocumentStore<T>(FirestoreDb firestoreDb, string collectionName) : IDocumentStore<T> where T : BaseEntity
+{
+    private readonly CollectionReference _collection = firestoreDb.Collection(collectionName);
+
+    public async Task<T?> GetAsync(string id, CancellationToken ct = default)
+    {
+        var snapshot = await _collection.Document(id).GetSnapshotAsync(ct);
+        return snapshot.Exists ? FromDocument(snapshot.ToDictionary()) : null;
+    }
+
+    public async Task<IReadOnlyList<T>> GetLiveListAsync(int limit, CancellationToken ct = default)
+    {
+        var snapshot = await _collection.WhereEqualTo("isDeleted", false).Limit(limit).GetSnapshotAsync(ct);
+        return snapshot.Documents.Select(doc => FromDocument(doc.ToDictionary())).ToList();
+    }
+
+    public Task CreateAsync(T item, CancellationToken ct = default) =>
+        _collection.Document(item.Id).SetAsync(ToDocument(item), cancellationToken: ct);
+
+    // Resources sharing the collection may store fields this type does not know, so the write updates only its own.
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
+    {
+        var item = await GetAsync(id, ct);
+        if (item != null)
+        {
+            change(item);
+            await _collection.Document(id).UpdateAsync(ToUpdates(item), cancellationToken: ct);
+        }
+        return item;
+    }
+
+    public static Dictionary<string, object> ToUpdates(T entity) =>
+        Json.StoredFields(entity).ToDictionary(field => field.Name, field => field.Value is { } value ? ToValue(value)! : FieldValue.Delete);
+
+    // The entity's JSON is the stored shape, as on Cosmos DB: every field type maps and unset fields are left out.
+    public static Dictionary<string, object> ToDocument(T entity) =>
+        JsonSerializer.SerializeToElement(entity, Json.Options).EnumerateObject().ToDictionary(property => property.Name, property => ToValue(property.Value)!);
+
+    public static T FromDocument(Dictionary<string, object> document) =>
+        JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(document, Json.Options), Json.Options)!;
+
+    private static object? ToValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.TryGetInt64(out var integer) ? integer : (object)value.GetDouble(),
+        JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
+        JsonValueKind.Array => value.EnumerateArray().Select(ToValue).ToList(),
+        _ => null,
+    };
+}

@@ -1,0 +1,64 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 04f6cee
+_src_path: .
+author: Sir Meowsalots
+base_model:
+-   default: $uuid
+    managed: create
+    name: id
+    required: true
+    type: uuid
+-   default: false
+    hidden: true
+    managed: create
+    name: isDeleted
+    required: true
+    type: boolean
+-   default: $now
+    hidden: true
+    managed: create
+    name: createdTimestamp
+    required: true
+    type: date-time
+-   default: $now
+    hidden: true
+    managed: write
+    name: updatedTimestamp
+    required: true
+    type: date-time
+-   default: $user
+    hidden: true
+    managed: create
+    name: createdBy
+    type: string
+-   default: $user
+    hidden: true
+    managed: write
+    name: updatedBy
+    type: string
+cloud_service: GCP Cloud Function
+health_endpoint: health
+language: dotnet
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: animals
+    endpoint: cats
+    name: Cat
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - delete
+-   container: animals
+    endpoint: dogs
+    name: Dog
+    operations:
+    - list
+    - get_by_id
+    - create
+    - replace
+    - delete
+
