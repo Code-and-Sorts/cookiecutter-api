@@ -5,12 +5,8 @@
 {%- from 'python/_model.jinja' import expect, literal, sample_dict -%}
 {%- set models = model_names(resource) -%}
 {%- set client = resource.client_fields -%}
-{%- set system = base_fields | selectattr("system") | list -%}
 {%- set body_ops = ops | select("in", ["create", "update", "replace"]) | list -%}
 import asyncio
-{%- if body_ops %}
-import json
-{%- endif %}
 import pytest
 from unittest.mock import AsyncMock
 from errors import NotFoundError{% if body_ops %}, ValidationError{% endif %}
@@ -22,15 +18,14 @@ from services import {{ r }}Service
 {%- if 'list' in ops %}
 from controllers.pagination import DEFAULT_LIST_LIMIT
 {%- endif %}
-from conftest import ITEM_ID
+from conftest import ITEM_ID{% if body_ops %}, encode, invalid_bodies{% endif %}
 {%- if models %}
 
 _response = {{ r }}Response(id=ITEM_ID, **{{ sample_dict(client | rejectattr("hidden")) }})
 {%- endif %}
 {%- if body_ops %}
-_SYSTEM_FIELDS = {{ sample_dict(system) }}
 # Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
-_INVALID_VALUES = {
+_REJECTED = {
 {%- for f in client %}
     "{{ f.name }}": {{ literal(f.rejected) }},
 {%- endfor %}
@@ -42,29 +37,17 @@ _BOUNDARY_VALUES = [
 {%- endfor %}
 {%- endfor %}
 ]
-
-
-def _encode(body) -> bytes:
-    return json.dumps(body).encode()
-
-
-def _invalid_bodies(valid: dict, required: list[str], refused: dict) -> list:
-    """Bodies the operation must reject: system, unknown and refused fields, bad values and missing required ones."""
-    bodies = [b"[]", b"{not json", _encode({**valid, "not_a_field": 1})]
-    bodies += [_encode({**valid, name: value}) for name, value in {**_SYSTEM_FIELDS, **refused}.items()]
-    bodies += [_encode({**valid, name: value}) for name in valid for value in _INVALID_VALUES[name]]
-    bodies += [_encode({key: value for key, value in valid.items() if key != name}) for name in required]
-    return bodies
 {%- endif %}
 {%- for op in body_ops %}
 {%- set accepted = client | selectattr("in_" ~ op) | list %}
 {%- set refused = client | rejectattr("in_" ~ op) | list %}
 
 _{{ op | upper }}_BODY = {{ sample_dict(accepted) }}
-_{{ op | upper }}_INVALID = _invalid_bodies(
+_{{ op | upper }}_INVALID = invalid_bodies(
     _{{ op | upper }}_BODY,
     {{ (accepted | selectattr("needs_value") | map(attribute="name") | list if op != "update" else []) | tojson }},
     {{ sample_dict(refused) }},
+    _REJECTED,
 )
 _{{ op | upper }}_BOUNDARIES = [(name, value) for name, value in _BOUNDARY_VALUES if name in _{{ op | upper }}_BODY]
 {%- endfor %}
@@ -125,7 +108,7 @@ def describe_{{ slug }}_controller():
         def test_passes_validated_body(controller, mock_service):
             mock_service.{{ op }}.return_value = _response
 
-            assert asyncio.run({{ call }}_encode({{ BODY }}), "user-1")) == _response
+            assert asyncio.run({{ call }}encode({{ BODY }}), "user-1")) == _response
             sent = mock_service.{{ op }}.call_args.args[-2]
             assert isinstance(sent, {{ r }}{{ kind }}Request)
             assert sent.model_dump(exclude_unset=True) == {{ BODY }}
@@ -153,7 +136,7 @@ def describe_{{ slug }}_controller():
             mock_service.{{ op }}.return_value = _response
             minimal = {{ sample_dict(accepted | selectattr("needs_value")) }}
 
-            asyncio.run({{ call }}_encode(minimal)))
+            asyncio.run({{ call }}encode(minimal)))
             sent = mock_service.{{ op }}.call_args.args[-2].model_dump()
 {%- for f in left_out %}
 {%- if f.dynamic %}
@@ -176,14 +159,14 @@ def describe_{{ slug }}_controller():
         def test_values_on_a_rule_bound_are_accepted(controller, mock_service, name, value):
             mock_service.{{ op }}.return_value = _response
 
-            asyncio.run({{ call }}_encode({**{{ BODY }}, name: value})))
+            asyncio.run({{ call }}encode({**{{ BODY }}, name: value})))
             assert getattr(mock_service.{{ op }}.call_args.args[-2], name) == value
 {%- endif %}
 {%- if op != "create" %}
 
         def test_non_uuid_id_is_not_found(controller, mock_service):
             with pytest.raises(NotFoundError):
-                asyncio.run(controller.{{ op }}("not-a-uuid", _encode({{ BODY }})))
+                asyncio.run(controller.{{ op }}("not-a-uuid", encode({{ BODY }})))
             mock_service.{{ op }}.assert_not_called()
 {%- endif %}
 {%- endfor %}

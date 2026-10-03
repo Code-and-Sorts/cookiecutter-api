@@ -6,7 +6,6 @@
 {%- set uses_body = resource.has_body -%}
 {%- set uses_id = resource.has_item -%}
 {%- set client = resource.client_fields -%}
-{%- set system = base_fields | selectattr("system") | list -%}
 {%- macro call(op, body, user="") -%}
 controller.{{ op | capitalize }}(context.Background(), {% if op != "create" %}test{{ resource.name }}ID, {% endif %}"{{ user }}", strings.NewReader({{ body }}))
 {%- endmacro -%}
@@ -109,59 +108,15 @@ func assert{{ r }}BadRequest(t *testing.T, err error) {
 	assert.ErrorAs(t, err, new(*models.ValidationError))
 }
 
-// A JSON body with one property set to a raw JSON value, or removed when value is empty.
-func with{{ r }}Property(body, name, value string) string {
-	properties := map[string]json.RawMessage{}
-	_ = json.Unmarshal([]byte(body), &properties)
-	if value == "" {
-		delete(properties, name)
-	} else {
-		properties[name] = json.RawMessage(value)
-	}
-	data, _ := json.Marshal(properties)
-	return string(data)
-}
-
-func {{ lc }}RequestProperties(t *testing.T, req any) map[string]json.RawMessage {
-	t.Helper()
-	data, err := json.Marshal(req)
-	assert.NoError(t, err)
-	properties := map[string]json.RawMessage{}
-	assert.NoError(t, json.Unmarshal(data, &properties))
-	return properties
-}
-
-// Bodies the operation must reject: server-set, unknown or refused properties, rejected values, missing required ones.
-func invalid{{ r }}Bodies(valid string, required, refused []string) []string {
-	bodies := []string{`[]`, `null`, `{not json`, with{{ r }}Property(valid, "not_a_field", `1`)}
-	for _, property := range [][2]string{
-{%- for f in system %}
-		{"{{ f.name }}", {{ json_string(f.sample) }}},
-{%- endfor %}
-	} {
-		bodies = append(bodies, with{{ r }}Property(valid, property[0], property[1]))
-	}
-	for _, name := range refused {
-		bodies = append(bodies, with{{ r }}Property(valid, name, `"x"`))
-	}
-	properties := map[string]json.RawMessage{}
-	_ = json.Unmarshal([]byte(valid), &properties)
-	for _, value := range [][2]string{
+// Per field: a wrongly typed value, null unless nullable, and values just outside each rule.
+var rejected{{ r }}Values = [][2]string{
 {%- for f in client %}
 {%- for value in f.rejected %}
-		{"{{ f.name }}", {{ json_string(value) }}},
+	{"{{ f.name }}", {{ json_string(value) }}},
 {%- endfor %}
 {%- endfor %}
-	} {
-		if _, ok := properties[value[0]]; ok {
-			bodies = append(bodies, with{{ r }}Property(valid, value[0], value[1]))
-		}
-	}
-	for _, name := range required {
-		bodies = append(bodies, with{{ r }}Property(valid, name, ""))
-	}
-	return bodies
-}
+{%- if client %}
+{% endif %}}
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
@@ -258,7 +213,7 @@ func Test{{ Op }}{{ r }}_PassesTheValidatedRequest(t *testing.T) {
 {%- if op != "create" %}
 	assert.Equal(t, test{{ r }}ID, req.Id)
 {%- endif %}
-	data, _ := json.Marshal(req)
+	data, _ := json.Marshal(requestProperties(t, req))
 	assert.JSONEq(t, valid{{ r }}{{ Op }}Body, string(data))
 {%- if op == "update" %}
 	assert.Len(t, req.Sent, {{ accepted | length }})
@@ -304,7 +259,7 @@ func Test{{ Op }}{{ r }}_GivesFieldsLeftOutTheirDefaults(t *testing.T) {
 	_, err := {{ call(op, sample_body(required)) }}
 
 	assert.NoError(t, err)
-	properties := {{ lc }}RequestProperties(t, mockService.Calls[0].Arguments.Get(1))
+	properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
 {%- for f in left_out %}
 {%- if f.dynamic %}
 	assert.NotEqual(t, "null", string(properties["{{ f.name }}"]))
@@ -322,10 +277,10 @@ func Test{{ Op }}{{ r }}_Stores{{ f.pascal }}InUTC(t *testing.T) {
 	controller := newTest{{ r }}Controller(mockService)
 	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
 
-	_, err := {{ call(op, "with" ~ r ~ "Property(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"" ~ DATE_TIME_EXAMPLE.sent ~ "\"`)") }}
+	_, err := {{ call(op, "withProperty(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"" ~ DATE_TIME_EXAMPLE.sent ~ "\"`)") }}
 
 	assert.NoError(t, err)
-	properties := {{ lc }}RequestProperties(t, mockService.Calls[0].Arguments.Get(1))
+	properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
 	assert.JSONEq(t, `"{{ DATE_TIME_EXAMPLE.stored }}"`, string(properties["{{ f.name }}"]))
 }
 {%- endfor %}
@@ -334,7 +289,7 @@ func Test{{ Op }}{{ r }}_RejectsInvalidBodies(t *testing.T) {
 	required := []string{ {%- for f in required %}"{{ f.name }}"{{ ", " if not loop.last }}{% endfor -%} }
 	refused := []string{ {%- for f in refused %}"{{ f.name }}"{{ ", " if not loop.last }}{% endfor -%} }
 
-	for _, body := range invalid{{ r }}Bodies(valid{{ r }}{{ Op }}Body, required, refused) {
+	for _, body := range invalidBodies(valid{{ r }}{{ Op }}Body, required, refused, rejected{{ r }}Values) {
 		t.Run(body, func(t *testing.T) {
 			mockService := new(Mock{{ r }}Service)
 			controller := newTest{{ r }}Controller(mockService)
@@ -361,10 +316,10 @@ func Test{{ Op }}{{ r }}_AcceptsValuesOnARuleBound(t *testing.T) {
 		controller := newTest{{ r }}Controller(mockService)
 		mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
 
-		_, err := {{ call(op, "with" ~ r ~ "Property(valid" ~ r ~ Op ~ "Body, value[0], value[1])") }}
+		_, err := {{ call(op, "withProperty(valid" ~ r ~ Op ~ "Body, value[0], value[1])") }}
 
 		assert.NoError(t, err, value[0]+"="+value[1])
-		properties := {{ lc }}RequestProperties(t, mockService.Calls[0].Arguments.Get(1))
+		properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
 		assert.JSONEq(t, value[1], string(properties[value[0]]))
 	}
 }

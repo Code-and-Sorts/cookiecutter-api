@@ -1,3 +1,4 @@
+{%- from 'typescript/_model.jinja' import sample_object -%}
 import { jest } from '@jest/globals';
 
 export type MockFn = (...args: any[]) => any;
@@ -20,3 +21,20 @@ export const mockStore = (): Mocked<'read' | 'query' | 'create' | 'write' | 'sof
     write: jest.fn<MockFn>(),
     softDelete: jest.fn<MockFn>(),
 });
+
+type Body = Record<string, unknown>;
+
+// Server-managed fields a request body may never set.
+const systemFields: Body = {{ sample_object(base_fields | selectattr("system")) }};
+
+// Bodies an operation must reject, each wrapped so it.each passes it as one argument.
+export const invalidBodies = (valid: Body, required: string[], refused: Body, rejected: Record<string, unknown[]>): unknown[][] =>
+    [
+        [],
+        'not an object',
+        null,
+        { ...valid, not_a_field: 1 },
+        ...Object.entries({ ...systemFields, ...refused }).map(([name, value]) => ({ ...valid, [name]: value })),
+        ...Object.keys(valid).flatMap((name) => rejected[name].map((value) => ({ ...valid, [name]: value }))),
+        ...required.map((name) => Object.fromEntries(Object.entries(valid).filter(([field]) => field !== name))),
+    ].map((body) => [body]);

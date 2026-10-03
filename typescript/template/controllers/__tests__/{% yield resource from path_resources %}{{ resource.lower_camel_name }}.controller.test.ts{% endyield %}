@@ -3,7 +3,6 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set client = resource.client_fields -%}
-{%- set system = base_fields | selectattr("system") | list -%}
 {%- set body_ops = [("create", "post"), ("update", "update"), ("replace", "replace")] | selectattr(0, "in", ops) | list -%}
 {%- macro call(op, method, body, user="") -%}
 mockController.{{ method }}({% if op != "create" %}mockValidGuid, {% endif %}{{ body }}{% if user %}, '{{ user }}'{% endif %})
@@ -12,7 +11,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Controller } from '@controllers';
 import { {{ r }}Service, SchemaValidator } from '@services';
 import { NotFoundError, ValidationError } from '@errors';
-import { MockFn } from '../../test/mocks';
+import { MockFn{% if body_ops %}, invalidBodies{% endif %} } from '../../test/mocks';
 
 describe('{{ r }}Controller', () => {
     const mockGet = jest.fn<MockFn>();
@@ -51,9 +50,8 @@ describe('{{ r }}Controller', () => {
         await expect(call).rejects.toMatchObject({ statusCode: 400 });
     };
 
-    const systemFields: Record<string, unknown> = {{ sample_object(system) }};
     // Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
-    const invalidValues: Record<string, unknown[]> = {
+    const rejected: Record<string, unknown[]> = {
 {%- for f in client %}
         {{ f.name }}: {{ literal(f.rejected) }},
 {%- endfor %}
@@ -65,18 +63,6 @@ describe('{{ r }}Controller', () => {
 {%- endfor %}
 {%- endfor %}
     ];
-
-    // Bodies an operation must reject, each wrapped so it.each passes it as one argument.
-    const invalidBodies = (valid: Record<string, unknown>, required: string[], refused: Record<string, unknown>): unknown[][] =>
-        [
-            [],
-            'not an object',
-            null,
-            { ...valid, not_a_field: 1 },
-            ...Object.entries({ ...systemFields, ...refused }).map(([name, value]) => ({ ...valid, [name]: value })),
-            ...Object.keys(valid).flatMap((name) => invalidValues[name].map((value) => ({ ...valid, [name]: value }))),
-            ...required.map((name) => Object.fromEntries(Object.entries(valid).filter(([field]) => field !== name))),
-        ].map((body) => [body]);
 {%- endif %}
 {%- for op, method in body_ops %}
 {%- set accepted = client | selectattr("in_" ~ op) | list %}
@@ -132,7 +118,7 @@ describe('{{ r }}Controller', () => {
         });
 {%- endfor %}
 
-        it.each(invalidBodies(valid, {{ required | map(attribute="name") | list | tojson }}, {{ sample_object(refused) }}))('should return 400 for %j', async (body) => {
+        it.each(invalidBodies(valid, {{ required | map(attribute="name") | list | tojson }}, {{ sample_object(refused) }}, rejected))('should return 400 for %j', async (body) => {
             await expectBadRequest({{ call(op, method, "body") }});
             expect({{ mock }}).not.toHaveBeenCalled();
         });
