@@ -1,0 +1,51 @@
+{
+  "name": "kittenclaws",
+  "version": "1.0.0",
+  "description": "Kitties got claws...beware",
+  "packageManager": "yarn@4.18.1",
+  "type": "module",
+  "main": "dist/lambda.js",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc && tsc-alias",
+    "start": "node dist/lambda.js",
+    "emulator:up": "docker compose up -d --wait",
+    "emulator:seed": "rm -rf dist-scripts && tsc -p tsconfig.scripts.json && tsc-alias -p tsconfig.scripts.json && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true node dist-scripts/scripts/bootstrapEmulator.js",
+    "emulator:down": "docker compose down -v",
+    "emulator:logs": "docker compose logs -f",
+    "start:emulator": "yarn build && sam build && AWS_ACCESS_KEY_ID=emulator AWS_SECRET_ACCESS_KEY=emulator sam local start-api --warm-containers LAZY --env-vars env.emulator.json --docker-network kittenclaws-emulator",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --verbose --coverage",
+    "lint": "eslint .",
+    "format": "eslint --fix . && prettier --write .",
+    "audit": "yarn npm audit --severity moderate"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1139.0",
+    "@aws-sdk/lib-dynamodb": "^3.1139.0",
+    "dotenv": "^18.0.3",
+    "inversify": "^8.2.3",
+    "reflect-metadata": "^0.2.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.5.2",
+    "@types/node": "^24.19.0",
+    "@types/aws-lambda": "^8.10.163",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.5.2",
+    "prettier": "^3.9.9",
+    "ts-jest": "^29.4.13",
+    "tsc-alias": "^1.9.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1"
+  },
+  "author": "Sir Meowsalots",
+  "license": "ISC"
+}
