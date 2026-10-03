@@ -7,11 +7,14 @@ import { {{ r }}Service, SchemaValidator } from '@services';
 {%- if ops | reject('equalto', 'delete') | list %}
 import {
     {{ r }}Response,
-{%- if "create" in ops or "replace" in ops %}
-    {{ r }}RequestSchema,
+{%- if "create" in ops %}
+    {{ r }}CreateRequestSchema,
+{%- endif %}
+{%- if "replace" in ops %}
+    {{ r }}ReplaceRequestSchema,
 {%- endif %}
 {%- if "update" in ops %}
-    {{ r }}UpdateSchema,
+    {{ r }}UpdateRequestSchema,
 {%- endif %}
 } from '@models';
 {%- endif %}
@@ -35,7 +38,7 @@ export class {{ r }}Controller {
 {%- if "create" in ops %}
 
   post = async (body: unknown, userId?: string): Promise<{{ r }}Response> => {
-    const item = this._validator.validate(body, {{ r }}RequestSchema);
+    const item = this._validator.validate(body, {{ r }}CreateRequestSchema);
     return this._service.create(item, userId);
   };
 {%- endif %}
@@ -55,7 +58,7 @@ export class {{ r }}Controller {
 
   update = async (id: string, body: unknown, userId?: string): Promise<{{ r }}Response> => {
     assertUuid('{{ r }}', id);
-    const item = this._validator.validate(body, {{ r }}UpdateSchema);
+    const item = this._validator.validate(body, {{ r }}UpdateRequestSchema);
     return this._service.update(id, item, userId);
   };
 {%- endif %}
@@ -63,7 +66,7 @@ export class {{ r }}Controller {
 
   replace = async (id: string, body: unknown, userId?: string): Promise<{{ r }}Response> => {
     assertUuid('{{ r }}', id);
-    const item = this._validator.validate(body, {{ r }}RequestSchema);
+    const item = this._validator.validate(body, {{ r }}ReplaceRequestSchema);
     return this._service.replace(id, item, userId);
   };
 {%- endif %}

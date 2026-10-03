@@ -133,20 +133,20 @@ describe('routing', () => {
 {%- set p = probes[resource.operations[0]] %}
 
     it('should dispatch {{ p[0] }} /{{ resource.endpoint }}{% if p[1] %}/{id}{% endif %} to the {{ resource.name }} routes', async () => {
-        expect((await send('{{ p[0] }}', {{ path(resource, p[1]) }}{% if p[0] in ['POST', 'PATCH', 'PUT'] %}, { name: 'mockName' }{% endif %})).status).toEqual({{ p[2] }});
+        expect((await send('{{ p[0] }}', {{ path(resource, p[1]) }}{% if p[0] in ['POST', 'PATCH', 'PUT'] %}, { any: 'body' }{% endif %})).status).toEqual({{ p[2] }});
         expect(controllers['{{ resource.name | to_lower_camel }}Controller'].{{ p[3] }}).toHaveBeenCalledTimes(1);
     });
 {%- endfor %}
 {%- set first = resources[0] %}
 {%- set p = probes[first.operations[0]] %}
-{%- set call = "send('" ~ p[0] ~ "', " ~ path(first, p[1]) ~ (", { name: 'mockName' }" if p[0] in ['POST', 'PATCH', 'PUT'] else "") ~ ")" %}
+{%- set call = "send('" ~ p[0] ~ "', " ~ path(first, p[1]) ~ (", { any: 'body' }" if p[0] in ['POST', 'PATCH', 'PUT'] else "") ~ ")" %}
 
     it('should map route errors to JSON error responses', async () => {
         const method = controllers['{{ first.name | to_lower_camel }}Controller'].{{ p[3] }};
         method.mockRejectedValueOnce(new NotFoundError('{{ first.name }} with id x was not found.'));
         expect(await {{ call }}).toEqual({ status: 404, body: { errorMessage: '{{ first.name }} with id x was not found.' } });
-        method.mockRejectedValueOnce(new ValidationError('name is required.'));
-        expect(await {{ call }}).toEqual({ status: 400, body: { errorMessage: 'name is required.' } });
+        method.mockRejectedValueOnce(new ValidationError('label is required.'));
+        expect(await {{ call }}).toEqual({ status: 400, body: { errorMessage: 'label is required.' } });
         expect(consoleError).not.toHaveBeenCalled();
     });
 
@@ -183,7 +183,7 @@ describe('client disconnects', () => {
             });
         });
         const res = mockResponse();
-        const rawBody = Buffer.from(JSON.stringify({ name: 'mockName' }));
+        const rawBody = Buffer.from(JSON.stringify({ any: 'body' }));
         const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {}, headers: {} }, res);
         await new Promise((resolve) => setImmediate(resolve));
         expect(signal?.aborted).toBe(false);
@@ -202,7 +202,7 @@ describe('client disconnects', () => {
             return {};
         });
         const res = mockResponse();
-        const rawBody = Buffer.from(JSON.stringify({ name: 'mockName' }));
+        const rawBody = Buffer.from(JSON.stringify({ any: 'body' }));
         const pending = api({ method: '{{ p[0] }}', path: {{ path(first, p[1]) }}, rawBody, query: {}, headers: {} }, res);
         await pending;
         res.writableEnded = true;

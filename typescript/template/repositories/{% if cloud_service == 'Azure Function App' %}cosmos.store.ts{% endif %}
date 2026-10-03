@@ -1,12 +1,12 @@
 import { Container, Database, PatchOperation } from '@azure/cosmos';
-import { BaseItemRecord } from '@models';
+import { BaseEntity } from '@models';
 import { DocumentStore, StoreFactory } from './document.store';
 
 // Only an item-level 404 (no substatus) is a missing record; e.g. substatus 1003 (no such container) must stay a 500.
 export const isMissingItem = (error: { code?: unknown; substatus?: unknown } | undefined): boolean =>
   error?.code === 404 && !error?.substatus;
 
-export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
+export class CosmosStore<T extends BaseEntity> implements DocumentStore<T> {
   constructor(private readonly container: Container) {}
 
   read = async (id: string): Promise<T | undefined> => {
@@ -57,4 +57,4 @@ export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
 }
 
 export const cosmosStoreFactory = (database: Database): StoreFactory =>
-  <T extends BaseItemRecord>(name: string) => new CosmosStore<T>(database.container(name));
+  <T extends BaseEntity>(name: string) => new CosmosStore<T>(database.container(name));

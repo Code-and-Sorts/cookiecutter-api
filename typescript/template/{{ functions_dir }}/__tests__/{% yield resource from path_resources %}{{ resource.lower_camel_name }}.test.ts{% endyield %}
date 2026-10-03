@@ -22,7 +22,8 @@ jest.unstable_mockModule('@azure/functions', () => ({ app: { http: jest.fn<MockF
 jest.unstable_mockModule('@config/container', () => ({ {{ c }}Controller: mockController() }));
 
 const mockId = '91ed1c70-5412-449a-b949-80542a4eb3d5';
-const mockBody = { name: 'mockName' };
+// Passed through a mocked controller, so its content does not matter.
+const mockBody = { any: 'body' };
 const mockUser = 'mockUser';
 
 type Registration = { methods: string[]; route: string; authLevel: string; handler: (request: HttpRequest, context: InvocationContext) => Promise<HttpResponseInit> };
@@ -124,8 +125,8 @@ describe('{{ resource.endpoint }} functions', () => {
     it('should map expected errors to JSON error responses without logging them', async () => {
         controller.{{ first[2] }}.mockRejectedValueOnce(new NotFoundError('{{ r }} with id x was not found.'));
         expect(await {{ first_call }}).toEqual({ status: 404, body: { errorMessage: '{{ r }} with id x was not found.' } });
-        controller.{{ first[2] }}.mockRejectedValueOnce(new ValidationError('name is required.'));
-        expect(await {{ first_call }}).toEqual({ status: 400, body: { errorMessage: 'name is required.' } });
+        controller.{{ first[2] }}.mockRejectedValueOnce(new ValidationError('label is required.'));
+        expect(await {{ first_call }}).toEqual({ status: 400, body: { errorMessage: 'label is required.' } });
         expect(context.error).not.toHaveBeenCalled();
     });
 

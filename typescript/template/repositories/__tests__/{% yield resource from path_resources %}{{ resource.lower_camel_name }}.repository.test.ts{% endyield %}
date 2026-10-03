@@ -1,5 +1,11 @@
+{%- from 'typescript/_model.jinja' import literal -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set extras = resource.fields | rejectattr("in_create") | selectattr("has_default") | rejectattr("default", "none") | list + resource.fields | rejectattr("in_create") | selectattr("dynamic") | list -%}
+{%- macro sample(fields) -%}
+{ {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
+{%- endmacro -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Repository, StoreFactory } from '@repositories';
 import { MockFn, mockStore } from '../../test/mocks';
@@ -14,7 +20,7 @@ describe('{{ r }}Repository', () => {
     // Untyped view, since the base methods are protected.
     const base = mockRepository as unknown as Record<string, MockFn>;
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockFields = { name: 'mock{{ r }}' };
+    const mockFields = {{ sample(client) }};
     const mockRecord = {
         id: mockId,
         ...mockFields,
@@ -39,6 +45,10 @@ describe('{{ r }}Repository', () => {
         expect(actual).toEqual([{% for op in exposed %}'{{ op }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
     });
 
+    it('should know every field a client may set', () => {
+        expect(base['clientFields']).toEqual({{ client | map(attribute="name") | list | tojson }});
+    });
+
     it('should name the resource in not found errors', () => {
         const error = (base['notFound'] as (id: string) => Error)(mockId);
         expect(error.message).toEqual(`{{ r }} with id ${mockId} was not found.`);
@@ -47,8 +57,18 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate create to the base repository', async () => {
         const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.create(mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(await mockRepository.create(mockFields as never, 'mockUser')).toEqual(mockRecord);
+{%- if extras %}
+        // Fields the create body does not accept get their defaults.
+        expect(spy).toHaveBeenCalledWith({
+{%- for f in extras %}
+            {{ f.name }}: {{ "expect.any(String)" if f.dynamic else literal(f.default) }},
+{%- endfor %}
+            ...mockFields,
+        }, 'mockUser');
+{%- else %}
         expect(spy).toHaveBeenCalledWith(mockFields, 'mockUser');
+{%- endif %}
     });
 {%- endif %}
 {%- if "get_by_id" in ops %}
@@ -71,7 +91,7 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate update to the base repository', async () => {
         const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.update(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(await mockRepository.update(mockId, mockFields as never, 'mockUser')).toEqual(mockRecord);
         expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 {%- endif %}
@@ -79,8 +99,9 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate replace to the base repository', async () => {
         const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.replace(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
-        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
+        expect(await mockRepository.replace(mockId, mockFields as never, 'mockUser')).toEqual(mockRecord);
+        // The fields the replace body accepts, so the record's other fields keep their stored values.
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, {{ client | selectattr("in_replace") | map(attribute="name") | list | tojson }}, 'mockUser');
     });
 {%- endif %}
 {%- if "delete" in ops %}

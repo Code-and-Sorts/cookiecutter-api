@@ -1,32 +1,49 @@
+{%- from 'typescript/_model.jinja' import entity_schema, field_imports, read_value, request_schema, response_schema -%}
 {%- set r = resource.name -%}
-import { z } from 'zod';
-import { BaseIdentifier, BaseSchema, responseMapper } from './base.schema';
-
-export const {{ r }}Schema = z.object({
-    name: z.string().min(1),
-});
-
-// strict() rejects id and the system fields, so a body can never overwrite them.
-export const {{ r }}RequestSchema = {{ r }}Schema.strict();
-
-export const {{ r }}UpdateSchema = {{ r }}Schema.partial().strict();
-
-export const {{ r }}ResponseSchema = z.object({
-    ...BaseIdentifier.shape,
-    ...{{ r }}Schema.shape,
-});
-
-export const {{ r }}EntitySchema = z.object({
-    ...{{ r }}Schema.shape,
-    ...BaseSchema.shape,
+{%- set ops = resource.operations -%}
+{%- set kinds = [("create", "Create"), ("replace", "Replace"), ("update", "Update")] | selectattr(0, "in", ops) | list -%}
+{%- set body %}
+export const {{ r }}EntitySchema = BaseEntitySchema.extend({
+{%- for f in resource.fields %}
+    {{ f.name }}: {{ entity_schema(f) }},
+{%- endfor %}
 });
 
 export type {{ r }}Record = z.infer<typeof {{ r }}EntitySchema>;
+{%- for op, kind in kinds %}
 
-export type {{ r }} = z.infer<typeof {{ r }}Schema>;
+{% if op == "update" %}// Fields an update leaves out stay unchanged, so it applies no defaults.
+{% endif %}export const {{ r }}{{ kind }}RequestSchema = Base{{ kind }}RequestSchema.extend({
+{%- for f in resource.fields | selectattr("in_" ~ op) %}
+    {{ f.name }}: {{ request_schema(f, op) }},
+{%- endfor %}
+});
+
+export type {{ r }}{{ kind }}Request = z.infer<typeof {{ r }}{{ kind }}RequestSchema>;
+{%- endfor %}
+
+export const {{ r }}ResponseSchema = BaseResponseSchema.extend({
+{%- for f in resource.fields | rejectattr("hidden") %}
+    {{ f.name }}: {{ response_schema(f) }},
+{%- endfor %}
+});
 
 export type {{ r }}Response = z.infer<typeof {{ r }}ResponseSchema>;
 
-export type {{ r }}Update = z.infer<typeof {{ r }}UpdateSchema>;
-
-export const to{{ r }}Response = responseMapper({{ r }}ResponseSchema);
+export const to{{ r }}Response = (record: {{ r }}Record): {{ r }}Response => ({
+    ...toBaseResponse(record),
+{%- for f in resource.fields | rejectattr("hidden") %}
+    {{ f.name }}: {{ read_value(f) }},
+{%- endfor %}
+});
+{%- endset -%}
+import { z } from 'zod';
+{{ field_imports(body) }}import {
+{%- for kind in kinds | map(attribute=1) %}
+    Base{{ kind }}RequestSchema,
+{%- endfor %}
+    BaseEntitySchema,
+    BaseResponseSchema,
+    toBaseResponse,
+} from './base.schema';
+{{ body }}

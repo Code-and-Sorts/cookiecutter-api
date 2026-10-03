@@ -1,19 +1,20 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { BaseRepository, DocumentStore } from '@repositories';
 import { NotFoundError, ProxyError } from '@errors';
-import { BaseItemRecord } from '@models';
+import { BaseEntity } from '@models';
 import { DATABASE_DEADLINE_MS, DEFAULT_LIST_LIMIT } from '@utils';
 import { mockStore } from '../../test/mocks';
 
-type Item = BaseItemRecord & { name: string };
+type Item = BaseEntity & { label?: string; color?: string; note?: string };
+type Fields = { label?: string; color?: string; note?: string | null };
 
 // Exposes the protected methods so they are tested whichever operations resources use.
 class TestRepository extends BaseRepository<Item> {
-    declare public addRecord: (fields: { name: string }, userId?: string) => Promise<Item>;
+    declare public addRecord: (fields: Fields, userId?: string) => Promise<Item>;
     declare public getRecord: (id: string) => Promise<Item>;
     declare public getRecords: (limit?: number) => Promise<Item[]>;
-    declare public updateRecord: (id: string, fields: { name?: string }, userId?: string) => Promise<Item>;
-    declare public replaceRecord: (id: string, fields: { name: string }, userId?: string) => Promise<Item>;
+    declare public updateRecord: (id: string, fields: Fields, userId?: string) => Promise<Item>;
+    declare public replaceRecord: (id: string, fields: Fields, accepted: readonly string[], userId?: string) => Promise<Item>;
     declare public deleteRecord: (id: string, userId?: string) => Promise<void>;
 }
 
@@ -21,7 +22,7 @@ const id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
 const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const stored: Item = {
     id,
-    name: 'stored',
+    label: 'stored',
     isDeleted: false,
     createdBy: 'mockUser',
     updatedBy: 'mockUser',
@@ -38,7 +39,7 @@ describe('BaseRepository', () => {
         store = mockStore();
         store.write.mockResolvedValue(true);
         store.softDelete.mockResolvedValue(true);
-        repository = new TestRepository(store as unknown as DocumentStore<Item>, 'Item');
+        repository = new TestRepository(store as unknown as DocumentStore<Item>, 'Item', ['label', 'color', 'note']);
     });
 
     const expectProxyError = async (call: Promise<unknown>, message: string, cause: unknown) => {
@@ -57,10 +58,10 @@ describe('BaseRepository', () => {
             jest.spyOn(Date.prototype, 'toISOString')
                 .mockReturnValueOnce('2026-01-01T00:00:00.000Z')
                 .mockReturnValueOnce('2026-01-01T00:00:00.001Z');
-            const result = await repository.addRecord({ name: 'new' }, 'creator');
+            const result = await repository.addRecord({ label: 'new' }, 'creator');
             expect(result).toEqual({
                 id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
-                name: 'new',
+                label: 'new',
                 isDeleted: false,
                 createdTimestamp: '2026-01-01T00:00:00.000Z',
                 updatedTimestamp: '2026-01-01T00:00:00.000Z',
@@ -70,15 +71,21 @@ describe('BaseRepository', () => {
             expect(store.create).toHaveBeenCalledWith(result);
         });
 
+        it('should not store a field without a value', async () => {
+            const result = await repository.addRecord({ label: 'new', note: null, color: undefined });
+            expect(Object.keys(result)).not.toContain('note');
+            expect(Object.keys(result)).not.toContain('color');
+        });
+
         it('should omit createdBy and updatedBy without a user id', async () => {
-            const result = await repository.addRecord({ name: 'new' });
+            const result = await repository.addRecord({ label: 'new' });
             expect('createdBy' in result || 'updatedBy' in result).toBe(false);
         });
 
         it('should wrap a store failure in a proxy error', async () => {
             const cause = new Error('down');
             store.create.mockRejectedValue(cause);
-            await expectProxyError(repository.addRecord({ name: 'new' }), 'Error creating item in database.', cause);
+            await expectProxyError(repository.addRecord({ label: 'new' }), 'Error creating item in database.', cause);
         });
     });
 
@@ -122,42 +129,48 @@ describe('BaseRepository', () => {
     describe('updateRecord', () => {
         it('should merge the fields and refresh updatedTimestamp and updatedBy only', async () => {
             store.read.mockResolvedValue(stored);
-            const result = await repository.updateRecord(id, { name: 'updated' }, 'editor');
-            expect(result).toEqual({ ...stored, name: 'updated', updatedBy: 'editor', updatedTimestamp: expect.stringMatching(isoTimestamp) });
+            const result = await repository.updateRecord(id, { label: 'updated' }, 'editor');
+            expect(result).toEqual({ ...stored, label: 'updated', updatedBy: 'editor', updatedTimestamp: expect.stringMatching(isoTimestamp) });
             expect(result.updatedTimestamp).not.toEqual(stored.updatedTimestamp);
             expect(store.write).toHaveBeenCalledWith(result);
         });
 
+        it('should remove a field the update clears with null', async () => {
+            store.read.mockResolvedValue({ ...stored, note: 'old' });
+            const result = await repository.updateRecord(id, { note: null });
+            expect(Object.keys(result)).not.toContain('note');
+        });
+
         it('should drop the stored updatedBy without a user id', async () => {
             store.read.mockResolvedValue(stored);
-            const result = await repository.updateRecord(id, { name: 'updated' });
+            const result = await repository.updateRecord(id, { label: 'updated' });
             expect(result.createdBy).toEqual(stored.createdBy);
             expect('updatedBy' in result).toBe(false);
         });
 
         it('should report a missing record or one that vanished before the write as not found', async () => {
             store.read.mockResolvedValueOnce(undefined);
-            await expectNotFound(repository.updateRecord(id, { name: 'updated' }));
+            await expectNotFound(repository.updateRecord(id, { label: 'updated' }));
             store.read.mockResolvedValue(stored);
             store.write.mockResolvedValue(false);
-            await expectNotFound(repository.updateRecord(id, { name: 'updated' }));
+            await expectNotFound(repository.updateRecord(id, { label: 'updated' }));
         });
 
         it('should wrap a store failure in a proxy error', async () => {
             const cause = new Error('down');
             store.read.mockResolvedValue(stored);
             store.write.mockRejectedValue(cause);
-            await expectProxyError(repository.updateRecord(id, { name: 'updated' }), `Error upserting item with id ${id}.`, cause);
+            await expectProxyError(repository.updateRecord(id, { label: 'updated' }), `Error upserting item with id ${id}.`, cause);
         });
     });
 
     describe('replaceRecord', () => {
         it('should write the fields as a live record that keeps the stored created fields', async () => {
             store.read.mockResolvedValue(stored);
-            const result = await repository.replaceRecord(id, { name: 'replaced' }, 'editor');
+            const result = await repository.replaceRecord(id, { label: 'replaced' }, ['label'], 'editor');
             expect(result).toEqual({
                 id,
-                name: 'replaced',
+                label: 'replaced',
                 isDeleted: false,
                 createdBy: 'mockUser',
                 updatedBy: 'editor',
@@ -167,16 +180,24 @@ describe('BaseRepository', () => {
             expect(store.write).toHaveBeenCalledWith(result);
         });
 
+        it('should keep the fields it does not accept and clear accepted ones the body leaves out', async () => {
+            store.read.mockResolvedValue({ ...stored, color: 'black', note: 'old', extra: 'dropped' } as Item);
+            const result = await repository.replaceRecord(id, { label: 'replaced' }, ['label', 'note']);
+            expect(result).toMatchObject({ label: 'replaced', color: 'black' });
+            expect(Object.keys(result)).not.toContain('note');
+            expect(Object.keys(result)).not.toContain('extra');
+        });
+
         it('should omit createdBy when the stored record has none and updatedBy without a user id', async () => {
             const { createdBy: _createdBy, ...withoutCreatedBy } = stored;
             store.read.mockResolvedValue(withoutCreatedBy);
-            const result = await repository.replaceRecord(id, { name: 'replaced' });
+            const result = await repository.replaceRecord(id, { label: 'replaced' }, ['label']);
             expect('createdBy' in result || 'updatedBy' in result).toBe(false);
         });
 
         it('should report a missing record as not found', async () => {
             store.read.mockResolvedValue(undefined);
-            await expectNotFound(repository.replaceRecord(id, { name: 'replaced' }));
+            await expectNotFound(repository.replaceRecord(id, { label: 'replaced' }, ['label']));
             expect(store.write).not.toHaveBeenCalled();
         });
 
@@ -184,7 +205,7 @@ describe('BaseRepository', () => {
             const cause = new Error('down');
             store.read.mockResolvedValue(stored);
             store.write.mockRejectedValue(cause);
-            await expectProxyError(repository.replaceRecord(id, { name: 'replaced' }), `Error replacing item with id ${id}.`, cause);
+            await expectProxyError(repository.replaceRecord(id, { label: 'replaced' }, ['label']), `Error replacing item with id ${id}.`, cause);
         });
     });
 

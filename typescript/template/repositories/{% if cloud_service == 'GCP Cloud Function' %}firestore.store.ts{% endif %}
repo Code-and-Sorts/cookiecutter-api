@@ -1,8 +1,8 @@
 import { CollectionReference, FieldValue, Firestore } from '@google-cloud/firestore';
-import { BaseItemRecord } from '@models';
+import { BaseEntity } from '@models';
 import { DocumentStore, StoreFactory } from './document.store';
 
-export class FirestoreStore<T extends BaseItemRecord> implements DocumentStore<T> {
+export class FirestoreStore<T extends BaseEntity> implements DocumentStore<T> {
   constructor(private readonly collection: CollectionReference) {}
 
   read = async (id: string): Promise<T | undefined> => {
@@ -35,4 +35,4 @@ export class FirestoreStore<T extends BaseItemRecord> implements DocumentStore<T
 }
 
 export const firestoreStoreFactory = (client: Firestore): StoreFactory =>
-  <T extends BaseItemRecord>(name: string) => new FirestoreStore<T>(client.collection(name));
+  <T extends BaseEntity>(name: string) => new FirestoreStore<T>(client.collection(name));

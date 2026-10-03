@@ -5,12 +5,15 @@ import { inject, injectable } from 'inversify';
 import { {{ r }}Repository } from '@repositories';
 {%- if ops | reject('equalto', 'delete') | list %}
 import {
-{%- if "create" in ops or "replace" in ops %}
-    {{ r }},
+{%- if "create" in ops %}
+    {{ r }}CreateRequest,
+{%- endif %}
+{%- if "replace" in ops %}
+    {{ r }}ReplaceRequest,
 {%- endif %}
     {{ r }}Response,
 {%- if "update" in ops %}
-    {{ r }}Update,
+    {{ r }}UpdateRequest,
 {%- endif %}
     to{{ r }}Response,
 } from '@models';
@@ -25,7 +28,7 @@ export class {{ r }}Service {
   }
 {%- if "create" in ops %}
 
-  create = async (item: {{ r }}, userId?: string): Promise<{{ r }}Response> =>
+  create = async (item: {{ r }}CreateRequest, userId?: string): Promise<{{ r }}Response> =>
     to{{ r }}Response(await this._repo.create(item, userId));
 {%- endif %}
 {%- if "get_by_id" in ops %}
@@ -38,12 +41,12 @@ export class {{ r }}Service {
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = async (id: string, fields: {{ r }}Update, userId?: string): Promise<{{ r }}Response> =>
+  update = async (id: string, fields: {{ r }}UpdateRequest, userId?: string): Promise<{{ r }}Response> =>
     to{{ r }}Response(await this._repo.update(id, fields, userId));
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = async (id: string, item: {{ r }}, userId?: string): Promise<{{ r }}Response> =>
+  replace = async (id: string, item: {{ r }}ReplaceRequest, userId?: string): Promise<{{ r }}Response> =>
     to{{ r }}Response(await this._repo.replace(id, item, userId));
 {%- endif %}
 {%- if "delete" in ops %}

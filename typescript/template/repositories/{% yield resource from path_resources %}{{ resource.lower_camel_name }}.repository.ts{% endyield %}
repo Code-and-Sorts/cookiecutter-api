@@ -3,18 +3,50 @@
 {%- set setting = {'Azure Function App': 'COSMOS_CONTAINER_', 'GCP Cloud Function': 'FIRESTORE_COLLECTION_', 'AWS Lambda': 'DYNAMODB_TABLE_NAME_'}[cloud_service] ~ (resource.container | upper | replace('-', '_')) -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
-import { env, {% if "create" in ops or "replace" in ops %}{{ r }}, {% endif %}{% if "update" in ops %}{{ r }}Update, {% endif %}{{ r }}Record } from '@models';
+{%- from 'typescript/_model.jinja' import default_value %}
+{%- set extras = resource.fields | rejectattr("in_create") | selectattr("has_default") | rejectattr("default", "none") | list + resource.fields | rejectattr("in_create") | selectattr("dynamic") | list %}
+import {
+    env,
+    clientFieldsOf,
+    {{ r }}EntitySchema,
+    {{ r }}Record,
+{%- if "create" in ops %}
+    {{ r }}CreateRequest,
+{%- endif %}
+{%- if "replace" in ops %}
+    {{ r }}ReplaceRequest,
+    {{ r }}ReplaceRequestSchema,
+{%- endif %}
+{%- if "update" in ops %}
+    {{ r }}UpdateRequest,
+{%- endif %}
+} from '@models';
+{%- if extras | selectattr("dynamic") | list %}
+import { {{ extras | selectattr("dynamic") | map(attribute="dynamic") | unique | map("replace", "now", "nowIso") | map("replace", "today", "todayIso") | map("replace", "uuid", "newId") | join(", ") }} } from '@utils';
+{%- endif %}
 import { BaseRepository } from './base.repository';
 import { StoreFactory } from './document.store';
+{%- if "replace" in ops %}
+
+const REPLACE_FIELDS = Object.keys({{ r }}ReplaceRequestSchema.shape);
+{%- endif %}
 
 @injectable()
 export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
   constructor(@inject(StoreFactory) openStore: StoreFactory) {
-    super(openStore(env.{{ setting }}), '{{ r }}');
+    super(openStore(env.{{ setting }}), '{{ r }}', clientFieldsOf({{ r }}EntitySchema));
   }
 {%- if "create" in ops %}
 
-  create = (item: {{ r }}, userId?: string): Promise<{{ r }}Record> => this.addRecord(item, userId);
+{%- if extras %}
+
+  // Fields the create body does not accept get their defaults.
+  create = (item: {{ r }}CreateRequest, userId?: string): Promise<{{ r }}Record> =>
+    this.addRecord({ {% for f in extras %}{{ f.name }}: {{ default_value(f) }}, {% endfor %}...item }, userId);
+{%- else %}
+
+  create = (item: {{ r }}CreateRequest, userId?: string): Promise<{{ r }}Record> => this.addRecord(item, userId);
+{%- endif %}
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
@@ -26,13 +58,13 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 {%- endif %}
 {%- if "update" in ops %}
 
-  update = (id: string, fields: {{ r }}Update, userId?: string): Promise<{{ r }}Record> =>
+  update = (id: string, fields: {{ r }}UpdateRequest, userId?: string): Promise<{{ r }}Record> =>
     this.updateRecord(id, fields, userId);
 {%- endif %}
 {%- if "replace" in ops %}
 
-  replace = (id: string, item: {{ r }}, userId?: string): Promise<{{ r }}Record> =>
-    this.replaceRecord(id, item, userId);
+  replace = (id: string, item: {{ r }}ReplaceRequest, userId?: string): Promise<{{ r }}Record> =>
+    this.replaceRecord(id, item, REPLACE_FIELDS, userId);
 {%- endif %}
 {%- if "delete" in ops %}
 

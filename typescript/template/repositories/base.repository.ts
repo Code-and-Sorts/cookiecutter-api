@@ -1,18 +1,24 @@
 import { NotFoundError, ProxyError } from '@errors';
-import { BaseItemRecord } from '@models';
+import { BaseEntity, SystemField } from '@models';
 import { DEFAULT_LIST_LIMIT, newId, nowIso, withDeadline } from '@utils';
 import { DocumentStore } from './document.store';
 
-export type RecordFields<T extends BaseItemRecord> = Omit<T, keyof BaseItemRecord>;
+export type RecordFields<T extends BaseEntity> = Omit<T, SystemField>;
+
+// A field without a value is not stored, in every language and database.
+const withoutEmpty = <R extends object>(record: R): R =>
+  Object.fromEntries(Object.entries(record).filter(([, value]) => value !== null && value !== undefined)) as R;
 
 // updatedBy names the latest writer, so a write without a user id drops any earlier value.
-const updatedBy = (userId?: string): Pick<BaseItemRecord, 'updatedBy'> => (userId === undefined ? {} : { updatedBy: userId });
+const updatedBy = (userId?: string): Pick<BaseEntity, 'updatedBy'> => (userId === undefined ? {} : { updatedBy: userId });
 
 // Protected so each resource repository exposes only the operations its resource declares.
-export abstract class BaseRepository<T extends BaseItemRecord> {
+export abstract class BaseRepository<T extends BaseEntity> {
   constructor(
     protected readonly store: DocumentStore<T>,
     protected readonly resourceName: string,
+    // The fields a client may set, so a replace can keep the ones its body does not accept.
+    protected readonly clientFields: readonly string[] = [],
   ) {}
 
   protected guard = <R>(message: string, op: () => Promise<R>): Promise<R> =>
@@ -24,10 +30,10 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
 
   protected notFound = (id: string): NotFoundError => NotFoundError.forItem(this.resourceName, id);
 
-  protected addRecord = (fields: RecordFields<T>, userId?: string): Promise<T> =>
+  protected addRecord = (fields: Partial<RecordFields<T>>, userId?: string): Promise<T> =>
     this.guard('Error creating item in database.', async () => {
       const now = nowIso();
-      const record = {
+      const record = withoutEmpty({
         ...fields,
         id: newId(),
         isDeleted: false,
@@ -35,7 +41,7 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
         updatedTimestamp: now,
         ...(userId !== undefined && { createdBy: userId }),
         ...updatedBy(userId),
-      } as T;
+      } as T);
       await this.store.create(record);
       return record;
     });
@@ -49,13 +55,19 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
   protected updateRecord = (id: string, fields: Partial<RecordFields<T>>, userId?: string): Promise<T> =>
     this.guard(`Error upserting item with id ${id}.`, async () => {
       const { updatedBy: _previous, ...current } = await this.findLive(id);
-      return this.save({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T);
+      return this.save(withoutEmpty({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T));
     });
 
-  protected replaceRecord = (id: string, fields: RecordFields<T>, userId?: string): Promise<T> =>
+  // accepted names every field the replace body may set; the record's other client fields keep their values.
+  protected replaceRecord = (id: string, fields: Partial<RecordFields<T>>, accepted: readonly string[], userId?: string): Promise<T> =>
     this.guard(`Error replacing item with id ${id}.`, async () => {
-      const { createdTimestamp, createdBy } = await this.findLive(id);
-      return this.save({
+      const current = await this.findLive(id);
+      const { createdTimestamp, createdBy } = current;
+      const kept = Object.fromEntries(
+        Object.entries(current).filter(([field]) => this.clientFields.includes(field) && !accepted.includes(field)),
+      );
+      return this.save(withoutEmpty({
+        ...kept,
         ...fields,
         id,
         isDeleted: false,
@@ -64,7 +76,7 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
         // Omitted, never stored as undefined, when the record has none.
         ...(createdBy !== undefined && { createdBy }),
         ...updatedBy(userId),
-      } as T);
+      } as T));
     });
 
   protected deleteRecord = (id: string, userId?: string): Promise<void> =>
