@@ -1,6 +1,6 @@
 """Direct access to the emulator, to read stored records and seed containers no resource can create in."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
@@ -30,7 +30,7 @@ class Store(Protocol):
 
 
 def timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def new_record(name: str) -> dict:
