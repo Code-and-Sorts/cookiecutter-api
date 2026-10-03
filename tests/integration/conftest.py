@@ -3,9 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from api import OPERATIONS, Api, unique_name
-from project import Project
+from api import OPERATIONS, Api
+from project import BODY_OPERATIONS, Project
 from store import new_record, open_store
+from values import response_from_record, violations
 
 PROJECT = pytest.StashKey[Project]()
 
@@ -33,7 +34,7 @@ def pytest_report_header(config):
 def _parametrize(metafunc, argnames: str, cases: list, reason: str):
     """Parametrizes over cases, or skips the test when the project has none."""
     if cases:
-        ids = ["-".join(map(str, case)) if isinstance(case, tuple) else str(case) for case in cases]
+        ids = ["-".join(_id(part) for part in case) if isinstance(case, tuple) else str(case) for case in cases]
         metafunc.parametrize(argnames, cases, ids=ids)
     else:
         metafunc.parametrize(
@@ -41,13 +42,47 @@ def _parametrize(metafunc, argnames: str, cases: list, reason: str):
         )
 
 
+def _id(part) -> str:
+    """Resources and fields by name, values by their repr, shortened."""
+    text = part if isinstance(part, str) else getattr(part, "name", None) or repr(part)
+    return text if len(text) <= 40 else text[:37] + "..."
+
+
+def _field_cases(kind: str, resources, needs) -> tuple[str, list]:
+    """The (resource, operation, field[, value]) cases a field-level test runs, per the fields marker."""
+    ops = [(r, op) for r in resources if r.has(*needs) for op in BODY_OPERATIONS if r.has(op)]
+    if kind == "invalid":
+        return "resource,operation,field,value", [
+            (r, op, f, value) for r, op in ops for f in r.accepted(op) for value in violations(f)
+        ]
+    if kind == "required":
+        return "resource,operation,field", [(r, op, f) for r, op in ops for f in r.accepted(op) if op in f.needed_on]
+    if kind == "refused":
+        return "resource,operation,field", [
+            (r, op, f) for r, op in ops if op != "create" for f in r.fields if not f.accepted(op)
+        ]
+    if kind == "nullable":
+        return "resource,operation,field", [(r, op, f) for r, op in ops if op == "update" for f in r.accepted(op) if f.nullable]
+    if kind == "date_time":
+        return "resource,operation,field", [
+            (r, op, f) for r, op in ops if op == "create" for f in r.accepted(op) if f.type == "date-time"
+        ]
+    if kind == "hidden":
+        return "resource,field", [(r, f) for r in resources if r.has(*needs) for f in r.fields if f.hidden]
+    raise ValueError(f"unknown fields marker {kind}")
+
+
 def pytest_generate_tests(metafunc):
     resources = metafunc.config.stash[PROJECT].resources
     marker = metafunc.definition.get_closest_marker("ops")
     needs = marker.args if marker else ()
     names = metafunc.fixturenames
+    fields_marker = metafunc.definition.get_closest_marker("fields")
 
-    if "disabled_operation" in names:
+    if fields_marker:
+        argnames, cases = _field_cases(fields_marker.args[0], resources, needs)
+        _parametrize(metafunc, argnames, cases, f"no field fits {fields_marker.args[0]}")
+    elif "disabled_operation" in names:
         cases = [(r, op) for r in resources for op in OPERATIONS if op not in r.operations]
         _parametrize(metafunc, "resource,disabled_operation", cases, "every resource enables every operation")
     elif "operation" in names:
@@ -98,15 +133,15 @@ def store(project):
 
 @pytest.fixture
 def make_record(api, store):
-    """Creates a live record through the API, or seeds the store when the resource cannot create."""
+    """Creates a live record through the API, or seeds the store when the resource cannot create; returns its response."""
 
     def make(resource, *, user_id: str | None = None) -> dict:
         if resource.has("create"):
             response = api.send("create", resource, user_id=user_id)
             assert response.status_code == 201, response.text
             return response.json()
-        record = new_record(unique_name(resource))
+        record = new_record(resource)
         store.put(resource.container, record)
-        return {"id": record["id"], "name": record["name"]}
+        return response_from_record(resource, record)
 
     return make

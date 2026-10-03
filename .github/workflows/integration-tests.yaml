@@ -32,8 +32,8 @@ on:
         default: all
       fixture:
         type: choice
-        description: all runs single and edge; multi only adds cases those two cover.
-        options: [all, single, edge, multi]
+        description: all runs single, edge, model and model-shared; multi only adds cases those cover.
+        options: [all, single, edge, model, model-shared, multi]
         default: all
 
 permissions:
@@ -61,7 +61,7 @@ jobs:
           pick() { jq -c --arg pick "$1" '[.[] | select($pick == "all" or (.slug? // .) == $pick)]'; }
           languages=$(pick "$LANGUAGE" <<< '["python", "typescript", "dotnet", "go"]')
           clouds=$(pick "$CLOUD" <<< '[{"name": "Azure Function App", "slug": "azure"}, {"name": "GCP Cloud Function", "slug": "gcp"}, {"name": "AWS Lambda", "slug": "aws"}]')
-          if [ "$FIXTURE" = multi ]; then fixtures='["multi"]'; else fixtures=$(pick "$FIXTURE" <<< '["single", "edge"]'); fi
+          if [ "$FIXTURE" = multi ]; then fixtures='["multi"]'; else fixtures=$(pick "$FIXTURE" <<< '["single", "edge", "model", "model-shared"]'); fi
           matrix=$(jq -cn --argjson l "$languages" --argjson c "$clouds" --argjson f "$fixtures" '{language: $l, cloud: $c, fixture: $f}')
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "Matrix: $matrix"

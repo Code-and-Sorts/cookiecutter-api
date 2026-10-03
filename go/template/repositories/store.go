@@ -12,6 +12,9 @@ import (
 	"fmt"
 {%- endif %}
 {%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' and (need_get or 'list' in all_ops) %}
+	"reflect"
+{%- endif %}
 {% if cloud_service == 'Azure Function App' %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- elif cloud_service == 'GCP Cloud Function' %}
@@ -90,6 +93,7 @@ func (s *store[T, P]) get(ctx context.Context, id string) (*T, error) {
 	if err := doc.DataTo(item); err != nil {
 		return nil, err
 	}
+	keepEmptyLists(item)
 {%- elif cloud_service == 'AWS Lambda' %}
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
@@ -114,6 +118,22 @@ func (s *store[T, P]) get(ctx context.Context, id string) (*T, error) {
 		return nil, models.NewNotFoundError(s.resource, id)
 	}
 	return item, nil
+}
+{%- endif %}
+{%- if cloud_service == 'GCP Cloud Function' and (need_get or 'list' in all_ops) %}
+
+// Firestore reads a stored empty array into a nil slice, which would read as missing and be written back as null.
+func keepEmptyLists(record any) {
+	value := reflect.ValueOf(record).Elem()
+	for i := range value.NumField() {
+		field := value.Field(i)
+		switch {
+		case field.Kind() == reflect.Struct:
+			keepEmptyLists(field.Addr().Interface())
+		case field.Kind() == reflect.Pointer && !field.IsNil() && field.Elem().Kind() == reflect.Slice && field.Elem().IsNil():
+			field.Elem().Set(reflect.MakeSlice(field.Elem().Type(), 0, 0))
+		}
+	}
 }
 {%- endif %}
 {%- if need_write %}
@@ -206,6 +226,7 @@ func (s *store[T, P]) list(ctx context.Context, limit int) ([]T, error) {
 		if err := doc.DataTo(&item); err != nil {
 			return nil, err
 		}
+		keepEmptyLists(&item)
 		results = append(results, item)
 	}
 {%- elif cloud_service == 'AWS Lambda' %}

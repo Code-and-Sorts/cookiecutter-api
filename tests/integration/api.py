@@ -6,6 +6,7 @@ from uuid import uuid4
 import httpx
 
 from project import Resource
+from values import valid_body
 
 # operation -> (method, addresses one item)
 ROUTES = {
@@ -20,10 +21,6 @@ OPERATIONS = tuple(ROUTES)
 ITEM_OPERATIONS = tuple(op for op, (_, addresses_item) in ROUTES.items() if addresses_item)
 BODY_OPERATIONS = ("create", "update", "replace")
 LIST_MAX = 1000
-
-
-def unique_name(resource: Resource) -> str:
-    return f"{resource.name}-{uuid4().hex[:8]}"
 
 
 def user_headers(user_id: str | None) -> dict[str, str]:
@@ -44,10 +41,10 @@ class Api:
         user_id: str | None = None,
         **kwargs,
     ) -> httpx.Response:
-        """Sends a valid body to an operation that takes one unless the caller passes its own."""
+        """Sends a valid body with every accepted field to an operation that takes one, unless the caller passes its own."""
         method, addresses_item = ROUTES[operation]
         if operation in BODY_OPERATIONS and "json" not in kwargs and "content" not in kwargs:
-            kwargs["json"] = {"name": unique_name(resource)}
+            kwargs["json"] = valid_body(resource, operation)
         path = f"/{resource.endpoint}"
         if addresses_item:
             path += f"/{item_id or uuid4()}"

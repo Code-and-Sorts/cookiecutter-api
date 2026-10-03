@@ -1,12 +1,15 @@
 import pytest
 
+from values import response_from_record
+
 
 @pytest.mark.ops("get_by_id")
-def test_a_record_is_visible_through_a_resource_sharing_its_container(api, writer, reader, make_record):
+def test_a_record_is_visible_through_a_resource_sharing_its_container(api, store, writer, reader, make_record):
     record = make_record(writer)
-    response = api.send("get_by_id", reader, record["id"])
-    assert response.status_code == 200
-    assert response.json() == record
+    got = api.send("get_by_id", reader, record["id"])
+    assert got.status_code == 200
+    # The reader sees the stored record through its own model: its fields, with read defaults for the rest.
+    assert got.json() == response_from_record(reader, store.get(writer.container, record["id"]))
 
 
 @pytest.mark.ops("list")
