@@ -3,6 +3,7 @@ import uuid
 from decimal import Decimal
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
+from azure.core import MatchConditions
 from azure.cosmos.aio import ContainerProxy
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosResourceNotFoundError
 {%- endif %}
@@ -139,7 +140,13 @@ class BaseRepository[ResponseT: BaseModel]:
 
     async def _write(self, record: dict) -> None:
 {%- if cloud_service == 'Azure Function App' %}
-        await self.container_client.upsert_item(record)
+        if "_etag" in record:
+            # A record read back keeps its ETag, so a write that races another fails instead of losing it.
+            await self.container_client.replace_item(
+                record["id"], record, etag=record["_etag"], match_condition=MatchConditions.IfNotModified
+            )
+        else:
+            await self.container_client.upsert_item(record)
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         await self.collection.document(record["id"]).set(record, **FIRESTORE_CALL_OPTIONS)

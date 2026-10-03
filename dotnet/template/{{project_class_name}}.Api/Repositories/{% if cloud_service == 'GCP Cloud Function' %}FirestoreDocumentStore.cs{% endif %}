@@ -1,5 +1,6 @@
 namespace {{project_class_name}}.Api.Repositories;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -30,8 +31,16 @@ public class FirestoreDocumentStore<T>(FirestoreDb firestoreDb, string collectio
         _collection.Document(item.Id).SetAsync(ToDocument(item), cancellationToken: ct);
 
     // Resources sharing the collection may store fields this type does not know, so the write updates only its own.
-    public Task SaveAsync(T item, CancellationToken ct = default) =>
-        _collection.Document(item.Id).UpdateAsync(ToUpdates(item), cancellationToken: ct);
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
+    {
+        var item = await GetAsync(id, ct);
+        if (item != null)
+        {
+            change(item);
+            await _collection.Document(id).UpdateAsync(ToUpdates(item), cancellationToken: ct);
+        }
+        return item;
+    }
 
     public static Dictionary<string, object> ToUpdates(T entity) =>
         Json.StoredFields(entity).ToDictionary(field => field.Name, field => field.Value is { } value ? ToValue(value)! : FieldValue.Delete);

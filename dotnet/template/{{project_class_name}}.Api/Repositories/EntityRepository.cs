@@ -35,25 +35,24 @@ public abstract class EntityRepository<TEntity, TDto>(IDocumentStore<TEntity> st
         return ToDto(item);
     }
 
-    protected async Task<TDto> MergeAsync(string id, Action<TEntity> apply, string? userId, CancellationToken ct)
-    {
-        var current = await GetLiveAsync(id, ct);
-        apply(current);
-        // Stores write the whole record, so a null user id drops a stale updatedBy.
-        current.UpdatedBy = userId;
-        current.UpdatedTimestamp = Timestamps.Now();
-        await store.SaveAsync(current, ct);
-        return ToDto(current);
-    }
+    protected async Task<TDto> MergeAsync(string id, Action<TEntity> apply, string? userId, CancellationToken ct) =>
+        ToDto(await UpdateLiveAsync(id, apply, userId, ct));
 
-    protected async Task SoftDeleteAsync(string id, string? userId, CancellationToken ct)
-    {
-        var current = await GetLiveAsync(id, ct);
-        current.IsDeleted = true;
-        current.UpdatedBy = userId;
-        current.UpdatedTimestamp = Timestamps.Now();
-        await store.SaveAsync(current, ct);
-    }
+    protected Task SoftDeleteAsync(string id, string? userId, CancellationToken ct) =>
+        UpdateLiveAsync(id, current => current.IsDeleted = true, userId, ct);
+
+    // A write without a user id removes updatedBy, so it always names the latest writer.
+    private async Task<TEntity> UpdateLiveAsync(string id, Action<TEntity> change, string? userId, CancellationToken ct) =>
+        await store.UpdateAsync(id, current =>
+        {
+            if (current.IsDeleted)
+            {
+                throw new NotFoundException(resourceName, id);
+            }
+            change(current);
+            current.UpdatedBy = userId;
+            current.UpdatedTimestamp = Timestamps.Now();
+        }, ct) ?? throw new NotFoundException(resourceName, id);
 
     private async Task<TEntity> GetLiveAsync(string id, CancellationToken ct)
     {

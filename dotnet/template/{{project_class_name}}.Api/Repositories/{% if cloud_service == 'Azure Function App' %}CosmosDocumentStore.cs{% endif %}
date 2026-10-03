@@ -1,5 +1,6 @@
 namespace {{project_class_name}}.Api.Repositories;
 
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
@@ -20,8 +21,7 @@ public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> whe
             var response = await container.ReadItemAsync<T>(id, new PartitionKey(id), null, ct);
             return response.Resource;
         }
-        // Only substatus 0 is a missing item; other 404s (e.g. 1003, no container) are config errors.
-        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0)
+        catch (CosmosException ex) when (IsMissingItem(ex))
         {
             return null;
         }
@@ -45,11 +45,23 @@ public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> whe
     public Task CreateAsync(T item, CancellationToken ct = default) =>
         container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
 
-    // Resources sharing the container may store fields this type does not know, so the write keeps every other field.
-    public async Task SaveAsync(T item, CancellationToken ct = default)
+    // The document read is written back, keeping fields other resources in the container store, and only if its
+    // ETag still matches, so a write that races another fails instead of losing it.
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
     {
-        var partition = new PartitionKey(item.Id);
-        var stored = (await container.ReadItemAsync<JsonObject>(item.Id, partition, null, ct)).Resource;
+        var partition = new PartitionKey(id);
+        ItemResponse<JsonObject> read;
+        try
+        {
+            read = await container.ReadItemAsync<JsonObject>(id, partition, null, ct);
+        }
+        catch (CosmosException ex) when (IsMissingItem(ex))
+        {
+            return null;
+        }
+        var stored = read.Resource;
+        var item = stored.Deserialize<T>(Json.Options)!;
+        change(item);
         foreach (var (name, value) in Json.StoredFields(item))
         {
             if (value is { } set)
@@ -61,6 +73,10 @@ public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> whe
                 stored.Remove(name);
             }
         }
-        await container.ReplaceItemAsync(stored, item.Id, partition, null, ct);
+        await container.ReplaceItemAsync(stored, id, partition, new ItemRequestOptions { IfMatchEtag = read.ETag }, ct);
+        return item;
     }
+
+    // Only substatus 0 is a missing item; other 404s (e.g. 1003, no container) are config errors.
+    private static bool IsMissingItem(CosmosException ex) => ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0;
 }

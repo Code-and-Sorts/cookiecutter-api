@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from pydantic import BaseModel
 {%- if cloud_service == 'Azure Function App' %}
+from azure.core import MatchConditions
 from azure.cosmos.exceptions import (
     CosmosAccessConditionFailedError,
     CosmosHttpResponseError,
@@ -36,7 +37,6 @@ class _ItemEntity(BaseEntity):
 
     @classmethod
     def client_fields(cls) -> list[str]:
-        # Only this test model's fields, whatever fields base_model adds.
         return ["label", "color", "note"]
 
 
@@ -193,6 +193,7 @@ def describe_cosmos_storage():
     def container():
         client = MagicMock()
         client.upsert_item = AsyncMock()
+        client.replace_item = AsyncMock()
         client.patch_item = AsyncMock()
         client.read = AsyncMock(return_value={"id": "items"})
         return client
@@ -215,9 +216,16 @@ def describe_cosmos_storage():
             assert str(error.value) == f"Item with id {ITEM_ID} was not found."
 
     def describe_write():
-        def test_upserts_record(container):
+        def test_upserts_a_new_record(container):
             asyncio.run(_ItemRepository(container)._write(_stored_item))
             container.upsert_item.assert_awaited_once_with(_stored_item)
+
+        def test_replaces_a_record_read_back_only_if_its_etag_matches(container):
+            record = {**_stored_item, "_etag": "etag-1"}
+            asyncio.run(_ItemRepository(container)._write(record))
+            container.replace_item.assert_awaited_once_with(
+                ITEM_ID, record, etag="etag-1", match_condition=MatchConditions.IfNotModified
+            )
 
     def describe_get_list():
         def test_queries_undeleted_items_with_limit(container):

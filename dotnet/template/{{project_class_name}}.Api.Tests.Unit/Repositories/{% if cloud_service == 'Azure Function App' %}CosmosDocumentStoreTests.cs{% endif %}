@@ -109,16 +109,28 @@ public class CosmosDocumentStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_ReplacesItsOwnFieldsAndKeepsTheRest()
+    public async Task UpdateAsync_ReplacesItsOwnFieldsKeepsTheRestAndMatchesTheETag()
     {
         var response = Substitute.For<ItemResponse<JsonObject>>();
         response.Resource.Returns(new JsonObject { ["id"] = ItemId, ["text"] = "old", ["count"] = 1, ["sibling"] = "kept" });
+        response.ETag.Returns("etag-1");
         _mockContainer.ReadItemAsync<JsonObject>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>()).Returns(response);
 
-        await _store.SaveAsync(Item(text: "new"), TestContext.Current.CancellationToken);
+        var item = await _store.UpdateAsync(ItemId, stored => (stored.Text, stored.Count) = ("new", null), TestContext.Current.CancellationToken);
 
+        Assert.Equal("new", item?.Text);
         await _mockContainer.Received(1).ReplaceItemAsync(
             Arg.Is<JsonObject>(stored => (string?)stored["text"] == "new" && (string?)stored["sibling"] == "kept" && !stored.ContainsKey("count")),
-            ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>());
+            ItemId, new PartitionKey(ItemId), Arg.Is<ItemRequestOptions>(options => options.IfMatchEtag == "etag-1"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReturnsNull_WhenTheItemIsMissing()
+    {
+        _mockContainer.ReadItemAsync<JsonObject>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new CosmosException("missing", HttpStatusCode.NotFound, 0, "", 0));
+
+        Assert.Null(await _store.UpdateAsync(ItemId, _ => { }, TestContext.Current.CancellationToken));
+        await _mockContainer.DidNotReceiveWithAnyArgs().ReplaceItemAsync<JsonObject>(default!, default!, default, default, TestContext.Current.CancellationToken);
     }
 }

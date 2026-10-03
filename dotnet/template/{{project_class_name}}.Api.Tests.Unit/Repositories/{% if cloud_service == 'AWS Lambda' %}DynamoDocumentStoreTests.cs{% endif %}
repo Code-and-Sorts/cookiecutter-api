@@ -1,6 +1,7 @@
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -110,15 +111,17 @@ public class DynamoDocumentStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_SetsItsOwnFieldsAndRemovesUnsetOnes()
+    public async Task UpdateAsync_SetsItsOwnFieldsAndRemovesUnsetOnes()
     {
-        var item = new TestRecord { Id = ItemId, Text = "mock", CreatedTimestamp = StoredTimestamp, UpdatedTimestamp = StoredTimestamp, CreatedBy = "User2" };
+        UpdateItemRequest? request = null;
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse { Item = StoredItem() });
+        _mockDynamoClient.UpdateItemAsync(Arg.Do<UpdateItemRequest>(sent => request = sent), Arg.Any<CancellationToken>()).Returns(new UpdateItemResponse());
 
-        await _store.SaveAsync(item, TestContext.Current.CancellationToken);
+        await _store.UpdateAsync(ItemId, item => (item.Text, item.UpdatedBy) = ("mock", null), TestContext.Current.CancellationToken);
 
-        await _mockDynamoClient.Received(1).UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>());
-        var request = _store.ToUpdate(item);
+        Assert.NotNull(request);
         var names = request.ExpressionAttributeNames.ToDictionary(name => name.Value, name => name.Key);
+        Assert.Equal("mockTableName", request.TableName);
         Assert.Equal(ItemId, request.Key["id"].S);
         Assert.Equal("attribute_exists(id)", request.ConditionExpression);
         Assert.DoesNotContain("id", names.Keys);
@@ -130,12 +133,21 @@ public class DynamoDocumentStoreTests
     }
 
     [Fact]
+    public async Task UpdateAsync_ReturnsNull_WhenTheItemIsMissing()
+    {
+        _mockDynamoClient.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(new GetItemResponse());
+
+        Assert.Null(await _store.UpdateAsync(ItemId, _ => { }, TestContext.Current.CancellationToken));
+        await _mockDynamoClient.DidNotReceiveWithAnyArgs().UpdateItemAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public void ToItem_StoresEachTypeAsItsDynamoDbType()
     {
         var item = DynamoDocumentStore<TestRecord>.ToItem(TestRecord.Sample());
 
         Assert.Equal("stored", item["text"].S);
-        Assert.Equal("9007199254740991", item["count"].N);
+        Assert.Equal(Fields.MaxSafeInteger.ToString(CultureInfo.InvariantCulture), item["count"].N);
         Assert.Equal("1.5", item["ratio"].N);
         Assert.False(item["flag"].BOOL);
         Assert.Equal(new[] { "a", "b" }, item["tags"].L.Select(value => value.S));

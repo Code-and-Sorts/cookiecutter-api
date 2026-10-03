@@ -2,7 +2,10 @@
 {%- set ops = resource.operations -%}
 {%- set ct = "TestContext.Current.CancellationToken" -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
-{% if "list" in ops %}
+{% if ops | select("in", ["update", "replace", "delete"]) | list %}
+using System;
+{%- endif %}
+{%- if "list" in ops %}
 using System.Collections.Generic;
 using System.Linq;
 {%- endif %}
@@ -71,22 +74,33 @@ public class {{ r }}RepositoryTests
         Assert.Equal(Json.Serialize(new {{ r }}Dto(item)), Json.Serialize(result));
     }
 {%- endif %}
+{%- if ops | select("in", ["update", "replace", "delete"]) | list %}
+
+    private {{ r }}Entity StoreHoldsTheSample()
+    {
+        var stored = {{ r }}Samples.Entity();
+        _mockStore.UpdateAsync(ItemId, Arg.Any<Action<{{ r }}Entity>>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            call.Arg<Action<{{ r }}Entity>>()(stored);
+            return stored;
+        });
+        return stored;
+    }
+{%- endif %}
 {%- for op, Op in [("update", "Update"), ("replace", "Replace")] if op in ops %}
 
     [Fact]
     public async Task {{ Op }}Async_AppliesTheChangesAndKeepsCreatedFields()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns({{ r }}Samples.Entity());
+        var stored = StoreHoldsTheSample();
         {{ r }}Entity? applied = null;
 
         var result = await _repository.{{ Op }}Async(ItemId, item => applied = item, "User1", {{ ct }});
 
-        Assert.NotNull(applied);
+        Assert.Same(stored, applied);
         Assert.Equal(ItemId, result.Id);
-        await _mockStore.Received(1).SaveAsync(
-            Arg.Is<{{ r }}Entity>(stored => stored == applied && stored.CreatedBy == "User2" && stored.UpdatedBy == "User1"
-                && stored.CreatedTimestamp == {{ r }}Samples.StoredTimestamp && stored.UpdatedTimestamp != {{ r }}Samples.StoredTimestamp),
-            Arg.Any<CancellationToken>());
+        Assert.True(stored.CreatedBy == "User2" && stored.UpdatedBy == "User1"
+            && stored.CreatedTimestamp == {{ r }}Samples.StoredTimestamp && stored.UpdatedTimestamp != {{ r }}Samples.StoredTimestamp);
     }
 {%- endfor %}
 {%- if "delete" in ops %}
@@ -94,12 +108,11 @@ public class {{ r }}RepositoryTests
     [Fact]
     public async Task DeleteAsync_SoftDeletesTheItem()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns({{ r }}Samples.Entity());
+        var stored = StoreHoldsTheSample();
 
         await _repository.DeleteAsync(ItemId, null, {{ ct }});
 
-        await _mockStore.Received(1).SaveAsync(
-            Arg.Is<{{ r }}Entity>(stored => stored.IsDeleted && stored.CreatedTimestamp == {{ r }}Samples.StoredTimestamp), Arg.Any<CancellationToken>());
+        Assert.True(stored.IsDeleted && stored.CreatedTimestamp == {{ r }}Samples.StoredTimestamp);
     }
 {%- endif %}
 }

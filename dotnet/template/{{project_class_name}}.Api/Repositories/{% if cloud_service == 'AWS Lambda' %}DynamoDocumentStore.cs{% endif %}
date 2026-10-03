@@ -1,5 +1,6 @@
 namespace {{project_class_name}}.Api.Repositories;
 
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,9 +54,18 @@ public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : 
         client.PutItemAsync(new PutItemRequest { TableName = tableName, Item = ToItem(item) }, ct);
 
     // Resources sharing the table may store fields this type does not know, so the write updates only its own.
-    public Task SaveAsync(T item, CancellationToken ct = default) => client.UpdateItemAsync(ToUpdate(item), ct);
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
+    {
+        var item = await GetAsync(id, ct);
+        if (item != null)
+        {
+            change(item);
+            await client.UpdateItemAsync(ToUpdate(item), ct);
+        }
+        return item;
+    }
 
-    public UpdateItemRequest ToUpdate(T entity)
+    private UpdateItemRequest ToUpdate(T entity)
     {
         var fields = Json.StoredFields(entity).Where(field => field.Name != "id").Select((field, index) => (field.Name, field.Value, Key: $"f{index}")).ToList();
         var set = fields.Where(field => field.Value != null).ToList();

@@ -27,7 +27,19 @@ export class CosmosStore<T extends BaseEntity> implements DocumentStore<T> {
     await this.container.items.create<T>(item);
   };
 
-  write = (item: T): Promise<boolean> => this.ifFound(this.container.item(item.id, item.id).replace<T>(item));
+  // A record read back keeps its ETag, so a write that races another fails (412) instead of losing it.
+  write = async (item: T): Promise<boolean> => {
+    const { _etag: etag } = item as T & { _etag?: string };
+    try {
+      await this.container.item(item.id, item.id).replace<T>(item, etag ? { accessCondition: { type: 'IfMatch', condition: etag } } : undefined);
+      return true;
+    } catch (error) {
+      if (isMissingItem(error)) {
+        return false;
+      }
+      throw error;
+    }
+  };
 
   softDelete = (id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean> => {
     const operations: PatchOperation[] = [
@@ -39,10 +51,10 @@ export class CosmosStore<T extends BaseEntity> implements DocumentStore<T> {
       // Patch remove fails on a missing path, so the set above guarantees one exists.
       operations.push({ op: 'remove', path: '/updatedBy' });
     }
-    return this.ifFound(this.container.item(id, id).patch({ condition: 'FROM c WHERE c.isDeleted = false', operations }));
+    return this.ifLive(this.container.item(id, id).patch({ condition: 'FROM c WHERE c.isDeleted = false', operations }));
   };
 
-  private ifFound = async (operation: Promise<unknown>): Promise<boolean> => {
+  private ifLive = async (operation: Promise<unknown>): Promise<boolean> => {
     try {
       await operation;
       return true;

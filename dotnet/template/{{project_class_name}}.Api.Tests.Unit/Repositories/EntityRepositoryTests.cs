@@ -110,29 +110,47 @@ public class EntityRepositoryTests
         && System.Text.RegularExpressions.Regex.IsMatch(item.CreatedTimestamp, TimestampPattern)
         && item.UpdatedTimestamp == item.CreatedTimestamp && item.CreatedBy == userId && item.UpdatedBy == userId;
 
+    private void StoreHolds(TestRecord? stored) =>
+        _mockStore.UpdateAsync(ItemId, Arg.Any<Action<TestRecord>>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            if (stored != null)
+            {
+                call.Arg<Action<TestRecord>>()(stored);
+            }
+            return stored;
+        });
+
     [Theory]
     [InlineData("User1")]
     [InlineData(null)]
     public async Task Merge_KeepsCreatedFieldsAndRefreshesUpdatedFields(string? userId)
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
+        var stored = StoredItem();
+        StoreHolds(stored);
 
         Assert.Equal("changed", await _repository.Merge("changed", userId));
 
-        await _mockStore.Received(1).SaveAsync(
-            Arg.Is<TestRecord>(k => k.Id == ItemId && k.Text == "changed" && k.CreatedBy == "User2" && k.UpdatedBy == userId
-                && k.CreatedTimestamp == StoredTimestamp && k.UpdatedTimestamp != StoredTimestamp
-                && System.Text.RegularExpressions.Regex.IsMatch(k.UpdatedTimestamp, TimestampPattern)),
-            Arg.Any<CancellationToken>());
+        Assert.True(stored.Id == ItemId && stored.Text == "changed" && stored.CreatedBy == "User2" && stored.UpdatedBy == userId
+            && stored.CreatedTimestamp == StoredTimestamp && stored.UpdatedTimestamp != StoredTimestamp
+            && System.Text.RegularExpressions.Regex.IsMatch(stored.UpdatedTimestamp, TimestampPattern));
     }
 
     [Fact]
     public async Task Merge_ThrowsNotFound_WhenSoftDeleted()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem(isDeleted: true));
+        var stored = StoredItem(isDeleted: true);
+        StoreHolds(stored);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _repository.Merge("changed"));
-        await _mockStore.DidNotReceiveWithAnyArgs().SaveAsync(default!, TestContext.Current.CancellationToken);
+        Assert.Equal("stored", stored.Text);
+    }
+
+    [Fact]
+    public async Task Merge_ThrowsNotFound_WhenMissing()
+    {
+        StoreHolds(null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _repository.Merge("changed"));
     }
 
     [Theory]
@@ -140,13 +158,12 @@ public class EntityRepositoryTests
     [InlineData(null)]
     public async Task Delete_SoftDeletesAndRefreshesUpdatedFields(string? userId)
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
+        var stored = StoredItem();
+        StoreHolds(stored);
 
         await _repository.Delete(ItemId, userId);
 
-        await _mockStore.Received(1).SaveAsync(
-            Arg.Is<TestRecord>(k => k.IsDeleted && k.CreatedBy == "User2" && k.UpdatedBy == userId
-                && k.CreatedTimestamp == StoredTimestamp && k.UpdatedTimestamp != StoredTimestamp),
-            Arg.Any<CancellationToken>());
+        Assert.True(stored.IsDeleted && stored.CreatedBy == "User2" && stored.UpdatedBy == userId
+            && stored.CreatedTimestamp == StoredTimestamp && stored.UpdatedTimestamp != StoredTimestamp);
     }
 }

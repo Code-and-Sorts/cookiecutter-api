@@ -38,7 +38,7 @@ public class FirestoreDocumentTests
         var document = FirestoreDocumentStore<TestRecord>.ToDocument(TestRecord.Sample());
 
         Assert.Equal("stored", document["text"]);
-        Assert.Equal(9007199254740991L, document["count"]);
+        Assert.Equal(Fields.MaxSafeInteger, document["count"]);
         Assert.Equal(1.5, document["ratio"]);
         Assert.False(Assert.IsType<bool>(document["flag"]));
         Assert.Equal(new object?[] { "a", "b" }, Assert.IsType<List<object?>>(document["tags"]));
