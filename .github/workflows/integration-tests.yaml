@@ -20,6 +20,7 @@ on:
       - .github/actions/setup-copier-template/**
       - .github/actions/setup-runtime/**
       - .github/actions/start-local-api/**
+  pull_request: # TEMPORARY: validate the uv migration on this PR
   workflow_dispatch:
     inputs:
       language:
