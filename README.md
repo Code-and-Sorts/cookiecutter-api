@@ -1,0 +1,243 @@
+# KittenClaws API
+
+[![](https://img.shields.io/badge/made%20using%20cookiecutter%20api-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/Code-and-Sorts/cookiecutter-api)
+
+## Overview
+
+This project is a TypeScript Node.js REST API built on [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/) (programming model v4) and backed by [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/). Each enabled operation is registered as its own HTTP-triggered function, with one file per resource under `functions/`.
+
+The API follows a controller → service → repository layout wired together by an [Inversify](https://inversify.io/) container in `config/container.ts`, validates input with [Zod](https://zod.dev/), and soft-deletes records by setting `isDeleted`. The project is an ES module (`"type": "module"`).
+
+## Endpoints
+
+Azure Functions serves HTTP functions under the `/api` route prefix. Every route except `/api/health` uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+
+- `GET /api/health` — health check
+- **KittenClaws** (storage: `kittenclaws`)
+  - `GET /api/kittenclaws?limit=100` — list (default 100, max 1000)
+  - `GET /api/kittenclaws/{id}` — get by ID
+  - `POST /api/kittenclaws` — create
+  - `PATCH /api/kittenclaws/{id}` — partial update
+  - `DELETE /api/kittenclaws/{id}` — soft delete
+
+## Requests and responses
+
+Every response the app sends is JSON (`Content-Type: application/json`), errors included.
+
+- Items and request bodies follow the [data model](#data-model). A list is a JSON array (`[]` when empty).
+- Unknown fields are rejected, including `id`, `isDeleted`, the timestamps and `createdBy`/`updatedBy`, so clients can never set ids or system fields. The id comes from the path only.
+- `?limit=` on a list is optional: a missing or invalid value uses the default (100) and larger values are capped at 1000.
+- Writes record the user id sent in the optional `X-User-Id` header (any casing; surrounding whitespace is trimmed). POST stores it as `createdBy` and `updatedBy`; PATCH, PUT and DELETE store it as `updatedBy` and keep `createdBy`. A write without the header (or with an empty one) removes `updatedBy`, so it always names the latest writer. GET ignores the header and responses never include these fields. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read.
+  The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
+
+| Status | When | Body |
+|---|---|---|
+| 200 | get, list, update, replace | the item, or an array of items |
+| 201 | create | the new item |
+| 200 | delete | `{"message": "<Name> with id <id> was deleted successfully."}` |
+| 400 | body is not valid JSON or not an object, a field is missing or invalid, an unknown field is sent, or `X-User-Id` is too long | `{"errorMessage": "<what is wrong>"}` |
+| 404 | the id does not exist, is soft-deleted, or is not a UUID | `{"errorMessage": "<Name> with id <id> was not found."}` |
+| 500 | anything unexpected, such as a database failure | `{"errorMessage": "An unexpected error occurred."}` |
+
+Expected 4xx outcomes are not logged as errors. Unexpected errors are logged at error level with their stack trace (a database failure carries the SDK error as its `cause`); exception text never reaches the client. A failing or unreachable database answers with that 500 within about 8 seconds: every repository operation is bounded by `DATABASE_DEADLINE_MS` (`utils/deadline.util.ts`), and the database client in `config/container.ts` uses short per-attempt timeouts and capped retries. A cancelled request is logged as a warning, not an error. A request that hits the database deadline returns 500, but the write may still complete; retrying a create can therefore store a duplicate.
+
+Requests for a method or path that has no registered function never reach the app: the Functions host answers them itself with its own 404 (not JSON, and not a 405). That covers unknown paths and operations that were not generated for a resource.
+
+## Storage
+
+Each resource is stored in the Cosmos DB container named by its `container` setting. The name can be overridden per container with an environment variable:
+
+| Container | Environment variable | Default | Resources |
+|---|---|---|---|
+| `kittenclaws` | `COSMOS_CONTAINER_KITTENCLAWS` | `kittenclaws` | KittenClaws |
+
+> [!IMPORTANT]
+> Resources that share a container share records. There is no type discriminator, so a record created through one resource's endpoint is listed, read, updated and deleted through every other resource that uses the same container. Give resources separate containers unless that is what you want.
+
+`<CONTAINER>` is the container id upper-cased with `-` replaced by `_`.
+
+Stored records hold the [data model](#data-model)'s fields, plus `createdBy`/`updatedBy` only when they are set (they are never stored as null or empty). Timestamps are ISO-8601 UTC with millisecond precision, for example `2026-09-29T22:49:26.625Z`. Create sets both timestamps; PATCH and PUT keep the stored `createdTimestamp` and `createdBy` and refresh `updatedTimestamp`; DELETE is a soft delete that sets `isDeleted: true` and refreshes `updatedTimestamp`. Every write sets or removes `updatedBy` from the `X-User-Id` header.
+
+## Data model
+
+Every resource stores the built-in base fields, the fields `base_model` adds and its own `fields`. They
+come from the Copier answers in `.copier-answers.yml`: change them there and run `copier update`, so all
+layers (models, validation, storage and tests) are regenerated together.
+
+The built-in fields are set by the server and never accepted in a request body: `id` (a UUID, returned),
+`isDeleted` (soft delete), `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for
+example `2026-09-29T22:49:26.625Z`; a create reads the clock once for both), and `createdBy`/`updatedBy`
+(the `X-User-Id` header, stored only when it is sent). Only `id` is returned.
+
+`KittenClaws` (`/kittenclaws`) fields:
+
+| Field | Type | Required | Nullable | Default | Rules | Accepted by | Returned | Description |
+|---|---|---|---|---|---|---|---|---|
+| `name` | string | yes | no | none | min_length: 1 | POST, PATCH | yes | none |
+
+- A response holds `id` and every field that is not hidden, with `null` for a field without a value. A
+  list is a JSON array (`[]` when empty).
+- A request body must be a JSON object holding only the fields its operation accepts; any other field,
+  including `id` and the built-in fields, is a 400. Values are never converted: `"1"` is not an integer.
+- Create (POST) and replace (PUT) give a field left out its default (`$now`, `$today` and `$uuid` are
+  evaluated on every write) or no value; a required field without a default must be sent. Replace keeps
+  the fields it does not accept, such as immutable ones, at their stored values.
+- Update (PATCH) changes only the fields sent; `null` clears a nullable field.
+- A field without a value is not stored. Date-times are stored in UTC with milliseconds whatever offset
+  was sent, dates as `YYYY-MM-DD`. Reading a record that lacks a field returns its static default
+  (`null` for a nullable field).
+- Integers must lie within ±9007199254740991, so every language and JSON parser reads them exactly.
+  Patterns match anywhere in the value unless anchored with `^` and `$`; `email` and `uri` check the
+  value's shape only.
+
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `COSMOS_DB_URL` | yes | Cosmos DB account endpoint |
+| `COSMOS_DB_KEY` | yes | Cosmos DB account key |
+| `COSMOS_DB_DATABASE_NAME` | no | Database name (default `kittenclawss-sql-db`) |
+| `COSMOS_DB_EMULATOR` | no | `true` only for the local emulator (default `false`); see [Run locally against the emulator](#run-locally-against-the-emulator) |
+| `COSMOS_CONTAINER_KITTENCLAWS` | no | Cosmos DB container for `kittenclaws` (default `kittenclaws`) |
+
+Locally the variables are read from the process environment and from a `.env` file in the project root (loaded quietly, without a startup banner).
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) 22 (LTS)
+- [Yarn](https://yarnpkg.com/) 4, enabled with `corepack enable`
+- [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) v4 (installed as a dev dependency)
+- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/) and an Azure subscription
+- A Cosmos DB for NoSQL account in Azure, or Docker for the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator))
+
+## Setup
+
+```console
+corepack enable
+yarn install
+yarn build
+```
+
+## Run locally
+
+Add the environment variables to the `Values` of `local.settings.json` (or to `.env`), then start the Functions host:
+
+```console
+yarn build
+yarn start
+```
+
+The API is served at `http://localhost:7071/api`.
+
+The `.thunderclient` directory contains a [Thunder Client](https://www.thunderclient.com/) collection with a request for every generated operation, a few error cases, and a `baseUrl` that matches the local server above.
+
+## Run locally against the emulator
+
+`docker-compose.yml` runs the [Azure Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) in Docker, so the API can serve requests without a cloud account. You need Docker with Compose v2; with Podman, run the `podman compose` equivalents of the `emulator:*` scripts.
+
+```console
+yarn install
+yarn emulator:up      # docker compose up -d --wait: returns once the emulator is healthy
+yarn emulator:seed    # creates the database and one container per storage container; safe to re-run
+yarn start:emulator   # yarn build, then func start with the emulator settings
+yarn emulator:down    # docker compose down -v: stops the emulator and discards its data
+```
+
+`yarn emulator:logs` follows the emulator's logs. `yarn emulator:seed` and `yarn start:emulator` load the settings in `.env.emulator` instead of `.env` (through `DOTENV_CONFIG_PATH`), overriding variables already set, including those from `local.settings.json`. `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as `local.settings.json`, `.env` or `.env.local`, which git ignores. The emulator keeps no data outside its container, so `yarn emulator:down` (or removing the container) discards every record.
+
+| Port | Purpose |
+| --- | --- |
+| 8081 | Cosmos DB gateway (`http://localhost:8081/`) |
+| 1234 | Data Explorer: open `http://localhost:1234` to browse databases and items |
+
+- The image is the Linux [vNext emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) (preview). It serves plain HTTP, so there is no certificate to trust, and it runs natively on x64 and arm64, including Apple Silicon. Partition key `/id`, conditional patch (soft delete), `OFFSET`/`LIMIT` and parameterized queries all work against it.
+- `COSMOS_DB_KEY` is the emulator's well-known account key, published by Microsoft; it is not a secret and only works against the emulator.
+- `COSMOS_DB_EMULATOR=true` turns off endpoint discovery, so the client keeps using `COSMOS_DB_URL` instead of the address the emulator advertises, and, for an `https://` endpoint only, skips certificate verification. Never set it outside local development; when it is unset or false the client is configured exactly as in production.
+- To use the older HTTPS-only emulator (`mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest`) instead, swap the image in `docker-compose.yml` (its readiness probe is `https://localhost:8081/_explorer/emulator.pem`) and set `COSMOS_DB_URL=https://localhost:8081/`. That image runs on x64 only (not on Apple Silicon) and takes 1 to 3 minutes to start.
+
+Startup takes about 10 to 60 seconds; the healthcheck allows up to 4 minutes for slow machines and CI runners. `yarn emulator:seed` retries for up to 2 minutes and exits non-zero if the emulator never becomes ready, so it also works as a readiness gate in scripts.
+
+Troubleshooting:
+
+- **Port already in use:** another emulator or service holds a port above. Stop it, or change the host port in `docker-compose.yml` and in `.env.emulator`.
+- **`yarn emulator:up` fails or never turns healthy:** check `yarn emulator:logs`, and that Docker has enough free memory for the emulator.
+- **Requests fail right after starting:** run `yarn emulator:seed`; the database and containers do not exist until it has run, and `yarn emulator:down` deletes them.
+- **A missing container returns 404 instead of 500:** the emulator reports a missing container without the sub-status a Cosmos DB account sends; run `yarn emulator:seed`.
+
+## Deploy
+
+Create a Function App on the Flex Consumption plan with the Node.js 22 runtime, set the environment variables as app settings, and publish:
+
+```console
+az functionapp create \
+  --resource-group <resource-group> \
+  --name <function-app-name> \
+  --storage-account <storage-account> \
+  --flexconsumption-location <region> \
+  --runtime node \
+  --runtime-version 22 \
+  --functions-version 4
+
+az functionapp config appsettings set \
+  --resource-group <resource-group> \
+  --name <function-app-name> \
+  --settings COSMOS_DB_URL=<url> COSMOS_DB_KEY=<key>
+
+yarn build
+func azure functionapp publish <function-app-name>
+```
+
+## Development
+
+```console
+yarn lint        # ESLint
+yarn format      # ESLint --fix and Prettier
+yarn test:unit   # Jest with coverage thresholds
+yarn audit       # yarn npm audit --severity moderate
+```
+
+## Repository structure
+
+Each resource gets its own file in every layer, named after the resource in lowerCamelCase. Each layer's `index.ts` re-exports them.
+
+```text
+├── .env.emulator                   - Public settings for the local emulator
+├── .thunderclient                  - Thunder Client collection, one folder per resource
+├── config
+│   └── container.ts                - Wiring of repositories, services and controllers
+├── controllers                     - Request validation
+│   └── kittenClaws.controller.ts
+├── functions                       - Azure Functions HTTP triggers
+│   ├── health.ts
+│   ├── response.ts                 - JSON responses and the shared handler wrapper
+│   └── kittenClaws.ts
+├── repositories                    - Data access
+│   ├── base.repository.ts          - CRUD, timestamps and soft deletes over a document store
+│   ├── document.store.ts           - Store interface
+│   ├── cosmos.store.ts             - Cosmos DB store
+│   └── kittenClaws.repository.ts
+├── scripts
+│   └── bootstrapEmulator.ts        - Prepares the local emulator (yarn emulator:seed)
+├── services                        - Business logic
+│   ├── schemaValidator.service.ts
+│   └── kittenClaws.service.ts
+├── types
+│   ├── errors                      - Error types
+│   └── models                      - Zod models and environment schema
+│       └── kittenClaws.schema.ts
+├── test                            - Shared test mocks
+├── utils                           - Error mapping, JSON body parsing, list limits, clock and ids
+├── docker-compose.yml              - Local Cosmos DB emulator
+└── package.json                    - Scripts and dependencies
+```
+
+Unit tests sit in a `__tests__` directory next to the code they cover, one file per resource (for example `controllers/__tests__/kittenClaws.controller.test.ts`).
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+---
+
+Repository generated with [Code-and-Sorts/cookiecutter-api](https://github.com/Code-and-Sorts/cookiecutter-api).
