@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as C# properties, FluentValidation rules and test values. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, sample_body_json, string_literal -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, portable_pattern, sample_body_json, string_literal -%}
 {%- set CS_TYPES = {"string": "string", "integer": "long", "number": "double", "boolean": "bool", "date": "string", "date-time": "string", "uuid": "string", "enum": "string"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "Fields.Now()", "today": "Fields.Today()", "uuid": "Fields.NewUuid()"} -%}
 {#- Checks of a value's shape, as (Fields method, description); arrays apply them to every item. -#}
@@ -12,8 +12,8 @@
 {%- set FORMAT_NAMES = {"email": "an email address", "uri": "an absolute URI"} -%}
 {#- Rules on a length or count, as (rule, FluentValidation check, message, unit). -#}
 {%- set COUNT_RULES = [
-    ("min_length", "MinimumLength(%s)", "be at least %s long", "character"),
-    ("max_length", "MaximumLength(%s)", "be at most %s long", "character"),
+    ("min_length", "Must(value => value == null || Fields.Length(value) >= %s)", "be at least %s long", "character"),
+    ("max_length", "Must(value => value == null || Fields.Length(value) <= %s)", "be at most %s long", "character"),
     ("min_items", "Must(values => values == null || values.Count >= %s)", "have at least %s", "item"),
     ("max_items", "Must(values => values == null || values.Count <= %s)", "have at most %s", "item"),
 ] -%}
@@ -55,16 +55,32 @@
 {%- if f.dynamic -%}{{ DYNAMIC_DEFAULTS[f.dynamic] }}{%- else -%}{{ literal(f, f.default) }}{%- endif -%}
 {%- endmacro -%}
 
-{#- A C# file in a namespace under the API's holding body, with the System usings body needs, then usings
-    (namespaces under the API's, or FluentValidation), then Utils when body calls Fields. Import with context. -#}
-{%- macro csharp_file(namespace, body, usings=[]) -%}
+{#- The namespaces a model file uses, from the fields it renders: kind is entity, response, request or validation;
+    ops are the request bodies a request file renders and base marks the shared base types. -#}
+{%- macro usings(kind, fields, ops=[], base=false) -%}
 {%- set api = project_class_name ~ ".Api." -%}
+{%- set types = fields | map(attribute="type") | list + fields | map(attribute="item_type") | list -%}
 {%- set names = [] -%}
-{%- for marker, name in [("List<", "System.Collections.Generic"), ("HashSet<", "System.Collections.Generic"), (".Distinct()", "System.Linq"), ("[Json", "System.Text.Json.Serialization")] if marker in body and name not in names %}{% set _ = names.append(name) %}{% endfor -%}
-{%- for name in usings %}{% set _ = names.append(name if name == "FluentValidation" else api ~ name) %}{% endfor -%}
-{%- if body | regex_search("\\bFields\\.") and "Utils" not in usings %}{% set _ = names.append(api ~ "Utils") %}{% endif -%}
-namespace {{ api ~ namespace }};
-{% for name in names %}{{ "\n" if loop.first }}using {{ name }};
+{%- if kind == "validation" -%}
+{%- set ns = namespace(checked=types | select("in", VALUE_CHECKS) | list | length > 0) -%}
+{%- for f in fields if f.rules | select("in", ["min_length", "max_length", "pattern", "format"]) | list %}{% set ns.checked = true %}{% endfor -%}
+{%- if fields | map(attribute="rules") | selectattr("unique_items") | list %}{% set _ = names.append("System.Linq") %}{% endif -%}
+{%- set _ = names.extend(["FluentValidation", api ~ "Requests"]) -%}
+{%- if ns.checked %}{% set _ = names.append(api ~ "Utils") %}{% endif -%}
+{%- else -%}
+{%- if "array" in types or (kind == "request" and base) %}{% set _ = names.append("System.Collections.Generic") %}{% endif -%}
+{%- if fields or base %}{% set _ = names.append("System.Text.Json.Serialization") %}{% endif -%}
+{%- if kind != "entity" %}{% set _ = names.append(api ~ "Entities") %}{% endif -%}
+{%- set defaulted = fields | selectattr("dynamic") | list if ops | select("in", ["create", "replace"]) | list else [] -%}
+{%- if kind == "request" and (base or "date-time" in types or defaulted) %}{% set _ = names.append(api ~ "Utils") %}{% endif -%}
+{%- endif -%}
+{{ names | tojson }}
+{%- endmacro -%}
+
+{#- A C# file in a namespace under the API's holding body, after the usings a usings() call names. -#}
+{%- macro csharp_file(namespace, names, body) -%}
+namespace {{ project_class_name ~ ".Api." ~ namespace }};
+{% for name in names | from_json %}{{ "\n" if loop.first }}using {{ name }};
 {% endfor %}
 {{ body | trim }}
 {%- endmacro -%}
@@ -72,7 +88,7 @@ namespace {{ api ~ namespace }};
 {#- A property serialized under the field's declared name; responses write null instead of leaving it out. -#}
 {%- macro property(f, initializer="", response=false, order=none) -%}
 {%- if f.description %}
-    /// <summary>{{ f.description | replace("\n", " ") | e }}</summary>
+    /// <summary>{{ f.description | e }}</summary>
 {%- endif %}
     [JsonPropertyName("{{ f.name }}")]
 {%- if response %}
@@ -123,6 +139,10 @@ namespace {{ api ~ namespace }};
         {{ target }}.{{ check }}.WithMessage({{ message | tojson }});
 {%- endmacro -%}
 
+{%- macro matches(pattern) -%}
+Must(value => value == null || Fields.Matches(value, {{ regex(pattern) }}))
+{%- endmacro -%}
+
 {%- macro bound(f, value) -%}
 {{ value }}{{ "L" if f.type == "integer" else "d" }}
 {%- endmacro -%}
@@ -153,10 +173,10 @@ namespace {{ api ~ namespace }};
 {{ rule(p, method ~ "(" ~ bound(f, f.rules[key]) ~ ")", f.name ~ " must be " ~ text ~ " " ~ f.rules[key] ~ ".") }}
 {%- endfor -%}
 {%- if "pattern" in f.rules -%}
-{{ rule(p, "Matches(" ~ regex(f.rules.pattern) ~ ")", f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
+{{ rule(p, matches(portable_pattern(f.rules.pattern)), f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
 {%- endif -%}
 {%- if "format" in f.rules -%}
-{{ rule(p, "Matches(" ~ regex(PATTERNS[f.rules.format]) ~ ")", f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
+{{ rule(p, matches(PATTERNS[f.rules.format]), f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
 {%- endif -%}
 {%- if f.rules.unique_items -%}
 {%- set items = "values.Select(value => Fields.UtcDateTime(value))" if f.item_type == "date-time" else "values" -%}

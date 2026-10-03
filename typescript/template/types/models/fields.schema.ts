@@ -1,12 +1,14 @@
 {%- from 'shared/_fields.jinja' import PATTERNS -%}
 import { z } from 'zod';
 
-export const DATE_TIME_PATTERN = new RegExp({{ PATTERNS.date_time | tojson }});
-export const UUID_PATTERN = new RegExp({{ PATTERNS.uuid | tojson }});
-export const EMAIL_PATTERN = new RegExp({{ PATTERNS.email | tojson }});
-export const URI_PATTERN = new RegExp({{ PATTERNS.uri | tojson }});
+// The u flag makes JavaScript count code points, as every other language does.
+export const DATE_PATTERN = new RegExp({{ PATTERNS.date | tojson }}, 'u');
+export const DATE_TIME_PATTERN = new RegExp({{ PATTERNS.date_time | tojson }}, 'u');
+export const UUID_PATTERN = new RegExp({{ PATTERNS.uuid | tojson }}, 'u');
+export const EMAIL_PATTERN = new RegExp({{ PATTERNS.email | tojson }}, 'u');
+export const URI_PATTERN = new RegExp({{ PATTERNS.uri | tojson }}, 'u');
 
-export const dateSchema = z.iso.date();
+export const dateSchema = z.iso.date().regex(DATE_PATTERN);
 
 // Any RFC 3339 offset is accepted; the value is held in UTC with milliseconds, like the system timestamps.
 export const dateTimeSchema = z.iso

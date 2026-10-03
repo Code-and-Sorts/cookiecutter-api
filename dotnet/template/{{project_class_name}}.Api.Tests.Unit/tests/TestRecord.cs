@@ -3,6 +3,7 @@ namespace {{project_class_name}}.Api.Tests.Unit;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using {{project_class_name}}.Api.Entities;
+using {{project_class_name}}.Api.Utils;
 
 // Holds every type a field can have, so the stores are tested apart from the resources' own fields.
 public class TestRecord : BaseEntity
@@ -41,7 +42,7 @@ public class TestRecord : BaseEntity
         UpdatedTimestamp = "2026-01-01T00:00:00.000Z",
         CreatedBy = "User2",
         Text = text,
-        Count = 9007199254740991,
+        Count = Fields.MaxSafeInteger,
         Ratio = 1.5,
         Flag = false,
         Tags = ["a", "b"],

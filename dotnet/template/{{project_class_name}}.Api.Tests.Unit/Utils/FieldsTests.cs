@@ -1,4 +1,4 @@
-{%- from 'shared/_fields.jinja' import OUT_OF_RANGE_DATE_TIMES -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, DATE_TIME_EXAMPLE, INVALID_DATE_TIMES, INVALID_DATES, WIDE_CHARACTER -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -28,22 +28,41 @@ public class FieldsTests
     }
 
     [Theory]
-    [InlineData(9007199254740991, true)]
-    [InlineData(-9007199254740991, true)]
-    [InlineData(9007199254740992, false)]
-    [InlineData(-9007199254740992, false)]
+    [InlineData(Fields.MaxSafeInteger, true)]
+    [InlineData(-Fields.MaxSafeInteger, true)]
+    [InlineData(Fields.MaxSafeInteger + 1, false)]
+    [InlineData(-Fields.MaxSafeInteger - 1, false)]
     public void IsSafeInteger_AcceptsOnlyIntegersEveryJsonParserReadsExactly(long value, bool expected)
     {
         Assert.Equal(expected, Fields.IsSafeInteger(value));
     }
 
+    [Fact]
+    public void Length_CountsCodePoints()
+    {
+        Assert.Equal(3, Fields.Length("a{{ WIDE_CHARACTER }}é"));
+    }
+
+    [Theory]
+    [InlineData("{{ WIDE_CHARACTER }}", "^.$", true)]
+    [InlineData("a{{ WIDE_CHARACTER }}", "^[^b]{2}$", true)]
+    [InlineData("{{ WIDE_CHARACTER }}", "^..$", false)]
+    [InlineData("a\n", "^a$", false)]
+    public void Matches_ReadsEachCodePointAsOneCharacter(string value, string pattern, bool expected)
+    {
+        Assert.Equal(expected, Fields.Matches(value, pattern.Replace("$", "\\z")));
+    }
+
     [Theory]
     [InlineData(null, true)]
     [InlineData("2024-02-29", true)]
-    [InlineData("2026-02-29", false)]
+    [InlineData("0001-01-01", true)]
     [InlineData("2026-1-31", false)]
     [InlineData("2026-01-31T00:00:00Z", false)]
     [InlineData("2026-01-31\n", false)]
+{%- for value in INVALID_DATES %}
+    [InlineData("{{ value }}", false)]
+{%- endfor %}
     public void IsDate_AcceptsOnlyCalendarDates(string? value, bool expected)
     {
         Assert.Equal(expected, Fields.IsDate(value));
@@ -51,16 +70,13 @@ public class FieldsTests
 
     [Theory]
     [InlineData(null, true)]
-    [InlineData("2026-01-31T09:30:00Z", true)]
-    [InlineData("2026-01-31T09:30:00.123456789+02:00", true)]
-    [InlineData("2026-01-31T09:30:00", false)]
     [InlineData("2026-01-31 09:30:00Z", false)]
     [InlineData("2026-02-30T09:30:00Z", false)]
-    [InlineData("2026-01-31T24:00:00Z", false)]
     [InlineData("2026-01-31T09:30:00Z\n", false)]
-    [InlineData("0001-01-01T00:00:00Z", true)]
-    [InlineData("9999-12-31T23:59:59.999Z", true)]
-{%- for value in OUT_OF_RANGE_DATE_TIMES %}
+{%- for case in DATE_TIME_CASES %}
+    [InlineData("{{ case.sent }}", true)]
+{%- endfor %}
+{%- for value in INVALID_DATE_TIMES %}
     [InlineData("{{ value }}", false)]
 {%- endfor %}
     public void IsDateTime_AcceptsOnlyDateTimesWithAnOffset(string? value, bool expected)
@@ -79,8 +95,9 @@ public class FieldsTests
     }
 
     [Theory]
-    [InlineData("2026-01-31T11:30:00+02:00", "2026-01-31T09:30:00.000Z")]
-    [InlineData("2026-01-31T09:30:00.1239Z", "2026-01-31T09:30:00.123Z")]
+{%- for case in DATE_TIME_CASES %}
+    [InlineData("{{ case.sent }}", "{{ case.stored }}")]
+{%- endfor %}
     [InlineData("not a date-time", "not a date-time")]
     [InlineData(null, null)]
     public void UtcDateTime_KeepsTheInstantInUtcWithMilliseconds(string? value, string? expected)
@@ -91,7 +108,7 @@ public class FieldsTests
     [Fact]
     public void UtcDateTimes_ConvertsEveryItem()
     {
-        Assert.Equal(new[] { "2026-01-31T09:30:00.000Z" }, Fields.UtcDateTimes(["2026-01-31T11:30:00+02:00"]));
+        Assert.Equal(new[] { "{{ DATE_TIME_EXAMPLE.stored }}" }, Fields.UtcDateTimes(["{{ DATE_TIME_EXAMPLE.sent }}"]));
         Assert.Null(Fields.UtcDateTimes(null));
     }
 }

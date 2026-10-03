@@ -70,10 +70,10 @@ public class RequestBodyTests
     public async Task DeserializeAsync_ReadsEveryKnownFieldAndRecordsItAsSent()
     {
         var request = await RequestBody.DeserializeAsync<SampleRequest>(
-            Mocks.CreateStream("{\"name\":\"Tom\",\"count\":-9007199254740991,\"ratio\":2,\"flag\":false,\"tags\":[],\"counts\":[1,2]}"), TestContext.Current.CancellationToken);
+            Mocks.CreateStream("{\"name\":\"Tom\",\"count\":" + -Fields.MaxSafeInteger + ",\"ratio\":2,\"flag\":false,\"tags\":[],\"counts\":[1,2]}"), TestContext.Current.CancellationToken);
 
         Assert.Equal("Tom", request.Name);
-        Assert.Equal(-9007199254740991, request.Count);
+        Assert.Equal(-Fields.MaxSafeInteger, request.Count);
         Assert.Equal(2.0, request.Ratio);
         Assert.False(request.Flag);
         Assert.Empty(request.Tags!);

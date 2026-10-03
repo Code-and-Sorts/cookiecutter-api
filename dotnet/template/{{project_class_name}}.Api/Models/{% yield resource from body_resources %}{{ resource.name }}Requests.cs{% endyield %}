@@ -1,5 +1,5 @@
 {%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
-{%- from 'dotnet/_model.jinja' import assignments, csharp_file, default_value, properties with context -%}
+{%- from 'dotnet/_model.jinja' import assignments, csharp_file, default_value, properties, usings with context -%}
 {%- set r = resource.name -%}
 {%- set fields = resource.fields -%}
 {%- set body %}
@@ -32,4 +32,4 @@ public class {{ Op }}{{ r }}Request : Base{{ Op }}Request
 }
 {%- endfor %}
 {%- endset -%}
-{{ csharp_file("Requests", body, ["Entities"]) }}
+{{ csharp_file("Requests", usings("request", fields, resource.operations), body) }}

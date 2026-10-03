@@ -6,7 +6,7 @@
 {%- if f.enum_values %}{% set _ = rules.append("one of " ~ (f.enum_values | join(", "))) %}{% endif -%}
 {%- set bodies = [] -%}
 {%- for op, label in [("create", "POST"), ("replace", "PUT"), ("update", "PATCH")] if f["in_" ~ op] %}{% set _ = bodies.append(label) %}{% endfor -%}
-| `{{ f.name }}` | {{ f.type }}{% if f.item_type %} of {{ f.item_type }}{% endif %} | {{ "yes" if f.needs_value else "no" }} | {{ "yes" if f.nullable else "no" }} | {% if f.dynamic %}`${{ f.dynamic }}`{% elif f.has_default %}`{{ as_json(f.default) | replace("|", "\\|") }}`{% else %}none{% endif %} | {{ (rules | join("; ") | replace("|", "\\|")) or "none" }} | {{ (bodies | join(", ")) or "none" }} | {{ "no" if f.hidden else "yes" }} | {{ (f.description | replace("\n", " ") | replace("|", "\\|")) or "none" }} |
+| `{{ f.name }}` | {{ f.type }}{% if f.item_type %} of {{ f.item_type }}{% endif %} | {{ "yes" if f.needs_value else "no" }} | {{ "yes" if f.nullable else "no" }} | {% if f.dynamic %}`${{ f.dynamic }}`{% elif f.has_default %}`{{ as_json(f.default) | replace("|", "\\|") }}`{% else %}none{% endif %} | {{ (rules | join("; ") | replace("|", "\\|")) or "none" }} | {{ (bodies | join(", ")) or "none" }} | {{ "no" if f.hidden else "yes" }} | {{ (f.description | replace("|", "\\|")) or "none" }} |
 {%- endmacro -%}
 ## Data model
 

@@ -1,4 +1,4 @@
-{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE, REQUEST_KINDS -%}
 {%- from 'dotnet/_model.jinja' import json_string -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
@@ -122,10 +122,10 @@ public class {{ r }}ModelTests
         var request = new {{ Op }}{{ r }}Request
         {
 {%- for f in dates %}
-            {{ f.pascal }} = "2026-01-31T11:30:00+02:00",
+            {{ f.pascal }} = "{{ DATE_TIME_EXAMPLE.sent }}",
 {%- endfor %}
 {%- for f in date_lists %}
-            {{ f.pascal }} = ["2026-01-31T11:30:00+02:00"],
+            {{ f.pascal }} = ["{{ DATE_TIME_EXAMPLE.sent }}"],
 {%- endfor %}
         };
 {%- if op == "update" %}
@@ -137,10 +137,10 @@ public class {{ r }}ModelTests
 
 {% if op == "create" %}        var item = request.ToEntity();{% else %}        request.ApplyTo(item);{% endif %}
 {% for f in dates %}
-        Assert.Equal("2026-01-31T09:30:00.000Z", item.{{ f.pascal }});
+        Assert.Equal("{{ DATE_TIME_EXAMPLE.stored }}", item.{{ f.pascal }});
 {%- endfor %}
 {%- for f in date_lists %}
-        Assert.Equal(new[] { "2026-01-31T09:30:00.000Z" }, item.{{ f.pascal }});
+        Assert.Equal(new[] { "{{ DATE_TIME_EXAMPLE.stored }}" }, item.{{ f.pascal }});
 {%- endfor %}
     }
 {%- endif %}

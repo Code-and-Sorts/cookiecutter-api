@@ -1,4 +1,4 @@
-{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE, OUT_OF_RANGE_DATE_TIMES -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, INVALID_DATE_TIMES, INVALID_DATES -%}
 import re
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -47,22 +47,23 @@ def describe_clock():
 
 def describe_value_types():
     @pytest.mark.parametrize("raw, stored", [
-        ("2026-01-31T09:30:00Z", "2026-01-31T09:30:00.000Z"),
-        ("{{ DATE_TIME_EXAMPLE.sent }}", "{{ DATE_TIME_EXAMPLE.stored }}"),
-        ("2026-01-31T00:30:00.123456789-01:00", "2026-01-31T01:30:00.123Z"),
+{%- for case in DATE_TIME_CASES %}
+        ("{{ case.sent }}", "{{ case.stored }}"),
+{%- endfor %}
     ])
     def test_date_time_is_stored_in_utc_with_milliseconds(raw, stored):
         assert _Values(dateTime=raw).dateTime == stored
 
     @pytest.mark.parametrize("values", [
-        {"dateTime": "2026-01-31T09:30:00"},
         {"dateTime": "2026-01-31 09:30:00Z"},
         {"dateTime": "2026-02-30T09:30:00Z"},
-{%- for value in OUT_OF_RANGE_DATE_TIMES %}
+{%- for value in INVALID_DATE_TIMES %}
         {"dateTime": "{{ value }}"},
 {%- endfor %}
         {"date": "2026-1-31"},
-        {"date": "2026-02-30"},
+{%- for value in INVALID_DATES %}
+        {"date": "{{ value }}"},
+{%- endfor %}
         {"id": "not-a-uuid"},
         {"count": MAX_SAFE_INTEGER + 1},
         {"count": True},

@@ -1,5 +1,5 @@
 {%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
-{%- from 'dotnet/_model.jinja' import assignments, csharp_file, properties with context -%}
+{%- from 'dotnet/_model.jinja' import assignments, csharp_file, properties, usings with context -%}
 {%- set ops = path_resources | map(attribute="operations") | sum(start=[]) | unique | list -%}
 {%- set body %}
 {%- for op, Op in REQUEST_KINDS if op in ops %}
@@ -25,4 +25,4 @@ public class Base{{ Op }}Request : ISentFields
 }
 {%- endfor %}
 {%- endset -%}
-{{ csharp_file("Requests", body, ["Entities", "Utils"]) }}
+{{ csharp_file("Requests", usings("request", client_base_fields, ops, base=true), body) }}

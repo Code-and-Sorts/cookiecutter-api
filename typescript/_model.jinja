@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as Zod schemas. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import string_literal -%}
+{%- from 'shared/_fields.jinja' import portable_pattern, string_literal -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "nowIso", "today": "todayIso", "uuid": "newId"} -%}
 {%- set ITEM_SCHEMAS = {"string": "z.string()", "integer": "z.int()", "number": "z.number()", "boolean": "z.boolean()", "date": "dateSchema", "date-time": "dateTimeSchema", "uuid": "uuidSchema"} -%}
 
@@ -17,7 +17,7 @@
 z.string()
 {%- if rules.min_length is defined %}.min({{ rules.min_length }}){% endif -%}
 {%- if rules.max_length is defined %}.max({{ rules.max_length }}){% endif -%}
-{%- if rules.pattern is defined %}.regex(new RegExp({{ string_literal(rules.pattern) }})){% endif -%}
+{%- if rules.pattern is defined %}.regex(new RegExp({{ string_literal(portable_pattern(rules.pattern)) }}, 'u')){% endif -%}
 {%- if rules.format == "email" %}.regex(EMAIL_PATTERN, 'must be an email address'){% endif -%}
 {%- if rules.format == "uri" %}.regex(URI_PATTERN, 'must be an absolute URI'){% endif -%}
 {%- elif f.type in ["integer", "number"] -%}
@@ -97,7 +97,7 @@ record.{{ f.name }}{% if not f.system %} ?? {{ literal(f.read_default) }}{% endi
 {%- set extends = name != "Base" -%}
 {%- set shown = fields | rejectattr("hidden") | list -%}
 {%- set entity_properties = [] -%}
-{%- for f in fields %}{% set _ = entity_properties.append(("/** " ~ (f.description | replace("\n", " ") | replace("*/", "* /")) ~ " */\n    " if f.description else "") ~ entity_property(f)) %}{% endfor -%}
+{%- for f in fields %}{% set _ = entity_properties.append(("/** " ~ (f.description | replace("*/", "* /")) ~ " */\n    " if f.description else "") ~ entity_property(f)) %}{% endfor -%}
 {%- set response_properties = [] -%}
 {%- for f in shown %}{% set _ = response_properties.append(response_property(f)) %}{% endfor -%}
 export type {{ entity }} = {{ object_type("BaseEntity" if extends else "", entity_properties) }};
@@ -137,7 +137,6 @@ export const to{{ name }}Response = (record: {{ entity }}): {{ name }}Response =
 {% endif -%}
 {%- endmacro -%}
 
-{#- An object literal holding each field's sample value, for tests. -#}
 {%- macro sample_object(fields) -%}
 { {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
 {%- endmacro -%}

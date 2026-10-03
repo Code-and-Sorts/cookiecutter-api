@@ -1,5 +1,5 @@
 {%- set client = client_base_fields + (path_resources | map(attribute="fields") | sum(start=[])) -%}
-{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE, OUT_OF_RANGE_DATE_TIMES -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES, DATE_TIME_EXAMPLE, INVALID_DATE_TIMES -%}
 {%- set read_defaults = client | rejectattr("hidden") | selectattr("has_read_default") | list -%}
 package models
 
@@ -12,9 +12,9 @@ import (
 
 func TestDateTime_StoresUTCWithMilliseconds(t *testing.T) {
 	cases := [][2]string{
-		{`"2026-01-31T09:30:00Z"`, "2026-01-31T09:30:00.000Z"},
-		{`"{{ DATE_TIME_EXAMPLE.sent }}"`, "{{ DATE_TIME_EXAMPLE.stored }}"},
-		{`"2026-01-31T00:30:00.123456789-01:00"`, "2026-01-31T01:30:00.123Z"},
+{%- for case in DATE_TIME_CASES %}
+		{`"{{ case.sent }}"`, "{{ case.stored }}"},
+{%- endfor %}
 	}
 	for _, c := range cases {
 		var value DateTime
@@ -23,8 +23,8 @@ func TestDateTime_StoresUTCWithMilliseconds(t *testing.T) {
 	}
 }
 
-func TestDateTime_RejectsValuesOutsideTheRange(t *testing.T) {
-	for _, raw := range []string{`42`, `"not a date-time"`{% for value in OUT_OF_RANGE_DATE_TIMES %}, `"{{ value }}"`{% endfor %}} {
+func TestDateTime_RejectsInvalidValues(t *testing.T) {
+	for _, raw := range []string{`42`, `"not a date-time"`{% for value in INVALID_DATE_TIMES %}, `"{{ value }}"`{% endfor %}} {
 		var value DateTime
 		assert.Error(t, json.Unmarshal([]byte(raw), &value), raw)
 	}

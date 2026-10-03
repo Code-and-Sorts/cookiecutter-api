@@ -1,4 +1,4 @@
-{%- from 'dotnet/_model.jinja' import csharp_file, properties, shown_assignments with context -%}
+{%- from 'dotnet/_model.jinja' import csharp_file, properties, shown_assignments, usings with context -%}
 {%- set shown = resource.fields | rejectattr("hidden") | list -%}
 {%- set body %}
 public class {{ resource.name }}Dto : BaseResponse
@@ -17,4 +17,4 @@ public class {{ resource.name }}Dto : BaseResponse
 {%- endif %}
 }
 {%- endset -%}
-{{ csharp_file("Dtos", body, ["Entities"]) }}
+{{ csharp_file("Dtos", usings("response", shown), body) }}

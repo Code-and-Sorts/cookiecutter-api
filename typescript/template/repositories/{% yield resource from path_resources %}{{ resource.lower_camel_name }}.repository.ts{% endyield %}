@@ -38,7 +38,6 @@ export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
 
 {%- if extras %}
 
-  // Fields the create body does not accept get their defaults.
   create = (item: {{ r }}CreateRequest, userId?: string): Promise<{{ r }}Record> =>
     this.addRecord({ {% for f in extras %}{{ f.name }}: {{ default_value(f) }}, {% endfor %}...item }, userId);
 {%- else %}

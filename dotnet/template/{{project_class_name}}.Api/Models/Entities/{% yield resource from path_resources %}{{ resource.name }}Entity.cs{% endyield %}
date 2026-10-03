@@ -1,8 +1,8 @@
-{%- from 'dotnet/_model.jinja' import csharp_file, properties with context -%}
+{%- from 'dotnet/_model.jinja' import csharp_file, properties, usings with context -%}
 {%- set body %}
 public class {{ resource.name }}Entity : BaseEntity
 {
 {{- properties(resource.fields) }}
 }
 {%- endset -%}
-{{ csharp_file("Entities", body) }}
+{{ csharp_file("Entities", usings("entity", resource.fields), body) }}

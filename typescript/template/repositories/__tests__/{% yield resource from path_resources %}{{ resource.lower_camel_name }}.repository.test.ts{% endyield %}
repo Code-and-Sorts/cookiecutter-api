@@ -52,7 +52,6 @@ describe('{{ r }}Repository', () => {
         const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
         expect(await mockRepository.create(mockFields as never, 'mockUser')).toEqual(mockRecord);
 {%- if extras %}
-        // Fields the create body does not accept get their defaults.
         expect(spy).toHaveBeenCalledWith({
 {%- for f in extras %}
             {{ f.name }}: {{ "expect.any(String)" if f.dynamic else literal(f.default) }},
@@ -93,7 +92,6 @@ describe('{{ r }}Repository', () => {
     it('should delegate replace to the base repository', async () => {
         const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRecord);
         expect(await mockRepository.replace(mockId, mockFields as never, 'mockUser')).toEqual(mockRecord);
-        // The fields the replace body accepts, so the record's other fields keep their stored values.
         expect(spy).toHaveBeenCalledWith(mockId, mockFields, {{ client | selectattr("in_replace") | map(attribute="name") | list | tojson }}, 'mockUser');
     });
 {%- endif %}

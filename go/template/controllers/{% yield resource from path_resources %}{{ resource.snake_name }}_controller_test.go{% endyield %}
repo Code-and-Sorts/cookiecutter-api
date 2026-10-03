@@ -108,7 +108,6 @@ func assert{{ r }}BadRequest(t *testing.T, err error) {
 	assert.ErrorAs(t, err, new(*models.ValidationError))
 }
 
-// Per field: a wrongly typed value, null unless nullable, and values just outside each rule.
 var rejected{{ r }}Values = [][2]string{
 {%- for f in client %}
 {%- for value in f.rejected %}

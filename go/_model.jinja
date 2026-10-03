@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as Go structs and JSON Schemas. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, REQUEST_KINDS, sample_body_json, string_literal -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, REQUEST_KINDS, portable_pattern, sample_body_json, string_literal -%}
 {%- set GO_TYPES = {"string": "string", "integer": "int64", "number": "float64", "boolean": "bool", "date": "string", "date-time": "DateTime", "uuid": "string", "enum": "string"} -%}
 {%- set SCHEMA_TYPES = {"integer": "integer", "number": "number", "boolean": "boolean", "array": "array"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "new(DateTime(Now()))", "today": "new(Today())", "uuid": "new(uuid.NewString())"} -%}
@@ -22,7 +22,6 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{#- A Go expression for a non-null value of the field. -#}
 {%- macro literal(f, value, pkg="") -%}
 {%- if f.type == "array" -%}
 {{ go_type(f, pkg) }}{ {%- for item in value %}{{ scalar(f.item_type, item, pkg, typed=false) }}{{ ", " if not loop.last }}{% endfor -%} }
@@ -56,12 +55,15 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{#- Struct rows for fields; stored records omit a field without a value, request and response types always name it. -#}
+{#- Struct rows for fields; stored records omit a field without a value, request and response types always name it.
+    The server sets the system fields, so they are values, not pointers; an unset optional one is the empty string. -#}
 {%- macro field_rows(fields, stored=false) -%}
 {%- set rows = [] -%}
 {%- for f in fields -%}
-{%- set tag = ("json:\"" ~ f.name ~ ",omitempty\" dynamodbav:\"" ~ f.name ~ ",omitempty\" firestore:\"" ~ f.name ~ ",omitempty\"") if stored else ("json:\"" ~ f.name ~ "\"") -%}
-{%- set _ = rows.append((f.pascal, "*" ~ go_type(f), "`" ~ tag ~ "`")) -%}
+{%- set omit = "" if f.system and f.required else ",omitempty" -%}
+{%- set tag = ("json:\"" ~ f.name ~ omit ~ "\" dynamodbav:\"" ~ f.name ~ omit ~ "\" firestore:\"" ~ f.name ~ omit ~ "\"") if stored else ("json:\"" ~ f.name ~ "\"") -%}
+{%- set type = ("string" if f.type == "date-time" else go_type(f)) if f.system else "*" ~ go_type(f) -%}
+{%- set _ = rows.append((f.pascal, type, "`" ~ tag ~ "`")) -%}
 {%- endfor -%}
 {{ rows | tojson }}
 {%- endmacro -%}
@@ -141,7 +143,8 @@ func (r {{ name }}) ToEntity() {{ target }} {
 {%- set type = SCHEMA_TYPES.get(f.type, "string") -%}
 {%- set schema = {"type": [type, "null"] if f.nullable else type} -%}
 {%- if f.type == "string" -%}
-{%- for rule, key in [("min_length", "minLength"), ("max_length", "maxLength"), ("pattern", "pattern")] if rules[rule] is defined %}{% set _ = schema.update({key: rules[rule]}) %}{% endfor -%}
+{%- for rule, key in [("min_length", "minLength"), ("max_length", "maxLength")] if rules[rule] is defined %}{% set _ = schema.update({key: rules[rule]}) %}{% endfor -%}
+{%- if rules.pattern is defined %}{% set _ = schema.update({"pattern": portable_pattern(rules.pattern)}) %}{% endif -%}
 {%- if rules.format is defined %}{% set _ = schema.update({"allOf": [{"pattern": PATTERNS[rules.format]}]}) %}{% endif -%}
 {%- elif f.type in ["integer", "number"] -%}
 {%- if f.type == "integer" %}{% set _ = schema.update({"minimum": -MAX_SAFE_INTEGER, "maximum": MAX_SAFE_INTEGER}) %}{% endif -%}

@@ -1,7 +1,7 @@
 {%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
-{%- from 'dotnet/_model.jinja' import csharp_file, validators with context -%}
+{%- from 'dotnet/_model.jinja' import csharp_file, usings, validators with context -%}
 {%- set classes = [] -%}
 {%- for op, Op in REQUEST_KINDS if op in resource.operations -%}
 {%- set _ = classes.append((Op ~ resource.name ~ "RequestValidator", Op ~ resource.name ~ "Request", resource.fields | selectattr("in_" ~ op) | list, op, "Base" ~ Op ~ "RequestValidator")) -%}
 {%- endfor -%}
-{{ csharp_file("Validation", validators(classes), ["FluentValidation", "Requests"]) }}
+{{ csharp_file("Validation", usings("validation", classes | map(attribute=2) | sum(start=[])), validators(classes)) }}

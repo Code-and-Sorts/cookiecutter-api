@@ -24,7 +24,6 @@ export const mockStore = (): Mocked<'read' | 'query' | 'create' | 'write' | 'sof
 
 type Body = Record<string, unknown>;
 
-// Server-managed fields a request body may never set.
 const systemFields: Body = {{ sample_object(base_fields | selectattr("system")) }};
 
 // Bodies an operation must reject, each wrapped so it.each passes it as one argument.

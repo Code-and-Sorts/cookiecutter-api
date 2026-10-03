@@ -1,14 +1,19 @@
 {%- set client = client_base_fields + (path_resources | map(attribute="fields") | sum(start=[])) -%}
 {%- set read_defaults = client | rejectattr("hidden") | selectattr("has_read_default") | list -%}
+{%- from 'shared/_fields.jinja' import PATTERNS -%}
 package models
 
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 )
 
 const TimestampLayout = "2006-01-02T15:04:05.000Z"
+
+// The request schemas check the same pattern; DateTime checks it too, since time.Parse also takes year 0000.
+var dateTimePattern = regexp.MustCompile(`{{ PATTERNS.date_time }}`)
 
 // DateTime accepts any RFC 3339 offset and holds the value in UTC with milliseconds, like the system timestamps.
 type DateTime string
@@ -19,7 +24,7 @@ func (d *DateTime) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
+	if err != nil || !dateTimePattern.MatchString(value) {
 		return fmt.Errorf("%q is not a date-time with a time zone", value)
 	}
 	utc := parsed.UTC()
@@ -58,7 +63,6 @@ func Today() string {
 }
 {%- if read_defaults %}
 
-// A stored record without the field reads as its static default.
 func orDefault[T any](value *T, fallback T) *T {
 	if value == nil {
 		return &fallback
