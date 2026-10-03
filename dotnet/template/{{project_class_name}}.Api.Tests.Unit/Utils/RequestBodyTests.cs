@@ -81,6 +81,18 @@ public class RequestBodyTests
         Assert.Equal(new[] { "count", "counts", "flag", "name", "ratio", "tags" }, request.Sent.Order());
     }
 
+    [Theory]
+    [InlineData("2.0", 2)]
+    [InlineData("1e3", 1000)]
+    public async Task DeserializeAsync_ReadsAWholeNumberAsAnInteger(string sent, long expected)
+    {
+        var request = await RequestBody.DeserializeAsync<SampleRequest>(
+            Mocks.CreateStream($"{{ '{{' }}\"count\":{sent},\"counts\":[{sent}]{{ '}}' }}"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, request.Count);
+        Assert.Equal(new[] { expected }, request.Counts);
+    }
+
     [Fact]
     public async Task DeserializeAsync_KeepsDefaultsForFieldsLeftOut()
     {

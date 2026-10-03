@@ -22,9 +22,6 @@ from pydantic import BaseModel
 from models import BaseEntity, generate_utc_timestamp
 from errors import NotFoundError
 
-_CREATION_FIELDS = ("createdTimestamp", "createdBy")
-
-
 def _user_fields(user_id: str | None, *fields: str) -> dict:
     return {field: user_id for field in fields} if user_id else {}
 
@@ -207,6 +204,7 @@ class BaseRepository[ResponseT: BaseModel]:
         return self.response_model.model_validate(record)
 
     async def _update(self, item_id: str, changes: dict, user_id: str | None = None) -> ResponseT:
+        """Merges changes onto the stored record, so fields other resources in the container store are kept."""
         stored = await self._get_stored(item_id)
         stored.pop("updatedBy", None)
         record = _without_nulls({
@@ -214,24 +212,6 @@ class BaseRepository[ResponseT: BaseModel]:
             **changes,
             "id": item_id,
             "updatedTimestamp": generate_utc_timestamp(),
-            **_user_fields(user_id, "updatedBy"),
-        })
-        await self._write(record)
-        return self.response_model.model_validate(record)
-
-    async def _replace(self, item_id: str, fields: dict, user_id: str | None = None) -> ResponseT:
-        """fields holds every field the replace accepts; the resource's other fields keep their stored values."""
-        stored = await self._get_stored(item_id)
-        now = generate_utc_timestamp()
-        kept = {name: stored[name] for name in self.entity_model.client_fields() if name in stored}
-        record = _without_nulls({
-            **kept,
-            **fields,
-            "id": item_id,
-            "isDeleted": False,
-            "createdTimestamp": now,
-            **{field: stored[field] for field in _CREATION_FIELDS if stored.get(field)},
-            "updatedTimestamp": now,
             **_user_fields(user_id, "updatedBy"),
         })
         await self._write(record)

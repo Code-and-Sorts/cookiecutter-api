@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Repositories;
@@ -108,12 +109,16 @@ public class CosmosDocumentStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_ReplacesTheItem()
+    public async Task SaveAsync_ReplacesItsOwnFieldsAndKeepsTheRest()
     {
-        var item = Item();
+        var response = Substitute.For<ItemResponse<JsonObject>>();
+        response.Resource.Returns(new JsonObject { ["id"] = ItemId, ["text"] = "old", ["count"] = 1, ["sibling"] = "kept" });
+        _mockContainer.ReadItemAsync<JsonObject>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>()).Returns(response);
 
-        await _store.SaveAsync(item, TestContext.Current.CancellationToken);
+        await _store.SaveAsync(Item(text: "new"), TestContext.Current.CancellationToken);
 
-        await _mockContainer.Received(1).ReplaceItemAsync(item, ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>());
+        await _mockContainer.Received(1).ReplaceItemAsync(
+            Arg.Is<JsonObject>(stored => (string?)stored["text"] == "new" && (string?)stored["sibling"] == "kept" && !stored.ContainsKey("count")),
+            ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>());
     }
 }

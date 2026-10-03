@@ -3,12 +3,10 @@
 {%- set setting = {'Azure Function App': 'COSMOS_CONTAINER_', 'GCP Cloud Function': 'FIRESTORE_COLLECTION_', 'AWS Lambda': 'DYNAMODB_TABLE_NAME_'}[cloud_service] ~ (resource.container | upper | replace('-', '_')) -%}
 import 'reflect-metadata';
 import { inject, injectable } from 'inversify';
-{%- from 'typescript/_model.jinja' import default_value %}
+{%- from 'typescript/_model.jinja' import DYNAMIC_DEFAULTS, default_value %}
 {%- set extras = resource.fields | rejectattr("in_create") | selectattr("defaulted") | list %}
 import {
     env,
-    clientFieldsOf,
-    {{ r }}EntitySchema,
     {{ r }}Record,
 {%- if "create" in ops %}
     {{ r }}CreateRequest,
@@ -22,7 +20,7 @@ import {
 {%- endif %}
 } from '@models';
 {%- if extras | selectattr("dynamic") | list %}
-import { {{ extras | selectattr("dynamic") | map(attribute="dynamic") | unique | map("replace", "now", "nowIso") | map("replace", "today", "todayIso") | map("replace", "uuid", "newId") | join(", ") }} } from '@utils';
+import { {% for dynamic in extras | selectattr("dynamic") | map(attribute="dynamic") | unique %}{{ DYNAMIC_DEFAULTS[dynamic] }}{{ ", " if not loop.last }}{% endfor %} } from '@utils';
 {%- endif %}
 import { BaseRepository } from './base.repository';
 import { StoreFactory } from './document.store';
@@ -34,7 +32,7 @@ const REPLACE_FIELDS = Object.keys({{ r }}ReplaceRequestSchema.shape);
 @injectable()
 export class {{ r }}Repository extends BaseRepository<{{ r }}Record> {
   constructor(@inject(StoreFactory) openStore: StoreFactory) {
-    super(openStore(env.{{ setting }}), '{{ r }}', clientFieldsOf({{ r }}EntitySchema));
+    super(openStore(env.{{ setting }}), '{{ r }}');
   }
 {%- if "create" in ops %}
 

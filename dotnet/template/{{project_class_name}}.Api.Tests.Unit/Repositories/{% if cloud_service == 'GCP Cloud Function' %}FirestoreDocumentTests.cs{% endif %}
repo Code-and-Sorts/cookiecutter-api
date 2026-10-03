@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using {{project_class_name}}.Api.Repositories;
 using {{project_class_name}}.Api.Utils;
+using Google.Cloud.Firestore;
 using Xunit;
 
 public class FirestoreDocumentTests
@@ -16,6 +17,19 @@ public class FirestoreDocumentTests
         Assert.Equal(new[] { "createdTimestamp", "id", "isDeleted", "text", "updatedTimestamp" }, FirestoreDocumentStore<TestRecord>.ToDocument(item).Keys.Order().ToArray());
         item.CreatedBy = "User2";
         Assert.Equal("User2", FirestoreDocumentStore<TestRecord>.ToDocument(item)["createdBy"]);
+    }
+
+    [Fact]
+    public void ToUpdates_SetsTheTypesFieldsAndDeletesUnsetOnes()
+    {
+        var item = new TestRecord { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Text = "mock", CreatedTimestamp = "2026-01-01T00:00:00.000Z", UpdatedTimestamp = "2026-01-01T00:00:00.000Z" };
+
+        var updates = FirestoreDocumentStore<TestRecord>.ToUpdates(item);
+
+        Assert.Equal("mock", updates["text"]);
+        Assert.Equal(FieldValue.Delete, updates["count"]);
+        Assert.Equal(FieldValue.Delete, updates["updatedBy"]);
+        Assert.False((bool)updates["isDeleted"]);
     }
 
     [Fact]

@@ -8,7 +8,6 @@ using Xunit;
 
 public static class RequestBodies
 {
-    // Server-managed fields a request body may never set, as (name, JSON value).
     private static readonly (string Name, string Value)[] SystemFields =
     [
 {%- for f in base_fields | selectattr("system") %}
@@ -16,7 +15,6 @@ public static class RequestBodies
 {%- endfor %}
     ];
 
-    // A JSON body with one property set to a raw JSON value, or removed when value is null.
     public static string With(string body, string name, string? value)
     {
         var properties = JsonNode.Parse(body)!.AsObject();
@@ -43,8 +41,8 @@ public static class RequestBodies
         return new TheoryData<string>(bodies.Distinct());
     }
 
-    // Bodies an operation must accept: valid with one property exactly on a rule's bound.
-    public static TheoryData<string> OnBounds(string valid, (string Name, string Value)[] boundaries)
+    // Bodies an operation must accept: valid with one property set to an edge value.
+    public static TheoryData<string> WithEdgeValues(string valid, (string Name, string Value)[] boundaries)
     {
         var properties = JsonNode.Parse(valid)!.AsObject();
         return new TheoryData<string>(boundaries.Where(field => properties.ContainsKey(field.Name)).Select(field => With(valid, field.Name, field.Value)).Distinct());

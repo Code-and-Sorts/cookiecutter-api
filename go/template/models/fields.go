@@ -4,6 +4,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -17,17 +18,35 @@ func (d *DateTime) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
-	*d = DateTime(normalizeDateTime(value))
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return fmt.Errorf("%q is not a date-time with a time zone", value)
+	}
+	utc := parsed.UTC()
+	if utc.Year() < 1 || utc.Year() > 9999 {
+		return fmt.Errorf("%q falls outside the years 0001 to 9999 in UTC", value)
+	}
+	*d = DateTime(utc.Format(TimestampLayout))
 	return nil
 }
 
-// Request schemas check the format first, so a value that does not parse is kept as stored.
-func normalizeDateTime(value string) string {
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return value
+// UniqueDateTimes rejects two values that are one instant in UTC, which the schema's uniqueItems compares as text.
+type UniqueDateTimes []DateTime
+
+func (d *UniqueDateTimes) UnmarshalJSON(data []byte) error {
+	var values []DateTime
+	if err := json.Unmarshal(data, &values); err != nil {
+		return err
 	}
-	return parsed.UTC().Format(TimestampLayout)
+	seen := make(map[DateTime]bool, len(values))
+	for _, value := range values {
+		if seen[value] {
+			return fmt.Errorf("%q is repeated in a list that must not repeat an item", value)
+		}
+		seen[value] = true
+	}
+	*d = values
+	return nil
 }
 
 func Now() string {

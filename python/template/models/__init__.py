@@ -1,49 +1,15 @@
-from .base import (
-    BaseCreateRequest,
-    BaseEntity,
-    BaseReplaceRequest,
-    BaseResponse,
-    BaseUpdateRequest,
-)
+{%- from 'python/_macros.jinja' import model_names -%}
+{%- set names = ["BaseCreateRequest", "BaseEntity", "BaseReplaceRequest", "BaseResponse", "BaseUpdateRequest", "generate_utc_timestamp"] -%}
+from .base import BaseCreateRequest, BaseEntity, BaseReplaceRequest, BaseResponse, BaseUpdateRequest
 from .fields import generate_utc_timestamp
 {%- for resource in path_resources %}
-{%- set r = resource.name %}
-{%- set ops = resource.operations %}
-from .{{ resource.snake_name }} import (
-    {{ r }}Entity,
-{%- if 'create' in ops %}
-    {{ r }}CreateRequest,
-{%- endif %}
-{%- if 'replace' in ops %}
-    {{ r }}ReplaceRequest,
-{%- endif %}
-{%- if 'update' in ops %}
-    {{ r }}UpdateRequest,
-{%- endif %}
-    {{ r }}Response,
-)
+{%- set models = model_names(resource, entity=true, always_response=true) %}
+{%- set _ = names.extend(models.split(", ")) %}
+from .{{ resource.snake_name }} import {{ models }}
 {%- endfor %}
 
 __all__ = [
-    "BaseCreateRequest",
-    "BaseEntity",
-    "BaseReplaceRequest",
-    "BaseResponse",
-    "BaseUpdateRequest",
-    "generate_utc_timestamp",
-{%- for resource in path_resources %}
-{%- set r = resource.name %}
-{%- set ops = resource.operations %}
-    "{{ r }}Entity",
-{%- if 'create' in ops %}
-    "{{ r }}CreateRequest",
-{%- endif %}
-{%- if 'replace' in ops %}
-    "{{ r }}ReplaceRequest",
-{%- endif %}
-{%- if 'update' in ops %}
-    "{{ r }}UpdateRequest",
-{%- endif %}
-    "{{ r }}Response",
+{%- for name in names %}
+    "{{ name }}",
 {%- endfor %}
 ]

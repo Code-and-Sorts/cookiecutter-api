@@ -2,10 +2,13 @@ namespace {{project_class_name}}.Api.Repositories;
 
 using System.Collections.Generic;
 using System.Net;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
 using Microsoft.Azure.Cosmos;
 
 public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> where T : BaseEntity
@@ -42,6 +45,22 @@ public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> whe
     public Task CreateAsync(T item, CancellationToken ct = default) =>
         container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
 
-    public Task SaveAsync(T item, CancellationToken ct = default) =>
-        container.ReplaceItemAsync(item, item.Id, new PartitionKey(item.Id), null, ct);
+    // Resources sharing the container may store fields this type does not know, so the write keeps every other field.
+    public async Task SaveAsync(T item, CancellationToken ct = default)
+    {
+        var partition = new PartitionKey(item.Id);
+        var stored = (await container.ReadItemAsync<JsonObject>(item.Id, partition, null, ct)).Resource;
+        foreach (var (name, value) in Json.StoredFields(item))
+        {
+            if (value is { } set)
+            {
+                stored[name] = JsonSerializer.SerializeToNode(set);
+            }
+            else
+            {
+                stored.Remove(name);
+            }
+        }
+        await container.ReplaceItemAsync(stored, item.Id, partition, null, ct);
+    }
 }

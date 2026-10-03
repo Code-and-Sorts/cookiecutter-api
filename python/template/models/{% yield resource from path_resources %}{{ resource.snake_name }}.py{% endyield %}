@@ -1,39 +1,11 @@
 {%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
-{%- from 'python/_model.jinja' import entity_field, imports, request_field, response_field -%}
-{%- set r = resource.name -%}
-{%- set ops = resource.operations -%}
-{%- set bases = [] -%}
-{%- for op, kind in REQUEST_KINDS if op in ops %}{% set _ = bases.append("Base" ~ kind ~ "Request") %}{% endfor -%}
+{%- from 'python/_model.jinja' import imports, model_classes -%}
+{%- set kinds = REQUEST_KINDS | selectattr(0, "in", resource.operations) | list -%}
+{%- set bases = ["BaseEntity", "BaseResponse"] -%}
+{%- for kind in kinds | map(attribute=1) %}{% set _ = bases.append("Base" ~ kind ~ "Request") %}{% endfor -%}
 {%- set body %}
 
 
-class {{ r }}Entity(BaseEntity):
-{%- for f in resource.fields %}
-    {{ entity_field(f) }}
-{%- else %}
-    pass
-{%- endfor %}
-{%- for op, kind in REQUEST_KINDS if op in ops %}
-{%- set fields = resource.fields | selectattr("in_" ~ op) | list %}
-
-
-class {{ r }}{{ kind }}Request(Base{{ kind }}Request):
-{%- if op == "update" and fields %}
-    # Defaults skip validation: an absent field stays unset, an explicit null is rejected unless nullable.
-{%- endif %}
-{%- for f in fields %}
-    {{ request_field(f, op) }}
-{%- else %}
-    pass
-{%- endfor %}
-{%- endfor %}
-
-
-class {{ r }}Response(BaseResponse):
-{%- for f in resource.fields | rejectattr("hidden") %}
-    {{ response_field(f) }}
-{%- else %}
-    pass
-{%- endfor %}
+{{ model_classes(resource.name, resource.fields, kinds) }}
 {%- endset -%}
-{{ imports(body) }}from .base import {{ (bases + ["BaseEntity", "BaseResponse"]) | sort | join(", ") }}{{ body }}
+{{ imports(body) }}from .base import {{ bases | sort | join(", ") }}{{ body }}

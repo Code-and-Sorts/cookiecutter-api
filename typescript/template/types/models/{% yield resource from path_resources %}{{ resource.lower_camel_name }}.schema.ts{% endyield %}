@@ -1,50 +1,17 @@
 {%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
-{%- from 'typescript/_model.jinja' import entity_schema, field_imports, read_value, request_schema, response_schema -%}
+{%- from 'typescript/_model.jinja' import field_imports, model_types -%}
 {%- set r = resource.name -%}
-{%- set ops = resource.operations -%}
-{%- set kinds = REQUEST_KINDS | selectattr(0, "in", ops) | list -%}
+{%- set kinds = REQUEST_KINDS | selectattr(0, "in", resource.operations) | list -%}
 {%- set body %}
-export const {{ r }}EntitySchema = BaseEntitySchema.extend({
-{%- for f in resource.fields %}
-    {{ f.name }}: {{ entity_schema(f) }},
-{%- endfor %}
-});
-
-export type {{ r }}Record = z.infer<typeof {{ r }}EntitySchema>;
-{%- for op, kind in kinds %}
-
-{% if op == "update" %}// Fields an update leaves out stay unchanged, so it applies no defaults.
-{% endif %}export const {{ r }}{{ kind }}RequestSchema = Base{{ kind }}RequestSchema.extend({
-{%- for f in resource.fields | selectattr("in_" ~ op) %}
-    {{ f.name }}: {{ request_schema(f, op) }},
-{%- endfor %}
-});
-
-export type {{ r }}{{ kind }}Request = z.infer<typeof {{ r }}{{ kind }}RequestSchema>;
-{%- endfor %}
-
-export const {{ r }}ResponseSchema = BaseResponseSchema.extend({
-{%- for f in resource.fields | rejectattr("hidden") %}
-    {{ f.name }}: {{ response_schema(f) }},
-{%- endfor %}
-});
-
-export type {{ r }}Response = z.infer<typeof {{ r }}ResponseSchema>;
-
-export const to{{ r }}Response = (record: {{ r }}Record): {{ r }}Response => ({
-    ...toBaseResponse(record),
-{%- for f in resource.fields | rejectattr("hidden") %}
-    {{ f.name }}: {{ read_value(f) }},
-{%- endfor %}
-});
+{{ model_types(r, r ~ "Record", resource.fields, kinds) }}
 {%- endset -%}
-import { z } from 'zod';
-{{ field_imports(body) }}import {
+{% if kinds %}import { z } from 'zod';
+{% endif %}{{ field_imports(body) }}import {
 {%- for kind in kinds | map(attribute=1) %}
     Base{{ kind }}RequestSchema,
 {%- endfor %}
-    BaseEntitySchema,
-    BaseResponseSchema,
+    BaseEntity,
+    BaseResponse,
     toBaseResponse,
 } from './base.schema';
 {{ body }}

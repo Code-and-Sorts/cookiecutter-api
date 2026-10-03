@@ -44,7 +44,6 @@ public class {{ r }}ControllerTests
 {%- set body_fields = [] %}
 {%- for f in client %}{% for op, Op in REQUEST_KINDS if op in ops and f["in_" ~ op] and f not in body_fields %}{% set _ = body_fields.append(f) %}{% endfor %}{% endfor %}
 
-    // Per field a body accepts: a wrongly typed value, null unless nullable, and values just outside each rule.
     private static readonly (string Name, string Value)[] Rejected =
     [
 {%- for f in body_fields %}
@@ -211,11 +210,11 @@ public class {{ r }}ControllerTests
     }
 {%- if accepted | selectattr("boundaries") | list %}
 
-    public static TheoryData<string> {{ Op }}BodiesOnBounds => RequestBodies.OnBounds({{ r }}Samples.{{ Op }}Body, Boundaries);
+    public static TheoryData<string> {{ Op }}EdgeBodies => RequestBodies.WithEdgeValues({{ r }}Samples.{{ Op }}Body, Boundaries);
 
     [Theory]
-    [MemberData(nameof({{ Op }}BodiesOnBounds))]
-    public async Task {{ Op }}Async_AcceptsValuesOnARuleBound(string body)
+    [MemberData(nameof({{ Op }}EdgeBodies))]
+    public async Task {{ Op }}Async_AcceptsEdgeValues(string body)
     {
 {{- receive(Op) }}
 

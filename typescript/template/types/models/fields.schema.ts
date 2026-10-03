@@ -12,7 +12,9 @@ export const dateSchema = z.iso.date();
 export const dateTimeSchema = z.iso
     .datetime({ offset: true })
     .regex(DATE_TIME_PATTERN)
-    .transform((value) => new Date(value).toISOString());
+    .transform((value) => new Date(value))
+    .refine((date) => date.getUTCFullYear() >= 1 && date.getUTCFullYear() <= 9999, 'must fall between the years 0001 and 9999 in UTC')
+    .transform((date) => date.toISOString());
 
 export const uuidSchema = z.string().regex(UUID_PATTERN, 'must be a UUID');
 

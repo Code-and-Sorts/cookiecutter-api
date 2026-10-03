@@ -50,7 +50,6 @@ describe('{{ r }}Controller', () => {
         await expect(call).rejects.toMatchObject({ statusCode: 400 });
     };
 
-    // Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
     const rejected: Record<string, unknown[]> = {
 {%- for f in client %}
         {{ f.name }}: {{ literal(f.rejected) }},
@@ -124,7 +123,7 @@ describe('{{ r }}Controller', () => {
         });
 {%- if accepted | selectattr("boundaries") | list %}
 
-        it.each(boundaryValues.filter(([name]) => name in valid))('should accept %s = %j on a rule bound', async (name, value) => {
+        it.each(boundaryValues.filter(([name]) => name in valid))('should accept the edge value %s = %j', async (name, value) => {
             await {{ call(op, method, "{ ...valid, [name]: value }") }};
             const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
             expect(sent[name]).toEqual(value);

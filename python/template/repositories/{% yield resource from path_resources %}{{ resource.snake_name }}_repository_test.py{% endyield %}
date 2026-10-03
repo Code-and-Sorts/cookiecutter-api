@@ -113,11 +113,11 @@ def describe_{{ r | to_snake }}_repository():
 
     def test_replace_passes_every_accepted_field():
         repository = _repository()
-        repository._replace = AsyncMock(return_value=_response)
+        repository._update = AsyncMock(return_value=_response)
 
         item = {{ r }}ReplaceRequest(**{{ sample_dict(replace_fields) }})
         assert asyncio.run(repository.replace(ITEM_ID, item, "user-1")) == _response
-        repository._replace.assert_awaited_once_with(ITEM_ID, {{ sample_dict(replace_fields) }}, "user-1")
+        repository._update.assert_awaited_once_with(ITEM_ID, {{ sample_dict(replace_fields) }}, "user-1")
 {%- endif %}
 {%- if "delete" in ops %}
 

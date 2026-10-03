@@ -26,10 +26,15 @@ public class FirestoreDocumentStore<T>(FirestoreDb firestoreDb, string collectio
         return snapshot.Documents.Select(doc => FromDocument(doc.ToDictionary())).ToList();
     }
 
-    public Task CreateAsync(T item, CancellationToken ct = default) => SaveAsync(item, ct);
-
-    public Task SaveAsync(T item, CancellationToken ct = default) =>
+    public Task CreateAsync(T item, CancellationToken ct = default) =>
         _collection.Document(item.Id).SetAsync(ToDocument(item), cancellationToken: ct);
+
+    // Resources sharing the collection may store fields this type does not know, so the write updates only its own.
+    public Task SaveAsync(T item, CancellationToken ct = default) =>
+        _collection.Document(item.Id).UpdateAsync(ToUpdates(item), cancellationToken: ct);
+
+    public static Dictionary<string, object> ToUpdates(T entity) =>
+        Json.StoredFields(entity).ToDictionary(field => field.Name, field => field.Value is { } value ? ToValue(value)! : FieldValue.Delete);
 
     // The entity's JSON is the stored shape, as on Cosmos DB: every field type maps and unset fields are left out.
     public static Dictionary<string, object> ToDocument(T entity) =>

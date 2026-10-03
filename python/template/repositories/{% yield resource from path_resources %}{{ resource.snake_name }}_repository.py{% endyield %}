@@ -35,7 +35,7 @@ class {{ r }}Repository(BaseRepository[{{ r }}Response]):
 {%- if "replace" in ops %}
 
     async def replace(self, item_id: str, item: {{ r }}ReplaceRequest, user_id: str | None = None) -> {{ r }}Response:
-        return await self._replace(item_id, item.model_dump(), user_id)
+        return await self._update(item_id, item.model_dump(), user_id)
 {%- endif %}
 {%- if "delete" in ops %}
 

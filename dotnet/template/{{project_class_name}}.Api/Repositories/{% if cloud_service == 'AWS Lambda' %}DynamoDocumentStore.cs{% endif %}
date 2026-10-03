@@ -49,10 +49,27 @@ public class DynamoDocumentStore<T>(IAmazonDynamoDB client, string tableName) : 
         return results;
     }
 
-    public Task CreateAsync(T item, CancellationToken ct = default) => SaveAsync(item, ct);
-
-    public Task SaveAsync(T item, CancellationToken ct = default) =>
+    public Task CreateAsync(T item, CancellationToken ct = default) =>
         client.PutItemAsync(new PutItemRequest { TableName = tableName, Item = ToItem(item) }, ct);
+
+    // Resources sharing the table may store fields this type does not know, so the write updates only its own.
+    public Task SaveAsync(T item, CancellationToken ct = default) => client.UpdateItemAsync(ToUpdate(item), ct);
+
+    public UpdateItemRequest ToUpdate(T entity)
+    {
+        var fields = Json.StoredFields(entity).Where(field => field.Name != "id").Select((field, index) => (field.Name, field.Value, Key: $"f{index}")).ToList();
+        var set = fields.Where(field => field.Value != null).ToList();
+        var remove = fields.Where(field => field.Value == null).Select(field => $"#{field.Key}").ToList();
+        return new UpdateItemRequest
+        {
+            TableName = tableName,
+            Key = new Dictionary<string, AttributeValue> { { "id", new AttributeValue { S = entity.Id } } },
+            UpdateExpression = $"SET {string.Join(", ", set.Select(field => $"#{field.Key} = :{field.Key}"))}" + (remove.Count > 0 ? $" REMOVE {string.Join(", ", remove)}" : ""),
+            ConditionExpression = "attribute_exists(id)",
+            ExpressionAttributeNames = fields.ToDictionary(field => $"#{field.Key}", field => field.Name),
+            ExpressionAttributeValues = set.ToDictionary(field => $":{field.Key}", field => ToAttribute(field.Value!.Value)),
+        };
+    }
 
     // The entity's JSON is the stored shape, as on Cosmos DB: every field type maps and unset fields are left out.
     public static Dictionary<string, AttributeValue> ToItem(T entity) =>

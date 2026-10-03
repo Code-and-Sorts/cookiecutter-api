@@ -22,11 +22,11 @@ public static class RequestBody
 {
     private static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, Type>> FieldsByType = new();
 
-    // Values are never converted, so "1" is not an integer and 1 is not a string.
+    // Values are never converted, so "1" is not an integer and 1 is not a string; 1.0 is an integer, as JavaScript sees it.
     private static readonly Dictionary<Type, (Func<JsonElement, bool> Accepts, string Single, string Plural)> ValueTypes = new()
     {
         { typeof(string), (value => value.ValueKind == JsonValueKind.String, "a string", "strings") },
-        { typeof(long), (value => value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out _), "an integer", "integers") },
+        { typeof(long), (value => value.ValueKind == JsonValueKind.Number && (value.TryGetInt64(out _) || (value.TryGetDouble(out var number) && Json.IsWholeNumber(number))), "an integer", "integers") },
         { typeof(double), (value => value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && double.IsFinite(number), "a number", "numbers") },
         { typeof(bool), (value => value.ValueKind is JsonValueKind.True or JsonValueKind.False, "true or false", "booleans") },
     };

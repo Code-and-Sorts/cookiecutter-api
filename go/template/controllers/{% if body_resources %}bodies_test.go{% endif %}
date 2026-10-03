@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// A JSON body with one property set to a raw JSON value, or removed when value is empty.
 func withProperty(body, name, value string) string {
 	properties := map[string]json.RawMessage{}
 	_ = json.Unmarshal([]byte(body), &properties)

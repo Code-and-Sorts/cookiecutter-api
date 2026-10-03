@@ -1,4 +1,4 @@
-{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_EXAMPLE, OUT_OF_RANGE_DATE_TIMES -%}
 import re
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -58,11 +58,15 @@ def describe_value_types():
         {"dateTime": "2026-01-31T09:30:00"},
         {"dateTime": "2026-01-31 09:30:00Z"},
         {"dateTime": "2026-02-30T09:30:00Z"},
+{%- for value in OUT_OF_RANGE_DATE_TIMES %}
+        {"dateTime": "{{ value }}"},
+{%- endfor %}
         {"date": "2026-1-31"},
         {"date": "2026-02-30"},
         {"id": "not-a-uuid"},
         {"count": MAX_SAFE_INTEGER + 1},
         {"count": True},
+        {"count": 1.5},
         {"amount": float("inf")},
         {"amount": "1"},
     ])
@@ -74,6 +78,11 @@ def describe_value_types():
         values = _Values(date="2024-02-29", id="AC1DF01C-7ECE-4A20-AB60-179829DAD8F5", count=-MAX_SAFE_INTEGER, amount=3)
         assert (values.date, values.count, values.amount) == ("2024-02-29", -MAX_SAFE_INTEGER, 3)
         assert _Values(amount=2.5).amount == 2.5
+
+    @pytest.mark.parametrize("raw, stored", [(2.0, 2), (1e3, 1000)])
+    def test_integer_accepts_a_whole_float(raw, stored):
+        count = _Values(count=raw).count
+        assert (count, type(count)) == (stored, int)
 
     @pytest.mark.parametrize("check, valid, invalid", [
         (check_email, "a@example.com", "not-an-email"),

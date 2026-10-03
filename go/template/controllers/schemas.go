@@ -8,9 +8,12 @@ package controllers
 {%- if ns.schemas %}
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"io"
+	"math"
+	"strconv"
 
 	"{{project_endpoint}}/models"
 	"{{project_endpoint}}/services"
@@ -42,12 +45,19 @@ func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaNam
 		return nil, err
 	}
 
-	var properties map[string]json.RawMessage
-	if err := json.Unmarshal(data, &properties); err != nil {
-		return nil, &models.ValidationError{Message: "Request body must be valid JSON."}
+	// The schema reads 1.0 and 1e3 as integers, so whole numbers are rewritten before they reach int64 fields.
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var properties map[string]any
+	if err := decoder.Decode(&properties); err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return nil, &models.ValidationError{Message: "Request body must be valid JSON."}
+	normalized, err := json.Marshal(wholeNumbers(properties))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(normalized, target); err != nil {
+		return nil, &models.ValidationError{Message: err.Error()}
 	}
 
 	sent := make(map[string]bool, len(properties))
@@ -55,5 +65,23 @@ func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaNam
 		sent[name] = true
 	}
 	return sent, nil
+}
+
+func wholeNumbers(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		for key, item := range v {
+			v[key] = wholeNumbers(item)
+		}
+	case []any:
+		for index, item := range v {
+			v[index] = wholeNumbers(item)
+		}
+	case json.Number:
+		if number, err := v.Float64(); err == nil && number == math.Trunc(number) && math.Abs(number) < math.MaxInt64 {
+			return json.Number(strconv.FormatInt(int64(number), 10))
+		}
+	}
+	return value
 }
 {%- endif %}

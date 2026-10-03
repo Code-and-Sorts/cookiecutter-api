@@ -42,10 +42,6 @@ describe('{{ r }}Repository', () => {
         expect(actual).toEqual([{% for op in exposed %}'{{ op }}'{% if not loop.last %}, {% endif %}{% endfor %}]);
     });
 
-    it('should know every field a client may set', () => {
-        expect(base['clientFields']).toEqual({{ client | map(attribute="name") | list | tojson }});
-    });
-
     it('should name the resource in not found errors', () => {
         const error = (base['notFound'] as (id: string) => Error)(mockId);
         expect(error.message).toEqual(`{{ r }} with id ${mockId} was not found.`);

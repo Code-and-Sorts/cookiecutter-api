@@ -1,3 +1,4 @@
+{%- from 'shared/_fields.jinja' import OUT_OF_RANGE_DATE_TIMES -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System;
@@ -57,6 +58,11 @@ public class FieldsTests
     [InlineData("2026-02-30T09:30:00Z", false)]
     [InlineData("2026-01-31T24:00:00Z", false)]
     [InlineData("2026-01-31T09:30:00Z\n", false)]
+    [InlineData("0001-01-01T00:00:00Z", true)]
+    [InlineData("9999-12-31T23:59:59.999Z", true)]
+{%- for value in OUT_OF_RANGE_DATE_TIMES %}
+    [InlineData("{{ value }}", false)]
+{%- endfor %}
     public void IsDateTime_AcceptsOnlyDateTimesWithAnOffset(string? value, bool expected)
     {
         Assert.Equal(expected, Fields.IsDateTime(value));

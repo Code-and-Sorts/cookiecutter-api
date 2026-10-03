@@ -8,7 +8,6 @@ import { mockStore } from '../../test/mocks';
 type Item = BaseEntity & { label?: string; color?: string; note?: string };
 type Fields = { label?: string; color?: string; note?: string | null };
 
-// Exposes the protected methods so they are tested whichever operations resources use.
 class TestRepository extends BaseRepository<Item> {
     declare public addRecord: (fields: Fields, userId?: string) => Promise<Item>;
     declare public getRecord: (id: string) => Promise<Item>;
@@ -39,7 +38,7 @@ describe('BaseRepository', () => {
         store = mockStore();
         store.write.mockResolvedValue(true);
         store.softDelete.mockResolvedValue(true);
-        repository = new TestRepository(store as unknown as DocumentStore<Item>, 'Item', ['label', 'color', 'note']);
+        repository = new TestRepository(store as unknown as DocumentStore<Item>, 'Item');
     });
 
     const expectProxyError = async (call: Promise<unknown>, message: string, cause: unknown) => {
@@ -181,11 +180,10 @@ describe('BaseRepository', () => {
         });
 
         it('should keep the fields it does not accept and clear accepted ones the body leaves out', async () => {
-            store.read.mockResolvedValue({ ...stored, color: 'black', note: 'old', extra: 'dropped' } as Item);
+            store.read.mockResolvedValue({ ...stored, color: 'black', note: 'old', extra: 'kept' } as Item);
             const result = await repository.replaceRecord(id, { label: 'replaced' }, ['label', 'note']);
-            expect(result).toMatchObject({ label: 'replaced', color: 'black' });
+            expect(result).toMatchObject({ label: 'replaced', color: 'black', extra: 'kept' });
             expect(Object.keys(result)).not.toContain('note');
-            expect(Object.keys(result)).not.toContain('extra');
         });
 
         it('should omit createdBy when the stored record has none and updatedBy without a user id', async () => {

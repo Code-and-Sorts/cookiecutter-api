@@ -306,7 +306,7 @@ func Test{{ Op }}{{ r }}_RejectsInvalidBodies(t *testing.T) {
 {%- for f in accepted %}{% for v in f.boundaries %}{% set _ = boundaries.append((f.name, v)) %}{% endfor %}{% endfor %}
 {%- if boundaries %}
 
-func Test{{ Op }}{{ r }}_AcceptsValuesOnARuleBound(t *testing.T) {
+func Test{{ Op }}{{ r }}_AcceptsEdgeValues(t *testing.T) {
 	for _, value := range [][2]string{
 {%- for name, v in boundaries %}
 		{"{{ name }}", {{ json_string(v) }}},

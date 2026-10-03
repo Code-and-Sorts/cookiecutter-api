@@ -185,42 +185,6 @@ def describe_base_repository_records():
             with pytest.raises(NotFoundError):
                 asyncio.run(repository._update(ITEM_ID, {"label": "mockLabel1-Update"}))
             repository._write.assert_not_called()
-
-    def describe_replace():
-        def test_overwrites_fields_and_keeps_creation_fields():
-            stored = {**_stored_item, "color": "black", "note": "old", "extra": "dropped", "updatedBy": "someone"}
-            repository = _offline_repository(stored)
-            with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(
-                    repository._replace(ITEM_ID, {"label": "mockLabel1-Replace", "note": None}, "editor")
-                )
-
-            # note was accepted and sent empty, so it is cleared; color was not accepted, so it is kept.
-            assert _written(repository) == {
-                "id": ITEM_ID,
-                "label": "mockLabel1-Replace",
-                "color": "black",
-                "isDeleted": False,
-                "createdTimestamp": _CREATED,
-                "createdBy": "creator",
-                "updatedTimestamp": _NOW,
-                "updatedBy": "editor",
-            }
-            assert result == _ItemResponse(id=ITEM_ID, label="mockLabel1-Replace")
-
-        def test_omits_unset_created_by_and_drops_updated_by_without_user_id():
-            stored = {key: value for key, value in _stored_item.items() if key != "createdBy"}
-            repository = _offline_repository({**stored, "updatedBy": "someone"})
-            with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository._replace(ITEM_ID, {"label": "mockLabel1-Replace"}))
-
-            assert not {"createdBy", "updatedBy"} & set(_written(repository))
-
-        def test_not_found_error():
-            repository = _offline_repository()
-            with pytest.raises(NotFoundError):
-                asyncio.run(repository._replace(ITEM_ID, {"label": "mockLabel1-Replace"}))
-            repository._write.assert_not_called()
 {%- if cloud_service == 'Azure Function App' %}
 
 

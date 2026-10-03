@@ -1,21 +1,24 @@
 {#- Renders base_fields and resource fields as Go structs and JSON Schemas. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, REQUEST_KINDS, sample_body_json -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, REQUEST_KINDS, sample_body_json, string_literal -%}
 {%- set GO_TYPES = {"string": "string", "integer": "int64", "number": "float64", "boolean": "bool", "date": "string", "date-time": "DateTime", "uuid": "string", "enum": "string"} -%}
 {%- set SCHEMA_TYPES = {"integer": "integer", "number": "number", "boolean": "boolean", "array": "array"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "new(DateTime(Now()))", "today": "new(Today())", "uuid": "new(uuid.NewString())"} -%}
 
 {#- The Go type of a field's value (fields are pointers to it); pkg qualifies DateTime outside package models. -#}
 {%- macro go_type(f, pkg="") -%}
+{%- if f.item_type == "date-time" and f.rules.unique_items -%}{{ pkg }}UniqueDateTimes
+{%- else -%}
 {%- set base = GO_TYPES[f.item_type if f.type == "array" else f.type] -%}
 {{ "[]" if f.type == "array" }}{{ pkg ~ base if base == "DateTime" else base }}
+{%- endif -%}
 {%- endmacro -%}
 
 {%- macro scalar(type, value, pkg="", typed=true) -%}
 {%- if type == "boolean" -%}{{ "true" if value else "false" }}
 {%- elif type == "integer" -%}{{ "int64(" ~ value ~ ")" if typed else value }}
 {%- elif type == "number" -%}{{ "float64(" ~ value ~ ")" if typed else value }}
-{%- elif type == "date-time" and typed -%}{{ pkg }}DateTime({{ value | tojson }})
-{%- else -%}{{ value | tojson }}
+{%- elif type == "date-time" and typed -%}{{ pkg }}DateTime({{ string_literal(value) }})
+{%- else -%}{{ string_literal(value) }}
 {%- endif -%}
 {%- endmacro -%}
 

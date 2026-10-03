@@ -3,7 +3,7 @@ import re
 import uuid
 from datetime import date, datetime, timezone
 from typing import Annotated, Union
-from pydantic import AfterValidator, Field, StrictFloat, StrictInt, StrictStr
+from pydantic import AfterValidator, BeforeValidator, Field, StrictFloat, StrictInt, StrictStr
 
 # JavaScript numbers hold integers exactly only up to here, so every language caps integers at it.
 MAX_SAFE_INTEGER = {{ MAX_SAFE_INTEGER }}
@@ -44,7 +44,10 @@ def to_utc_timestamp(value: str) -> str:
     """Accepts RFC 3339 with any offset and stores UTC with milliseconds, like the system timestamps."""
     if not _DATE_TIME.fullmatch(value):
         raise ValueError("must be a date-time with a time zone, such as 2026-01-31T09:30:00Z")
-    return format_timestamp(datetime.fromisoformat(_EXTRA_DIGITS.sub(r"\1", value)))
+    try:
+        return format_timestamp(datetime.fromisoformat(_EXTRA_DIGITS.sub(r"\1", value)))
+    except OverflowError:
+        raise ValueError("must fall between the years 0001 and 9999 in UTC") from None
 
 
 def check_uuid(value: str) -> str:
@@ -71,7 +74,12 @@ def check_unique_items(values: list) -> list:
     return values
 
 
-SafeInt = Annotated[StrictInt, Field(ge=-MAX_SAFE_INTEGER, le=MAX_SAFE_INTEGER)]
+def whole_number(value: object) -> object:
+    """JSON clients cannot always tell 1 from 1.0, so an integer may arrive as a whole float."""
+    return int(value) if isinstance(value, float) and value.is_integer() else value
+
+
+SafeInt = Annotated[StrictInt, Field(ge=-MAX_SAFE_INTEGER, le=MAX_SAFE_INTEGER), BeforeValidator(whole_number)]
 # Integers stay integers, so a number round-trips as the client sent it.
 Number = Union[SafeInt, Annotated[StrictFloat, Field(allow_inf_nan=False)]]
 DateStr = Annotated[StrictStr, AfterValidator(check_date)]

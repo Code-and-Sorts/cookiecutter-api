@@ -5,7 +5,6 @@ import { DocumentStore } from './document.store';
 
 export type RecordFields<T extends BaseEntity> = Omit<T, SystemField>;
 
-// A field without a value is not stored, in every language and database.
 const withoutEmpty = <R extends object>(record: R): R =>
   Object.fromEntries(Object.entries(record).filter(([, value]) => value !== null && value !== undefined)) as R;
 
@@ -17,8 +16,6 @@ export abstract class BaseRepository<T extends BaseEntity> {
   constructor(
     protected readonly store: DocumentStore<T>,
     protected readonly resourceName: string,
-    // The fields a client may set, so a replace can keep the ones its body does not accept.
-    protected readonly clientFields: readonly string[] = [],
   ) {}
 
   protected guard = <R>(message: string, op: () => Promise<R>): Promise<R> =>
@@ -58,25 +55,12 @@ export abstract class BaseRepository<T extends BaseEntity> {
       return this.save(withoutEmpty({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T));
     });
 
-  // accepted names every field the replace body may set; the record's other client fields keep their values.
+  // Fields the body does not accept, including those other resources in the container store, keep their values.
   protected replaceRecord = (id: string, fields: Partial<RecordFields<T>>, accepted: readonly string[], userId?: string): Promise<T> =>
     this.guard(`Error replacing item with id ${id}.`, async () => {
-      const current = await this.findLive(id);
-      const { createdTimestamp, createdBy } = current;
-      const kept = Object.fromEntries(
-        Object.entries(current).filter(([field]) => this.clientFields.includes(field) && !accepted.includes(field)),
-      );
-      return this.save(withoutEmpty({
-        ...kept,
-        ...fields,
-        id,
-        isDeleted: false,
-        createdTimestamp,
-        updatedTimestamp: nowIso(),
-        // Omitted, never stored as undefined, when the record has none.
-        ...(createdBy !== undefined && { createdBy }),
-        ...updatedBy(userId),
-      } as T));
+      const { updatedBy: _previous, ...current } = await this.findLive(id);
+      const kept = Object.fromEntries(Object.entries(current).filter(([field]) => !accepted.includes(field)));
+      return this.save(withoutEmpty({ ...kept, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T));
     });
 
   protected deleteRecord = (id: string, userId?: string): Promise<void> =>

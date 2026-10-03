@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as C# properties, FluentValidation rules and test values. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, sample_body_json -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, sample_body_json, string_literal -%}
 {%- set CS_TYPES = {"string": "string", "integer": "long", "number": "double", "boolean": "bool", "date": "string", "date-time": "string", "uuid": "string", "enum": "string"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "Fields.Now()", "today": "Fields.Today()", "uuid": "Fields.NewUuid()"} -%}
 {#- Checks of a value's shape, as (Fields method, description); arrays apply them to every item. -#}
@@ -27,7 +27,7 @@
 {%- macro scalar(type, value) -%}
 {%- if type == "boolean" -%}{{ "true" if value else "false" }}
 {%- elif type in ["integer", "number"] -%}{{ value }}
-{%- else -%}{{ value | tojson }}
+{%- else -%}{{ string_literal(value) }}
 {%- endif -%}
 {%- endmacro -%}
 
@@ -159,7 +159,8 @@ namespace {{ api ~ namespace }};
 {{ rule(p, "Matches(" ~ regex(PATTERNS[f.rules.format]) ~ ")", f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
 {%- endif -%}
 {%- if f.rules.unique_items -%}
-{{ rule(p, "Must(values => values == null || values.Distinct().Count() == values.Count)", f.name ~ " must not repeat an item.") }}
+{%- set items = "values.Select(value => Fields.UtcDateTime(value))" if f.item_type == "date-time" else "values" -%}
+{{ rule(p, "Must(values => values == null || " ~ items ~ ".Distinct().Count() == values.Count)", f.name ~ " must not repeat an item.") }}
 {%- endif -%}
 {%- endmacro -%}
 

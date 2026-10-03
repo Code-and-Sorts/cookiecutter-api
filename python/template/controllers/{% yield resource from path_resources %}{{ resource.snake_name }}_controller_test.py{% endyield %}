@@ -24,7 +24,6 @@ from conftest import ITEM_ID{% if body_ops %}, encode, invalid_bodies{% endif %}
 _response = {{ r }}Response(id=ITEM_ID, **{{ sample_dict(client | rejectattr("hidden")) }})
 {%- endif %}
 {%- if body_ops %}
-# Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
 _REJECTED = {
 {%- for f in client %}
     "{{ f.name }}": {{ literal(f.rejected) }},
@@ -156,7 +155,7 @@ def describe_{{ slug }}_controller():
 {%- if accepted | selectattr("boundaries") | list %}
 
         @pytest.mark.parametrize("name, value", _{{ op | upper }}_BOUNDARIES)
-        def test_values_on_a_rule_bound_are_accepted(controller, mock_service, name, value):
+        def test_edge_values_are_accepted(controller, mock_service, name, value):
             mock_service.{{ op }}.return_value = _response
 
             asyncio.run({{ call }}encode({**{{ BODY }}, name: value})))

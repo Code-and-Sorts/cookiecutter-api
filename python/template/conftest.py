@@ -2,7 +2,6 @@
 import json
 
 ITEM_ID = "ac1df01c-7ece-4a20-ab60-179829dad8f5"
-# Server-managed fields a request body may never set.
 SYSTEM_FIELDS = {{ sample_dict(base_fields | selectattr("system")) }}
 
 

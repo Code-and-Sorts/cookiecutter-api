@@ -110,15 +110,23 @@ public class DynamoDocumentStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_PutsCreatedByAndUpdatedByWhenSet()
+    public async Task SaveAsync_SetsItsOwnFieldsAndRemovesUnsetOnes()
     {
-        var item = new TestRecord { Id = ItemId, CreatedTimestamp = StoredTimestamp, UpdatedTimestamp = StoredTimestamp, CreatedBy = "User2", UpdatedBy = "User3" };
+        var item = new TestRecord { Id = ItemId, Text = "mock", CreatedTimestamp = StoredTimestamp, UpdatedTimestamp = StoredTimestamp, CreatedBy = "User2" };
 
         await _store.SaveAsync(item, TestContext.Current.CancellationToken);
 
-        await _mockDynamoClient.Received(1).PutItemAsync(
-            Arg.Is<PutItemRequest>(req => req.Item["createdBy"].S == "User2" && req.Item["updatedBy"].S == "User3"),
-            Arg.Any<CancellationToken>());
+        await _mockDynamoClient.Received(1).UpdateItemAsync(Arg.Any<UpdateItemRequest>(), Arg.Any<CancellationToken>());
+        var request = _store.ToUpdate(item);
+        var names = request.ExpressionAttributeNames.ToDictionary(name => name.Value, name => name.Key);
+        Assert.Equal(ItemId, request.Key["id"].S);
+        Assert.Equal("attribute_exists(id)", request.ConditionExpression);
+        Assert.DoesNotContain("id", names.Keys);
+        Assert.Contains($"{names["text"]} = :{names["text"][1..]}", request.UpdateExpression);
+        Assert.Equal("mock", request.ExpressionAttributeValues[$":{names["text"][1..]}"].S);
+        Assert.Equal("User2", request.ExpressionAttributeValues[$":{names["createdBy"][1..]}"].S);
+        Assert.Matches($"REMOVE .*{names["updatedBy"]}\\b", request.UpdateExpression);
+        Assert.Matches($"REMOVE .*{names["count"]}\\b", request.UpdateExpression);
     }
 
     [Fact]

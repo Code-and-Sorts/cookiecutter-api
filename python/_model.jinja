@@ -1,4 +1,5 @@
 {#- Renders base_fields and resource fields as Pydantic model fields. Never copied into a project. -#}
+{%- from 'shared/_fields.jinja' import string_literal -%}
 {%- set DYNAMIC_FACTORIES = {"now": "generate_utc_timestamp", "today": "utc_today", "uuid": "new_uuid"} -%}
 {%- set ITEM_TYPES = {"string": "StrictStr", "integer": "SafeInt", "number": "Number", "boolean": "StrictBool", "date": "DateStr", "date-time": "DateTimeStr", "uuid": "UuidStr"} -%}
 {%- set READ_TYPES = {"string": "str", "integer": "int", "number": "int | float", "boolean": "bool", "date": "str", "date-time": "str", "uuid": "str", "enum": "str"} -%}
@@ -6,7 +7,7 @@
 {%- macro literal(value) -%}
 {%- if value is none -%}None
 {%- elif value is boolean -%}{{ "True" if value else "False" }}
-{%- elif value is string -%}{{ value | tojson }}
+{%- elif value is string -%}{{ string_literal(value) }}
 {%- elif value is number -%}{{ value }}
 {%- else -%}[{% for item in value %}{{ literal(item) }}{{ ", " if not loop.last }}{% endfor %}]
 {%- endif -%}
@@ -20,7 +21,7 @@
 {%- if f.type == "string" -%}
 {%- if rules.min_length is defined %}{% set _ = constraints.append("min_length=" ~ rules.min_length) %}{% endif -%}
 {%- if rules.max_length is defined %}{% set _ = constraints.append("max_length=" ~ rules.max_length) %}{% endif -%}
-{%- if rules.pattern is defined %}{% set _ = constraints.append("pattern=" ~ (rules.pattern | tojson)) %}{% endif -%}
+{%- if rules.pattern is defined %}{% set _ = constraints.append("pattern=" ~ string_literal(rules.pattern)) %}{% endif -%}
 {%- if rules.format == "email" %}{% set _ = checks.append("AfterValidator(check_email)") %}{% endif -%}
 {%- if rules.format == "uri" %}{% set _ = checks.append("AfterValidator(check_uri)") %}{% endif -%}
 {%- set base = "StrictStr" -%}
@@ -71,14 +72,62 @@ Annotated[{{ base }}, {{ extras | join(", ") }}]
 {%- endif -%}
 {%- endmacro -%}
 
-{#- A stored field with the value a create gives it when the body does not. -#}
+{#- A stored field with the value a create gives it when the body does not; the repository sets the system fields. -#}
 {%- macro entity_field(f) -%}
+{%- if f.system -%}
+{{ f.name }}: {{ read_type(f) }}{% if not f.required %} | None = None{% elif not f.dynamic %} = {{ literal(f.default) }}{% endif %}
+{%- else -%}
 {{ f.name }}: {{ read_type(f) }} | None = {{ default_expression(f) if f.has_default else "None" }}
+{%- endif -%}
 {%- endmacro -%}
 
 {#- A response field; a stored record without the value reads as its static default (nullable fields as null). -#}
 {%- macro response_field(f) -%}
+{%- if f.system -%}
+{{ f.name }}: {{ read_type(f) }}
+{%- else -%}
 {{ f.name }}: {{ read_type(f) }} | None = {{ default_expression(dict(f, dynamic="", default=f.read_default)) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A model's classes: the stored entity, a request per body kind and the response. A resource model extends the Base
+    classes; the Base entity holds the members of the caller block after its fields. -#}
+{%- macro model_classes(name, fields, kinds) -%}
+{%- set extends = name != "Base" -%}
+class {{ name }}Entity({{ "BaseEntity" if extends else "BaseModel" }}):
+{%- for f in fields %}
+{%- if f.description %}
+    # {{ f.description | replace("\n", " ") }}
+{%- endif %}
+    {{ entity_field(f) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- if caller is defined %}
+{{ caller() }}
+{%- endif %}
+{%- for op, kind in kinds %}
+{%- set accepted = fields | selectattr("in_" ~ op) | list %}
+
+
+class {{ name }}{{ kind }}Request({{ ("Base" ~ kind ~ "Request") if extends else "RequestModel" }}):
+{%- if op == "update" and accepted %}
+    # Defaults skip validation: an absent field stays unset, an explicit null is rejected unless nullable.
+{%- endif %}
+{%- for f in accepted %}
+    {{ request_field(f, op) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- endfor %}
+
+
+class {{ name }}Response({{ "BaseResponse" if extends else "BaseModel" }}):
+{%- for f in fields | rejectattr("hidden") %}
+    {{ response_field(f) }}
+{%- else %}
+    pass
+{%- endfor %}
 {%- endmacro -%}
 
 {#- Imports for a models module whose class bodies are rendered in body. -#}
