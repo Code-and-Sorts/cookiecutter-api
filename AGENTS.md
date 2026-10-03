@@ -119,9 +119,10 @@ written once, as `LOCKED_FIELDS` in `shared/_fields.jinja`, which also renders t
 
 - `shared/_fields.jinja` holds the field rules once: `check_field` (used by the `base_model` and
   `resources` validators, which stop at the first error and name the resource or `base_model` and the
-  field), the value `PATTERNS`, `MAX_SAFE_INTEGER`, `REQUEST_KINDS`, `DATE_TIME_EXAMPLE`,
-  `OUT_OF_RANGE_DATE_TIMES`, `DEFAULT_FIELDS`, `string_literal` (every string a template writes into code, so
-  emoji are never escaped as surrogate pairs) and the derived field data. Add a rule, type or derived value
+  field), the value `PATTERNS`, `MAX_SAFE_INTEGER`, `REQUEST_KINDS`, the test values `DATE_TIME_CASES`,
+  `INVALID_DATE_TIMES`, `INVALID_DATES` and `WIDE_CHARACTER`, `DEFAULT_FIELDS`, `string_literal` (every string a
+  template writes into code, so emoji are never escaped as surrogate pairs), `portable_pattern` (every pattern a
+  template writes) and the derived field data. Add a rule, type or derived value
   there, never per language. The integration suite renders the same macros (`tests/integration/project.py`)
   instead of re-deriving values.
 - Templates never read the raw answers for fields: `base_fields`, `client_base_fields` and
@@ -163,11 +164,16 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **Fields:** create and replace give a field the body leaves out its default (`$now`, `$today`, `$uuid` per
   write) or no value; replace keeps the fields it does not accept; update changes only the fields sent and
   `null` clears a nullable one. A record without a field reads as its static default (`null` if nullable).
-  Date-times are accepted with any offset and stored in UTC with milliseconds, and must fall in the years
-  0001 to 9999 in UTC (a leap second is a 400); integers lie within ±9007199254740991 and may be sent as
-  whole numbers such as `1.0` or `1e3`, since JavaScript cannot tell them apart; resources sharing a container
-  keep each other's fields on every write; `email` and `uri` use the shared `PATTERNS`. `pattern_error` allows only the regex
-  syntax RE2, ECMAScript, .NET, Python and Rust (pydantic) read the same way; widen it only after checking all five.
+  Dates and date-times match the shared `PATTERNS` (year 0001 on, hours to 23, offsets to ±23:59, as RFC 3339
+  allows); date-times are stored in UTC with milliseconds and must fall in the years 0001 to 9999 in UTC. Integers
+  lie within ±9007199254740991 and may be sent as whole numbers such as `1.0` or `1e3`, since JavaScript cannot
+  tell them apart. Lengths and patterns count code points: TypeScript compiles patterns with the `u` flag, and
+  .NET counts runes and matches against a copy that turns each character beyond the BMP into one placeholder
+  (U+FFFF, which no pattern may name). Resources sharing a container keep each other's fields on every write, and
+  a Cosmos DB write after a read sends the ETag it read (If-Match), so a racing write is a 500, never lost.
+  `pattern_error` allows only syntax RE2, ECMAScript with the `u` flag, .NET, Python and Rust (pydantic) read the
+  same way, and `portable_pattern` renders `.` as `[^\n]`, since JavaScript's `.` also refuses `\r`, U+2028 and
+  U+2029; widen the allowed syntax only after checking all five engines.
 - **Storage:** `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
   `Z`) and every field that has a value (a field without one is not stored, never `null`), plus
   `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both

@@ -47,8 +47,8 @@ def test_an_update_with_null_clears_a_nullable_field(api, store, resource, opera
 
 
 @pytest.mark.fields("date_time")
-def test_a_date_time_is_stored_in_utc_with_milliseconds(api, store, resource, operation, field):
-    example = FIELDS.DATE_TIME_EXAMPLE
+@pytest.mark.parametrize("example", FIELDS.DATE_TIME_CASES, ids=lambda example: example["sent"])
+def test_a_date_time_is_stored_in_utc_with_milliseconds(api, store, resource, operation, field, example):
     body = {**minimal_body(resource, operation), field.name: example["sent"]}
     created = api.send(operation, resource, json=body)
     assert created.status_code == 201, created.text

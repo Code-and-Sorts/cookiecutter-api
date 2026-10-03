@@ -17,6 +17,7 @@ on:
       - go/**
       - .github/scripts/**
       - .github/actions/setup-copier-template/**
+      - tests/integration/project.py
       - .github/workflows/template-checks.yaml
   pull_request:
     paths:
@@ -28,6 +29,7 @@ on:
       - go/**
       - .github/scripts/**
       - .github/actions/setup-copier-template/**
+      - tests/integration/project.py
       - .github/workflows/template-checks.yaml
 
 permissions:
