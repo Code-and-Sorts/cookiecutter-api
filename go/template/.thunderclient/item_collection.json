@@ -1,3 +1,4 @@
+{%- from 'shared/_fields.jinja' import sample_body_json -%}
 {%- set route_prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set ns = namespace(sort=0) -%}
 {
@@ -7,7 +8,7 @@
     "dateExported": "2024-08-10T22:25:59.850Z",
     "version": "1.2",
     "folders": [
-{%- for resource in resources %}
+{%- for resource in path_resources %}
         {
             "_id": "folder:{{ resource.endpoint }}",
             "name": "{{ resource.name }}",
@@ -18,7 +19,7 @@
 {%- endfor %}
     ],
     "requests": [
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 {%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
 {%- set base_url = '{{baseUrl}}' ~ route_prefix ~ '/' ~ resource.endpoint %}
 {%- for op in ["list", "get_by_id", "create", "update", "replace", "delete"] if op in resource.operations %}
@@ -42,22 +43,10 @@
             "created": "2024-08-10T20:25:19.095Z",
             "modified": "2024-08-10T20:42:18.713Z",
             "headers": [],
-{%- if op == "create" %}
+{%- if op in ["create", "update", "replace"] %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1\"\n}",
-                "form": []
-            },
-{%- elif op == "update" %}
-            "body": {
-                "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1-Update\"\n}",
-                "form": []
-            },
-{%- elif op == "replace" %}
-            "body": {
-                "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1-Replace\"\n}",
+                "raw": {{ sample_body_json(((base_fields | rejectattr("system") | list) + resource.fields) | selectattr("in_" ~ op)) | tojson }},
                 "form": []
             },
 {%- endif %}

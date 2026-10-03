@@ -31,21 +31,31 @@ func RequestSchemas() map[string]string {
 }
 {%- if ns.schemas %}
 
-// Validating the raw body first rejects unknown fields and wrongly typed values.
-func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaName string, target any) error {
+// Validating the raw body first rejects unknown fields and wrongly typed values. Decoding into a
+// target that already holds defaults keeps them for fields the body leaves out. The returned set names
+// the properties the body sent, so an update can tell an absent field from an explicit null.
+func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaName string, target any) (map[string]bool, error) {
 	data, err := io.ReadAll(body)
 	if err != nil {
-		return &models.ValidationError{Message: "Request body could not be read."}
+		return nil, &models.ValidationError{Message: "Request body could not be read."}
 	}
 
 	if err := validator.Validate(data, schemaName); err != nil {
-		return err
+		return nil, err
 	}
 
+	var properties map[string]json.RawMessage
+	if err := json.Unmarshal(data, &properties); err != nil {
+		return nil, &models.ValidationError{Message: "Request body must be valid JSON."}
+	}
 	if err := json.Unmarshal(data, target); err != nil {
-		return &models.ValidationError{Message: "Request body must be valid JSON."}
+		return nil, &models.ValidationError{Message: "Request body must be valid JSON."}
 	}
 
-	return nil
+	sent := make(map[string]bool, len(properties))
+	for name := range properties {
+		sent[name] = true
+	}
+	return sent, nil
 }
 {%- endif %}

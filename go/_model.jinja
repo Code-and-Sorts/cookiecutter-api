@@ -1,0 +1,115 @@
+{#- Renders base_fields and resource fields as Go structs and JSON Schemas. Never copied into a project. -#}
+{%- set GO_TYPES = {"string": "string", "integer": "int64", "number": "float64", "boolean": "bool", "date": "string", "date-time": "DateTime", "uuid": "string", "enum": "string"} -%}
+{%- set MAX_SAFE_INTEGER = 9007199254740991 -%}
+{%- set DATE_PATTERN = "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" -%}
+{%- set DATE_TIME_PATTERN = "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$" -%}
+{%- set UUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" -%}
+{%- set FORMAT_PATTERNS = {"email": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", "uri": "^[A-Za-z][A-Za-z0-9+.-]*:\\S+$"} -%}
+
+{#- The Go type of a field's value (fields are pointers to it); pkg qualifies DateTime outside package models. -#}
+{%- macro go_type(f, pkg="") -%}
+{%- set base = GO_TYPES[f.item_type if f.type == "array" else f.type] -%}
+{{ "[]" if f.type == "array" }}{{ pkg ~ base if base == "DateTime" else base }}
+{%- endmacro -%}
+
+{%- macro scalar(type, value, pkg="", typed=true) -%}
+{%- if type == "boolean" -%}{{ "true" if value else "false" }}
+{%- elif type == "integer" -%}{{ "int64(" ~ value ~ ")" if typed else value }}
+{%- elif type == "number" -%}{{ "float64(" ~ value ~ ")" if typed else value }}
+{%- elif type == "date-time" and typed -%}{{ pkg }}DateTime({{ value | tojson }})
+{%- else -%}{{ value | tojson }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A Go expression for a non-null value of the field. -#}
+{%- macro literal(f, value, pkg="") -%}
+{%- if f.type == "array" -%}
+{{ go_type(f, pkg) }}{ {%- for item in value %}{{ scalar(f.item_type, item, pkg, typed=false) }}{{ ", " if not loop.last }}{% endfor -%} }
+{%- else -%}
+{{ scalar(f.type, value, pkg) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro pointer(f, value, pkg="") -%}
+{%- if value is none %}nil{% else %}new({{ literal(f, value, pkg) }}){% endif -%}
+{%- endmacro -%}
+
+{#- The value a create or replace gives a field the body leaves out. -#}
+{%- macro default_pointer(f) -%}
+{%- if f.dynamic == "now" -%}new(DateTime(Now()))
+{%- elif f.dynamic == "today" -%}new(Today())
+{%- elif f.dynamic == "uuid" -%}new(uuid.NewString())
+{%- else -%}{{ pointer(f, f.default) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Struct fields with gofmt's column alignment; rows are (name, type, tag). -#}
+{%- macro struct_fields(rows) -%}
+{%- set name_width = rows | map(attribute=0) | map("length") | max -%}
+{%- set type_width = rows | map(attribute=1) | map("length") | max -%}
+{%- for name, type, tag in rows %}
+	{{ name ~ " " * (name_width - name | length) }} {{ type ~ " " * (type_width - type | length) }} {{ tag }}
+{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro entity_rows(fields) -%}
+{%- set rows = [] -%}
+{%- for f in fields -%}
+{%- set _ = rows.append((f.pascal, "*" ~ go_type(f), "`json:\"" ~ f.name ~ ",omitempty\" dynamodbav:\"" ~ f.name ~ ",omitempty\" firestore:\"" ~ f.name ~ ",omitempty\"`")) -%}
+{%- endfor -%}
+{{ rows | tojson }}
+{%- endmacro -%}
+
+{%- macro json_rows(fields) -%}
+{%- set rows = [] -%}
+{%- for f in fields %}{% set _ = rows.append((f.pascal, "*" ~ go_type(f), "`json:\"" ~ f.name ~ "\"`")) %}{% endfor -%}
+{{ rows | tojson }}
+{%- endmacro -%}
+
+{#- A field's JSON Schema; the body validation every Go request goes through before it is decoded. -#}
+{%- macro property(f) -%}
+{%- set rules = f.rules -%}
+{%- set schema = {"type": ([f.type if f.type in ["integer", "number", "boolean", "array"] else "string", "null"] if f.nullable else (f.type if f.type in ["integer", "number", "boolean", "array"] else "string"))} -%}
+{%- set extra = {} -%}
+{%- if f.type == "string" -%}
+{%- for rule, key in [("min_length", "minLength"), ("max_length", "maxLength"), ("pattern", "pattern")] if rules[rule] is defined %}{% set _ = extra.update({key: rules[rule]}) %}{% endfor -%}
+{%- if rules.format is defined %}{% set _ = extra.update({"allOf": [{"pattern": FORMAT_PATTERNS[rules.format]}]}) %}{% endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- if f.type == "integer" %}{% set _ = extra.update({"minimum": rules.minimum | default(-MAX_SAFE_INTEGER), "maximum": rules.maximum | default(MAX_SAFE_INTEGER)}) %}{% endif -%}
+{%- for rule, key in [("minimum", "minimum"), ("maximum", "maximum"), ("exclusive_minimum", "exclusiveMinimum"), ("exclusive_maximum", "exclusiveMaximum")] if rules[rule] is defined %}{% set _ = extra.update({key: rules[rule]}) %}{% endfor -%}
+{%- elif f.type == "enum" -%}
+{%- set _ = extra.update({"enum": f.enum_values + ([none] if f.nullable else [])}) -%}
+{%- elif f.type == "array" -%}
+{%- set _ = extra.update({"items": item_schema(f.item_type) | from_json}) -%}
+{%- for rule, key in [("min_items", "minItems"), ("max_items", "maxItems"), ("unique_items", "uniqueItems")] if rules[rule] is defined %}{% set _ = extra.update({key: rules[rule]}) %}{% endfor -%}
+{%- else -%}
+{%- set _ = extra.update(item_schema(f.type) | from_json) -%}
+{%- set _ = extra.pop("type") -%}
+{%- endif -%}
+{%- if f.has_default and not f.dynamic and f.default is not none %}{% set _ = extra.update({"default": f.default}) %}{% endif -%}
+{%- if f.description %}{% set _ = extra.update({"description": f.description}) %}{% endif -%}
+{{ dict(schema, **extra) | tojson }}
+{%- endmacro -%}
+
+{%- macro item_schema(type) -%}
+{%- if type == "date" -%}{{ {"type": "string", "pattern": DATE_PATTERN, "format": "date"} | tojson }}
+{%- elif type == "date-time" -%}{{ {"type": "string", "pattern": DATE_TIME_PATTERN, "format": "date-time"} | tojson }}
+{%- elif type == "uuid" -%}{{ {"type": "string", "pattern": UUID_PATTERN} | tojson }}
+{%- elif type == "integer" -%}{{ {"type": "integer", "minimum": -MAX_SAFE_INTEGER, "maximum": MAX_SAFE_INTEGER} | tojson }}
+{%- else -%}{{ {"type": type} | tojson }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A request body's JSON Schema: only the given fields, each required one without a default must be sent. -#}
+{%- macro request_schema(fields, required=true) -%}
+{%- set properties = {} -%}
+{%- for f in fields %}{% set _ = properties.update({f.name: property(f) | from_json}) %}{% endfor -%}
+{%- set schema = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": properties, "additionalProperties": false} -%}
+{%- set names = fields | selectattr("required") | rejectattr("has_default") | map(attribute="name") | list if required else [] -%}
+{{ (dict(schema, required=names) if names else schema) | tojson(indent=4) }}
+{%- endmacro -%}
+
+{#- A Go string literal holding the JSON for value, for test bodies. -#}
+{%- macro json_string(value) -%}
+{{ value | tojson | tojson }}
+{%- endmacro -%}

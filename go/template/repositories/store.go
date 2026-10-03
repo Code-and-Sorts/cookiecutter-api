@@ -260,7 +260,7 @@ func (s *store[T, P]) create(ctx context.Context, item *T, userID string) (*T, e
 	return item, nil
 }
 {%- endif %}
-{%- if 'update' in all_ops %}
+{%- if 'update' in all_ops or 'replace' in all_ops %}
 
 func (s *store[T, P]) update(ctx context.Context, id, userID string, merge func(stored *T)) (*T, error) {
 	stored, err := s.get(ctx, id)
@@ -277,29 +277,7 @@ func (s *store[T, P]) update(ctx context.Context, id, userID string, merge func(
 	return stored, nil
 }
 {%- endif %}
-{%- if 'replace' in all_ops %}
 
-func (s *store[T, P]) replace(ctx context.Context, replacement *T, userID string) (*T, error) {
-	base := P(replacement).Base()
-	current, err := s.get(ctx, base.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	kept := P(current).Base()
-	*base = models.BaseEntity{
-		Id:               kept.Id,
-		CreatedTimestamp: kept.CreatedTimestamp,
-		CreatedBy:        kept.CreatedBy,
-	}
-	base.StampWrite(userID)
-
-	if err := s.write(ctx, replacement, false); err != nil {
-		return nil, err
-	}
-	return replacement, nil
-}
-{%- endif %}
 {%- if 'delete' in all_ops %}
 
 func (s *store[T, P]) softDelete(ctx context.Context, id, userID string) error {

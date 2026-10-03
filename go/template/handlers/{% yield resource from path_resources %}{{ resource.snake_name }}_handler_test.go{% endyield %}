@@ -13,8 +13,13 @@
   ('', 'MethodPost', true)] -%}
 package handlers
 
+{%- set uses_json = ops | select('in', ['get_by_id', 'create', 'update', 'replace']) | list | length > 0 %}
+
 import (
 	"context"
+{%- if uses_json %}
+	"encoding/json"
+{%- endif %}
 {%- if uses_body %}
 	"io"
 {%- endif %}
@@ -37,6 +42,14 @@ import (
 )
 
 const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+{%- if uses_json %}
+
+// What the fake controller returns, as the handler should write it.
+func fake{{ r }}JSON() string {
+	data, _ := json.Marshal(models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: test{{ r }}ID}})
+	return string(data)
+}
+{%- endif %}
 
 {%- set fields = [('err', 'error', true), ('id', 'string', uses_id), ('limit', 'int', 'list' in ops), ('body', 'string', uses_body), ('userID', 'string', uses_user)] | selectattr(2) | list %}
 {%- set width = fields | map(attribute=0) | map('length') | max %}
@@ -53,7 +66,7 @@ func (f *fake{{ r }}Controller) Get(ctx context.Context, id string) (*models.{{ 
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+	return &models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: id}}, nil
 }
 {%- endif %}
 {%- if "list" in ops %}
@@ -74,7 +87,7 @@ func (f *fake{{ r }}Controller) Create(ctx context.Context, userID string, body 
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "Fake"}, nil
+	return &models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: test{{ r }}ID}}, nil
 }
 {%- endif %}
 {%- if "update" in ops %}
@@ -85,7 +98,7 @@ func (f *fake{{ r }}Controller) Update(ctx context.Context, id, userID string, b
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+	return &models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: id}}, nil
 }
 {%- endif %}
 {%- if "replace" in ops %}
@@ -96,7 +109,7 @@ func (f *fake{{ r }}Controller) Replace(ctx context.Context, id, userID string, 
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+	return &models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: id}}, nil
 }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -195,7 +208,7 @@ func TestGet{{ r }}_ReturnsItem(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodGet, true, "", "")
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON(), body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 }
 {%- endif %}
@@ -204,11 +217,11 @@ func TestGet{{ r }}_ReturnsItem(t *testing.T) {
 func TestCreate{{ r }}_Returns201WithItem(t *testing.T) {
 	controller := &fake{{ r }}Controller{}
 
-	status, body := call{{ r }}(t, controller, http.MethodPost, false, "", `{"name": "Fake"}`)
+	status, body := call{{ r }}(t, controller, http.MethodPost, false, "", `{"any": "body"}`)
 
 	assert.Equal(t, http.StatusCreated, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
-	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.JSONEq(t, fake{{ r }}JSON(), body)
+	assert.Equal(t, `{"any": "body"}`, controller.body)
 	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
@@ -217,12 +230,12 @@ func TestCreate{{ r }}_Returns201WithItem(t *testing.T) {
 func TestUpdate{{ r }}_ReturnsItem(t *testing.T) {
 	controller := &fake{{ r }}Controller{}
 
-	status, body := call{{ r }}(t, controller, http.MethodPatch, true, "", `{"name": "Fake"}`)
+	status, body := call{{ r }}(t, controller, http.MethodPatch, true, "", `{"any": "body"}`)
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON(), body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
-	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, `{"any": "body"}`, controller.body)
 	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
@@ -231,12 +244,12 @@ func TestUpdate{{ r }}_ReturnsItem(t *testing.T) {
 func TestReplace{{ r }}_ReturnsItem(t *testing.T) {
 	controller := &fake{{ r }}Controller{}
 
-	status, body := call{{ r }}(t, controller, http.MethodPut, true, "", `{"name": "Fake"}`)
+	status, body := call{{ r }}(t, controller, http.MethodPut, true, "", `{"any": "body"}`)
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON(), body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
-	assert.Equal(t, `{"name": "Fake"}`, controller.body)
+	assert.Equal(t, `{"any": "body"}`, controller.body)
 	assert.Equal(t, "alice", controller.userID)
 }
 {%- endif %}
@@ -267,7 +280,7 @@ func Test{{ r }}Routes_ReturnControllerErrorsAsJSON(t *testing.T) {
 	for _, request := range requests {
 		controller := &fake{{ r }}Controller{err: models.NewNotFoundError("{{ r }}", test{{ r }}ID)}
 
-		status, body := call{{ r }}(t, controller, request.method, request.item, "", `{"name": "Fake"}`)
+		status, body := call{{ r }}(t, controller, request.method, request.item, "", `{"any": "body"}`)
 
 		assert.Equal(t, http.StatusNotFound, status, request.method)
 		assert.JSONEq(t, `{"errorMessage": "{{ r }} with id `+test{{ r }}ID+` was not found."}`, body)

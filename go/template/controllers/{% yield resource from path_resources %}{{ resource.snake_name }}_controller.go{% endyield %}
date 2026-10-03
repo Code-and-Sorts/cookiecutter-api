@@ -74,8 +74,8 @@ func (c *{{ lc }}Controller) GetList(ctx context.Context, limit int) ([]models.{
 {%- if "create" in ops %}
 
 func (c *{{ lc }}Controller) Create(ctx context.Context, userID string, body io.Reader) (*models.{{ r }}Dto, error) {
-	var req models.Create{{ r }}Request
-	if err := decodeRequest(c.schemaValidator, body, "{{ snake }}_create_request", &req); err != nil {
+	req := models.NewCreate{{ r }}Request()
+	if _, err := decodeRequest(c.schemaValidator, body, "{{ snake }}_create_request", &req); err != nil {
 		return nil, err
 	}
 
@@ -90,10 +90,12 @@ func (c *{{ lc }}Controller) Update(ctx context.Context, id, userID string, body
 	}
 
 	var req models.Update{{ r }}Request
-	if err := decodeRequest(c.schemaValidator, body, "{{ snake }}_update_request", &req); err != nil {
+	sent, err := decodeRequest(c.schemaValidator, body, "{{ snake }}_update_request", &req)
+	if err != nil {
 		return nil, err
 	}
 	req.Id = id
+	req.Sent = sent
 
 	return c.service.Update(ctx, req, userID)
 }
@@ -105,8 +107,8 @@ func (c *{{ lc }}Controller) Replace(ctx context.Context, id, userID string, bod
 		return nil, err
 	}
 
-	var req models.Replace{{ r }}Request
-	if err := decodeRequest(c.schemaValidator, body, "{{ snake }}_replace_request", &req); err != nil {
+	req := models.NewReplace{{ r }}Request()
+	if _, err := decodeRequest(c.schemaValidator, body, "{{ snake }}_replace_request", &req); err != nil {
 		return nil, err
 	}
 	req.Id = id
