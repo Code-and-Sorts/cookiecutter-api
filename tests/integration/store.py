@@ -11,9 +11,12 @@ from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 from project import Project
 
-# The vNext emulator's gateway and Microsoft's published well-known key, the same for every language.
-COSMOS_ENDPOINT = "http://localhost:8081/"
-COSMOS_KEY = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
+# The endpoint and key settings each language's .env.emulator uses; .NET has a connection string instead.
+COSMOS_SETTINGS = {
+    "python": ("Cosmos_Db_Uri", "Cosmos_Db_Key"),
+    "typescript": ("COSMOS_DB_URL", "COSMOS_DB_KEY"),
+    "go": ("CosmosDbEndpoint", "CosmosDbKey"),
+}
 
 FIRESTORE_VALUE_TYPES = {str: "stringValue", bool: "booleanValue"}
 
@@ -36,12 +39,20 @@ def new_record(name: str) -> dict:
 
 
 def open_store(project: Project) -> Store:
-    return {"azure": CosmosStore, "gcp": FirestoreStore, "aws": DynamoStore}[project.cloud](project.env)
+    return {"azure": CosmosStore, "gcp": FirestoreStore, "aws": DynamoStore}[project.cloud](project)
+
+
+def cosmos_credentials(project: Project) -> tuple[str, str]:
+    if project.language == "dotnet":
+        parts = dict(part.split("=", 1) for part in project.env["ConnectionStrings__CosmosDb"].split(";") if part)
+        return parts["AccountEndpoint"], parts["AccountKey"]
+    endpoint, key = COSMOS_SETTINGS[project.language]
+    return project.env[endpoint], project.env[key]
 
 
 class CosmosStore:
-    def __init__(self, _env: dict[str, str]):
-        self._client = CosmosClient(COSMOS_ENDPOINT, COSMOS_KEY, enable_endpoint_discovery=False)
+    def __init__(self, project: Project):
+        self._client = CosmosClient(*cosmos_credentials(project), enable_endpoint_discovery=False)
         self._containers = {}
 
     def _container(self, name: str):
@@ -68,11 +79,12 @@ class CosmosStore:
 
 
 class FirestoreStore:
-    def __init__(self, env: dict[str, str]):
-        project = env["GCP_PROJECT_ID"]
+    def __init__(self, project: Project):
+        env = project.env
+        gcp_project = env["GCP_PROJECT_ID"]
         database = env.get("FIRESTORE_DATABASE", "(default)")
         self._client = httpx.Client(
-            base_url=f"http://{env['FIRESTORE_EMULATOR_HOST']}/v1/projects/{project}/databases/{database}/documents",
+            base_url=f"http://{env['FIRESTORE_EMULATOR_HOST']}/v1/projects/{gcp_project}/databases/{database}/documents",
             # The emulator's owner token bypasses security rules.
             headers={"Authorization": "Bearer owner"},
         )
@@ -90,7 +102,8 @@ class FirestoreStore:
 
 
 class DynamoStore:
-    def __init__(self, env: dict[str, str]):
+    def __init__(self, project: Project):
+        env = project.env
         self._dynamodb = boto3.resource(
             "dynamodb",
             endpoint_url=env["AWS_ENDPOINT_URL_DYNAMODB"],

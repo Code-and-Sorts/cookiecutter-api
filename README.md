@@ -143,14 +143,13 @@ covered without changes. The `Integration Tests` workflow runs it for every lang
 the `single` and `edge` resources fixtures on pushes to `main`; run it on a branch with **Run workflow**,
 choosing a language, cloud and fixture or `all`.
 
-To run it locally, render a project, start it against its emulator (see above) and point the suite at
-it. You need Docker, [Poetry](https://python-poetry.org/) and the host tool for the cloud (Azure Functions Core
-Tools or the SAM CLI):
+To run it locally, render a project, start it with its emulator commands from
+[Run locally against an emulator](#run-locally-against-an-emulator), and point the suite at it with
+[Poetry](https://python-poetry.org/):
 
 ```console
 copier copy --defaults --trust --vcs-ref HEAD --data language=go --data cloud_service="GCP Cloud Function" \
   --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml . ../KittenClaws
-(cd ../KittenClaws && make install emulator-up emulator-seed && make run-emulator) &
 
 poetry --project tests/integration install
 poetry --project tests/integration run pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080

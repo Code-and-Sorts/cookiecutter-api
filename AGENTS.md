@@ -145,8 +145,9 @@ Cloud-specific code is handled through:
 
 ### Local Emulators
 
-Every generated project runs against a local emulator with no cloud account (running them in CI
-and integration tests is separate work). The cross-cloud parts live once in `shared/`:
+Every generated project runs against a local emulator with no cloud account, and the
+[integration tests](#integration-tests) run through the same commands and settings rather than their own.
+The cross-cloud parts live once in `shared/`:
 
 - `shared/docker-compose.yml` — Jinja renders only the chosen cloud's emulator (Cosmos DB vNext on
   8081 + Data Explorer 1234, Firestore on host 8085, DynamoDB Local `-inMemory -sharedDb` on 8000),
@@ -225,7 +226,8 @@ To add a new cloud provider to an existing language template:
 4. Include files that are identical to another language's from `shared/` (see [Shared files](#shared-files))
    instead of copying them, and move a file to `shared/` when it becomes identical
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names),
+6. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names, and the
+   same names to `COSMOS_SETTINGS` in `tests/integration/store.py`),
    `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
    a bootstrap command and the run command (see [Local Emulators](#local-emulators))
 7. Create `.github/workflows/build-{language}-pipeline.yaml` (its path filters include `copier.yml` and `shared/**`),
@@ -289,8 +291,8 @@ and checks the [API contract](#api-contract): each enabled operation, validation
 operations, shared and separate containers, `?limit=`, the health check, `X-User-Id` and the stored record
 format. It reads `resources` from the project's `.copier-answers.yml` and parametrizes itself (`@pytest.mark.ops`
 and `@pytest.mark.each_operation` pick the resources and operations a test needs), so never render tests with
-Jinja. `store.py` reads records straight from the emulator, and seeds a container for a resource that cannot
-`create`. Contract changes go into the suite with the template change.
+Jinja. `store.py` reads records straight from the emulator, using the project's `.env.emulator`, and seeds a
+container for a resource that cannot `create`. Contract changes go into the suite with the template change.
 
 `.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single` and `edge`; `multi` on
 request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a

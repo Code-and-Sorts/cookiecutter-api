@@ -24,6 +24,7 @@ class Resource:
 
 @dataclass(frozen=True)
 class Project:
+    language: str
     cloud: str
     health_endpoint: str
     resources: tuple[Resource, ...]
@@ -38,6 +39,7 @@ class Project:
             for r in answers["resources"]
         )
         return cls(
+            language=answers["language"],
             cloud=CLOUDS[answers["cloud_service"]],
             health_endpoint=answers.get("health_endpoint") or "",
             resources=resources,
