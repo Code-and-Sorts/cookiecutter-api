@@ -8,6 +8,10 @@ base_model:
   - {name: createdBy, type: string, managed: create, default: $user, hidden: true}
   - {name: updatedBy, type: string, managed: write, default: $user, hidden: true}
   - {name: tenantId, type: string, required: true, default: "public", rules: {min_length: 1, max_length: 64}, description: Owning tenant}
+  - {name: region, type: enum, values: [eu, us], immutable: true, default: eu}
+  - {name: priority, type: integer, nullable: true, rules: {minimum: 0}}
+  - {name: rank, type: number, required: true}
+  - {name: labels, type: array, items: string, default: [], rules: {unique_items: true}}
 resources:
   - name: "Cat"
     endpoint: "cats"

@@ -37,6 +37,7 @@ jobs:
         fixture:
           - single
           - edge
+          - model
         include:
           - os: windows-latest
             template-type: dotnet

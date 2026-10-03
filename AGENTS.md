@@ -11,13 +11,14 @@ This is a [Copier](https://github.com/copier-org/copier) template repository tha
 ```
 cookiecutter-api/
 ├── copier.yml               # The one Copier config: questions, derived values, validators
-├── shared/                  # Files identical across languages, included by each language's copy
+├── shared/                  # Files identical across languages, included by each language's copy, and _fields.jinja
 ├── python/template/         # Python template (Azure + GCP + AWS)
 ├── typescript/template/     # TypeScript/Node.js template (Azure + GCP + AWS)
 ├── dotnet/template/         # .NET/C# template (Azure + GCP + AWS)
 ├── go/template/             # Go template (Azure + GCP + AWS)
 ├── .github/
-│   ├── actions/             # Shared composite actions and resource fixtures
+│   ├── actions/             # Shared composite actions, resource fixtures and invalid answers files
+│   ├── scripts/             # Template checks: invalid answers, defaults guard, cross-language base types
 │   └── workflows/           # CI pipelines per language, integration tests, example publishing
 ├── tests/integration/       # Black-box HTTP suite for the API contract, run against the emulators
 ├── .docs/                   # Documentation assets (images, SVGs)
@@ -39,6 +40,9 @@ file's own trailing newline as the only one). `shared/` mirrors the generated pa
 (`shared/LICENSE`, `shared/.vscode/extensions.json`); a partial that is included into a
 differently named file starts with `_`. Only share what is really the same: a file that
 differs by language or needs per-language conditionals stays in each `template/`.
+`shared/_fields.jinja` is the one exception: it is never included into a project but imported by
+`copier.yml` and the templates, and holds everything about fields that is the same in every
+language (see [Models](#models)). Per-language rendering macros live in `<language>/_model.jinja`.
 
 ## Template Architecture
 
@@ -61,9 +65,9 @@ Entry Point (Azure functions, GCP main, or AWS Lambda handler)
 
 ### Resources
 
-Every template asks a `resources` question: a list of `{name, endpoint, container, operations}`.
-The default is a single resource derived from the project name with `list`, `get_by_id`,
-`create`, `update` and `delete`.
+Every template asks a `resources` question: a list of `{name, endpoint, container, operations,
+fields, requests}`. The default is a single resource derived from the project name with `list`,
+`get_by_id`, `create`, `update` and `delete` and one field, `name`.
 
 - Each resource gets its own named types (for example `CatController`, `CatService`,
   `CatRepository`; in .NET the stored entity is `CatEntity`) and its own file in every
@@ -75,8 +79,8 @@ The default is a single resource derived from the project name with `list`, `get
   Jinja filters: `path_resources` (a derived `when: false` copy of `resources`, the same for
   every language) precomputes the names and flags templates need: `snake_name`,
   `lower_camel_name`, `container_key` (`-` becomes `_`), `env_key` (that, upper case),
-  `container_class` (PascalCase container), `has_body`, `has_collection`, `has_item` and
-  `has_dto`. Keep every repository path under about 200 characters too: Git for
+  `container_class` (PascalCase container), `has_body`, `has_collection`, `has_item`,
+  `has_dto`, and the normalized `fields` and `client_fields` (see [Models](#models)). Keep every repository path under about 200 characters too: Git for
   Windows fails checkout past 260 characters including the clone directory (Copier clones the
   template into the system temp directory), so long
   conditions belong in a derived value (for example .NET's `azure_dir`/`gcp_dir`/`aws_dir`, which
@@ -103,6 +107,33 @@ The default is a single resource derived from the project name with `list`, `get
   `language`. Only add a reserved name after rendering it and watching the generated project
   fail to build.
 
+### Models
+
+`base_model` (a list of fields, before `resources`) and each resource's `fields` share one field
+schema: `name`, `type`, `required`, `nullable`, `default`, `immutable`, `hidden`, `values`, `items`,
+`rules`, `example`, `description`; `requests.<create|replace|update>` narrows the fields a body accepts.
+The six pre-populated `base_model` fields (`id`, `isDeleted`, the timestamps, `createdBy`,
+`updatedBy`) are locked and `managed` (set by the server; `$user` is the `X-User-Id` header); only
+their `description` may change, and `managed` is refused anywhere else. README.md documents the keys.
+
+- `shared/_fields.jinja` holds the field rules once: `check_field` (used by the `base_model` and
+  `resources` validators, which stop at the first error and name the resource or `base_model` and the
+  field), the value `PATTERNS`, `MAX_SAFE_INTEGER`, `REQUEST_KINDS`, `DATE_TIME_EXAMPLE`, `DEFAULT_FIELDS`
+  and the derived field data. Add a rule, type or derived value there, never per language.
+- Templates never read the raw answers for fields: `base_fields`, `client_base_fields` and
+  `path_resources[].fields`/`client_fields` hold normalized dicts with `pascal`, `item_type`,
+  `enum_values`, flags with defaults filled in, `dynamic` (`now`, `today`, `uuid`, `user` or empty),
+  static `default`, `read_default`/`has_read_default`, `needs_value` (required without a default),
+  `defaulted` (create and replace fill a value), `in_create`/`in_replace`/`in_update`, and test data:
+  `sample` (a valid value), `rejected` (a wrongly typed value, null unless nullable, every rule
+  violation) and `boundaries` (values on each rule's bound). A missing `fields` answer (an older
+  answers file) falls back to `DEFAULT_FIELDS`; a missing `base_model` gets the question default.
+- Every language renders `BaseEntity`, `BaseCreateRequest`, `BaseReplaceRequest`,
+  `BaseUpdateRequest` and `BaseResponse` from `client_base_fields`, and each resource's entity,
+  request and response types extend them; generate code from loops over the fields, not per type.
+- Field names are checked against one union list of reserved names, so an answer valid in one
+  language is valid in all; resource names keep their per-language reserved lists.
+
 ### API Contract
 
 Every language and cloud must generate the same HTTP behaviour; change all four templates together.
@@ -111,17 +142,26 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   Functions (the host default) and empty on GCP and AWS. The health check is `GET {prefix}/<health_endpoint>`,
   matched exactly. SAM path parameters are named `{id}`. GCP projects expose one HTTP function: entry point `api`, or the `Function` class in .NET, whose
   Functions Framework resolves entry points by type name.
-- **Responses:** always JSON. Create 201; get, update, replace 200 with `{"id", "name"}`; list 200 with an array
+- **Responses:** always JSON. Create 201; get, update, replace 200 with `id` and every field that is not
+  `hidden` (`{"id", "name"}` with the default answers), `null` for a field without a value; list 200 with an array
   (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
   with `{"status": "ok"}`.
-- **Errors:** `{"errorMessage": "..."}`. 400 for malformed JSON, a non-object body, a missing (create and replace;
-  update keeps the stored name), empty or non-string `name`, or any unknown field (including `id` and system fields, so a create can never overwrite a record);
+- **Errors:** `{"errorMessage": "..."}`. 400 for malformed JSON, a non-object body, a missing required field
+  without a default (create and replace), a wrongly typed value (never converted), `null` for a field that is
+  not nullable, a broken rule, or any field the operation does not accept (unknown, server-managed such as `id`,
+  immutable on update and replace, or outside `requests.<operation>`), so a create can never overwrite a record;
   404 for unknown, deleted or non-UUID ids and unknown paths; 405 for a method the resource does not enable
   when the request reaches app code; 500 with a generic message for anything else, logged with its stack trace
   and never echoed to the client. API Gateway (403) and the Azure host (404) answer some unmapped methods
   before app code runs.
-- **Storage:** `id`, `name`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
-  `Z`), plus `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both
+- **Fields:** create and replace give a field the body leaves out its default (`$now`, `$today`, `$uuid` per
+  write) or no value; replace keeps the fields it does not accept; update changes only the fields sent and
+  `null` clears a nullable one. A record without a field reads as its static default (`null` if nullable).
+  Date-times are accepted with any offset and stored in UTC with milliseconds; integers lie within
+  ±9007199254740991; patterns, `email` and `uri` use the shared `PATTERNS`.
+- **Storage:** `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
+  `Z`) and every field that has a value (a field without one is not stored, never `null`), plus
+  `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both
   `createdTimestamp` and `updatedTimestamp` (never a separate default per field, which can differ by a
   millisecond). Update and replace keep the created fields; delete is soft.
 - **User id:** the optional `X-User-Id` header (trimmed, at most 256 characters, else 400) is the only source of
@@ -226,16 +266,19 @@ To add a new cloud provider to an existing language template:
 4. Include files that are identical to another language's from `shared/` (see [Shared files](#shared-files))
    instead of copying them, and move a file to `shared/` when it becomes identical
 5. Use conditional file/directory names if supporting multiple cloud providers
-6. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names, and the
+6. Render the base and per-resource models from the normalized field data with macros in
+   `<language>/_model.jinja` (see [Models](#models)), and add the language's base type extractor to
+   `.github/scripts/base_consistency.py`
+7. Include `shared/docker-compose.yml`, `shared/.env.emulator` (add the language's Cosmos setting names, and the
    same names to `COSMOS_SETTINGS` in `tests/integration/store.py`),
    `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
    a bootstrap command and the run command (see [Local Emulators](#local-emulators))
-7. Add the language's runtime to `.github/actions/setup-runtime`, create `.github/workflows/build-{language}-pipeline.yaml`
+8. Add the language's runtime to `.github/actions/setup-runtime`, create `.github/workflows/build-{language}-pipeline.yaml`
    (its path filters include `copier.yml` and `shared/**`), and add the language to `publish-examples.yml`, the
    `template-setup.yml` language map and the setup issue form
-8. Add the language to the integration tests: its install and emulator commands in
+9. Add the language to the integration tests: its install and emulator commands in
    `.github/actions/start-local-api` and the language in the `integration-tests.yaml` plan
-9. Update the root `README.md` support table
+10. Update the root `README.md` support table
 
 ## Template Variables
 
@@ -249,12 +292,14 @@ To add a new cloud provider to an existing language template:
 | `project_slug` | snake_case (the Python module name) | `"my_api"` |
 | `cloud_service` | Target cloud platform | `"Azure Function App"` |
 | `health_endpoint` | Health check URL segment; empty skips the health check | `"health"` |
-| `resources` | REST resources to generate | see [Resources](#resources) |
+| `base_model` | Fields every resource stores; six locked built-in fields, then your own | see [Models](#models) |
+| `resources` | REST resources to generate, each with `fields` and optional `requests` | see [Resources](#resources) |
 | `author` | Project author | `"Your Name"` |
 | `open_source_license` | License type | `"MIT license"` |
 
 `project_slug`, `project_endpoint`, `project_class_name`, and `project_lower_camel_name`
-are derived from `project_name` via `when: false` questions, so they are computed
+are derived from `project_name` via `when: false` questions, as are `base_fields`,
+`client_base_fields` and `path_resources` from `base_model` and `resources`, so they are computed
 automatically and never prompted. The `jinja2_strcase` extension provides `to_camel` and
 `to_lower_camel` filters for case conversion, and `jinja2_time` provides the `{% now %}`
 tag used in `LICENSE`.
@@ -275,8 +320,17 @@ as JSON) without starting them.
 Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
 `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
-names of differing lengths) and no health check. `multi` only feeds the published example branches.
+names of differing lengths) and no health check, and `model`: every field type, rule and kind of default,
+`requests` subsets, extra `base_model` fields and a resource with the default fields. `model-shared` (two
+models in one container) and `edge` run in the integration tests; `multi` only feeds the published example
+branches. Fold new field shapes into `model`.
 Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
+
+`.github/workflows/template-checks.yaml` runs three scripts from `.github/scripts/` on pull requests:
+`check_invalid_answers.py` (each file in `.github/actions/setup-copier-template/invalid/` is rejected with
+the message on its `# expect:` line; add one per new validator rule), `defaults_guard.py` (every language,
+cloud and fixture renders the same without and with the default `fields` and `base_model`) and
+`base_consistency.py` (every language renders the same base field names, kinds and flags).
 `.github/actions/setup-runtime` sets up the language's runtime and package manager for the build
 pipelines and the integration tests alike, plus a pinned uv for Python projects and, with `uv: "true"`, for the
 integration suite in every language.
@@ -293,15 +347,17 @@ Add a job or fixture only for a combination no existing job exercises; fold new 
 
 `tests/integration` is one pytest suite for every language and cloud. It talks to a running project over HTTP
 and checks the [API contract](#api-contract): each enabled operation, validation and ids, soft deletes, disabled
-operations, shared and separate containers, `?limit=`, the health check, `X-User-Id` and the stored record
-format. It reads `resources` from the project's `.copier-answers.yml` and parametrizes itself (`@pytest.mark.ops`
-and `@pytest.mark.each_operation` pick the resources and operations a test needs), so never render tests with
-Jinja. `store.py` reads records straight from the emulator, using the project's `.env.emulator`, and seeds a
+operations, shared and separate containers, `?limit=`, the health check, `X-User-Id`, the stored record
+format and every field's types, rules, defaults and nullability. It reads `base_model` and `resources` from the
+project's `.copier-answers.yml` and parametrizes itself (`@pytest.mark.ops` and `@pytest.mark.each_operation`
+pick the resources and operations a test needs, `@pytest.mark.fields` the field cases), so never render tests
+with Jinja; `values.py` mirrors the sample and violation rules of `shared/_fields.jinja` in Python. `store.py` reads records straight from the emulator, using the project's `.env.emulator`, and seeds a
 container for a resource that cannot `create`. Contract changes go into the suite with the template change.
 The suite is a uv project with its own `uv.lock`: `uv sync --project tests/integration`, then
 `uv run --project tests/integration pytest tests/integration --project-dir <project> --base-url <url>`.
 
-`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single` and `edge`; `multi` on
+`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single`, `edge`, `model` and
+`model-shared`; `multi` on
 request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
 contract or emulator change. Each job renders the project, then `.github/actions/start-local-api` starts the
 emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the

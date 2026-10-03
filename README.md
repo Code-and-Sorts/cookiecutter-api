@@ -108,6 +108,64 @@ Each resource gets its own files in every layer, for example `CatController.cs` 
 `DogController.cs` in .NET, or `controllers/cat.controller.ts` and
 `controllers/dog.controller.ts` in TypeScript.
 
+### Resource models
+
+Every resource stores the fields of the `base_model` answer plus its own `fields`, and every
+language renders its entity, request, response and validation types from those answers, so all
+four produce the same request bodies, responses, rules and stored records. The default answers
+give each resource one required, non-empty string `name`, which reproduces the classic
+`{"id", "name"}` item:
+
+```yaml
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "replace", "delete"]
+    fields:
+      - {name: name, type: string, required: true, rules: {min_length: 1, max_length: 100}}
+      - {name: breed, type: enum, values: [siamese, persian, tabby], default: tabby}
+      - {name: ageYears, type: integer, default: 0, rules: {minimum: 0, maximum: 40}}
+      - {name: weightKg, type: number, nullable: true, rules: {exclusive_minimum: 0}}
+      - {name: birthDate, type: date, default: $today}
+      - {name: microchipId, type: uuid, immutable: true, default: $uuid}
+      - {name: tags, type: array, items: string, default: [], rules: {max_items: 10, unique_items: true}}
+    requests:
+      update: [name, ageYears, weightKg, tags]
+```
+
+| Key | Meaning |
+|---|---|
+| `name` | lowerCamelCase JSON and database name. Keywords and builtins of any target language are reserved. |
+| `type` | `string`, `integer`, `number`, `boolean`, `date-time`, `date`, `uuid`, `enum` (with `values`) or `array` (with `items`, any type but `enum` and `array`). |
+| `required` | The client must send it on create and replace unless it has a `default`. |
+| `nullable` | `null` is a valid value; on update it clears the field. |
+| `default` | A value, `null`, or `$now`, `$today`, `$uuid` evaluated on every write (`$$` escapes a literal `$`). Applied on create and replace, never on update; a stored record without the field reads as its static default. |
+| `immutable` | Accepted on create only; replace keeps the stored value. |
+| `hidden` | Stored but never returned. |
+| `rules` | `min_length`, `max_length`, `pattern`, `format` (`email`, `uri`) for strings; `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum` for numbers; `min_items`, `max_items`, `unique_items` for arrays. Patterns use the subset every target regex engine shares. |
+| `example` | A valid value for generated tests and sample requests; needed for a `pattern` the default cannot satisfy. |
+| `description` | Documentation. |
+
+`requests.create`, `requests.replace` and `requests.update` narrow the fields each body accepts
+(by default create accepts every field, replace and update every field that is not immutable).
+`base_model` is pre-populated with the built-in fields `id`, `isDeleted`, `createdTimestamp`,
+`updatedTimestamp`, `createdBy` and `updatedBy`. They are locked (only their `description` may
+change), set by the server and never accepted in a body; `createdBy`/`updatedBy` come from the
+`X-User-Id` header. Fields you append to `base_model`, such as `{name: tenantId, type: string,
+required: true}`, appear on every resource. Responses hold `id` and every field that is not
+hidden. Unknown fields, wrongly typed values and broken rules are rejected with a 400. Copier
+checks every answer before it renders and names the resource and field at fault.
+
+> [!NOTE]
+> **Updating an existing project** (`copier update`): answers without `fields` or `base_model`
+> get the defaults, so the API keeps its `{"id", "name"}` contract. Generated code changes shape:
+> every language now has `Base*` model types and per-resource `*CreateRequest`, `*ReplaceRequest`,
+> `*UpdateRequest` and `*Response` types; Python renames `Base<Resource>`/`<Resource>Update` and
+> TypeScript `<Resource>RequestSchema`/`<Resource>UpdateSchema` accordingly; Go stores fields as
+> pointers and replace now keeps fields its body does not accept; a field without a value is no
+> longer stored as `null`. Re-apply any hand edits to the generated models in the answers instead.
+
 ### Run locally against an emulator
 
 Every generated project can run without a cloud account. Its `docker-compose.yml` starts
@@ -137,11 +195,18 @@ credentials, limitations and troubleshooting. The compose file, `.env.emulator`,
 
 `tests/integration` is one black-box pytest suite that checks the [API contract](./AGENTS.md#api-contract)
 over HTTP for every language and cloud: each enabled operation, validation, soft deletes, shared
-containers, `?limit=`, the health check and the stored record format (read straight from the
-emulator). It reads the resources from the project's `.copier-answers.yml`, so every fixture is
-covered without changes. The `Integration Tests` workflow runs it for every language and cloud with
-the `single` and `edge` resources fixtures on pushes to `main`; run it on a branch with **Run workflow**,
-choosing a language, cloud and fixture or `all`.
+containers, `?limit=`, the health check, the stored record format (read straight from the
+emulator) and every declared field's types, rules, defaults and nullability. It reads `base_model`
+and the resources from the project's `.copier-answers.yml`, so every fixture is covered without
+changes. The `Integration Tests` workflow runs it for every language and cloud with the `single`,
+`edge`, `model` and `model-shared` fixtures on pushes to `main`; run it on a branch with
+**Run workflow**, choosing a language, cloud and fixture or `all`.
+
+The `Template Checks` workflow runs on pull requests: `.github/scripts/check_invalid_answers.py`
+asserts each answers file in `.github/actions/setup-copier-template/invalid/` is rejected with the
+message its first line names, `defaults_guard.py` renders every language, cloud and fixture with
+and without the default `fields` and `base_model` and diffs the projects, and `base_consistency.py`
+checks every language renders the same base types.
 
 To run it locally, render a project, start it with its emulator commands from
 [Run locally against an emulator](#run-locally-against-an-emulator), and point the suite at it with
@@ -221,7 +286,7 @@ Go
 - [Function App Example](https://github.com/Code-and-Sorts/cookie-go-az-func-api)
 
 Every language and cloud is also rendered on each push to `main` and published to
-`example/<language>-<cloud>-<single|multi>` branches (for example
+`example/<language>-<cloud>-<single|multi|model>` branches (for example
 `example/dotnet-azure-multi`), so you can browse the generated code without running Copier.
 
 ## Resources
