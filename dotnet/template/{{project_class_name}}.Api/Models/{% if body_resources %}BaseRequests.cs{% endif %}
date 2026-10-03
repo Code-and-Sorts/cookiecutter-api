@@ -1,9 +1,9 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
 {%- from 'dotnet/_model.jinja' import assignments, csharp_file, properties with context -%}
-{%- set user_fields = base_fields | rejectattr("system") | list -%}
 {%- set ops = path_resources | map(attribute="operations") | sum(start=[]) | unique | list -%}
 {%- set body %}
-{%- for op, Op in [("create", "Create"), ("replace", "Replace"), ("update", "Update")] if op in ops %}
-{%- set fields = user_fields | selectattr("in_" ~ op) | list %}
+{%- for op, Op in REQUEST_KINDS if op in ops %}
+{%- set fields = client_base_fields | selectattr("in_" ~ op) | list %}
 
 public class Base{{ Op }}Request : ISentFields
 {

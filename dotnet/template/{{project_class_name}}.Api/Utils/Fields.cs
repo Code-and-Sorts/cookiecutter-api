@@ -1,3 +1,5 @@
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS -%}
+{%- from 'dotnet/_model.jinja' import regex -%}
 namespace {{project_class_name}}.Api.Utils;
 
 using System;
@@ -9,8 +11,8 @@ using System.Text.RegularExpressions;
 // Model code calls these through Fields, a name no field can take, so a property never hides them.
 public static partial class Fields
 {
-    // The largest integer every JSON parser reads exactly (2^53 - 1).
-    public const long MaxSafeInteger = 9007199254740991;
+    // The largest integer every JSON parser reads exactly.
+    public const long MaxSafeInteger = {{ MAX_SAFE_INTEGER }};
 
     private const string DateFormat = "yyyy-MM-dd";
 
@@ -38,9 +40,9 @@ public static partial class Fields
 
     public static List<string>? UtcDateTimes(List<string>? values) => values?.Select(value => UtcDateTime(value)!).ToList();
 
-    [GeneratedRegex(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})\z")]
+    [GeneratedRegex({{ regex(PATTERNS.date_time) }})]
     private static partial Regex DateTimePattern();
 
-    [GeneratedRegex(@"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\z")]
+    [GeneratedRegex({{ regex(PATTERNS.uuid) }})]
     private static partial Regex UuidPattern();
 }

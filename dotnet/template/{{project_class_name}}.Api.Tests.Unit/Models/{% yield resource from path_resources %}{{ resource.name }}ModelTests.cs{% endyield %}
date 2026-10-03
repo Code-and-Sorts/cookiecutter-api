@@ -1,14 +1,14 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
 {%- from 'dotnet/_model.jinja' import json_string -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
-{%- set user_base = base_fields | rejectattr("system") | list -%}
-{%- set client = user_base + resource.fields -%}
-{%- set shown = (user_base | rejectattr("hidden") | list) + (resource.fields | rejectattr("hidden") | list) -%}
-{%- set bodies = [("create", "Create"), ("update", "Update"), ("replace", "Replace")] | selectattr(0, "in", ops) | list -%}
+{%- set client = resource.client_fields -%}
+{%- set shown = client | rejectattr("hidden") | list -%}
+{%- set bodies = REQUEST_KINDS | selectattr(0, "in", ops) | list -%}
 {%- macro expect_default(f, expr) %}
 {%- if f.dynamic %}
         Assert.NotNull({{ expr }});
-{%- elif f.has_default %}
+{%- elif f.defaulted %}
         JsonAssert.Equal({{ json_string(f.default) }}, {{ expr }});
 {%- else %}
         Assert.Null({{ expr }});
@@ -47,7 +47,7 @@ public class {{ r }}ModelTests
 
         Assert.Equal(new[] { "id"{% for f in shown %}, "{{ f.name }}"{% endfor %} }, properties.Keys);
 {%- for f in shown %}
-        JsonAssert.Equal({{ json_string(f.default if (f.has_default and not f.dynamic and not f.nullable) else none) }}, properties["{{ f.name }}"]);
+        JsonAssert.Equal({{ json_string(f.read_default) }}, properties["{{ f.name }}"]);
 {%- endfor %}
     }
 {%- if "create" in ops %}

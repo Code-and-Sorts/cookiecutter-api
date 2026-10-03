@@ -124,7 +124,7 @@ public class {{ r }}HandlerTests
 
         Assert.Equal(405, httpContext.Response.StatusCode);
         Assert.Equal("{\"errorMessage\":\"Method not allowed.\"}", Mocks.ReadResponseBody(httpContext));
-        await _mock{{ r }}Controller.DidNotReceiveWithAnyArgs().CreateAsync(default!, default, default);
+        await _mock{{ r }}Controller.DidNotReceiveWithAnyArgs().CreateAsync(default!, default, TestContext.Current.CancellationToken);
     }
 {%- endif %}
 {%- endif %}

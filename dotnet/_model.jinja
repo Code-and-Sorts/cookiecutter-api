@@ -1,5 +1,5 @@
 {#- Renders base_fields and resource fields as C# properties, FluentValidation rules and test values. Never copied into a project. -#}
-{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER -%}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, sample_body_json -%}
 {%- set CS_TYPES = {"string": "string", "integer": "long", "number": "double", "boolean": "bool", "date": "string", "date-time": "string", "uuid": "string", "enum": "string"} -%}
 {%- set DYNAMIC_DEFAULTS = {"now": "Fields.Now()", "today": "Fields.Today()", "uuid": "Fields.NewUuid()"} -%}
 {#- Checks of a value's shape, as (Fields method, description); arrays apply them to every item. -#}
@@ -9,7 +9,7 @@
     "date-time": ("Fields.IsDateTime", "a date-time with an offset, such as 2026-01-31T09:30:00Z"),
     "uuid": ("Fields.IsUuid", "a UUID"),
 } -%}
-{%- set FORMATS = {"email": ("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+\\z", "an email address"), "uri": ("^[A-Za-z][A-Za-z0-9+.-]*:\\S+\\z", "an absolute URI")} -%}
+{%- set FORMAT_NAMES = {"email": "an email address", "uri": "an absolute URI"} -%}
 {#- Rules on a length or count, as (rule, FluentValidation check, message, unit). -#}
 {%- set COUNT_RULES = [
     ("min_length", "MinimumLength(%s)", "be at least %s long", "character"),
@@ -39,8 +39,15 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{%- macro sets_value(f) -%}
-{{- "yes" if f.dynamic or f.default is not none else "" -}}
+{#- A C# verbatim string for a pattern; .NET's $ also matches before a final newline, so it becomes \z. -#}
+{%- macro regex(pattern) -%}
+{%- set ns = namespace(text="", escaped=false, in_class=false) -%}
+{%- for c in pattern -%}
+{%- set ns.text = ns.text ~ ("\\z" if c == "$" and not ns.escaped and not ns.in_class else c) -%}
+{%- if not ns.escaped and c == "[" %}{% set ns.in_class = true %}{% elif not ns.escaped and c == "]" %}{% set ns.in_class = false %}{% endif -%}
+{%- set ns.escaped = c == "\\" and not ns.escaped -%}
+{%- endfor -%}
+@"{{ ns.text | replace('"', '""') }}"
 {%- endmacro -%}
 
 {#- The value a create or replace gives a field the body leaves out; dynamic defaults are read per request. -#}
@@ -80,7 +87,7 @@ namespace {{ api ~ namespace }};
 {#- Properties separated by blank lines; each starts on a new line. A request body of op starts from the defaults. -#}
 {%- macro properties(fields, op="", response=false, order=none) -%}
 {%- for f in fields -%}
-{{ "\n" if not loop.first }}{{ property(f, default_value(f) if op in ["create", "replace"] and sets_value(f) else "", response, order) }}
+{{ "\n" if not loop.first }}{{ property(f, default_value(f) if op in ["create", "replace"] and f.defaulted else "", response, order) }}
 {%- endfor -%}
 {%- endmacro -%}
 
@@ -108,7 +115,7 @@ namespace {{ api ~ namespace }};
 {#- Copies the shown fields of a stored record; a missing value reads as the field's static default. -#}
 {%- macro shown_assignments(fields, source) -%}
 {%- for f in fields %}
-        {{ f.pascal }} = {{ source }}.{{ f.pascal }}{% if not f.dynamic and not f.nullable and f.default is not none %} ?? {{ literal(f, f.default) }}{% endif %};
+        {{ f.pascal }} = {{ source }}.{{ f.pascal }}{% if f.has_read_default %} ?? {{ literal(f, f.read_default) }}{% endif %};
 {%- endfor -%}
 {%- endmacro -%}
 
@@ -125,7 +132,7 @@ namespace {{ api ~ namespace }};
 {%- set p = "RuleFor(x => x." ~ f.pascal ~ ")" -%}
 {%- set sent = "Sent.Contains(" ~ (f.name | tojson) ~ ")" -%}
 {%- set check = VALUE_CHECKS.get(f.item_type or f.type) -%}
-{%- if op != "update" and f.required and not f.has_default -%}
+{%- if op != "update" and f.needs_value -%}
 {{ rule("RuleFor(x => x.Sent)", "Must(sent => sent.Contains(" ~ (f.name | tojson) ~ "))", f.name ~ " is required.") }}
 {%- endif -%}
 {%- if not f.nullable -%}
@@ -146,10 +153,10 @@ namespace {{ api ~ namespace }};
 {{ rule(p, method ~ "(" ~ bound(f, f.rules[key]) ~ ")", f.name ~ " must be " ~ text ~ " " ~ f.rules[key] ~ ".") }}
 {%- endfor -%}
 {%- if "pattern" in f.rules -%}
-{{ rule(p, "Matches(@\"" ~ (f.rules.pattern | replace('"', '""')) ~ "\")", f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
+{{ rule(p, "Matches(" ~ regex(f.rules.pattern) ~ ")", f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
 {%- endif -%}
 {%- if "format" in f.rules -%}
-{{ rule(p, "Matches(@\"" ~ FORMATS[f.rules.format][0] ~ "\")", f.name ~ " must be " ~ FORMATS[f.rules.format][1] ~ ".") }}
+{{ rule(p, "Matches(" ~ regex(PATTERNS[f.rules.format]) ~ ")", f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
 {%- endif -%}
 {%- if f.rules.unique_items -%}
 {{ rule(p, "Must(values => values == null || values.Distinct().Count() == values.Count)", f.name ~ " must not repeat an item.") }}
@@ -178,44 +185,7 @@ public class {{ name }} : AbstractValidator<{{ request }}>
 {{ value | tojson | tojson }}
 {%- endmacro -%}
 
-{%- macro samples(fields) -%}
-{%- set ns = namespace(body={}) -%}
-{%- for f in fields %}{% set ns.body = dict(ns.body, **{f.name: f.sample}) %}{% endfor -%}
-{{ ns.body | tojson }}
-{%- endmacro -%}
-
-{#- A C# string literal holding a JSON object with every given field's sample value. -#}
-{%- macro body_json(fields) -%}
-{{ samples(fields) | tojson }}
-{%- endmacro -%}
-
-{%- macro with_value(body, name, value) -%}
-{{ dict(body, **{name: value}) | tojson }}
-{%- endmacro -%}
-
-{%- macro without(body, name) -%}
-{%- set ns = namespace(body={}) -%}
-{%- for key, value in body.items() if key != name %}{% set ns.body = dict(ns.body, **{key: value}) %}{% endfor -%}
-{{ ns.body | tojson }}
-{%- endmacro -%}
-
-{#- JSON bodies an op must reject, as a JSON list: not an object, a field it refuses, and each accepted field
-    wrongly typed, null unless nullable, just outside a rule or, when required, left out. -#}
-{%- macro invalid_bodies(accepted, refused, required) -%}
-{%- set valid = samples(accepted) | from_json -%}
-{%- set bodies = ["", "[]", "null", "\"text\"", "{not json", with_value(valid, "notAField", 1)] -%}
-{%- for f in refused %}{% set _ = bodies.append(with_value(valid, f.name, f.sample)) %}{% endfor -%}
-{%- for f in accepted -%}
-{%- for value in [f.invalid] + ([] if f.nullable else [none]) + f.violations %}{% set _ = bodies.append(with_value(valid, f.name, value)) %}{% endfor -%}
-{%- endfor -%}
-{%- for f in required %}{% set _ = bodies.append(without(valid, f.name)) %}{% endfor -%}
-{{ bodies | unique | list | tojson }}
-{%- endmacro -%}
-
-{#- JSON bodies an op must accept, as a JSON list: each accepted field exactly on each of its rule bounds. -#}
-{%- macro boundary_bodies(accepted) -%}
-{%- set valid = samples(accepted) | from_json -%}
-{%- set bodies = [] -%}
-{%- for f in accepted %}{% for value in f.boundaries %}{% set _ = bodies.append(with_value(valid, f.name, value)) %}{% endfor %}{% endfor -%}
-{{ bodies | unique | list | tojson }}
+{#- A C# string literal holding a JSON object with every given field's sample value, for test bodies. -#}
+{%- macro sample_body(fields) -%}
+{{ json_string(sample_body_json(fields) | from_json) }}
 {%- endmacro -%}

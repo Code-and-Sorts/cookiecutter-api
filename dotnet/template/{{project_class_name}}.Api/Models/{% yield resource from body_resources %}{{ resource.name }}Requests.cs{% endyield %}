@@ -1,8 +1,9 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
 {%- from 'dotnet/_model.jinja' import assignments, csharp_file, default_value, properties with context -%}
 {%- set r = resource.name -%}
 {%- set fields = resource.fields -%}
 {%- set body %}
-{%- for op, Op in [("create", "Create"), ("update", "Update"), ("replace", "Replace")] if op in resource.operations %}
+{%- for op, Op in REQUEST_KINDS if op in resource.operations %}
 {%- set op_fields = fields | selectattr("in_" ~ op) | list %}
 
 public class {{ Op }}{{ r }}Request : Base{{ Op }}Request

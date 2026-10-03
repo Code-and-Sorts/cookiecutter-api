@@ -1,6 +1,7 @@
-{%- from 'dotnet/_model.jinja' import body_json, literal -%}
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'dotnet/_model.jinja' import literal, sample_body -%}
 {%- set r = resource.name -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set client = resource.client_fields -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using {{project_class_name}}.Api.Dtos;
@@ -11,9 +12,9 @@ public static class {{ r }}Samples
     public const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
 
     public const string StoredTimestamp = "2026-01-01T00:00:00.000Z";
-{%- for op, Op in [("create", "Create"), ("update", "Update"), ("replace", "Replace")] if op in resource.operations %}
+{%- for op, Op in REQUEST_KINDS if op in resource.operations %}
 
-    public const string {{ Op }}Body = {{ body_json(client | selectattr("in_" ~ op)) }};
+    public const string {{ Op }}Body = {{ sample_body(client | selectattr("in_" ~ op)) }};
 {%- endfor %}
 
     public static {{ r }}Entity Entity() => new()

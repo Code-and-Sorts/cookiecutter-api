@@ -1,9 +1,9 @@
-{%- from 'dotnet/_model.jinja' import body_json, boundary_bodies, invalid_bodies, json_string -%}
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'dotnet/_model.jinja' import json_string, sample_body -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set lc = resource.lower_camel_name -%}
-{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
-{%- set system = base_fields | selectattr("system") | list -%}
+{%- set client = resource.client_fields -%}
 {%- set ct = "TestContext.Current.CancellationToken" -%}
 {%- macro call(op, body, user="null") -%}
 _{{ lc }}Controller.{{ op | capitalize }}Async({% if op != "create" %}ItemId, {% endif %}Mocks.CreateStream({{ body }}), {{ user }}, {{ ct }})
@@ -40,6 +40,32 @@ using Xunit;
 public class {{ r }}ControllerTests
 {
     private const string ItemId = {{ r }}Samples.ItemId;
+{%- if resource.has_body %}
+{%- set body_fields = [] %}
+{%- for f in client %}{% for op, Op in REQUEST_KINDS if op in ops and f["in_" ~ op] and f not in body_fields %}{% set _ = body_fields.append(f) %}{% endfor %}{% endfor %}
+
+    // Per field a body accepts: a wrongly typed value, null unless nullable, and values just outside each rule.
+    private static readonly (string Name, string Value)[] Rejected =
+    [
+{%- for f in body_fields %}
+{%- for value in f.rejected %}
+        ("{{ f.name }}", {{ json_string(value) }}),
+{%- endfor %}
+{%- endfor %}
+    ];
+{%- if body_fields | selectattr("boundaries") | list %}
+
+    private static readonly (string Name, string Value)[] Boundaries =
+    [
+{%- for f in body_fields %}
+{%- for value in f.boundaries %}
+        ("{{ f.name }}", {{ json_string(value) }}),
+{%- endfor %}
+{%- endfor %}
+    ];
+{%- endif %}
+{%- endif %}
+
     private readonly I{{ r }}Service _mock{{ r }}Service;
     private readonly {{ r }}Controller _{{ lc }}Controller;
 
@@ -88,12 +114,10 @@ public class {{ r }}ControllerTests
         await _mock{{ r }}Service.Received(1).GetListAsync(expectedLimit, Arg.Any<CancellationToken>());
     }
 {%- endif %}
-{%- for op, Op in [("create", "Create"), ("update", "Update"), ("replace", "Replace")] if op in ops %}
+{%- for op, Op in REQUEST_KINDS if op in ops %}
 {%- set accepted = client | selectattr("in_" ~ op) | list %}
 {%- set refused = client | rejectattr("in_" ~ op) | list %}
-{%- set required = (accepted | selectattr("required") | rejectattr("has_default") | list) if op != "update" else [] %}
-{%- set invalid = invalid_bodies(accepted, system + refused, required) | from_json %}
-{%- set boundaries = boundary_bodies(accepted) | from_json %}
+{%- set required = (accepted | selectattr("needs_value") | list) if op != "update" else [] %}
 
     [Fact]
     public async Task {{ Op }}Async_PassesTheValidatedRequest()
@@ -150,14 +174,14 @@ public class {{ r }}ControllerTests
     {
 {{- receive(Op) }}
 
-        await {{ call(op, body_json(required)) }};
+        await {{ call(op, sample_body(required)) }};
 
         Assert.NotNull(received);
 {%- for f in left_out %}
 {%- if f.dynamic %}
         Assert.NotNull(received.{{ f.pascal }});
 {%- else %}
-        JsonAssert.Equal({{ json_string(f.default if f.has_default else none) }}, received.{{ f.pascal }});
+        JsonAssert.Equal({{ json_string(f.default) }}, received.{{ f.pascal }});
 {%- endif %}
 {%- endfor %}
     }
@@ -174,22 +198,23 @@ public class {{ r }}ControllerTests
 {%- endif %}
 {%- endif %}
 
+    public static TheoryData<string> Invalid{{ Op }}Bodies =>
+        RequestBodies.Invalid({{ r }}Samples.{{ Op }}Body, [{{ required | map(attribute="name") | map("tojson") | join(", ") }}], [{{ refused | map(attribute="name") | map("tojson") | join(", ") }}], Rejected);
+
     [Theory]
-{%- for body in invalid %}
-    [InlineData({{ body | tojson }})]
-{%- endfor %}
+    [MemberData(nameof(Invalid{{ Op }}Bodies))]
     public async Task {{ Op }}Async_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
         await Assert.ThrowsAsync<BadRequestException>(() => {{ call(op, "body") }});
 
         await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().{{ Op }}Async(default!, default, {{ ct }});
     }
-{%- if boundaries %}
+{%- if accepted | selectattr("boundaries") | list %}
+
+    public static TheoryData<string> {{ Op }}BodiesOnBounds => RequestBodies.OnBounds({{ r }}Samples.{{ Op }}Body, Boundaries);
 
     [Theory]
-{%- for body in boundaries %}
-    [InlineData({{ body | tojson }})]
-{%- endfor %}
+    [MemberData(nameof({{ Op }}BodiesOnBounds))]
     public async Task {{ Op }}Async_AcceptsValuesOnARuleBound(string body)
     {
 {{- receive(Op) }}

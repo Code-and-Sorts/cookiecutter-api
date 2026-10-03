@@ -1,5 +1,5 @@
 {%- from 'dotnet/_model.jinja' import csharp_file, properties, shown_assignments with context -%}
-{%- set shown = base_fields | rejectattr("system") | rejectattr("hidden") | list -%}
+{%- set shown = client_base_fields | rejectattr("hidden") | list -%}
 {%- set body %}
 public class BaseResponse
 {
