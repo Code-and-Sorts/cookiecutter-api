@@ -80,7 +80,7 @@ Every response body is JSON (`Content-Type: application/json`), including errors
 {%- endif %}
 | anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` (the exception is logged with its stack trace) |
 
-An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be a JSON object: `name` is required on create (`POST`) and replace (`PUT`) and optional on update (`PATCH`), and when present it must be a non-empty JSON string (numbers and booleans are not converted). Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with `400`, so clients can never set ids or system fields.
+Request bodies and responses follow the [data model](#data-model).
 
 Writes (`POST`, `PATCH`, `PUT` and `DELETE`) record who made them from the optional `X-User-Id` request header (surrounding whitespace is trimmed; an empty or missing header means no user). Create stores it as `createdBy` and `updatedBy`, and later writes store it as `updatedBy`, removing any earlier `updatedBy` when the header is absent. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 
@@ -100,7 +100,9 @@ Requests that never reach the app are answered by the Azure Functions host: an u
 Requests that never reach the app are answered by API Gateway: an unmapped path or method returns `403` with `{"message": "Missing Authentication Token"}`.
 {%- endif %}
 
-Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with millisecond precision, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when they are set. Updates and replacements keep `createdTimestamp` and `createdBy` and refresh `updatedTimestamp` and `updatedBy`; delete is a soft delete that sets `isDeleted` to `true`.
+Updates and replacements keep `createdTimestamp` and `createdBy` and refresh `updatedTimestamp` and `updatedBy`; delete is a soft delete that sets `isDeleted` to `true`.
+
+{% include 'shared/_README.model.md' %}
 
 ## Storage containers
 {%- if cloud_service == 'Azure Function App' %}
@@ -404,6 +406,7 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 {%- if cloud_service == 'GCP Cloud Function' %}
 │   ├── Handlers
 {%- endif %}
+│   ├── Models
 │   ├── Repositories
 │   ├── Services
 │   ├── Utils
@@ -416,7 +419,7 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 {{ "%-40s" | format("└── docker-compose.yml") }}- Local {% if cloud_service == 'Azure Function App' %}Cosmos DB{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}DynamoDB{% endif %} emulator
 ```
 
-Each resource has its own file in every layer, named after the resource: for example `{{ resources[0].name }}Controller.cs`, `{{ resources[0].name }}Service.cs`, `{{ resources[0].name }}Repository.cs`, `{{ resources[0].name }}{% if cloud_service == 'GCP Cloud Function' %}Handler{% else %}Functions{% endif %}.cs` and their `I{{ resources[0].name }}…` interfaces, DTO, entity, request and validation models, and unit tests.
+Each resource has its own file in every layer, named after the resource: for example `{{ resources[0].name }}Controller.cs`, `{{ resources[0].name }}Service.cs`, `{{ resources[0].name }}Repository.cs`, `{{ resources[0].name }}{% if cloud_service == 'GCP Cloud Function' %}Handler{% else %}Functions{% endif %}.cs` and their `I{{ resources[0].name }}…` interfaces, DTO, entity, request and validation models, and unit tests. The models extend the types rendered from `base_model`: `BaseEntity`, `BaseResponse` and, for each request body in use, `BaseCreateRequest`, `BaseReplaceRequest` or `BaseUpdateRequest` (validated in `Models/Schemas/BaseValidation.cs`).
 {%- if cloud_service == 'GCP Cloud Function' %} `Function.cs` routes each request to the handler whose endpoint matches the first path segment.{% endif %}
 Each repository extends `EntityRepository`, which holds the shared read, list, create, update and soft-delete logic and talks to the database through `IDocumentStore` (`{% if cloud_service == 'Azure Function App' %}Cosmos{% elif cloud_service == 'GCP Cloud Function' %}Firestore{% else %}Dynamo{% endif %}DocumentStore`).
 

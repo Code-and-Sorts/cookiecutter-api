@@ -2,11 +2,13 @@ namespace {{project_class_name}}.Api.Repositories;
 
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Cloud.Firestore;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
+using {{project_class_name}}.Api.Utils;
 
 public class FirestoreDocumentStore<T>(FirestoreDb firestoreDb, string collectionName) : IDocumentStore<T> where T : BaseEntity
 {
@@ -15,18 +17,33 @@ public class FirestoreDocumentStore<T>(FirestoreDb firestoreDb, string collectio
     public async Task<T?> GetAsync(string id, CancellationToken ct = default)
     {
         var snapshot = await _collection.Document(id).GetSnapshotAsync(ct);
-        return snapshot.Exists ? snapshot.ConvertTo<T>() : null;
+        return snapshot.Exists ? FromDocument(snapshot.ToDictionary()) : null;
     }
 
     public async Task<IReadOnlyList<T>> GetLiveListAsync(int limit, CancellationToken ct = default)
     {
         var snapshot = await _collection.WhereEqualTo("isDeleted", false).Limit(limit).GetSnapshotAsync(ct);
-        return snapshot.Documents.Select(doc => doc.ConvertTo<T>()).ToList();
+        return snapshot.Documents.Select(doc => FromDocument(doc.ToDictionary())).ToList();
     }
 
     public Task CreateAsync(T item, CancellationToken ct = default) => SaveAsync(item, ct);
 
-    // An explicit field map, so unset createdBy/updatedBy are not stored as null.
     public Task SaveAsync(T item, CancellationToken ct = default) =>
-        _collection.Document(item.Id).SetAsync(item.ToDocument(), cancellationToken: ct);
+        _collection.Document(item.Id).SetAsync(ToDocument(item), cancellationToken: ct);
+
+    // The entity's JSON is the stored shape, as on Cosmos DB: every field type maps and unset fields are left out.
+    public static Dictionary<string, object> ToDocument(T entity) =>
+        JsonSerializer.SerializeToElement(entity, Json.Options).EnumerateObject().ToDictionary(property => property.Name, property => ToValue(property.Value)!);
+
+    public static T FromDocument(Dictionary<string, object> document) =>
+        JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(document, Json.Options), Json.Options)!;
+
+    private static object? ToValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.TryGetInt64(out var integer) ? integer : (object)value.GetDouble(),
+        JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
+        JsonValueKind.Array => value.EnumerateArray().Select(ToValue).ToList(),
+        _ => null,
+    };
 }

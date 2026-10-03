@@ -130,7 +130,7 @@ public static class DependencyInjection
         return options;
     }
 
-    private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity, new() =>
+    private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity =>
         new CosmosDocumentStore<T>(provider.GetRequiredService<Database>().GetContainer(containerName));
 {%- elif cloud_service == 'GCP Cloud Function' %}
 
@@ -156,7 +156,7 @@ public static class DependencyInjection
         );
     }
 
-    private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity, new() =>
+    private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity =>
         new FirestoreDocumentStore<T>(provider.GetRequiredService<FirestoreDb>(), containerName);
 {%- else %}
 
@@ -175,7 +175,7 @@ public static class DependencyInjection
         IgnoreConfiguredEndpointUrls = configuration["AWS_ENDPOINT_URL_DYNAMODB"] is "",
     };
 
-    private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity, new() =>
+    private static IDocumentStore<T> CreateStore<T>(IServiceProvider provider, string containerName) where T : BaseEntity =>
         new DynamoDocumentStore<T>(provider.GetRequiredService<IAmazonDynamoDB>(), containerName);
 {%- endif %}
 }

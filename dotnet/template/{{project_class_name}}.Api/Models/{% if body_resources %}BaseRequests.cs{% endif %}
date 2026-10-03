@@ -1,0 +1,28 @@
+{%- from 'dotnet/_model.jinja' import assignments, csharp_file, properties with context -%}
+{%- set user_fields = base_fields | rejectattr("system") | list -%}
+{%- set ops = path_resources | map(attribute="operations") | sum(start=[]) | unique | list -%}
+{%- set body %}
+{%- for op, Op in [("create", "Create"), ("replace", "Replace"), ("update", "Update")] if op in ops %}
+{%- set fields = user_fields | selectattr("in_" ~ op) | list %}
+
+public class Base{{ Op }}Request : ISentFields
+{
+    [JsonIgnore]
+    public HashSet<string> Sent { get; } = [];
+{%- if op != "create" %}
+
+    [JsonIgnore]
+    public string Id { get; set; } = default!;
+{%- endif %}
+{%- if fields %}
+{{ properties(fields, op) }}
+{%- endif %}
+
+    public void ApplyTo(BaseEntity entity)
+    {
+{{- assignments(fields, op, "entity") }}
+    }
+}
+{%- endfor %}
+{%- endset -%}
+{{ csharp_file("Requests", body, ["Entities", "Utils"]) }}
