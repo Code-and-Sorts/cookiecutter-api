@@ -1,0 +1,213 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 04f6cee
+_src_path: .
+author: Sir Meowsalots
+base_model:
+-   default: $uuid
+    managed: create
+    name: id
+    required: true
+    type: uuid
+-   default: false
+    hidden: true
+    managed: create
+    name: isDeleted
+    required: true
+    type: boolean
+-   default: $now
+    hidden: true
+    managed: create
+    name: createdTimestamp
+    required: true
+    type: date-time
+-   default: $now
+    hidden: true
+    managed: write
+    name: updatedTimestamp
+    required: true
+    type: date-time
+-   default: $user
+    hidden: true
+    managed: create
+    name: createdBy
+    type: string
+-   default: $user
+    hidden: true
+    managed: write
+    name: updatedBy
+    type: string
+-   default: public
+    description: Owning tenant
+    name: tenantId
+    required: true
+    rules:
+        max_length: 64
+        min_length: 1
+    type: string
+-   default: eu
+    immutable: true
+    name: region
+    type: enum
+    values:
+    - eu
+    - us
+-   name: priority
+    nullable: true
+    rules:
+        minimum: 0
+    type: integer
+-   name: rank
+    required: true
+    type: number
+-   default: []
+    items: string
+    name: labels
+    rules:
+        unique_items: true
+    type: array
+cloud_service: Azure Function App
+health_endpoint: health
+language: python
+open_source_license: MIT license
+project_description: Kitties got claws...beware
+project_name: KittenClaws
+resources:
+-   container: cats
+    endpoint: cats
+    fields:
+    -   name: name
+        required: true
+        rules:
+            max_length: 100
+            min_length: 1
+        type: string
+    -   default: tabby
+        name: breed
+        type: enum
+        values:
+        - siamese
+        - persian
+        - tabby
+    -   default: 0
+        name: ageYears
+        required: true
+        rules:
+            maximum: 40
+            minimum: 0
+        type: integer
+    -   default: null
+        name: weightKg
+        nullable: true
+        rules:
+            exclusive_maximum: 100
+            exclusive_minimum: 0
+        type: number
+    -   default: true
+        name: indoor
+        type: boolean
+    -   default: $today
+        name: birthDate
+        type: date
+    -   default: $uuid
+        immutable: true
+        name: microchipId
+        type: uuid
+    -   default: unknown@example.com
+        name: ownerEmail
+        rules:
+            format: email
+        type: string
+    -   name: website
+        nullable: true
+        rules:
+            format: uri
+        type: string
+    -   example: ABC-123
+        name: tagCode
+        rules:
+            pattern: ^[A-Z]{3}-[0-9]{3}$
+        type: string
+    -   default: []
+        items: string
+        name: tags
+        rules:
+            max_items: 3
+            unique_items: true
+        type: array
+    -   items: integer
+        name: scores
+        nullable: true
+        rules:
+            min_items: 1
+        type: array
+    -   default: $now
+        name: adoptedAt
+        nullable: true
+        type: date-time
+    -   default: '2026-01-01T00:00:00.000Z'
+        name: lastVisit
+        type: date-time
+    -   default: $$none
+        hidden: true
+        name: notes
+        type: string
+    name: Cat
+    operations:
+    - list
+    - get_by_id
+    - create
+    - update
+    - replace
+    - delete
+    requests:
+        update:
+        - name
+        - ageYears
+        - weightKg
+        - indoor
+        - tags
+        - ownerEmail
+        - adoptedAt
+        - website
+        - notes
+-   container: dogs
+    endpoint: dogs
+    name: Dog
+    operations:
+    - list
+    - get_by_id
+    - create
+    - replace
+    - delete
+-   container: visits
+    endpoint: visits
+    fields:
+    -   immutable: true
+        name: reason
+        required: true
+        type: string
+    -   name: visitedOn
+        required: true
+        type: date
+    -   name: cost
+        rules:
+            minimum: 0
+        type: number
+    -   default: false
+        name: paid
+        required: true
+        type: boolean
+    -   items: date-time
+        name: checkedAt
+        type: array
+    name: Visit
+    operations:
+    - get_by_id
+    - create
+    - update
+    requests:
+        create:
+        - reason
+        - visitedOn
+        - cost
+
