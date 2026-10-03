@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2024",
+    "lib": ["es2024"],
+    "types": ["node"],
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true,
+    "strict": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "paths": {
+      "@config/*": ["./config/*"],
+      "@controllers": ["./controllers/index"],
+      "@services": ["./services/index"],
+      "@repositories": ["./repositories/index"],
+      "@routes": ["./routes/index"],
+      "@models": ["./types/models/index"],
+      "@errors": ["./types/errors/index"],
+      "@utils": ["./utils/index"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "dist-scripts", "scripts"],
+  "tsc-alias": {
+    "resolveFullPaths": true
+  }
+}
