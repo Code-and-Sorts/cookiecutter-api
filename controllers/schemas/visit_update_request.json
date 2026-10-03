@@ -1,0 +1,54 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+        "checkedAt": {
+            "items": {
+                "format": "date-time",
+                "pattern": "^(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
+                "type": "string"
+            },
+            "type": "array"
+        },
+        "cost": {
+            "minimum": 0,
+            "type": "number"
+        },
+        "labels": {
+            "default": [],
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+        },
+        "paid": {
+            "default": false,
+            "type": "boolean"
+        },
+        "priority": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": [
+                "integer",
+                "null"
+            ]
+        },
+        "rank": {
+            "type": "number"
+        },
+        "tenantId": {
+            "default": "public",
+            "description": "Owning tenant",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+        },
+        "visitedOn": {
+            "format": "date",
+            "pattern": "^(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+            "type": "string"
+        }
+    },
+    "type": "object"
+}
