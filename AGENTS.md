@@ -278,7 +278,8 @@ shape the default single resource doesn't cover (each operation subset, shared a
 names of differing lengths) and no health check. `multi` only feeds the published example branches.
 Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
 `.github/actions/setup-runtime` sets up the language's runtime and package manager for the build
-pipelines and the integration tests alike.
+pipelines and the integration tests alike, plus a pinned uv for Python projects and, with `uv: "true"`, for the
+integration suite in every language.
 
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
 - Ubuntu: every cloud service, with the default single resource and with `edge`
@@ -297,6 +298,8 @@ format. It reads `resources` from the project's `.copier-answers.yml` and parame
 and `@pytest.mark.each_operation` pick the resources and operations a test needs), so never render tests with
 Jinja. `store.py` reads records straight from the emulator, using the project's `.env.emulator`, and seeds a
 container for a resource that cannot `create`. Contract changes go into the suite with the template change.
+The suite is a uv project with its own `uv.lock`: `uv sync --project tests/integration`, then
+`uv run --project tests/integration pytest tests/integration --project-dir <project> --base-url <url>`.
 
 `.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single` and `edge`; `multi` on
 request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
@@ -336,17 +339,18 @@ into the next render.
 ### Dependency Updates
 
 Renovate keeps package versions current and merges its own PRs once every check passes
-(see `renovate.json`), except integration test dependencies, which wait for a review. Runtime versions
+(see `renovate.json`), except integration test dependencies, which wait for a review. Its `pep621` manager
+updates `pyproject.toml` and the matching `uv.lock` together. Runtime versions
 (Node, Python, .NET, Go) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all support
 the new version GA, in `.github/actions/setup-runtime`.
 
 ## Code Conventions
 
 - **TypeScript**: ES modules (`"type": "module"`), Yarn for packages, Jest for tests (ESM mode; import `jest` and friends from `@jest/globals`, mock modules with `jest.unstable_mockModule`), path aliases (`@controllers`, `@services`, etc.) via `tsconfig.json` paths, rewritten to `.js` paths by `tsc-alias`
-- **Python**: Poetry for packages, pytest for tests, blueprint pattern for route registration; controllers are
-  cloud-agnostic (plain values in, `utils/routing.py` resolves GCP/AWS routes), and AWS builds with SAM's makefile
-  builder, which exports the Poetry lock (run `make install` before `sam build`); Azure and GCP deploy from
-  `make requirements`, and `utils/deadline.py` bounds each request's database work to 8 seconds
+- **Python**: uv for packages (PEP 621 `pyproject.toml`, `[tool.uv] package = false`), pytest for tests, blueprint
+  pattern for route registration; controllers are cloud-agnostic (plain values in, `utils/routing.py` resolves
+  GCP/AWS routes), and AWS builds with SAM's makefile builder, which exports `uv.lock` and installs manylinux
+  wheels with `uv pip install --target`; Azure and GCP deploy from `make requirements` (`uv export`), and `utils/deadline.py` bounds each request's database work to 8 seconds
 - **.NET**: NuGet for packages, xUnit v3 for tests, solution/project structure
 - **Go**: Go modules, `go test`, gofmt enforced through golangci-lint
 - Template files use `{{ variable_name }}` in both filenames and content

@@ -145,14 +145,14 @@ choosing a language, cloud and fixture or `all`.
 
 To run it locally, render a project, start it with its emulator commands from
 [Run locally against an emulator](#run-locally-against-an-emulator), and point the suite at it with
-[Poetry](https://python-poetry.org/):
+[uv](https://docs.astral.sh/uv/):
 
 ```console
 copier copy --defaults --trust --vcs-ref HEAD --data language=go --data cloud_service="GCP Cloud Function" \
   --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml . ../KittenClaws
 
-poetry --project tests/integration install
-poetry --project tests/integration run pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080
+uv sync --project tests/integration
+uv run --project tests/integration pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080
 ```
 
 The base URL includes the route prefix: `http://localhost:7071/api` on Azure, `http://localhost:8080` on
@@ -229,7 +229,7 @@ Every language and cloud is also rendered on each push to `main` and published t
 Below are the SDKs and frameworks used in the various templates.
 
 ### Python
-- [Poetry](https://python-poetry.org/) for dependency management
+- [uv](https://docs.astral.sh/uv/) for dependency management
 - [pytest](https://docs.pytest.org/en/stable/) for testing
 - [pydantic](https://docs.pydantic.dev/latest/) for schema validation
 
