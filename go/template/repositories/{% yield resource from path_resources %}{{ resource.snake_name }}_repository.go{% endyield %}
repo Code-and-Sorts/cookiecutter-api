@@ -20,10 +20,10 @@ type {{ r }}Repository interface {
 	Create(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'update' in ops %}
-	Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
+	Update(ctx context.Context, id, userID string, apply func(*models.{{ r }})) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'replace' in ops %}
-	Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error)
+	Replace(ctx context.Context, id, userID string, apply func(*models.{{ r }})) (*models.{{ r }}Dto, error)
 {%- endif %}
 {%- if 'delete' in ops %}
 	Delete(ctx context.Context, id, userID string) error
@@ -57,18 +57,15 @@ func (repo *{{ lc }}Repository) Create(ctx context.Context, item models.{{ r }},
 {%- endif %}
 {%- if 'update' in ops %}
 
-func (repo *{{ lc }}Repository) Update(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
-	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, item.Id, userID, func(stored *models.{{ r }}) {
-		if item.Name != "" {
-			stored.Name = item.Name
-		}
-	}))
+func (repo *{{ lc }}Repository) Update(ctx context.Context, id, userID string, apply func(*models.{{ r }})) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, id, userID, apply))
 }
 {%- endif %}
 {%- if 'replace' in ops %}
 
-func (repo *{{ lc }}Repository) Replace(ctx context.Context, item models.{{ r }}, userID string) (*models.{{ r }}Dto, error) {
-	return toDto(models.To{{ r }}Dto)(repo.store.replace(ctx, &item, userID))
+// The stored record keeps its creation fields; apply overwrites the fields the replace accepts.
+func (repo *{{ lc }}Repository) Replace(ctx context.Context, id, userID string, apply func(*models.{{ r }})) (*models.{{ r }}Dto, error) {
+	return toDto(models.To{{ r }}Dto)(repo.store.update(ctx, id, userID, apply))
 }
 {%- endif %}
 {%- if 'delete' in ops %}

@@ -117,9 +117,49 @@ health_endpoint:
   default: "health"
   help: URL segment for the health check (kebab-case); leave empty to generate no health check.
   validator: >-
-    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- from 'shared/_fields.jinja' import matches -%}
+    {%- if health_endpoint and not (matches(health_endpoint, '^[a-z0-9][a-z0-9\-]*$') | trim) -%}
     Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
     {%- endif -%}
+
+base_model:
+  type: yaml
+  multiline: true
+  help: >-
+    Fields every resource stores, on top of its own fields. The six pre-populated fields are built in and
+    cannot change: the server sets them, they are never accepted in a request body, and only id is returned. createdBy and updatedBy come from the X-User-Id header ($user) and are stored
+    only when it is sent. Add your own fields after them, for example {name: tenantId, type: string,
+    required: true}; they use the same keys as resource fields (see resources).
+  default: |
+    {%- from 'shared/_fields.jinja' import LOCKED_FIELDS, field_yaml -%}
+    {%- for f in LOCKED_FIELDS -%}
+    - {{ field_yaml(f) }}
+    {% endfor -%}
+  validator: >-
+    {%- from 'shared/_fields.jinja' import LOCKED_FIELDS, LOCKED_NAMES, check_field, field_yaml -%}
+    {%- set ns = namespace(err="", names=[]) -%}
+    {%- if base_model is string or base_model is mapping or base_model is not iterable -%}
+    {%- set ns.err = "base_model must be a list of fields." -%}
+    {%- endif -%}
+    {%- for f in base_model if not ns.err -%}
+    {%- set name = f.name if f is mapping and f.name is string else "" -%}
+    {%- if name in LOCKED_NAMES -%}
+    {%- set locked = LOCKED_FIELDS[LOCKED_NAMES.index(name)] -%}
+    {%- if f != locked -%}
+    {%- set ns.err = "base_model field '" ~ name ~ "' is built in and cannot change. Write it as " ~ field_yaml(locked) ~ "." -%}
+    {%- endif -%}
+    {%- else -%}
+    {%- set ns.err = check_field(f, "base_model") | trim -%}
+    {%- endif -%}
+    {%- if not ns.err and (name | lower) in (ns.names | map("lower") | list) -%}
+    {%- set ns.err = "base_model field '" ~ name ~ "' is listed more than once (names must differ ignoring case)." -%}
+    {%- endif -%}
+    {%- set ns.names = ns.names + [name] -%}
+    {%- endfor -%}
+    {%- for locked in LOCKED_FIELDS if not ns.err and locked.name not in ns.names -%}
+    {%- set ns.err = "base_model must keep the built-in field '" ~ locked.name ~ "': " ~ field_yaml(locked) ~ "." -%}
+    {%- endfor -%}
+    {{ ns.err }}
 
 resources:
   type: yaml
@@ -127,30 +167,43 @@ resources:
   help: >-
     Resources to generate. Each item: name (PascalCase), endpoint (kebab-case URL
     segment), container (storage id; equal ids share storage), operations (subset of
-    list, get_by_id, create, update, replace, delete). The health_endpoint segment, the
-    name Health and some names per language are reserved.
+    list, get_by_id, create, update, replace, delete), fields and optional requests. The
+    health_endpoint segment, the name Health and some names per language are reserved.
+    fields lists the resource's own fields (default: one required, non-empty string name);
+    each has name (lowerCamelCase), type (string, integer, number, boolean, date-time,
+    date, uuid, enum with values, array with items), and optionally required, nullable,
+    immutable (accepted on create only), hidden (stored, never returned), default (a value,
+    null, $now, $today or $uuid; $$ escapes a literal $), rules (min_length, max_length,
+    pattern, format email|uri; minimum, maximum, exclusive_minimum, exclusive_maximum;
+    min_items, max_items, unique_items), example and description. requests.create,
+    requests.replace and requests.update optionally narrow the fields each body accepts.
   default: |
     - name: "{{ project_class_name }}"
       endpoint: "{{ project_endpoint }}"
       container: "{{ project_slug if language == 'python' else project_endpoint }}"
       operations: ["list", "get_by_id", "create", "update", "delete"]
+      fields:
+        - {name: name, type: string, required: true, rules: {min_length: 1}}
   # Only reserve a name after watching the generated project fail to build with it.
   validator: >-
+    {%- from 'shared/_fields.jinja' import DEFAULT_FIELDS, check_field, matches -%}
     {%- set valid_ops = ["list", "get_by_id", "create", "update", "replace", "delete"] -%}
+    {%- set resource_keys = ["name", "endpoint", "container", "operations", "fields", "requests", "base"] -%}
+    {%- set base_names = base_model | map(attribute="name") | map("lower") | list -%}
     {%- set generated_suffixes = [] -%}
     {%- if language == "python" -%}
     {%- set reserved_names = ["Base", "Repository", "Health", "List", "Optional", "BaseModel", "Model", "Field", "UUID", "Request", "Database", "Attr", "ClientError", "ContainerProxy", "CosmosAccessConditionFailedError", "AsyncCollectionReference", "NotFoundError", "ValidationError", "AsyncMock", "MagicMock", "ValueError", "TypeError", "StopIteration", "StopAsyncIteration"] -%}
     {%- set python_keywords = ["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"] -%}
-    {%- set generated_suffixes = ["Controller", "Repository", "Response", "Service", "Update"] -%}
+    {%- set generated_suffixes = ["Controller", "CreateRequest", "Entity", "ReplaceRequest", "Repository", "Response", "Service", "UpdateRequest"] -%}
     {%- elif language == "typescript" -%}
     {%- set reserved_names = ["Health", "Base", "BaseEnv", "BaseIdentifier", "BaseItem", "Env", "Guid", "Partial", "Promise", "SchemaValidator", "ValidationError"] + {"Azure Function App": ["HttpRequest", "HttpResponseInit", "InvocationContext"], "AWS Lambda": ["APIGatewayProxyEvent", "APIGatewayProxyResult"]}.get(cloud_service, []) -%}
-    {%- set generated_suffixes = ["Controller", "Entity", "EntitySchema", "Record", "Repository", "Request", "RequestSchema", "Response", "ResponseSchema", "Schema", "Service", "Update", "UpdateSchema"] -%}
+    {%- set generated_suffixes = ["Controller", "CreateRequest", "CreateRequestSchema", "EntitySchema", "Record", "ReplaceRequest", "ReplaceRequestSchema", "Repository", "Response", "ResponseSchema", "Service", "UpdateRequest", "UpdateRequestSchema"] -%}
     {%- elif language == "dotnet" -%}
     {%- set reserved_names = ["Health", "Base"] + {"AWS Lambda": ["Type", "HashCode"], "GCP Cloud Function": ["IResource"]}.get(cloud_service, []) -%}
     {%- else -%}
-    {%- set reserved_names = ["Health", "BaseEntity", "BaseError", "NotFoundError", "ValidationError"] -%}
+    {%- set reserved_names = ["Health", "BaseEntity", "BaseCreateRequest", "BaseReplaceRequest", "BaseUpdateRequest", "BaseResponse", "BaseError", "DateTime", "NotFoundError", "Now", "Today", "ValidationError"] -%}
     {%- endif -%}
-    {%- set ns = namespace(err="", eps=[], names=[], containers=[], idents={}, own=[], clash="", ident="", name_clash="") -%}
+    {%- set ns = namespace(err="", eps=[], names=[], containers=[], idents={}, own=[], clash="", ident="", name_clash="", fnames=[], stored={}) -%}
     {%- if resources | length < 1 -%}
     {%- set ns.err = "At least one resource is required." -%}
     {%- elif language == "dotnet" and health_endpoint and cloud_service == "AWS Lambda" and 2 * (project_class_name | length) + 61 > 127 -%}
@@ -168,7 +221,7 @@ resources:
     {%- for other in ns.containers if other != container_id and ((other | string | upper | replace('-', '_')) == (container | upper | replace('-', '_')) or (language in ["dotnet", "go"] and (other | string | to_camel) == (container | to_camel))) -%}
     {%- set ns.clash = other -%}
     {%- endfor -%}
-    {%- set ns.own = [name, "Base" ~ name] -%}
+    {%- set ns.own = [] -%}
     {%- for s in generated_suffixes -%}{%- set ns.own = ns.own + [name ~ s] -%}{%- endfor -%}
     {%- set ns.ident = "" -%}
     {%- for i in ns.own if language == "python" and not ns.ident and i in ns.idents -%}
@@ -184,17 +237,17 @@ resources:
     {%- set ns.name_clash = p -%}
     {%- endif -%}
     {%- endfor -%}
-    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- if not r.name or not (matches(r.name | string, '^[A-Z][A-Za-z0-9]*$') | trim) -%}
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a name the generated " ~ cloud_service ~ " project already uses. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif language == "python" and (r.name | to_snake) in python_keywords -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
-    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- elif not r.endpoint or not (matches(r.endpoint | string, '^[a-z0-9][a-z0-9\-]*$') | trim) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
     {%- elif health_endpoint and r.endpoint == health_endpoint -%}
     {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
-    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
+    {%- elif not r.container or not (matches(r.container | string, '^[A-Za-z0-9_\-]+$') | trim) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
     {%- elif (r.operations | default([]) | length) < 1 -%}
     {%- set ns.err = "Resource '" ~ r.name ~ "' must enable at least one operation." -%}
@@ -213,6 +266,73 @@ resources:
     {%- elif ns.name_clash -%}
     {%- set ns.err = "Resource names '" ~ ns.name_clash ~ "' and '" ~ r.name ~ "' collide: one is the other plus a prefix or suffix the generated code adds. Rename one of them." -%}
     {%- endif -%}
+    {%- if not ns.err -%}
+    {%- set fields = r.fields if r.fields is defined else DEFAULT_FIELDS -%}
+    {%- set requests = r.requests if r.requests is defined else {} -%}
+    {%- set ns.fnames = [] -%}
+    {%- set type_names = [name ~ "Entity", name ~ "Dto", name ~ "Response", name ~ "CreateRequest", name ~ "ReplaceRequest", name ~ "UpdateRequest", "Create" ~ name ~ "Request", "Replace" ~ name ~ "Request", "Update" ~ name ~ "Request"] -%}
+    {%- for key in r if not ns.err and key not in resource_keys -%}
+    {%- set ns.err = "Resource '" ~ name ~ "' has an unknown key '" ~ key ~ "'. Allowed: " ~ (resource_keys | join(', ')) ~ "." -%}
+    {%- endfor -%}
+    {%- if ns.err -%}
+    {%- elif r.base is defined and r.base is not sameas true -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': base: false (opting out of base_model) is not supported yet; every resource extends base_model." -%}
+    {%- elif fields is string or fields is mapping or fields is not iterable -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': fields must be a list of fields." -%}
+    {%- endif -%}
+    {%- for f in fields if not ns.err -%}
+    {%- set ns.err = check_field(f, "Resource '" ~ name ~ "'") | trim -%}
+    {%- if ns.err -%}
+    {%- elif (f.name | lower) in (ns.fnames | map("lower") | list) -%}
+    {%- set ns.err = "Resource '" ~ name ~ "' field '" ~ f.name ~ "' is listed more than once (names must differ ignoring case)." -%}
+    {%- elif (f.name | lower) in base_names -%}
+    {%- set ns.err = "Resource '" ~ name ~ "' field '" ~ f.name ~ "' is already a base_model field." -%}
+    {%- elif (f.name | to_camel) in type_names -%}
+    {%- set ns.err = "Resource '" ~ name ~ "' field '" ~ f.name ~ "' would generate the member " ~ (f.name | to_camel) ~ ", which is also a generated type name for the resource; rename the field." -%}
+    {%- endif -%}
+    {%- set ns.fnames = ns.fnames + [f.name] -%}
+    {%- endfor -%}
+    {%- if ns.err -%}
+    {%- elif requests is not mapping -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests must map create, replace or update to a list of field names." -%}
+    {%- else -%}
+    {%- for op in requests if not ns.err -%}
+    {%- set listed = requests[op] -%}
+    {%- if op not in ["create", "replace", "update"] -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests." ~ op ~ " is not a request body; use create, replace or update." -%}
+    {%- elif op not in r.operations -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests." ~ op ~ " is set but the resource does not enable " ~ op ~ "." -%}
+    {%- elif listed is string or listed is mapping or listed is not iterable -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests." ~ op ~ " must be a list of field names." -%}
+    {%- elif (listed | unique(case_sensitive=true) | list | length) != (listed | length) -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests." ~ op ~ " lists a field more than once." -%}
+    {%- else -%}
+    {%- for field_name in listed if not ns.err -%}
+    {%- set field = fields | selectattr("name", "equalto", field_name) | first -%}
+    {%- if field is not defined -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests." ~ op ~ " names '" ~ field_name ~ "', which is not one of its fields (base_model fields are always accepted)." -%}
+    {%- elif op != "create" and field.immutable | default(false) -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests." ~ op ~ " names '" ~ field_name ~ "', which is immutable (accepted on create only)." -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- for f in fields if not ns.err and "create" in requests and f.required | default(false) and "default" not in f and f.name not in requests["create"] -%}
+    {%- set ns.err = "Resource '" ~ name ~ "': requests.create must list '" ~ f.name ~ "', which is required and has no default." -%}
+    {%- endfor -%}
+    {#- Resources in one container read each other's records, so a shared field must hold the same kind of value. -#}
+    {%- set store = container_id | tojson -%}
+    {%- for f in fields if not ns.err -%}
+    {%- set shape = [f.type, f.get("items"), f.rules.get("format") if f.rules is mapping else none, f.get("values", []) | sort, f.get("hidden", false)] -%}
+    {%- set seen = ns.stored.get(store, {}).get(f.name) -%}
+    {%- if seen and seen[0] != shape -%}
+    {%- set ns.err = "Resources '" ~ seen[1] ~ "' and '" ~ name ~ "' share container '" ~ container ~ "' but define field '" ~ f.name ~ "' differently; a shared field needs the same type, items, format, enum values and hidden flag." -%}
+    {%- elif not seen -%}
+    {%- set ns.stored = dict(ns.stored, **{store: dict(ns.stored.get(store, {}), **{f.name: [shape, name]})}) -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- endif -%}
     {%- if not ns.err and language == "dotnet" and cloud_service == "AWS Lambda" -%}
     {%- set method_prefix_length = {"list": 7, "get_by_id": 3, "create": 6, "update": 6, "replace": 7, "delete": 6} -%}
     {%- for op in r.operations if 2 * (project_class_name | length) + 43 + (r.name | length) + 2 * (method_prefix_length[op] + (r.name | length)) > 127 -%}
@@ -229,15 +349,35 @@ resources:
     {%- endfor -%}
     {{ ns.err }}
 
+# Normalized base_model fields (defaults filled in, system flags, samples) for templates; see shared/_fields.jinja.
+base_fields:
+  type: yaml
+  when: false
+  default: >-
+    {%- from 'shared/_fields.jinja' import base_fields_json -%}
+    {{ base_fields_json(base_model) }}
+
+client_base_fields:
+  type: yaml
+  when: false
+  default: >-
+    {%- from 'shared/_fields.jinja' import as_json -%}
+    {{ as_json(base_fields | rejectattr('system') | list) }}
+
 # Git for Windows can't check out paths containing "|", so paths yield from this copy, which precomputes filtered names.
+# fields falls back to the default when an older answers file has none; client_fields prepends client_base_fields.
 path_resources:
   type: yaml
   when: false
   default: >-
+    {%- from 'shared/_fields.jinja' import as_json, resource_fields_json -%}
     [{%- for r in resources -%}
     {%- set ops = r.operations -%}
     {%- set container_key = r.container | string | replace('-', '_') -%}
-    {{ dict(r,
+    {%- set fields = resource_fields_json(r) | from_json -%}
+    {{ as_json(dict(r,
+    fields=fields,
+    client_fields=client_base_fields + fields,
     snake_name=(r.name | to_snake),
     lower_camel_name=(r.name | to_lower_camel),
     container_key=container_key,
@@ -246,7 +386,7 @@ path_resources:
     has_body=("create" in ops or "update" in ops or "replace" in ops),
     has_collection=("list" in ops or "create" in ops),
     has_item=("get_by_id" in ops or "update" in ops or "replace" in ops or "delete" in ops),
-    has_dto=(ops | reject("equalto", "delete") | list | length > 0)) | tojson }}{{ "," if not loop.last }}
+    has_dto=(ops | reject("equalto", "delete") | list | length > 0))) }}{{ "," if not loop.last }}
     {%- endfor -%}]
 
 # .NET request and validation model paths loop over this to stay under Git for Windows' 260-character limit.
@@ -254,6 +394,7 @@ body_resources:
   type: yaml
   when: false
   default: >-
+    {%- from 'shared/_fields.jinja' import as_json -%}
     [{%- for r in path_resources if r.has_body -%}
-    {{ r | tojson }}{{ "," if not loop.last }}
+    {{ as_json(r) }}{{ "," if not loop.last }}
     {%- endfor -%}]

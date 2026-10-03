@@ -32,6 +32,8 @@ func NewSchemaValidator(schemaDefs map[string]string) (SchemaValidator, error) {
 		}
 
 		c := jsonschema.NewCompiler()
+		// Formats such as date and date-time are only annotations unless asserted.
+		c.AssertFormat()
 		if err := c.AddResource(name, resource); err != nil {
 			return nil, fmt.Errorf("failed to add schema resource %s: %w", name, err)
 		}

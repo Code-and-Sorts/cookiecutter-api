@@ -6,9 +6,9 @@ import { MockFn } from '../../test/mocks';
 describe('detectError', () => {
     it('should return 400 with the message for ValidationError', () => {
         const log = jest.fn<MockFn>();
-        expect(detectError(new ValidationError('name is required.'), log)).toEqual({
+        expect(detectError(new ValidationError('label is required.'), log)).toEqual({
             status: 400,
-            body: { errorMessage: 'name is required.' },
+            body: { errorMessage: 'label is required.' },
         });
         expect(log).not.toHaveBeenCalled();
     });
@@ -54,11 +54,11 @@ describe('detectError', () => {
 
 describe('parseJsonBody', () => {
     it('should parse a JSON body', () => {
-        expect(parseJsonBody('{"name":"x"}')).toEqual({ name: 'x' });
+        expect(parseJsonBody('{"label":"x"}')).toEqual({ label: 'x' });
         expect(parseJsonBody('[1]')).toEqual([1]);
     });
 
-    it.each([undefined, null, '', '   ', '{bad', 'name=x'])('should reject %p with a 400 ValidationError', (raw) => {
+    it.each([undefined, null, '', '   ', '{bad', 'label=x'])('should reject %p with a 400 ValidationError', (raw) => {
         expect(() => parseJsonBody(raw)).toThrow(ValidationError);
         expect(() => parseJsonBody(raw)).toThrow('Request body must be valid JSON.');
     });

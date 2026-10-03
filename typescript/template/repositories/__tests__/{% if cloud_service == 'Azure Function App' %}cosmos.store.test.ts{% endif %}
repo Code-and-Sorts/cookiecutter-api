@@ -55,7 +55,15 @@ describe('CosmosStore', () => {
     it('should replace an item by id and partition key', async () => {
         expect(await store.write(record)).toBe(true);
         expect(item).toHaveBeenCalledWith(id, id);
-        expect(replace).toHaveBeenCalledWith(record);
+        expect(replace).toHaveBeenCalledWith(record, undefined);
+    });
+
+    it('should replace a record read back only if its ETag still matches', async () => {
+        const read = { ...record, _etag: 'etag-1' };
+        expect(await store.write(read)).toBe(true);
+        expect(replace).toHaveBeenCalledWith(read, { accessCondition: { type: 'IfMatch', condition: 'etag-1' } });
+        replace.mockRejectedValue(cosmosError(412));
+        await expect(store.write(read)).rejects.toMatchObject({ code: 412 });
     });
 
     it('should report a write to a vanished item as not found', async () => {

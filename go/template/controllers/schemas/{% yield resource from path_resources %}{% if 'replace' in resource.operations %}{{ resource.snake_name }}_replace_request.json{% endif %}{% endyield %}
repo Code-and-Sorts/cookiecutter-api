@@ -1,12 +1,2 @@
-{
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "properties": {
-        "name": {
-            "type": "string",
-            "minLength": 1
-        }
-    },
-    "required": ["name"],
-    "additionalProperties": false
-}
+{%- from 'go/_model.jinja' import request_schema -%}
+{{ request_schema(resource.client_fields | selectattr("in_replace") | list, required=true) }}

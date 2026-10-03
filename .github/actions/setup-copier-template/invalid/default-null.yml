@@ -1,0 +1,9 @@
+# expect: default can only be null when the field is nullable
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: age, type: integer, default: null}

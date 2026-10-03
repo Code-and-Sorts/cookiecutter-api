@@ -8,9 +8,12 @@ package controllers
 {%- if ns.schemas %}
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"io"
+	"math"
+	"strconv"
 
 	"{{project_endpoint}}/models"
 	"{{project_endpoint}}/services"
@@ -31,21 +34,54 @@ func RequestSchemas() map[string]string {
 }
 {%- if ns.schemas %}
 
-// Validating the raw body first rejects unknown fields and wrongly typed values.
-func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaName string, target any) error {
+// Returns the properties the body sent, so an update can tell an absent field from an explicit null.
+func decodeRequest(validator services.SchemaValidator, body io.Reader, schemaName string, target any) (map[string]bool, error) {
 	data, err := io.ReadAll(body)
 	if err != nil {
-		return &models.ValidationError{Message: "Request body could not be read."}
+		return nil, &models.ValidationError{Message: "Request body could not be read."}
 	}
 
 	if err := validator.Validate(data, schemaName); err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := json.Unmarshal(data, target); err != nil {
-		return &models.ValidationError{Message: "Request body must be valid JSON."}
+	// The schema reads 1.0 and 1e3 as integers, so whole numbers are rewritten before they reach int64 fields.
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var properties map[string]any
+	if err := decoder.Decode(&properties); err != nil {
+		return nil, err
+	}
+	normalized, err := json.Marshal(wholeNumbers(properties))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(normalized, target); err != nil {
+		return nil, &models.ValidationError{Message: err.Error()}
 	}
 
-	return nil
+	sent := make(map[string]bool, len(properties))
+	for name := range properties {
+		sent[name] = true
+	}
+	return sent, nil
+}
+
+func wholeNumbers(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		for key, item := range v {
+			v[key] = wholeNumbers(item)
+		}
+	case []any:
+		for index, item := range v {
+			v[index] = wholeNumbers(item)
+		}
+	case json.Number:
+		if number, err := v.Float64(); err == nil && number == math.Trunc(number) && math.Abs(number) < math.MaxInt64 {
+			return json.Number(strconv.FormatInt(int64(number), 10))
+		}
+	}
+	return value
 }
 {%- endif %}

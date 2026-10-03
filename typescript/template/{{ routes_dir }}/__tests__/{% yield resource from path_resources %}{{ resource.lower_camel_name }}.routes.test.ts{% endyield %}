@@ -13,7 +13,8 @@ import { MockFn, mockController } from '../../test/mocks';
 jest.unstable_mockModule('@config/container', () => ({ {{ c }}Controller: mockController() }));
 
 const mockId = '91ed1c70-5412-449a-b949-80542a4eb3d5';
-const mockBody = { name: 'mockName' };
+// Passed through a mocked controller, so its content does not matter.
+const mockBody = { any: 'body' };
 const mockUser = 'mockUser';
 let controller: Record<string, jest.Mock<MockFn>>;
 {% if cloud_service == 'GCP Cloud Function' %}

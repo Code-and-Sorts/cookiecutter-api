@@ -1,5 +1,8 @@
+{%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set client = resource.client_fields -%}
+{%- set extras = resource.fields | rejectattr("in_create") | selectattr("defaulted") | list -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Repository, StoreFactory } from '@repositories';
 import { MockFn, mockStore } from '../../test/mocks';
@@ -14,7 +17,7 @@ describe('{{ r }}Repository', () => {
     // Untyped view, since the base methods are protected.
     const base = mockRepository as unknown as Record<string, MockFn>;
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockFields = { name: 'mock{{ r }}' };
+    const mockFields = {{ sample_object(client) }};
     const mockRecord = {
         id: mockId,
         ...mockFields,
@@ -47,8 +50,17 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate create to the base repository', async () => {
         const spy = jest.spyOn(base, 'addRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.create(mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(await mockRepository.create(mockFields as never, 'mockUser')).toEqual(mockRecord);
+{%- if extras %}
+        expect(spy).toHaveBeenCalledWith({
+{%- for f in extras %}
+            {{ f.name }}: {{ "expect.any(String)" if f.dynamic else literal(f.default) }},
+{%- endfor %}
+            ...mockFields,
+        }, 'mockUser');
+{%- else %}
         expect(spy).toHaveBeenCalledWith(mockFields, 'mockUser');
+{%- endif %}
     });
 {%- endif %}
 {%- if "get_by_id" in ops %}
@@ -71,7 +83,7 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate update to the base repository', async () => {
         const spy = jest.spyOn(base, 'updateRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.update(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
+        expect(await mockRepository.update(mockId, mockFields as never, 'mockUser')).toEqual(mockRecord);
         expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 {%- endif %}
@@ -79,8 +91,8 @@ describe('{{ r }}Repository', () => {
 
     it('should delegate replace to the base repository', async () => {
         const spy = jest.spyOn(base, 'replaceRecord').mockResolvedValue(mockRecord);
-        expect(await mockRepository.replace(mockId, mockFields, 'mockUser')).toEqual(mockRecord);
-        expect(spy).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
+        expect(await mockRepository.replace(mockId, mockFields as never, 'mockUser')).toEqual(mockRecord);
+        expect(spy).toHaveBeenCalledWith(mockId, mockFields, {{ client | selectattr("in_replace") | map(attribute="name") | list | tojson }}, 'mockUser');
     });
 {%- endif %}
 {%- if "delete" in ops %}

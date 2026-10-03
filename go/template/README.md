@@ -72,7 +72,7 @@ Every response, including errors, is JSON (`Content-Type: application/json`).
 
 Each request has an 8-second deadline (`handlers.RequestTimeout`) that covers every database call and the SDK's retries, so an unreachable or failing database answers with the 500 above instead of hanging until the platform times out. A request that hits the deadline returns 500, but the write may still complete, so retrying a create can store a duplicate.
 
-An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be JSON objects: create (POST) and replace (PUT) require a non-empty string `name`; update (PATCH) accepts an optional non-empty string `name`. Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with a 400. List takes an optional `?limit=` (default 100, at most 1000; invalid values fall back to the default).
+Request bodies and responses follow the [data model](#data-model). List takes an optional `?limit=` (default 100, at most 1000; invalid values fall back to the default).
 
 Send an optional `X-User-Id` header on create, update, replace and delete to record who made the change: create stores it as `createdBy` and `updatedBy`, later writes set `updatedBy` (or remove it when the header is absent or blank) and never change `createdBy`. Surrounding whitespace is trimmed, and a value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}`. Reads ignore the header, and responses never include these fields. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 {%- if cloud_service == 'Azure Function App' %}
@@ -83,7 +83,7 @@ A method a resource does not enable never reaches the handler when the method is
 API Gateway answers a path or method that `template.yaml` does not map with its own `403 {"message":"Missing Authentication Token"}` before the Lambda function runs; the JSON 404 and 405 responses above apply to requests that reach the function.
 {%- endif %}
 
-Records are stored with `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTimestamp` (ISO-8601 UTC with milliseconds, for example `2026-09-29T22:49:26.625Z`), plus `createdBy`/`updatedBy` only when set. Delete is a soft delete: it sets `isDeleted` to `true`.
+Delete is a soft delete: it sets `isDeleted` to `true`.
 
 ### Logging
 
@@ -104,6 +104,8 @@ Resources that share a container share its records: there is no type discriminat
 > **Setting renames:** each container now has its own setting. {% if cloud_service == 'Azure Function App' %}`CosmosDbContainerName` is replaced by `CosmosDbContainerName_<Container>`{% elif cloud_service == 'GCP Cloud Function' %}`FIRESTORE_COLLECTION` is replaced by `FIRESTORE_COLLECTION_<CONTAINER>`{% else %}`DYNAMODB_TABLE_NAME` is replaced by `DYNAMODB_TABLE_NAME_<CONTAINER>`{% endif %}; the single-container setting is no longer read.
 
 Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ensuring a streamlined and consistent environment for managing Go packages and their dependencies.
+
+{% include 'shared/_README.model.md' %}
 
 ## Features
 {% if cloud_service == 'Azure Function App' %}

@@ -1,7 +1,7 @@
 """Direct access to the emulator, to read stored records and seed containers no resource can create in."""
 
-from datetime import UTC, datetime
-from typing import Protocol
+from decimal import Decimal
+from typing import Any, Protocol
 from uuid import uuid4
 
 import boto3
@@ -9,7 +9,8 @@ import httpx
 from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
-from project import Project
+from project import Project, Resource
+from values import EPOCH, full_record, timestamp
 
 # The endpoint and key settings each language's .env.emulator uses; .NET has a connection string instead.
 COSMOS_SETTINGS = {
@@ -17,8 +18,6 @@ COSMOS_SETTINGS = {
     "typescript": ("COSMOS_DB_URL", "COSMOS_DB_KEY"),
     "go": ("CosmosDbEndpoint", "CosmosDbKey"),
 }
-
-FIRESTORE_VALUE_TYPES = {str: "stringValue", bool: "booleanValue"}
 
 
 class Store(Protocol):
@@ -29,13 +28,10 @@ class Store(Protocol):
         """Writes the record as given, replacing any with the same id."""
 
 
-def timestamp() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-
-
-def new_record(name: str) -> dict:
-    now = timestamp()
-    return {"id": str(uuid4()), "name": name, "isDeleted": False, "createdTimestamp": now, "updatedTimestamp": now}
+def new_record(resource: Resource) -> dict:
+    """A live record holding a value for every client field, as the API would store it."""
+    now = timestamp(EPOCH)
+    return {"id": str(uuid4()), **full_record(resource), "isDeleted": False, "createdTimestamp": now, "updatedTimestamp": now}
 
 
 def open_store(project: Project) -> Store:
@@ -78,6 +74,29 @@ class CosmosStore:
         self._container(container).upsert_item(record)
 
 
+def _to_firestore(value: Any) -> dict:
+    if value is None:
+        return {"nullValue": None}
+    if isinstance(value, bool):
+        return {"booleanValue": value}
+    if isinstance(value, int):
+        return {"integerValue": str(value)}
+    if isinstance(value, float):
+        return {"doubleValue": value}
+    if isinstance(value, list):
+        return {"arrayValue": {"values": [_to_firestore(item) for item in value]}}
+    return {"stringValue": value}
+
+
+def _from_firestore(value: dict) -> Any:
+    (kind, inner), = value.items()
+    if kind == "integerValue":
+        return int(inner)
+    if kind == "arrayValue":
+        return [_from_firestore(item) for item in inner.get("values", [])]
+    return inner
+
+
 class FirestoreStore:
     def __init__(self, project: Project):
         env = project.env
@@ -94,11 +113,27 @@ class FirestoreStore:
         if response.status_code == 404:
             return None
         response.raise_for_status()
-        return {key: next(iter(value.values())) for key, value in response.json().get("fields", {}).items()}
+        return {key: _from_firestore(value) for key, value in response.json().get("fields", {}).items()}
 
     def put(self, container: str, record: dict) -> None:
-        fields = {key: {FIRESTORE_VALUE_TYPES[type(value)]: value} for key, value in record.items()}
+        fields = {key: _to_firestore(value) for key, value in record.items()}
         self._client.patch(f"/{container}/{record['id']}", json={"fields": fields}).raise_for_status()
+
+
+def _to_dynamodb(value: Any) -> Any:
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, list):
+        return [_to_dynamodb(item) for item in value]
+    return value
+
+
+def _from_dynamodb(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, list):
+        return [_from_dynamodb(item) for item in value]
+    return value
 
 
 class DynamoStore:
@@ -113,7 +148,8 @@ class DynamoStore:
         )
 
     def get(self, container: str, item_id: str) -> dict | None:
-        return self._dynamodb.Table(container).get_item(Key={"id": item_id}).get("Item")
+        item = self._dynamodb.Table(container).get_item(Key={"id": item_id}).get("Item")
+        return None if item is None else {key: _from_dynamodb(value) for key, value in item.items()}
 
     def put(self, container: str, record: dict) -> None:
-        self._dynamodb.Table(container).put_item(Item=record)
+        self._dynamodb.Table(container).put_item(Item={key: _to_dynamodb(value) for key, value in record.items()})

@@ -1,7 +1,8 @@
+{%- from 'shared/_fields.jinja' import sample_body_json -%}
 {%- set prefix = '/api' if cloud_service == 'Azure Function App' else '' -%}
 {%- set op_order = ['list', 'get_by_id', 'create', 'update', 'replace', 'delete'] -%}
 {%- set ns = namespace(requests=[]) -%}
-{%- for resource in resources -%}
+{%- for resource in path_resources -%}
 {%- for op in op_order if op in resource.operations -%}
 {%- set ns.requests = ns.requests + [(resource, op)] -%}
 {%- endfor -%}
@@ -72,16 +73,10 @@
             "created": "2024-08-10T20:26:15.998Z",
             "modified": "2024-08-10T20:42:41.531Z",
             "headers": [],
-{%- if op == 'create' %}
+{%- if op in ['create', 'update', 'replace'] %}
             "body": {
                 "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1\"\n}",
-                "form": []
-            },
-{%- elif op in ['update', 'replace'] %}
-            "body": {
-                "type": "json",
-                "raw": "{\n  \"name\": \"{{ resource.name }}1-{{ 'Update' if op == 'update' else 'Replace' }}\"\n}",
+                "raw": {{ sample_body_json(resource.client_fields | selectattr("in_" ~ op)) | tojson }},
                 "form": []
             },
 {%- endif %}

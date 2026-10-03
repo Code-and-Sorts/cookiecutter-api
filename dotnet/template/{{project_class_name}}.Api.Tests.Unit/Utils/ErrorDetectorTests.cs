@@ -17,7 +17,7 @@ public class ErrorDetectorTest
     {
         var exception = new InvalidOperationException("Secret SDK diagnostics");
 
-        var (statusCode, body) = ErrorDetector.Classify(exception, _logger);
+        var (statusCode, body) = ErrorDetector.Classify(exception, _logger, TestContext.Current.CancellationToken);
 
         Assert.Equal(500, statusCode);
         Assert.Equal("An unexpected error occurred.", body.ErrorMessage);
@@ -29,7 +29,7 @@ public class ErrorDetectorTest
     [Fact]
     public void Classify_WithNotFoundException_Returns404AndDoesNotLog()
     {
-        var (statusCode, body) = ErrorDetector.Classify(new NotFoundException("Item", "abc"), _logger);
+        var (statusCode, body) = ErrorDetector.Classify(new NotFoundException("Item", "abc"), _logger, TestContext.Current.CancellationToken);
 
         Assert.Equal(404, statusCode);
         Assert.Equal("Item with id abc was not found.", body.ErrorMessage);
@@ -39,7 +39,7 @@ public class ErrorDetectorTest
     [Fact]
     public void Classify_WithBadRequestException_Returns400AndDoesNotLog()
     {
-        var (statusCode, body) = ErrorDetector.Classify(new BadRequestException("Request body must be valid JSON."), _logger);
+        var (statusCode, body) = ErrorDetector.Classify(new BadRequestException("Request body must be valid JSON."), _logger, TestContext.Current.CancellationToken);
 
         Assert.Equal(400, statusCode);
         Assert.Equal("Request body must be valid JSON.", body.ErrorMessage);

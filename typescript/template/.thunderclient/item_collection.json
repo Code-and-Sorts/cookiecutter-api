@@ -1,3 +1,4 @@
+{%- from 'shared/_fields.jinja' import sample_body_json -%}
 {%- set col_id = '17bc9346-e6fe-4e42-8430-7ad3bb80da7b' -%}
 {%- macro request(n, name, url, method, status, body='', capture='', folder='') -%}
         {
@@ -14,7 +15,7 @@
 {%- if body %}
             "body": {
                 "type": "json",
-                "raw": "{{ body }}",
+                "raw": {{ body | tojson }},
                 "form": []
             },
 {%- endif %}
@@ -59,16 +60,17 @@
 {%- set ns.n = 1 %}
 {{ request(1, 'Health', '{{baseUrl}}/' ~ health_endpoint, 'GET', 200) }}
 {%- endif %}
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 {%- set url = '{{baseUrl}}/' ~ resource.endpoint %}
 {%- set item_url = url ~ '/{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
 {%- set id_var = (resource.name | to_lower_camel) ~ 'Id' %}
 {%- set folder = "00000000-0000-4000-9000-" ~ ('%012d' % loop.index) %}
+{%- set body_fields = resource.client_fields %}
 {%- if "create" in resource.operations %}
 {%- if ns.n %},{% endif %}{%- set ns.n = ns.n + 1 %}
-{{ request(ns.n, 'Create ' ~ resource.name, url, 'POST', 201, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1\\"\\n}', id_var, folder) }}
+{{ request(ns.n, 'Create ' ~ resource.name, url, 'POST', 201, sample_body_json(body_fields | selectattr('in_create')), id_var, folder) }}
 {%- set ns.n = ns.n + 1 %},
-{{ request(ns.n, 'Create ' ~ resource.name ~ ' without name (400)', url, 'POST', 400, '{}', folder=folder) }}
+{{ request(ns.n, 'Create ' ~ resource.name ~ ' with an unknown field (400)', url, 'POST', 400, '{"not_a_field": 1}', folder=folder) }}
 {%- endif %}
 {%- if "list" in resource.operations %}
 {%- if ns.n %},{% endif %}{%- set ns.n = ns.n + 1 %}
@@ -82,11 +84,11 @@
 {%- endif %}
 {%- if "update" in resource.operations %}
 {%- if ns.n %},{% endif %}{%- set ns.n = ns.n + 1 %}
-{{ request(ns.n, 'Update ' ~ resource.name, item_url, 'PATCH', 200, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1-Update\\"\\n}', folder=folder) }}
+{{ request(ns.n, 'Update ' ~ resource.name, item_url, 'PATCH', 200, sample_body_json(body_fields | selectattr('in_update')), folder=folder) }}
 {%- endif %}
 {%- if "replace" in resource.operations %}
 {%- if ns.n %},{% endif %}{%- set ns.n = ns.n + 1 %}
-{{ request(ns.n, 'Replace ' ~ resource.name, item_url, 'PUT', 200, '{\\n  \\"name\\": \\"' ~ resource.name ~ '1-Replace\\"\\n}', folder=folder) }}
+{{ request(ns.n, 'Replace ' ~ resource.name, item_url, 'PUT', 200, sample_body_json(body_fields | selectattr('in_replace')), folder=folder) }}
 {%- endif %}
 {%- if "delete" in resource.operations %}
 {%- if ns.n %},{% endif %}{%- set ns.n = ns.n + 1 %}

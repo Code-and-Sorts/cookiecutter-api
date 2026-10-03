@@ -1,0 +1,9 @@
+# expect: enum values must be unique
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: size, type: enum, values: [small, small]}

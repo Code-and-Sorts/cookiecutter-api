@@ -1,10 +1,13 @@
 {%- set all_ops = path_resources | map(attribute='operations') | sum(start=[]) | unique | list -%}
 {%- set need_get = path_resources | selectattr('has_item') | list | length > 0 -%}
-{%- set need_write = all_ops | select('in', ['create', 'update', 'replace', 'delete']) | list | length > 0 -%}
 {%- set need_one = all_ops | select('in', ['get_by_id', 'create', 'update', 'replace']) | list | length > 0 -%}
+{%- set need_save = all_ops | select('in', ['update', 'replace', 'delete']) | list | length > 0 -%}
 package repositories
 
 import (
+{%- if cloud_service == 'Azure Function App' and need_get %}
+	"bytes"
+{%- endif %}
 	"context"
 {%- if cloud_service == 'Azure Function App' %}
 	"encoding/json"
@@ -12,7 +15,16 @@ import (
 	"fmt"
 {%- endif %}
 {%- endif %}
+{%- if need_save or (cloud_service == 'GCP Cloud Function' and (need_get or 'list' in all_ops)) %}
+	"reflect"
+{%- endif %}
+{%- if need_save %}
+	"strings"
+{%- endif %}
 {% if cloud_service == 'Azure Function App' %}
+{%- if need_get %}
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+{%- endif %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- elif cloud_service == 'GCP Cloud Function' %}
 	"cloud.google.com/go/firestore"
@@ -26,7 +38,7 @@ import (
 {%- elif cloud_service == 'AWS Lambda' %}
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-{%- if 'list' in all_ops %}
+{%- if 'list' in all_ops or need_save %}
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 {%- endif %}
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -65,104 +77,225 @@ func newStore[T any, P record[T]](resource string, container Container) *store[T
 	return &store[T, P]{resource: resource, container: container}
 }
 {%- if need_get %}
+{%- if cloud_service == 'Azure Function App' %}
+
+// What writing a record back needs from reading it: the whole document, which may hold fields other resources in
+// the container store, and its ETag, so a write that races another fails instead of losing it.
+type document struct {
+	fields map[string]any
+	etag   azcore.ETag
+}
+{%- else %}
+
+type document struct{}
+{%- endif %}
+{%- if 'get_by_id' in all_ops %}
 
 func (s *store[T, P]) get(ctx context.Context, id string) (*T, error) {
+	item, _, err := s.load(ctx, id)
+	return item, err
+}
+{%- endif %}
+
+func (s *store[T, P]) load(ctx context.Context, id string) (*T, document, error) {
 	item := new(T)
+	var doc document
 {%- if cloud_service == 'Azure Function App' %}
 	resp, err := s.container.ReadItem(ctx, azcosmos.NewPartitionKeyString(id), id, nil)
 	if IsItemNotFound(err) {
-		return nil, models.NewNotFoundError(s.resource, id)
+		return nil, doc, models.NewNotFoundError(s.resource, id)
 	}
 	if err != nil {
-		return nil, err
+		return nil, doc, err
 	}
 	if err := json.Unmarshal(resp.Value, item); err != nil {
-		return nil, err
+		return nil, doc, err
 	}
+	decoder := json.NewDecoder(bytes.NewReader(resp.Value))
+	decoder.UseNumber()
+	if err := decoder.Decode(&doc.fields); err != nil {
+		return nil, doc, err
+	}
+	doc.etag = resp.ETag
 {%- elif cloud_service == 'GCP Cloud Function' %}
-	doc, err := s.container.Doc(id).Get(ctx)
+	snapshot, err := s.container.Doc(id).Get(ctx)
 	if status.Code(err) == codes.NotFound {
-		return nil, models.NewNotFoundError(s.resource, id)
+		return nil, doc, models.NewNotFoundError(s.resource, id)
 	}
 	if err != nil {
-		return nil, err
+		return nil, doc, err
 	}
-	if err := doc.DataTo(item); err != nil {
-		return nil, err
+	if err := snapshot.DataTo(item); err != nil {
+		return nil, doc, err
 	}
+	keepEmptyLists(item)
 {%- elif cloud_service == 'AWS Lambda' %}
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
-		return nil, err
+		return nil, doc, err
 	}
 	resp, err := s.container.Client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(s.container.TableName),
 		Key:       key,
 	})
 	if err != nil {
-		return nil, err
+		return nil, doc, err
 	}
 	if resp.Item == nil {
-		return nil, models.NewNotFoundError(s.resource, id)
+		return nil, doc, models.NewNotFoundError(s.resource, id)
 	}
 	if err := attributevalue.UnmarshalMap(resp.Item, item); err != nil {
-		return nil, err
+		return nil, doc, err
 	}
 {%- endif %}
 
 	if P(item).Base().IsDeleted {
-		return nil, models.NewNotFoundError(s.resource, id)
+		return nil, doc, models.NewNotFoundError(s.resource, id)
 	}
-	return item, nil
+	return item, doc, nil
 }
 {%- endif %}
-{%- if need_write %}
+{%- if cloud_service == 'GCP Cloud Function' and (need_get or 'list' in all_ops) %}
+
+// Firestore reads a stored empty array into a nil slice, which would read as missing and be written back as null.
+func keepEmptyLists(record any) {
+	value := reflect.ValueOf(record).Elem()
+	for i := range value.NumField() {
+		field := value.Field(i)
+		switch {
+		case field.Kind() == reflect.Struct:
+			keepEmptyLists(field.Addr().Interface())
+		case field.Kind() == reflect.Pointer && !field.IsNil() && field.Elem().Kind() == reflect.Slice && field.Elem().IsNil():
+			field.Elem().Set(reflect.MakeSlice(field.Elem().Type(), 0, 0))
+		}
+	}
+}
+{%- endif %}
+{%- if 'create' in all_ops %}
 {%- if cloud_service == 'Azure Function App' %}
 
 // The SDK returns no body unless EnableContentResponseOnWrite is set, so callers respond with the item they wrote.
-func (s *store[T, P]) write(ctx context.Context, item *T, create bool) error {
+func (s *store[T, P]) insert(ctx context.Context, item *T) error {
 	data, err := json.Marshal(item)
 	if err != nil {
 		return err
 	}
-
-	id := P(item).Base().Id
-	pk := azcosmos.NewPartitionKeyString(id)
-	if create {
-		_, err = s.container.CreateItem(ctx, pk, data, nil)
-	} else {
-		_, err = s.container.ReplaceItem(ctx, pk, id, data, nil)
-	}
+	_, err = s.container.CreateItem(ctx, azcosmos.NewPartitionKeyString(P(item).Base().Id), data, nil)
 	return err
 }
 {%- elif cloud_service == 'GCP Cloud Function' %}
 
-func (s *store[T, P]) write(ctx context.Context, item *T, create bool) error {
-	doc := s.container.Doc(P(item).Base().Id)
-	var err error
-	if create {
-		_, err = doc.Create(ctx, item)
-	} else {
-		_, err = doc.Set(ctx, item)
-	}
+func (s *store[T, P]) insert(ctx context.Context, item *T) error {
+	_, err := s.container.Doc(P(item).Base().Id).Create(ctx, item)
 	return err
 }
 {%- elif cloud_service == 'AWS Lambda' %}
 
-func (s *store[T, P]) write(ctx context.Context, item *T, create bool) error {
+func (s *store[T, P]) insert(ctx context.Context, item *T) error {
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
 		return err
 	}
+	_, err = s.container.Client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:           aws.String(s.container.TableName),
+		Item:                av,
+		ConditionExpression: aws.String("attribute_not_exists(id)"),
+	})
+	return err
+}
+{%- endif %}
+{%- endif %}
+{%- if need_save %}
 
-	input := &dynamodb.PutItemInput{
-		TableName: aws.String(s.container.TableName),
-		Item:      av,
+type storedField struct {
+	name  string
+	value any
+}
+
+// A record's stored fields by name; a field that omitempty leaves out has a nil value, so a write removes it.
+func storedFields(record reflect.Value) []storedField {
+	var fields []storedField
+	for i := range record.NumField() {
+		field, info := record.Field(i), record.Type().Field(i)
+		if info.Anonymous {
+			fields = append(fields, storedFields(field)...)
+			continue
+		}
+		name, options, _ := strings.Cut(info.Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		var value any
+		if !strings.Contains(options, "omitempty") || !field.IsZero() {
+			value = field.Interface()
+		}
+		fields = append(fields, storedField{name: name, value: value})
 	}
-	if create {
-		input.ConditionExpression = aws.String("attribute_not_exists(id)")
+	return fields
+}
+{%- if cloud_service == 'Azure Function App' %}
+
+func (s *store[T, P]) save(ctx context.Context, item *T, doc document) error {
+	for _, field := range storedFields(reflect.ValueOf(item).Elem()) {
+		if field.value == nil {
+			delete(doc.fields, field.name)
+		} else {
+			doc.fields[field.name] = field.value
+		}
 	}
-	_, err = s.container.Client.PutItem(ctx, input)
+	data, err := json.Marshal(doc.fields)
+	if err != nil {
+		return err
+	}
+	id := P(item).Base().Id
+	_, err = s.container.ReplaceItem(ctx, azcosmos.NewPartitionKeyString(id), id, data, &azcosmos.ItemOptions{IfMatchEtag: &doc.etag})
+	return err
+}
+{%- elif cloud_service == 'GCP Cloud Function' %}
+
+// Resources sharing the collection may store fields this type does not know, so the write updates only its own.
+func (s *store[T, P]) save(ctx context.Context, item *T, _ document) error {
+	var updates []firestore.Update
+	for _, field := range storedFields(reflect.ValueOf(item).Elem()) {
+		value := field.value
+		if value == nil {
+			value = firestore.Delete
+		}
+		updates = append(updates, firestore.Update{Path: field.name, Value: value})
+	}
+	_, err := s.container.Doc(P(item).Base().Id).Update(ctx, updates)
+	return err
+}
+{%- elif cloud_service == 'AWS Lambda' %}
+
+// Resources sharing the table may store fields this type does not know, so the write updates only its own.
+func (s *store[T, P]) save(ctx context.Context, item *T, _ document) error {
+	var update expression.UpdateBuilder
+	for _, field := range storedFields(reflect.ValueOf(item).Elem()) {
+		switch {
+		case field.name == "id":
+		case field.value == nil:
+			update = update.Remove(expression.Name(field.name))
+		default:
+			update = update.Set(expression.Name(field.name), expression.Value(field.value))
+		}
+	}
+	expr, err := expression.NewBuilder().WithUpdate(update).WithCondition(expression.AttributeExists(expression.Name("id"))).Build()
+	if err != nil {
+		return err
+	}
+	key, err := attributevalue.MarshalMap(map[string]string{"id": P(item).Base().Id})
+	if err != nil {
+		return err
+	}
+	_, err = s.container.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:                 aws.String(s.container.TableName),
+		Key:                       key,
+		UpdateExpression:          expr.Update(),
+		ConditionExpression:       expr.Condition(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+	})
 	return err
 }
 {%- endif %}
@@ -206,6 +339,7 @@ func (s *store[T, P]) list(ctx context.Context, limit int) ([]T, error) {
 		if err := doc.DataTo(&item); err != nil {
 			return nil, err
 		}
+		keepEmptyLists(&item)
 		results = append(results, item)
 	}
 {%- elif cloud_service == 'AWS Lambda' %}
@@ -254,16 +388,16 @@ func (s *store[T, P]) list(ctx context.Context, limit int) ([]T, error) {
 
 func (s *store[T, P]) create(ctx context.Context, item *T, userID string) (*T, error) {
 	P(item).Base().StampCreate(userID)
-	if err := s.write(ctx, item, true); err != nil {
+	if err := s.insert(ctx, item); err != nil {
 		return nil, err
 	}
 	return item, nil
 }
 {%- endif %}
-{%- if 'update' in all_ops %}
+{%- if 'update' in all_ops or 'replace' in all_ops %}
 
 func (s *store[T, P]) update(ctx context.Context, id, userID string, merge func(stored *T)) (*T, error) {
-	stored, err := s.get(ctx, id)
+	stored, doc, err := s.load(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -271,39 +405,17 @@ func (s *store[T, P]) update(ctx context.Context, id, userID string, merge func(
 	merge(stored)
 	P(stored).Base().StampWrite(userID)
 
-	if err := s.write(ctx, stored, false); err != nil {
+	if err := s.save(ctx, stored, doc); err != nil {
 		return nil, err
 	}
 	return stored, nil
 }
 {%- endif %}
-{%- if 'replace' in all_ops %}
 
-func (s *store[T, P]) replace(ctx context.Context, replacement *T, userID string) (*T, error) {
-	base := P(replacement).Base()
-	current, err := s.get(ctx, base.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	kept := P(current).Base()
-	*base = models.BaseEntity{
-		Id:               kept.Id,
-		CreatedTimestamp: kept.CreatedTimestamp,
-		CreatedBy:        kept.CreatedBy,
-	}
-	base.StampWrite(userID)
-
-	if err := s.write(ctx, replacement, false); err != nil {
-		return nil, err
-	}
-	return replacement, nil
-}
-{%- endif %}
 {%- if 'delete' in all_ops %}
 
 func (s *store[T, P]) softDelete(ctx context.Context, id, userID string) error {
-	item, err := s.get(ctx, id)
+	item, doc, err := s.load(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -311,7 +423,7 @@ func (s *store[T, P]) softDelete(ctx context.Context, id, userID string) error {
 	base := P(item).Base()
 	base.IsDeleted = true
 	base.StampWrite(userID)
-	return s.write(ctx, item, false)
+	return s.save(ctx, item, doc)
 }
 {%- endif %}
 {%- if need_one %}

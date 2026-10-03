@@ -2,6 +2,8 @@
 {%- set slug = r | to_snake -%}
 {%- set ops = resource.operations -%}
 {%- from 'python/_macros.jinja' import model_names -%}
+{%- from 'python/_model.jinja' import sample_dict -%}
+{%- set client = resource.client_fields -%}
 {%- set models = model_names(resource) -%}
 import asyncio
 import pytest
@@ -15,8 +17,8 @@ from conftest import ITEM_ID
 {%- if models %}
 
 _responses = [
-    {{ r }}Response(id=ITEM_ID, name="mockName1"),
-    {{ r }}Response(id="de6cbc87-5969-458c-8444-3512a82250bc", name="mockName2"),
+    {{ r }}Response(id=ITEM_ID, **{{ sample_dict(client | rejectattr("hidden")) }}),
+    {{ r }}Response(id="de6cbc87-5969-458c-8444-3512a82250bc"),
 ]
 {%- endif %}
 
@@ -54,7 +56,7 @@ def describe_{{ slug }}_service():
 
     def describe_create():
         def test_calls_repository(service, mock_repository):
-            item = Base{{ r }}(name="mockName1")
+            item = {{ r }}CreateRequest(**{{ sample_dict(client | selectattr("in_create")) }})
             assert asyncio.run(service.create(item, "user-1")) == _responses[0]
             mock_repository.create.assert_awaited_once_with(item, "user-1")
 {%- endif %}
@@ -62,7 +64,7 @@ def describe_{{ slug }}_service():
 
     def describe_update():
         def test_calls_repository(service, mock_repository):
-            changes = {{ r }}Update(name="mockName1")
+            changes = {{ r }}UpdateRequest(**{{ sample_dict(client | selectattr("in_update")) }})
             assert asyncio.run(service.update(ITEM_ID, changes, "user-1")) == _responses[0]
             mock_repository.update.assert_awaited_once_with(ITEM_ID, changes, "user-1")
 {%- endif %}
@@ -70,7 +72,7 @@ def describe_{{ slug }}_service():
 
     def describe_replace():
         def test_calls_repository(service, mock_repository):
-            item = Base{{ r }}(name="mockName1")
+            item = {{ r }}ReplaceRequest(**{{ sample_dict(client | selectattr("in_replace")) }})
             assert asyncio.run(service.replace(ITEM_ID, item, "user-1")) == _responses[0]
             mock_repository.replace.assert_awaited_once_with(ITEM_ID, item, "user-1")
 {%- endif %}

@@ -1,0 +1,7 @@
+# expect: base: false (opting out of base_model) is not supported yet
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    base: false

@@ -1,0 +1,9 @@
+# expect: default must be at most 3 characters long
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: fur, type: string, default: grey, rules: {max_length: 3}}

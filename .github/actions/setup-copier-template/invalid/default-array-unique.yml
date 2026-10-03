@@ -1,0 +1,9 @@
+# expect: default must not repeat an item
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: tags, type: array, items: string, default: [a, a], rules: {unique_items: true}}

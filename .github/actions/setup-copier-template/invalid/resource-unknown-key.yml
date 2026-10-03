@@ -1,0 +1,7 @@
+# expect: has an unknown key 'colour'
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    colour: grey

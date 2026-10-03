@@ -1,0 +1,142 @@
+{#- Renders base_fields and resource fields as Zod schemas. Never copied into a project. -#}
+{%- from 'shared/_fields.jinja' import PORTABLE, rewrite_pattern, string_literal -%}
+{%- set DYNAMIC_DEFAULTS = {"now": "nowIso", "today": "todayIso", "uuid": "newId"} -%}
+{%- set ITEM_SCHEMAS = {"string": "z.string()", "integer": "z.int()", "number": "z.number()", "boolean": "z.boolean()", "date": "dateSchema", "date-time": "dateTimeSchema", "uuid": "uuidSchema"} -%}
+
+{%- macro literal(value) -%}
+{%- if value is string -%}{{ string_literal(value) }}
+{%- elif value is not none and value is iterable -%}[{% for item in value %}{{ literal(item) }}{{ ", " if not loop.last }}{% endfor %}]
+{%- else -%}{{ value | tojson }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The schema of a field's value, without null, a default or optionality. -#}
+{%- macro value_schema(f) -%}
+{%- set rules = f.rules -%}
+{%- if f.type == "string" -%}
+z.string()
+{%- if rules.min_length is defined %}.min({{ rules.min_length }}){% endif -%}
+{%- if rules.max_length is defined %}.max({{ rules.max_length }}){% endif -%}
+{%- if rules.pattern is defined %}.regex(new RegExp({{ string_literal(rewrite_pattern(rules.pattern, PORTABLE)) }}, 'u')){% endif -%}
+{%- if rules.format == "email" %}.regex(EMAIL_PATTERN, 'must be an email address'){% endif -%}
+{%- if rules.format == "uri" %}.regex(URI_PATTERN, 'must be an absolute URI'){% endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{{ ITEM_SCHEMAS[f.type] }}
+{%- for rule, method in [("minimum", "gte"), ("exclusive_minimum", "gt"), ("maximum", "lte"), ("exclusive_maximum", "lt")] if rules[rule] is defined %}.{{ method }}({{ rules[rule] }}){% endfor -%}
+{%- elif f.type == "enum" -%}
+z.enum({{ f.enum_values | tojson }})
+{%- elif f.type == "array" -%}
+z.array({{ ITEM_SCHEMAS[f.item_type] }})
+{%- if rules.min_items is defined %}.min({{ rules.min_items }}){% endif -%}
+{%- if rules.max_items is defined %}.max({{ rules.max_items }}){% endif -%}
+{%- if rules.unique_items %}.refine(hasUniqueItems, 'must not repeat an item'){% endif -%}
+{%- else -%}
+{{ ITEM_SCHEMAS[f.type] }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro default_expression(f) -%}
+{%- if f.dynamic -%}{{ DYNAMIC_DEFAULTS[f.dynamic] }}
+{%- elif f.default is not none and f.default is not string and f.default is iterable -%}() => {{ literal(f.default) }}
+{%- else -%}{{ literal(f.default) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A request body field: create and replace apply defaults, update leaves an absent field out. -#}
+{%- macro request_schema(f, op) -%}
+{{ value_schema(f) }}{{ ".nullable()" if f.nullable }}
+{%- if op == "update" or (not f.required and not f.has_default) %}.optional()
+{%- elif f.has_default %}.default({{ default_expression(f) }})
+{%- endif -%}
+{%- endmacro -%}
+
+{#- What a create stores for a field its body does not accept. -#}
+{%- macro default_value(f) -%}
+{%- if f.dynamic %}{{ DYNAMIC_DEFAULTS[f.dynamic] }}(){% else %}{{ literal(f.default) }}{% endif -%}
+{%- endmacro -%}
+
+{%- set TS_TYPES = {"string": "string", "integer": "number", "number": "number", "boolean": "boolean", "date": "string", "date-time": "string", "uuid": "string"} -%}
+
+{%- macro ts_type(f) -%}
+{%- if f.type == "enum" -%}{% for value in f.enum_values %}'{{ value }}'{{ " | " if not loop.last }}{% endfor %}
+{%- elif f.type == "array" -%}{{ TS_TYPES[f.item_type] }}[]
+{%- else -%}{{ TS_TYPES[f.type] }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A stored record may lack any client field; the server sets the system fields, createdBy and updatedBy only when known. -#}
+{%- macro entity_property(f) -%}
+{%- if f.system -%}{{ f.name }}{{ "?" if not f.required }}: {{ ts_type(f) }}
+{%- else -%}{{ f.name }}?: {{ ts_type(f) }} | null
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro response_property(f) -%}
+{{ f.name }}: {{ ts_type(f) }}{{ " | null" if not f.system }}
+{%- endmacro -%}
+
+{#- A response value; a record without the field reads as its static default (nullable fields as null). -#}
+{%- macro read_value(f) -%}
+record.{{ f.name }}{% if not f.system %} ?? {{ literal(f.read_default) }}{% endif %}
+{%- endmacro -%}
+
+{#- An object type of properties, or base alone when there are none. -#}
+{%- macro object_type(base, properties) -%}
+{%- if base and not properties %}{{ base }}
+{%- else %}{{ (base ~ " & ") if base }}{
+{%- for property in properties %}
+    {{ property }};
+{%- endfor %}
+}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A model's types: the stored record, a strict request schema per body kind, and the response with its mapping;
+    a resource model extends the Base model's types. -#}
+{%- macro model_types(name, entity, fields, kinds) -%}
+{%- set extends = name != "Base" -%}
+{%- set shown = fields | rejectattr("hidden") | list -%}
+{%- set entity_properties = [] -%}
+{%- for f in fields %}{% set _ = entity_properties.append(("/** " ~ (f.description | replace("*/", "* /")) ~ " */\n    " if f.description else "") ~ entity_property(f)) %}{% endfor -%}
+{%- set response_properties = [] -%}
+{%- for f in shown %}{% set _ = response_properties.append(response_property(f)) %}{% endfor -%}
+export type {{ entity }} = {{ object_type("BaseEntity" if extends else "", entity_properties) }};
+{%- for op, kind in kinds %}
+{%- set schema = name ~ kind ~ "RequestSchema" %}
+
+{% if op == "update" %}// Fields an update leaves out stay unchanged, so it applies no defaults.
+{% endif %}export const {{ schema }} = {{ ("Base" ~ kind ~ "RequestSchema.extend") if extends else "z.strictObject" }}({
+{%- for f in fields | selectattr("in_" ~ op) %}
+    {{ f.name }}: {{ request_schema(f, op) }},
+{%- endfor %}
+});
+
+export type {{ name }}{{ kind }}Request = z.infer<typeof {{ schema }}>;
+{%- endfor %}
+
+export type {{ name }}Response = {{ object_type("BaseResponse" if extends else "", response_properties) }};
+
+export const to{{ name }}Response = (record: {{ entity }}): {{ name }}Response => ({
+{%- if extends %}
+    ...toBaseResponse(record),
+{%- endif %}
+{%- for f in shown %}
+    {{ f.name }}: {{ read_value(f) }},
+{%- endfor %}
+});
+{%- endmacro -%}
+
+{#- The value imports a models module needs, given its rendered body. -#}
+{%- macro field_imports(body) -%}
+{%- set used = namespace(fields=[], clock=[]) -%}
+{%- for name in ["EMAIL_PATTERN", "URI_PATTERN", "dateSchema", "dateTimeSchema", "hasUniqueItems", "uuidSchema"] if body | regex_search("\\b" ~ name ~ "\\b") %}{% set used.fields = used.fields + [name] %}{% endfor -%}
+{%- for name in ["newId", "nowIso", "todayIso"] if body | regex_search("\\b" ~ name ~ "\\b") %}{% set used.clock = used.clock + [name] %}{% endfor -%}
+{%- if used.fields %}import { {{ used.fields | join(", ") }} } from './fields.schema';
+{% endif -%}
+{%- if used.clock %}import { {{ used.clock | join(", ") }} } from '../../utils/clock.util';
+{% endif -%}
+{%- endmacro -%}
+
+{%- macro sample_object(fields) -%}
+{ {%- for f in fields %}{{ " " if loop.first }}{{ f.name }}: {{ literal(f.sample) }}{{ ", " if not loop.last else " " }}{% endfor -%} }
+{%- endmacro -%}

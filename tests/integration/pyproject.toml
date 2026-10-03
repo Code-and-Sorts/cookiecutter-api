@@ -7,6 +7,9 @@ dependencies = [
     "boto3>=1.43.107,<2",
     "httpx>=0.28.1,<0.29",
     "pytest>=9.1.1,<10",
+    "jinja2>=3.1.6,<4",
+    "jinja2-ansible-filters>=1.3.2,<2",
+    "jinja2-strcase>=0.0.2,<0.1",
     "pyyaml>=6.0.3,<7",
 ]
 
@@ -23,6 +26,7 @@ addopts = "-ra --strict-markers"
 markers = [
     "ops(*operations): run once per resource that enables every listed operation",
     "each_operation(*operations): run once per resource and listed operation it enables",
+    "fields(kind): run once per field case of that kind (invalid, required, refused, nullable, date_time, hidden)",
 ]
 
 [tool.ruff]

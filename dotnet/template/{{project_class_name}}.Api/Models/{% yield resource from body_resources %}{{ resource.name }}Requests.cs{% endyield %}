@@ -1,23 +1,35 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'dotnet/_model.jinja' import assignments, csharp_file, default_value, properties, usings with context -%}
 {%- set r = resource.name -%}
-{%- set request_ops = [('create', 'Create'), ('update', 'Update'), ('replace', 'Replace')] | selectattr(0, 'in', resource.operations) | list -%}
-namespace {{project_class_name}}.Api.Requests;
+{%- set fields = resource.fields -%}
+{%- set body %}
+{%- for op, Op in REQUEST_KINDS if op in resource.operations %}
+{%- set op_fields = fields | selectattr("in_" ~ op) | list %}
 
-using System.Text.Json.Serialization;
-
-// RequestBody rejects fields without [JsonPropertyName], so clients can never set ids or system fields.
-{%- for op, prefix in request_ops %}
-
-public class {{ prefix }}{{ r }}Request
+public class {{ Op }}{{ r }}Request : Base{{ Op }}Request
 {
-{%- if op != 'create' %}
-    [JsonIgnore]
-    public string Id { get; set; } = default!;
+{{- properties(op_fields, op) }}
+{%- if op_fields %}
 {% endif %}
-    [JsonPropertyName("name")]
-{%- if op == 'update' %}
-    public string? Name { get; set; }
+{%- if op == "create" %}
+    public {{ r }}Entity ToEntity()
+    {
+        var item = new {{ r }}Entity();
+        ApplyTo(item);
+{{- assignments(op_fields, op, "item") }}
+{%- for f in fields if not f.in_create and (f.dynamic or f.default is not none) %}
+        item.{{ f.pascal }} = {{ default_value(f) }};
+{%- endfor %}
+        return item;
+    }
 {%- else %}
-    public string Name { get; set; } = default!;
+    public void ApplyTo({{ r }}Entity item)
+    {
+        base.ApplyTo(item);
+{{- assignments(op_fields, op, "item") }}
+    }
 {%- endif %}
 }
 {%- endfor %}
+{%- endset -%}
+{{ csharp_file("Requests", usings("request", fields, resource.operations), body) }}

@@ -1,20 +1,9 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'typescript/_model.jinja' import field_imports, model_types -%}
+{%- set body %}
+export type SystemField = {% for f in base_fields | selectattr("system") %}'{{ f.name }}'{{ " | " if not loop.last }}{% endfor %};
+
+{{ model_types("Base", "BaseEntity", base_fields, REQUEST_KINDS) }}
+{%- endset -%}
 import { z } from 'zod';
-
-export const BaseIdentifier = z.object({
-    id: z.string(),
-});
-
-export const BaseSchema = BaseIdentifier.extend({
-    isDeleted: z.boolean(),
-    createdTimestamp: z.string(),
-    updatedTimestamp: z.string(),
-    createdBy: z.string().optional(),
-    updatedBy: z.string().optional(),
-});
-
-export type BaseItemRecord = z.infer<typeof BaseSchema>;
-
-export const responseMapper =
-    <R>(schema: z.ZodType<R>) =>
-    (record: BaseItemRecord): R =>
-        schema.parse(record);
+{{ field_imports(body) }}{{ body }}

@@ -1,0 +1,65 @@
+name: Template Checks
+
+# Checks of the Copier answers and the model rendering that need no generated build: every invalid
+# answers file is rejected with its message, leaving out default answers renders the same project,
+# and every language renders the same base types.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - copier.yml
+      - shared/**
+      - python/**
+      - typescript/**
+      - dotnet/**
+      - go/**
+      - .github/scripts/**
+      - .github/actions/setup-copier-template/**
+      - tests/integration/project.py
+      - .github/workflows/template-checks.yaml
+  pull_request:
+    paths:
+      - copier.yml
+      - shared/**
+      - python/**
+      - typescript/**
+      - dotnet/**
+      - go/**
+      - .github/scripts/**
+      - .github/actions/setup-copier-template/**
+      - tests/integration/project.py
+      - .github/workflows/template-checks.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.check.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - name: Invalid answers are rejected
+            script: check_invalid_answers.py
+          - name: Default answers render the same project
+            script: defaults_guard.py
+          - name: Base types match across languages
+            script: base_consistency.py
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install Copier
+        run: pip install copier jinja2-strcase jinja2-time pyyaml
+
+      - name: Run ${{ matrix.check.script }}
+        run: python .github/scripts/${{ matrix.check.script }}

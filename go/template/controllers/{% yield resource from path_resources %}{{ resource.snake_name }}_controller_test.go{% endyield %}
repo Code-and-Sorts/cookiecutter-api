@@ -1,12 +1,19 @@
+{%- from 'go/_model.jinja' import json_string, sample_body -%}
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES -%}
 {%- set r = resource.name -%}
+{%- set lc = resource.lower_camel_name -%}
 {%- set ops = resource.operations -%}
 {%- set uses_body = resource.has_body -%}
 {%- set uses_id = resource.has_item -%}
+{%- set client = resource.client_fields -%}
+{%- macro call(op, body, user="") -%}
+controller.{{ op | capitalize }}(context.Background(), {% if op != "create" %}test{{ resource.name }}ID, {% endif %}"{{ user }}", strings.NewReader({{ body }}))
+{%- endmacro -%}
 package controllers
 
 import (
 	"context"
-{%- if "list" in ops %}
+{%- if uses_body or "list" in ops %}
 	"encoding/json"
 {%- endif %}
 {%- if "list" in ops or "create" in ops or "delete" in ops %}
@@ -56,36 +63,16 @@ func (m *Mock{{ r }}Service) GetList(ctx context.Context, limit int) ([]models.{
 	return args.Get(0).([]models.{{ r }}Dto), args.Error(1)
 }
 {%- endif %}
-{%- if "create" in ops %}
+{%- for op in ["create", "update", "replace"] if op in ops %}
 
-func (m *Mock{{ r }}Service) Create(ctx context.Context, req models.Create{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
+func (m *Mock{{ r }}Service) {{ op | capitalize }}(ctx context.Context, req models.{{ op | capitalize }}{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
 	args := m.Called(ctx, req, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
 }
-{%- endif %}
-{%- if "update" in ops %}
-
-func (m *Mock{{ r }}Service) Update(ctx context.Context, req models.Update{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, req, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
-}
-{%- endif %}
-{%- if "replace" in ops %}
-
-func (m *Mock{{ r }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
-	args := m.Called(ctx, req, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.{{ r }}Dto), args.Error(1)
-}
-{%- endif %}
+{%- endfor %}
 {%- if "delete" in ops %}
 
 func (m *Mock{{ r }}Service) Delete(ctx context.Context, id, userID string) error {
@@ -98,7 +85,12 @@ func newTest{{ r }}Controller(mockService *Mock{{ r }}Service) {{ r }}Controller
 	validator, _ := services.NewSchemaValidator(RequestSchemas())
 	return New{{ r }}Controller(mockService, validator)
 }
+{%- if resource.has_dto %}
 
+func test{{ r }}Dto() *models.{{ r }}Dto {
+	return &models.{{ r }}Dto{BaseResponse: models.BaseResponse{Id: test{{ r }}ID}}
+}
+{%- endif %}
 {%- if uses_id %}
 
 func assert{{ r }}NotFound(t *testing.T, err error) {
@@ -115,13 +107,22 @@ func assert{{ r }}BadRequest(t *testing.T, err error) {
 	t.Helper()
 	assert.ErrorAs(t, err, new(*models.ValidationError))
 }
+
+var rejected{{ r }}Values = [][2]string{
+{%- for f in client %}
+{%- for value in f.rejected %}
+	{"{{ f.name }}", {{ json_string(value) }}},
+{%- endfor %}
+{%- endfor %}
+{%- if client %}
+{% endif %}}
 {%- endif %}
 {%- if "get_by_id" in ops %}
 
 func TestGet{{ r }}_Returns{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
-	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mock{{ r }}"}
+	expected := test{{ r }}Dto()
 	mockService.On("Get", mock.Anything, test{{ r }}ID).Return(expected, nil)
 
 	result, err := controller.Get(context.Background(), test{{ r }}ID)
@@ -146,10 +147,7 @@ func TestGet{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 func TestGet{{ r }}List_ReturnsListOf{{ r }}Dto(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
-	expected := []models.{{ r }}Dto{
-		{Id: test{{ r }}ID, Name: "mock{{ r }}1"},
-		{Id: "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name: "mock{{ r }}2"},
-	}
+	expected := []models.{{ r }}Dto{*test{{ r }}Dto()}
 	mockService.On("GetList", mock.Anything, DefaultListLimit).Return(expected, nil)
 
 	result, err := controller.GetList(context.Background(), 0)
@@ -192,47 +190,140 @@ func TestGet{{ r }}List_ReturnsServiceError(t *testing.T) {
 	assert.EqualError(t, err, "boom")
 }
 {%- endif %}
-{%- if "create" in ops %}
+{%- for op in ["create", "update", "replace"] if op in ops %}
+{%- set Op = op | capitalize %}
+{%- set accepted = client | selectattr("in_" ~ op) | list %}
+{%- set refused = client | rejectattr("in_" ~ op) | list %}
+{%- set required = accepted | selectattr("needs_value") | list if op != "update" else [] %}
 
-func TestCreate{{ r }}_ReturnsCreated{{ r }}Dto(t *testing.T) {
+const valid{{ r }}{{ Op }}Body = {{ sample_body(accepted) }}
+
+func Test{{ Op }}{{ r }}_PassesTheValidatedRequest(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
-	createReq := models.Create{{ r }}Request{Name: "mockCreate{{ r }}"}
-	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockCreate{{ r }}"}
-	mockService.On("Create", mock.Anything, createReq, "alice").Return(expected, nil)
+	expected := test{{ r }}Dto()
+	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "alice").Return(expected, nil)
 
-	result, err := controller.Create(context.Background(), "alice", strings.NewReader(`{"name": "mockCreate{{ r }}"}`))
+	result, err := {{ call(op, "valid" ~ r ~ Op ~ "Body", "alice") }}
 
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "Create", mock.Anything, createReq, "alice")
+	req := mockService.Calls[0].Arguments.Get(1).(models.{{ Op }}{{ r }}Request)
+{%- if op != "create" %}
+	assert.Equal(t, test{{ r }}ID, req.Id)
+{%- endif %}
+	data, _ := json.Marshal(requestProperties(t, req))
+	assert.JSONEq(t, valid{{ r }}{{ Op }}Body, string(data))
+{%- if op == "update" %}
+	assert.Len(t, req.Sent, {{ accepted | length }})
+{%- endif %}
 }
+{%- if op == "update" %}
 
-func TestCreate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
-	bodies := map[string]string{
-		"empty name":     `{"name": ""}`,
-		"missing name":   `{}`,
-		"number name":    `{"name": 5}`,
-		"malformed JSON": `invalid json`,
-		"array body":     `[]`,
-		"unknown field":  `{"name": "a", "color": "red"}`,
-		"client id":      `{"name": "a", "id": "` + test{{ r }}ID + `"}`,
-		"system field":   `{"name": "a", "createdBy": "someone"}`,
-	}
+func TestUpdate{{ r }}_LeavesFieldsTheBodyOmits(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("Update", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
 
-	for name, body := range bodies {
-		t.Run(name, func(t *testing.T) {
+	_, err := {{ call(op, "`{}`") }}
+
+	assert.NoError(t, err)
+	req := mockService.Calls[0].Arguments.Get(1).(models.Update{{ r }}Request)
+	assert.Empty(t, req.Sent)
+}
+{%- for f in accepted if f.nullable %}
+
+func TestUpdate{{ r }}_NullClears{{ f.pascal }}(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("Update", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
+
+	_, err := {{ call(op, '`{"' ~ f.name ~ '": null}`') }}
+
+	assert.NoError(t, err)
+	req := mockService.Calls[0].Arguments.Get(1).(models.Update{{ r }}Request)
+	assert.True(t, req.Sent["{{ f.name }}"])
+	assert.Nil(t, req.{{ f.pascal }})
+}
+{%- endfor %}
+{%- else %}
+{%- set left_out = accepted | rejectattr("needs_value") | list %}
+{%- if left_out %}
+
+func Test{{ Op }}{{ r }}_GivesFieldsLeftOutTheirDefaults(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
+
+	_, err := {{ call(op, sample_body(required)) }}
+
+	assert.NoError(t, err)
+	properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
+{%- for f in left_out %}
+{%- if f.dynamic %}
+	assert.NotEqual(t, "null", string(properties["{{ f.name }}"]))
+{%- else %}
+	assert.JSONEq(t, {{ json_string(f.default) }}, string(properties["{{ f.name }}"]))
+{%- endif %}
+{%- endfor %}
+}
+{%- endif %}
+{%- endif %}
+{%- for f in accepted if f.type == "date-time" %}
+
+func Test{{ Op }}{{ r }}_Stores{{ f.pascal }}InUTC(t *testing.T) {
+	mockService := new(Mock{{ r }}Service)
+	controller := newTest{{ r }}Controller(mockService)
+	mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
+
+	_, err := {{ call(op, "withProperty(valid" ~ r ~ Op ~ "Body, \"" ~ f.name ~ "\", `\"" ~ DATE_TIME_CASES[0].sent ~ "\"`)") }}
+
+	assert.NoError(t, err)
+	properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
+	assert.JSONEq(t, `"{{ DATE_TIME_CASES[0].stored }}"`, string(properties["{{ f.name }}"]))
+}
+{%- endfor %}
+
+func Test{{ Op }}{{ r }}_RejectsInvalidBodies(t *testing.T) {
+	required := []string{ {%- for f in required %}"{{ f.name }}"{{ ", " if not loop.last }}{% endfor -%} }
+	refused := []string{ {%- for f in refused %}"{{ f.name }}"{{ ", " if not loop.last }}{% endfor -%} }
+
+	for _, body := range invalidBodies(valid{{ r }}{{ Op }}Body, required, refused, rejected{{ r }}Values) {
+		t.Run(body, func(t *testing.T) {
 			mockService := new(Mock{{ r }}Service)
 			controller := newTest{{ r }}Controller(mockService)
 
-			result, err := controller.Create(context.Background(), "", strings.NewReader(body))
+			result, err := {{ call(op, "body") }}
 
 			assert.Nil(t, result)
 			assert{{ r }}BadRequest(t, err)
-			mockService.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+			mockService.AssertNotCalled(t, "{{ Op }}", mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
+{%- set boundaries = [] %}
+{%- for f in accepted %}{% for v in f.boundaries %}{% set _ = boundaries.append((f.name, v)) %}{% endfor %}{% endfor %}
+{%- if boundaries %}
+
+func Test{{ Op }}{{ r }}_AcceptsEdgeValues(t *testing.T) {
+	for _, value := range [][2]string{
+{%- for name, v in boundaries %}
+		{"{{ name }}", {{ json_string(v) }}},
+{%- endfor %}
+	} {
+		mockService := new(Mock{{ r }}Service)
+		controller := newTest{{ r }}Controller(mockService)
+		mockService.On("{{ Op }}", mock.Anything, mock.Anything, "").Return(test{{ r }}Dto(), nil)
+
+		_, err := {{ call(op, "withProperty(valid" ~ r ~ Op ~ "Body, value[0], value[1])") }}
+
+		assert.NoError(t, err, value[0]+"="+value[1])
+		properties := requestProperties(t, mockService.Calls[0].Arguments.Get(1))
+		assert.JSONEq(t, value[1], string(properties[value[0]]))
+	}
+}
+{%- endif %}
+{%- if op == "create" %}
 
 func TestCreate{{ r }}_ReturnsValidationError_WhenBodyCannotBeRead(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
@@ -243,115 +334,19 @@ func TestCreate{{ r }}_ReturnsValidationError_WhenBodyCannotBeRead(t *testing.T)
 	assert.Nil(t, result)
 	assert{{ r }}BadRequest(t, err)
 }
-{%- endif %}
-{%- if "update" in ops %}
+{%- else %}
 
-func TestUpdate{{ r }}_ReturnsUpdated{{ r }}Dto(t *testing.T) {
-	mockService := new(Mock{{ r }}Service)
-	controller := newTest{{ r }}Controller(mockService)
-	expectedReq := models.Update{{ r }}Request{Id: test{{ r }}ID, Name: "mockUpdated{{ r }}"}
-	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockUpdated{{ r }}"}
-	mockService.On("Update", mock.Anything, expectedReq, "alice").Return(expected, nil)
-
-	result, err := controller.Update(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{"name": "mockUpdated{{ r }}"}`))
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "Update", mock.Anything, expectedReq, "alice")
-}
-
-func TestUpdate{{ r }}_AllowsBodyWithoutName(t *testing.T) {
-	mockService := new(Mock{{ r }}Service)
-	controller := newTest{{ r }}Controller(mockService)
-	expectedReq := models.Update{{ r }}Request{Id: test{{ r }}ID}
-	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "unchanged"}
-	mockService.On("Update", mock.Anything, expectedReq, "alice").Return(expected, nil)
-
-	result, err := controller.Update(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{}`))
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, result)
-}
-
-func TestUpdate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
-	bodies := map[string]string{
-		"empty name":    `{"name": ""}`,
-		"boolean name":  `{"name": true}`,
-		"null body":     `null`,
-		"unknown field": `{"color": "red"}`,
-		"client id":     `{"id": "` + test{{ r }}ID + `"}`,
-		"system field":  `{"updatedTimestamp": "2026-01-01T00:00:00.000Z"}`,
-	}
-
-	for name, body := range bodies {
-		t.Run(name, func(t *testing.T) {
-			mockService := new(Mock{{ r }}Service)
-			controller := newTest{{ r }}Controller(mockService)
-
-			result, err := controller.Update(context.Background(), test{{ r }}ID, "", strings.NewReader(body))
-
-			assert.Nil(t, result)
-			assert{{ r }}BadRequest(t, err)
-		})
-	}
-}
-
-func TestUpdate{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
+func Test{{ Op }}{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
 	mockService := new(Mock{{ r }}Service)
 	controller := newTest{{ r }}Controller(mockService)
 
-	result, err := controller.Update(context.Background(), invalid{{ r }}ID, "", strings.NewReader(`{"name": "a"}`))
+	result, err := controller.{{ Op }}(context.Background(), invalid{{ r }}ID, "", strings.NewReader(valid{{ r }}{{ Op }}Body))
 
 	assert.Nil(t, result)
 	assert{{ r }}NotFound(t, err)
 }
 {%- endif %}
-{%- if "replace" in ops %}
-
-func TestReplace{{ r }}_ReturnsReplaced{{ r }}Dto(t *testing.T) {
-	mockService := new(Mock{{ r }}Service)
-	controller := newTest{{ r }}Controller(mockService)
-	expectedReq := models.Replace{{ r }}Request{Id: test{{ r }}ID, Name: "mockReplaced{{ r }}"}
-	expected := &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "mockReplaced{{ r }}"}
-	mockService.On("Replace", mock.Anything, expectedReq, "alice").Return(expected, nil)
-
-	result, err := controller.Replace(context.Background(), test{{ r }}ID, "alice", strings.NewReader(`{"name": "mockReplaced{{ r }}"}`))
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, result)
-	mockService.AssertCalled(t, "Replace", mock.Anything, expectedReq, "alice")
-}
-
-func TestReplace{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
-	bodies := map[string]string{
-		"empty name":    `{"name": ""}`,
-		"missing name":  `{}`,
-		"unknown field": `{"name": "a", "isDeleted": false}`,
-	}
-
-	for name, body := range bodies {
-		t.Run(name, func(t *testing.T) {
-			mockService := new(Mock{{ r }}Service)
-			controller := newTest{{ r }}Controller(mockService)
-
-			result, err := controller.Replace(context.Background(), test{{ r }}ID, "", strings.NewReader(body))
-
-			assert.Nil(t, result)
-			assert{{ r }}BadRequest(t, err)
-		})
-	}
-}
-
-func TestReplace{{ r }}_ReturnsNotFound_WhenIdIsNotUUID(t *testing.T) {
-	mockService := new(Mock{{ r }}Service)
-	controller := newTest{{ r }}Controller(mockService)
-
-	result, err := controller.Replace(context.Background(), invalid{{ r }}ID, "", strings.NewReader(`{"name": "a"}`))
-
-	assert.Nil(t, result)
-	assert{{ r }}NotFound(t, err)
-}
-{%- endif %}
+{%- endfor %}
 {%- if "delete" in ops %}
 
 func TestDelete{{ r }}_CallsDeleteOnService(t *testing.T) {

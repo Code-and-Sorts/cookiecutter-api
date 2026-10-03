@@ -1,12 +1,20 @@
-namespace {{project_class_name}}.Api.Dtos;
-
-using System.Text.Json.Serialization;
-
-public class {{ resource.name }}Dto
+{%- from 'dotnet/_model.jinja' import csharp_file, properties, shown_assignments, usings with context -%}
+{%- set shown = resource.fields | rejectattr("hidden") | list -%}
+{%- set body %}
+public class {{ resource.name }}Dto : BaseResponse
 {
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = default!;
+    public {{ resource.name }}Dto()
+    {
+    }
 
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = default!;
+    public {{ resource.name }}Dto({{ resource.name }}Entity item)
+        : base(item)
+    {
+{{- shown_assignments(shown, "item") }}
+    }
+{%- if shown %}
+{{ properties(shown, response=true) }}
+{%- endif %}
 }
+{%- endset -%}
+{{ csharp_file("Dtos", usings("response", shown), body) }}

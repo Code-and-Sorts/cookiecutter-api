@@ -4,27 +4,30 @@ import re
 
 import pytest
 
-from api import unique_name
+from values import assert_stored, valid_body, written
 
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
-REQUIRED_FIELDS = {"id", "name", "isDeleted", "createdTimestamp", "updatedTimestamp"}
+REQUIRED_FIELDS = {"id", "isDeleted", "createdTimestamp", "updatedTimestamp"}
 USER_FIELDS = {"createdBy", "updatedBy"}
 
 
 def stored(store, resource, item_id: str) -> dict:
     record = store.get(resource.container, item_id)
     assert record is not None, f"{item_id} is not in {resource.container}"
-    assert REQUIRED_FIELDS <= record.keys() <= REQUIRED_FIELDS | USER_FIELDS
+    client = {f.name for f in resource.fields}
+    assert REQUIRED_FIELDS <= record.keys() <= REQUIRED_FIELDS | USER_FIELDS | client
     assert TIMESTAMP.match(record["createdTimestamp"]), record
     assert TIMESTAMP.match(record["updatedTimestamp"]), record
     return record
 
 
 @pytest.mark.ops("create")
-def test_create_stores_the_contract_fields(api, resource, make_record, store):
-    record = make_record(resource)
-    saved = stored(store, resource, record["id"])
-    assert saved["name"] == record["name"]
+def test_create_stores_the_contract_fields(api, resource, store):
+    body = valid_body(resource, "create")
+    created = api.send("create", resource, json=body)
+    assert created.status_code == 201, created.text
+    saved = stored(store, resource, created.json()["id"])
+    assert_stored(resource, saved, written(resource, "create", body, None))
     assert saved["isDeleted"] is False
     assert saved["createdTimestamp"] == saved["updatedTimestamp"]
     assert not USER_FIELDS & saved.keys()
@@ -59,9 +62,11 @@ def test_a_write_without_a_user_id_clears_updated_by(api, resource, operation, m
 
 
 @pytest.mark.each_operation("update", "replace")
-def test_a_write_stores_the_new_name(api, resource, operation, make_record, store):
+def test_a_write_stores_the_new_values(api, resource, operation, make_record, store):
     record = make_record(resource)
-    name = unique_name(resource)
-    assert api.send(operation, resource, record["id"], json={"name": name}).status_code == 200
+    before = stored(store, resource, record["id"])
+    body = valid_body(resource, operation)
+    assert api.send(operation, resource, record["id"], json=body).status_code == 200
     saved = stored(store, resource, record["id"])
-    assert (saved["name"], saved["isDeleted"]) == (name, False)
+    assert saved["isDeleted"] is False
+    assert_stored(resource, saved, written(resource, operation, body, before))

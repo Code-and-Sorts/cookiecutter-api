@@ -1,5 +1,8 @@
+{%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set client = resource.client_fields -%}
+{%- set shown = client | rejectattr("hidden") | list -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Service } from '@services';
 import { {{ r }}Repository } from '@repositories';
@@ -14,7 +17,7 @@ describe('{{ r }}Service', () => {
     };
     const service = new {{ r }}Service(repository as unknown as {{ r }}Repository);
     const mockId = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
-    const mockFields = { name: 'mock{{ r }}1' };
+    const mockFields = {{ sample_object(client) }};
     const mockRecord = {
         id: mockId,
         ...mockFields,
@@ -24,7 +27,7 @@ describe('{{ r }}Service', () => {
         createdBy: 'mockUser',
         updatedBy: 'mockUser',
     };
-    const mockResponse = { id: mockId, ...mockFields };
+    const mockResponse = { id: mockId, ...{{ sample_object(shown) }} };
 
     beforeEach(() => {
         jest.resetAllMocks();
@@ -33,7 +36,7 @@ describe('{{ r }}Service', () => {
 
     it('should create through the repository and answer with the response fields only', async () => {
         repository.create.mockResolvedValue(mockRecord);
-        expect(await service.create(mockFields, 'mockUser')).toEqual(mockResponse);
+        expect(await service.create(mockFields as never, 'mockUser')).toEqual(mockResponse);
         expect(repository.create).toHaveBeenCalledWith(mockFields, 'mockUser');
     });
 {%- endif %}
@@ -43,6 +46,16 @@ describe('{{ r }}Service', () => {
         repository.get.mockResolvedValue(mockRecord);
         expect(await service.get(mockId)).toEqual(mockResponse);
         expect(repository.get).toHaveBeenCalledWith(mockId);
+    });
+
+    it('should read a field the record lacks as its static default', async () => {
+        repository.get.mockResolvedValue({ id: mockId, isDeleted: false });
+        expect(await service.get(mockId)).toEqual({
+            id: mockId,
+{%- for f in shown %}
+            {{ f.name }}: {{ literal(f.read_default) }},
+{%- endfor %}
+        });
     });
 {%- endif %}
 {%- if "list" in ops %}
@@ -57,26 +70,26 @@ describe('{{ r }}Service', () => {
 
     it('should update through the repository and answer with the response fields only', async () => {
         repository.update.mockResolvedValue(mockRecord);
-        expect(await service.update(mockId, mockFields, 'mockUser')).toEqual(mockResponse);
+        expect(await service.update(mockId, mockFields as never, 'mockUser')).toEqual(mockResponse);
         expect(repository.update).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 
     it('should propagate not found from update', async () => {
         repository.update.mockRejectedValue(new NotFoundError('missing'));
-        await expect(service.update(mockId, mockFields)).rejects.toBeInstanceOf(NotFoundError);
+        await expect(service.update(mockId, mockFields as never)).rejects.toBeInstanceOf(NotFoundError);
     });
 {%- endif %}
 {%- if "replace" in ops %}
 
     it('should replace through the repository and answer with the response fields only', async () => {
         repository.replace.mockResolvedValue(mockRecord);
-        expect(await service.replace(mockId, mockFields, 'mockUser')).toEqual(mockResponse);
+        expect(await service.replace(mockId, mockFields as never, 'mockUser')).toEqual(mockResponse);
         expect(repository.replace).toHaveBeenCalledWith(mockId, mockFields, 'mockUser');
     });
 
     it('should propagate not found from replace', async () => {
         repository.replace.mockRejectedValue(new NotFoundError('missing'));
-        await expect(service.replace(mockId, mockFields)).rejects.toBeInstanceOf(NotFoundError);
+        await expect(service.replace(mockId, mockFields as never)).rejects.toBeInstanceOf(NotFoundError);
     });
 {%- endif %}
 {%- if "delete" in ops %}

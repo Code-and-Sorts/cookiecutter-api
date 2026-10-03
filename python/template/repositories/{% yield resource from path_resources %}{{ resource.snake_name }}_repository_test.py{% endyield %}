@@ -1,15 +1,22 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- from 'python/_macros.jinja' import model_names, routes -%}
+{%- from 'python/_model.jinja' import expect, literal, sample_dict -%}
 {%- set hidden = [] -%}
 {%- for route in routes if route[0] not in ops -%}{% set _ = hidden.append(route[1]) %}{%- endfor -%}
+{%- set client = resource.client_fields -%}
+{%- set shown = client | rejectattr("hidden") | list -%}
+{%- set create_fields = client | selectattr("in_create") | list -%}
+{%- set update_fields = client | selectattr("in_update") | list -%}
+{%- set replace_fields = client | selectattr("in_replace") | list -%}
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
-from models import {{ model_names(resource, always_response=true) }}
+from models import {{ model_names(resource, entity=true, always_response=true) }}
 from repositories import BaseRepository, {{ r }}Repository
 from conftest import ITEM_ID
 
-_response = {{ r }}Response(id=ITEM_ID, name="mockName1")
+_sample = {{ sample_dict(client) }}
+_response = {{ r }}Response(id=ITEM_ID, **{{ sample_dict(shown) }})
 
 
 def _repository() -> {{ r }}Repository:
@@ -23,8 +30,12 @@ def _repository() -> {{ r }}Repository:
 def describe_{{ r | to_snake }}_repository():
     def test_extends_base_repository_with_{{ r | to_snake }}_models():
         assert issubclass({{ r }}Repository, BaseRepository)
+        assert {{ r }}Repository.entity_model is {{ r }}Entity
         assert {{ r }}Repository.response_model is {{ r }}Response
         assert {{ r }}Repository.resource_name == "{{ r }}"
+
+    def test_entity_lists_every_client_field():
+        assert {{ r }}Entity.client_fields() == {{ client | map(attribute="name") | list | tojson }}
 {%- if hidden %}
 
     def test_exposes_only_{{ r | to_snake }}_operations():
@@ -35,12 +46,27 @@ def describe_{{ r | to_snake }}_repository():
 
     def test_get_by_id_returns_{{ r | to_snake }}_response():
         repository = _repository()
-        repository._get_stored = AsyncMock(return_value={"id": ITEM_ID, "name": "mockName1", "isDeleted": False})
+        repository._get_stored = AsyncMock(return_value={"id": ITEM_ID, **_sample, "isDeleted": False})
 
         result = asyncio.run(repository.get_by_id(ITEM_ID))
 
         assert isinstance(result, {{ r }}Response)
         assert result == _response
+{%- if resource.fields | rejectattr("hidden") | list %}
+
+    def test_a_record_without_a_field_reads_its_static_default():
+        repository = _repository()
+        repository._get_stored = AsyncMock(return_value={"id": ITEM_ID, "isDeleted": False})
+
+        result = asyncio.run(repository.get_by_id(ITEM_ID)).model_dump()
+
+        assert result == {
+            "id": ITEM_ID,
+{%- for f in shown %}
+            "{{ f.name }}": {{ literal(f.read_default) }},
+{%- endfor %}
+        }
+{%- endif %}
 {%- endif %}
 {%- if "list" in ops %}
 
@@ -57,11 +83,17 @@ def describe_{{ r | to_snake }}_repository():
         repository = _repository()
         repository._write = AsyncMock()
 
-        result = asyncio.run(repository.create(Base{{ r }}(name="mockName1"), "user-1"))
+        result = asyncio.run(repository.create({{ r }}CreateRequest(**{{ sample_dict(create_fields) }}), "user-1"))
 
         record = repository._write.call_args.args[0]
-        assert (record["name"], record["createdBy"]) == ("mockName1", "user-1")
-        assert result == {{ r }}Response(id=record["id"], name="mockName1")
+        assert record["createdBy"] == "user-1"
+{%- for f in create_fields %}
+        assert {{ expect('record["' ~ f.name ~ '"]', f.sample) }}
+{%- endfor %}
+{%- for f in client | rejectattr("in_create") | selectattr("defaulted") | rejectattr("dynamic") %}
+        assert {{ expect('record["' ~ f.name ~ '"]', f.default) }}
+{%- endfor %}
+        assert result.id == record["id"]
 {%- endif %}
 {%- if "update" in ops %}
 
@@ -69,20 +101,23 @@ def describe_{{ r | to_snake }}_repository():
         repository = _repository()
         repository._update = AsyncMock(return_value=_response)
 
-        assert asyncio.run(repository.update(ITEM_ID, {{ r }}Update())) == _response
+        assert asyncio.run(repository.update(ITEM_ID, {{ r }}UpdateRequest())) == _response
         repository._update.assert_awaited_once_with(ITEM_ID, {}, None)
+{%- if update_fields %}
 
-        asyncio.run(repository.update(ITEM_ID, {{ r }}Update(name="mockName1"), "user-1"))
-        repository._update.assert_awaited_with(ITEM_ID, {"name": "mockName1"}, "user-1")
+        asyncio.run(repository.update(ITEM_ID, {{ r }}UpdateRequest(**{{ sample_dict(update_fields) }}), "user-1"))
+        repository._update.assert_awaited_with(ITEM_ID, {{ sample_dict(update_fields) }}, "user-1")
+{%- endif %}
 {%- endif %}
 {%- if "replace" in ops %}
 
-    def test_replace_passes_all_client_fields():
+    def test_replace_passes_every_accepted_field():
         repository = _repository()
-        repository._replace = AsyncMock(return_value=_response)
+        repository._update = AsyncMock(return_value=_response)
 
-        assert asyncio.run(repository.replace(ITEM_ID, Base{{ r }}(name="mockName1"), "user-1")) == _response
-        repository._replace.assert_awaited_once_with(ITEM_ID, {"name": "mockName1"}, "user-1")
+        item = {{ r }}ReplaceRequest(**{{ sample_dict(replace_fields) }})
+        assert asyncio.run(repository.replace(ITEM_ID, item, "user-1")) == _response
+        repository._update.assert_awaited_once_with(ITEM_ID, {{ sample_dict(replace_fields) }}, "user-1")
 {%- endif %}
 {%- if "delete" in ops %}
 

@@ -1,7 +1,7 @@
 import type { ServiceIdentifier } from 'inversify';
-import { BaseItemRecord } from '@models';
+import { BaseEntity } from '@models';
 
-export interface DocumentStore<T extends BaseItemRecord> {
+export interface DocumentStore<T extends BaseEntity> {
   read(id: string): Promise<T | undefined>;
   query(limit: number): Promise<T[]>;
   create(item: T): Promise<void>;
@@ -11,6 +11,6 @@ export interface DocumentStore<T extends BaseItemRecord> {
   softDelete(id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean>;
 }
 
-export type StoreFactory = <T extends BaseItemRecord>(name: string) => DocumentStore<T>;
+export type StoreFactory = <T extends BaseEntity>(name: string) => DocumentStore<T>;
 
 export const StoreFactory: ServiceIdentifier<StoreFactory> = Symbol.for('StoreFactory');

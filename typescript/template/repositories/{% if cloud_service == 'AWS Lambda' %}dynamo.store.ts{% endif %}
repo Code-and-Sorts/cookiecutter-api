@@ -1,8 +1,8 @@
 import { DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { BaseItemRecord } from '@models';
+import { BaseEntity } from '@models';
 import { DocumentStore, StoreFactory } from './document.store';
 
-export class DynamoStore<T extends BaseItemRecord> implements DocumentStore<T> {
+export class DynamoStore<T extends BaseEntity> implements DocumentStore<T> {
   constructor(
     private readonly client: DynamoDBDocumentClient,
     private readonly tableName: string,
@@ -67,4 +67,4 @@ export class DynamoStore<T extends BaseItemRecord> implements DocumentStore<T> {
 }
 
 export const dynamoStoreFactory = (client: DynamoDBDocumentClient): StoreFactory =>
-  <T extends BaseItemRecord>(name: string) => new DynamoStore<T>(client, name);
+  <T extends BaseEntity>(name: string) => new DynamoStore<T>(client, name);

@@ -1,0 +1,7 @@
+# expect: must keep the built-in field 'updatedBy'
+base_model:
+  - {name: id, type: uuid, required: true, managed: create, default: $uuid}
+  - {name: isDeleted, type: boolean, required: true, managed: create, default: false, hidden: true}
+  - {name: createdTimestamp, type: date-time, required: true, managed: create, default: $now, hidden: true}
+  - {name: updatedTimestamp, type: date-time, required: true, managed: write, default: $now, hidden: true}
+  - {name: createdBy, type: string, managed: create, default: $user, hidden: true}

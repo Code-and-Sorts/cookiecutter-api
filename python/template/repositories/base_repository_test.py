@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from pydantic import BaseModel
 {%- if cloud_service == 'Azure Function App' %}
+from azure.core import MatchConditions
 from azure.cosmos.exceptions import (
     CosmosAccessConditionFailedError,
     CosmosHttpResponseError,
@@ -16,24 +17,37 @@ from google.cloud.firestore import DELETE_FIELD, FieldFilter
 {%- if cloud_service == 'AWS Lambda' %}
 from botocore.exceptions import ClientError
 {%- endif %}
+from models import BaseEntity
 from repositories import BaseRepository
 {%- if cloud_service == 'GCP Cloud Function' %}
 from repositories.base_repository import FIRESTORE_CALL_OPTIONS
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-from repositories.base_repository import DYNAMODB_CONFIG
+from decimal import Decimal
+from repositories.base_repository import DYNAMODB_CONFIG, from_dynamodb, to_dynamodb
 {%- endif %}
 from errors import NotFoundError
 from conftest import ITEM_ID
 
 
+class _ItemEntity(BaseEntity):
+    label: str | None = None
+    color: str | None = "grey"
+    note: str | None = None
+
+    @classmethod
+    def client_fields(cls) -> list[str]:
+        return ["label", "color", "note"]
+
+
 class _ItemResponse(BaseModel):
     id: str
-    name: str
+    label: str
 
 
 class _ItemRepository(BaseRepository[_ItemResponse]):
     resource_name = "Item"
+    entity_model = _ItemEntity
     response_model = _ItemResponse
 
 
@@ -43,15 +57,15 @@ _CREATED = "2024-08-10T20:41:30.123Z"
 _ID2 = "de6cbc87-5969-458c-8444-3512a82250bc"
 _stored_item = {
     "id": ITEM_ID,
-    "name": "mockName1",
+    "label": "mockLabel1",
     "isDeleted": False,
     "createdTimestamp": _CREATED,
     "updatedTimestamp": _CREATED,
     "createdBy": "creator",
 }
 _responses = [
-    _ItemResponse(id=ITEM_ID, name="mockName1"),
-    _ItemResponse(id=_ID2, name="mockName2"),
+    _ItemResponse(id=ITEM_ID, label="mockLabel1"),
+    _ItemResponse(id=_ID2, label="mockLabel2"),
 ]
 
 
@@ -109,29 +123,31 @@ def describe_base_repository_records():
             # A second clock reading would differ, so both fields equal _NOW proves one reading.
             ticks = iter([_NOW, "2099-01-01T00:00:00.000Z"])
             with patch(_TIMESTAMP, side_effect=lambda: next(ticks)):
-                result = asyncio.run(repository._create({"name": "mockName1"}))
+                result = asyncio.run(repository._create({"label": "mockLabel1"}))
 
             record = _written(repository)
             assert str(uuid.UUID(record["id"])) == record["id"]
+            # color was not in the body, so it gets its default; note has none and is not stored.
             assert record == {
                 "id": record["id"],
-                "name": "mockName1",
+                "label": "mockLabel1",
+                "color": "grey",
                 "isDeleted": False,
                 "createdTimestamp": _NOW,
                 "updatedTimestamp": _NOW,
             }
-            assert result == _ItemResponse(id=record["id"], name="mockName1")
+            assert result == _ItemResponse(id=record["id"], label="mockLabel1")
 
         def test_user_id_sets_created_and_updated_by():
             repository = _offline_repository()
-            asyncio.run(repository._create({"name": "mockName1"}, "editor"))
+            asyncio.run(repository._create({"label": "mockLabel1"}, "editor"))
 
             assert _written(repository)["createdBy"] == _written(repository)["updatedBy"] == "editor"
 
         def test_generates_a_new_id_each_time():
             repository = _offline_repository()
-            asyncio.run(repository._create({"name": "a"}))
-            asyncio.run(repository._create({"name": "b"}))
+            asyncio.run(repository._create({"label": "a"}))
+            asyncio.run(repository._create({"label": "b"}))
             first, second = (call.args[0]["id"] for call in repository._write.call_args_list)
             assert first != second
 
@@ -139,16 +155,23 @@ def describe_base_repository_records():
         def test_merges_changes_and_keeps_creation_fields():
             repository = _offline_repository({**_stored_item, "extra": "kept", "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._update(ITEM_ID, {"name": "mockName1-Update"}, "editor"))
+                result = asyncio.run(repository._update(ITEM_ID, {"label": "mockLabel1-Update"}, "editor"))
 
             assert _written(repository) == {
                 **_stored_item,
                 "extra": "kept",
-                "name": "mockName1-Update",
+                "label": "mockLabel1-Update",
                 "updatedTimestamp": _NOW,
                 "updatedBy": "editor",
             }
-            assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Update")
+            assert result == _ItemResponse(id=ITEM_ID, label="mockLabel1-Update")
+
+        def test_null_change_removes_the_field():
+            repository = _offline_repository({**_stored_item, "note": "old"})
+            with patch(_TIMESTAMP, return_value=_NOW):
+                asyncio.run(repository._update(ITEM_ID, {"note": None}))
+
+            assert "note" not in _written(repository)
 
         def test_no_changes_or_user_id_refreshes_timestamp_and_drops_updated_by():
             repository = _offline_repository({**_stored_item, "updatedBy": "someone"})
@@ -160,38 +183,7 @@ def describe_base_repository_records():
         def test_not_found_error():
             repository = _offline_repository()
             with pytest.raises(NotFoundError):
-                asyncio.run(repository._update(ITEM_ID, {"name": "mockName1-Update"}))
-            repository._write.assert_not_called()
-
-    def describe_replace():
-        def test_overwrites_fields_and_keeps_creation_fields():
-            repository = _offline_repository({**_stored_item, "extra": "dropped", "updatedBy": "someone"})
-            with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}, "editor"))
-
-            assert _written(repository) == {
-                "id": ITEM_ID,
-                "name": "mockName1-Replace",
-                "isDeleted": False,
-                "createdTimestamp": _CREATED,
-                "createdBy": "creator",
-                "updatedTimestamp": _NOW,
-                "updatedBy": "editor",
-            }
-            assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Replace")
-
-        def test_omits_unset_created_by_and_drops_updated_by_without_user_id():
-            stored = {key: value for key, value in _stored_item.items() if key != "createdBy"}
-            repository = _offline_repository({**stored, "updatedBy": "someone"})
-            with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
-
-            assert not {"createdBy", "updatedBy"} & set(_written(repository))
-
-        def test_not_found_error():
-            repository = _offline_repository()
-            with pytest.raises(NotFoundError):
-                asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
+                asyncio.run(repository._update(ITEM_ID, {"label": "mockLabel1-Update"}))
             repository._write.assert_not_called()
 {%- if cloud_service == 'Azure Function App' %}
 
@@ -201,6 +193,7 @@ def describe_cosmos_storage():
     def container():
         client = MagicMock()
         client.upsert_item = AsyncMock()
+        client.replace_item = AsyncMock()
         client.patch_item = AsyncMock()
         client.read = AsyncMock(return_value={"id": "items"})
         return client
@@ -223,15 +216,22 @@ def describe_cosmos_storage():
             assert str(error.value) == f"Item with id {ITEM_ID} was not found."
 
     def describe_write():
-        def test_upserts_record(container):
+        def test_upserts_a_new_record(container):
             asyncio.run(_ItemRepository(container)._write(_stored_item))
             container.upsert_item.assert_awaited_once_with(_stored_item)
+
+        def test_replaces_a_record_read_back_only_if_its_etag_matches(container):
+            record = {**_stored_item, "_etag": "etag-1"}
+            asyncio.run(_ItemRepository(container)._write(record))
+            container.replace_item.assert_awaited_once_with(
+                ITEM_ID, record, etag="etag-1", match_condition=MatchConditions.IfNotModified
+            )
 
     def describe_get_list():
         def test_queries_undeleted_items_with_limit(container):
             container.query_items.return_value = _AsyncIterator([
                 {**_stored_item, "_rid": "x"},
-                {**_stored_item, "id": _ID2, "name": "mockName2"},
+                {**_stored_item, "id": _ID2, "label": "mockLabel2"},
             ])
             result = asyncio.run(_ItemRepository(container)._get_list(5))
 
@@ -352,7 +352,7 @@ def describe_firestore_storage():
         def test_filters_undeleted_with_limit(collection):
             docs = [MagicMock(), MagicMock()]
             docs[0].to_dict.return_value = dict(_stored_item)
-            docs[1].to_dict.return_value = {**_stored_item, "id": _ID2, "name": "mockName2"}
+            docs[1].to_dict.return_value = {**_stored_item, "id": _ID2, "label": "mockLabel2"}
             query = MagicMock()
             query.limit.return_value = query
             query.stream.return_value = _AsyncIterator(docs)
@@ -398,6 +398,14 @@ def describe_firestore_storage():
 {%- if cloud_service == 'AWS Lambda' %}
 
 
+def describe_dynamodb_numbers():
+    def test_floats_travel_as_decimal_and_come_back_as_numbers():
+        record = {"amount": 2.5, "count": 3, "flag": True, "scores": [1.5, 2], "nested": {"x": 0.1}}
+        stored = to_dynamodb(record)
+        assert stored == {"amount": Decimal("2.5"), "count": 3, "flag": True, "scores": [Decimal("1.5"), 2], "nested": {"x": Decimal("0.1")}}
+        assert from_dynamodb({**stored, "count": Decimal("3")}) == record
+
+
 def describe_dynamodb_storage():
     @pytest.fixture
     def table():
@@ -440,11 +448,15 @@ def describe_dynamodb_storage():
             asyncio.run(_repository(table)._write(_stored_item))
             table.put_item.assert_awaited_once_with(Item=_stored_item)
 
+        def test_converts_floats(table):
+            asyncio.run(_repository(table)._write({**_stored_item, "weight": 1.5}))
+            assert table.put_item.await_args.kwargs["Item"]["weight"] == Decimal("1.5")
+
     def describe_get_list():
         def test_scans_undeleted_items_with_limit(table):
             table.scan.return_value = {"Items": [
                 dict(_stored_item),
-                {**_stored_item, "id": _ID2, "name": "mockName2"},
+                {**_stored_item, "id": _ID2, "label": "mockLabel2"},
             ]}
             result = asyncio.run(_repository(table)._get_list(2))
 
@@ -455,8 +467,8 @@ def describe_dynamodb_storage():
             table.scan.side_effect = [
                 {"Items": [dict(_stored_item)], "LastEvaluatedKey": {"id": ITEM_ID}},
                 {"Items": [
-                    {**_stored_item, "id": _ID2, "name": "mockName2"},
-                    {**_stored_item, "id": "third", "name": "mockName3"},
+                    {**_stored_item, "id": _ID2, "label": "mockLabel2"},
+                    {**_stored_item, "id": "third", "label": "mockLabel3"},
                 ], "LastEvaluatedKey": {"id": "third"}},
             ]
             result = asyncio.run(_repository(table)._get_list(2))

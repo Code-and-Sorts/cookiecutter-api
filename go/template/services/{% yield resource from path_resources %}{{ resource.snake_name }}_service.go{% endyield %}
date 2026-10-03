@@ -55,27 +55,19 @@ func (s *{{ lc }}Service) GetList(ctx context.Context, limit int) ([]models.{{ r
 {%- if "create" in ops %}
 
 func (s *{{ lc }}Service) Create(ctx context.Context, req models.Create{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
-	return s.repository.Create(ctx, models.{{ r }}{BaseEntity: models.NewBaseEntity(), Name: req.Name}, userID)
+	return s.repository.Create(ctx, req.ToEntity(), userID)
 }
 {%- endif %}
 {%- if "update" in ops %}
 
 func (s *{{ lc }}Service) Update(ctx context.Context, req models.Update{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
-	updated{{ r }} := models.{{ r }}{
-		BaseEntity: models.BaseEntity{Id: req.Id},
-		Name:       req.Name,
-	}
-	return s.repository.Update(ctx, updated{{ r }}, userID)
+	return s.repository.Update(ctx, req.Id, userID, req.ApplyTo)
 }
 {%- endif %}
 {%- if "replace" in ops %}
 
 func (s *{{ lc }}Service) Replace(ctx context.Context, req models.Replace{{ r }}Request, userID string) (*models.{{ r }}Dto, error) {
-	replacement{{ r }} := models.{{ r }}{
-		BaseEntity: models.BaseEntity{Id: req.Id},
-		Name:       req.Name,
-	}
-	return s.repository.Replace(ctx, replacement{{ r }}, userID)
+	return s.repository.Replace(ctx, req.Id, userID, req.ApplyTo)
 }
 {%- endif %}
 {%- if "delete" in ops %}

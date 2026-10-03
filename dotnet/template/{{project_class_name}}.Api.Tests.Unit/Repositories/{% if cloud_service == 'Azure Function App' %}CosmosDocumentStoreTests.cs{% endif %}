@@ -1,13 +1,12 @@
-{%- set r = resources[0].name -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
 
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Repositories;
 using {{project_class_name}}.Api.Utils;
 using Microsoft.Azure.Cosmos;
@@ -19,17 +18,17 @@ public class CosmosDocumentStoreTests
 {
     private const string ItemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
     private readonly Container _mockContainer = Substitute.For<Container>();
-    private readonly CosmosDocumentStore<{{ r }}Entity> _store;
+    private readonly CosmosDocumentStore<TestRecord> _store;
 
     public CosmosDocumentStoreTests()
     {
-        _store = new CosmosDocumentStore<{{ r }}Entity>(_mockContainer);
+        _store = new CosmosDocumentStore<TestRecord>(_mockContainer);
     }
 
-    private static {{ r }}Entity Item(string id = ItemId, string name = "mock") => new()
+    private static TestRecord Item(string id = ItemId, string text = "mock") => new()
     {
         Id = id,
-        Name = name,
+        Text = text,
         CreatedTimestamp = "2026-01-01T00:00:00.000Z",
         UpdatedTimestamp = "2026-01-01T00:00:00.000Z",
     };
@@ -40,26 +39,34 @@ public class CosmosDocumentStoreTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(Item(), Json.Options));
 
         var fields = document.RootElement.EnumerateObject().Select(field => field.Name).Order().ToArray();
-        Assert.Equal(new[] { "createdTimestamp", "id", "isDeleted", "name", "updatedTimestamp" }, fields);
-        Assert.Contains("\"createdBy\":\"User2\"", JsonSerializer.Serialize(new {{ r }}Entity { Id = ItemId, CreatedBy = "User2" }, Json.Options));
+        Assert.Equal(new[] { "createdTimestamp", "id", "isDeleted", "text", "updatedTimestamp" }, fields);
+        Assert.Contains("\"createdBy\":\"User2\"", JsonSerializer.Serialize(new TestRecord { Id = ItemId, CreatedBy = "User2" }, Json.Options));
+    }
+
+    [Fact]
+    public void Entity_ReadsBackEveryTypeWithoutLoss()
+    {
+        var json = JsonSerializer.Serialize(TestRecord.Sample(), Json.Options);
+
+        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<TestRecord>(json, Json.Options), Json.Options));
     }
 
     [Fact]
     public async Task GetAsync_ReturnsTheItem()
     {
-        var response = Substitute.For<ItemResponse<{{ r }}Entity>>();
+        var response = Substitute.For<ItemResponse<TestRecord>>();
         response.Resource.Returns(Item());
-        _mockContainer.ReadItemAsync<{{ r }}Entity>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>()).Returns(response);
+        _mockContainer.ReadItemAsync<TestRecord>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>()).Returns(response);
 
         var item = await _store.GetAsync(ItemId, TestContext.Current.CancellationToken);
 
-        Assert.Equal("mock", item?.Name);
+        Assert.Equal("mock", item?.Text);
     }
 
     [Fact]
     public async Task GetAsync_ReturnsNull_WhenCosmosReports404WithSubstatus0()
     {
-        _mockContainer.ReadItemAsync<{{ r }}Entity>(ItemId, Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReadItemAsync<TestRecord>(ItemId, Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
             .Throws(new CosmosException("Resource Not Found. ActivityId: 123", HttpStatusCode.NotFound, 0, "123", 0));
 
         Assert.Null(await _store.GetAsync(ItemId, TestContext.Current.CancellationToken));
@@ -68,7 +75,7 @@ public class CosmosDocumentStoreTests
     [Fact]
     public async Task GetAsync_Throws_WhenTheContainerIsMissing()
     {
-        _mockContainer.ReadItemAsync<{{ r }}Entity>(ItemId, Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
+        _mockContainer.ReadItemAsync<TestRecord>(ItemId, Arg.Any<PartitionKey>(), Arg.Any<ItemRequestOptions>(), Arg.Any<CancellationToken>())
             .Throws(new CosmosException("Owner resource does not exist", HttpStatusCode.NotFound, 1003, "123", 0));
 
         var exception = await Assert.ThrowsAsync<CosmosException>(() => _store.GetAsync(ItemId, TestContext.Current.CancellationToken));
@@ -79,16 +86,16 @@ public class CosmosDocumentStoreTests
     [Fact]
     public async Task GetLiveListAsync_QueriesLiveItemsWithTheLimit()
     {
-        var feedResponse = Substitute.For<FeedResponse<{{ r }}Entity>>();
-        feedResponse.Resource.Returns(new List<{{ r }}Entity> { Item(name: "first") });
-        var feedIterator = Substitute.For<FeedIterator<{{ r }}Entity>>();
+        var feedResponse = Substitute.For<FeedResponse<TestRecord>>();
+        feedResponse.Resource.Returns(new List<TestRecord> { Item(text: "first") });
+        var feedIterator = Substitute.For<FeedIterator<TestRecord>>();
         feedIterator.HasMoreResults.Returns(true, false);
         feedIterator.ReadNextAsync(Arg.Any<CancellationToken>()).Returns(feedResponse);
-        _mockContainer.GetItemQueryIterator<{{ r }}Entity>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 5").Returns(feedIterator);
+        _mockContainer.GetItemQueryIterator<TestRecord>("SELECT * FROM c WHERE c.isDeleted = false OFFSET 0 LIMIT 5").Returns(feedIterator);
 
         var items = await _store.GetLiveListAsync(5, TestContext.Current.CancellationToken);
 
-        Assert.Equal("first", Assert.Single(items).Name);
+        Assert.Equal("first", Assert.Single(items).Text);
     }
 
     [Fact]
@@ -102,12 +109,28 @@ public class CosmosDocumentStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_ReplacesTheItem()
+    public async Task UpdateAsync_ReplacesItsOwnFieldsKeepsTheRestAndMatchesTheETag()
     {
-        var item = Item();
+        var response = Substitute.For<ItemResponse<JsonObject>>();
+        response.Resource.Returns(new JsonObject { ["id"] = ItemId, ["text"] = "old", ["count"] = 1, ["sibling"] = "kept" });
+        response.ETag.Returns("etag-1");
+        _mockContainer.ReadItemAsync<JsonObject>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>()).Returns(response);
 
-        await _store.SaveAsync(item, TestContext.Current.CancellationToken);
+        var item = await _store.UpdateAsync(ItemId, stored => (stored.Text, stored.Count) = ("new", null), TestContext.Current.CancellationToken);
 
-        await _mockContainer.Received(1).ReplaceItemAsync(item, ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>());
+        Assert.Equal("new", item?.Text);
+        await _mockContainer.Received(1).ReplaceItemAsync(
+            Arg.Is<JsonObject>(stored => (string?)stored["text"] == "new" && (string?)stored["sibling"] == "kept" && !stored.ContainsKey("count")),
+            ItemId, new PartitionKey(ItemId), Arg.Is<ItemRequestOptions>(options => options.IfMatchEtag == "etag-1"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReturnsNull_WhenTheItemIsMissing()
+    {
+        _mockContainer.ReadItemAsync<JsonObject>(ItemId, new PartitionKey(ItemId), null, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new CosmosException("missing", HttpStatusCode.NotFound, 0, "", 0));
+
+        Assert.Null(await _store.UpdateAsync(ItemId, _ => { }, TestContext.Current.CancellationToken));
+        await _mockContainer.DidNotReceiveWithAnyArgs().ReplaceItemAsync<JsonObject>(default!, default!, default, default, TestContext.Current.CancellationToken);
     }
 }

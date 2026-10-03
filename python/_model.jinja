@@ -1,0 +1,155 @@
+{#- Renders base_fields and resource fields as Pydantic model fields. Never copied into a project. -#}
+{%- from 'shared/_fields.jinja' import PORTABLE, rewrite_pattern, string_literal -%}
+{%- set DYNAMIC_FACTORIES = {"now": "generate_utc_timestamp", "today": "utc_today", "uuid": "new_uuid"} -%}
+{%- set ITEM_TYPES = {"string": "StrictStr", "integer": "SafeInt", "number": "Number", "boolean": "StrictBool", "date": "DateStr", "date-time": "DateTimeStr", "uuid": "UuidStr"} -%}
+{%- set READ_TYPES = {"string": "str", "integer": "int", "number": "int | float", "boolean": "bool", "date": "str", "date-time": "str", "uuid": "str", "enum": "str"} -%}
+
+{%- macro literal(value) -%}
+{%- if value is none -%}None
+{%- elif value is boolean -%}{{ "True" if value else "False" }}
+{%- elif value is string -%}{{ string_literal(value) }}
+{%- elif value is number -%}{{ value }}
+{%- else -%}[{% for item in value %}{{ literal(item) }}{{ ", " if not loop.last }}{% endfor %}]
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The strict type a request body field must have, without None. -#}
+{%- macro request_type(f) -%}
+{%- set rules = f.rules -%}
+{%- set constraints = [] -%}
+{%- set checks = [] -%}
+{%- if f.type == "string" -%}
+{%- if rules.min_length is defined %}{% set _ = constraints.append("min_length=" ~ rules.min_length) %}{% endif -%}
+{%- if rules.max_length is defined %}{% set _ = constraints.append("max_length=" ~ rules.max_length) %}{% endif -%}
+{%- if rules.pattern is defined %}{% set _ = constraints.append("pattern=" ~ string_literal(rewrite_pattern(rules.pattern, PORTABLE))) %}{% endif -%}
+{%- if rules.format == "email" %}{% set _ = checks.append("AfterValidator(check_email)") %}{% endif -%}
+{%- if rules.format == "uri" %}{% set _ = checks.append("AfterValidator(check_uri)") %}{% endif -%}
+{%- set base = "StrictStr" -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- for rule, arg in [("minimum", "ge"), ("exclusive_minimum", "gt"), ("maximum", "le"), ("exclusive_maximum", "lt")] if rules[rule] is defined -%}
+{%- set _ = constraints.append(arg ~ "=" ~ rules[rule]) -%}
+{%- endfor -%}
+{%- set base = "SafeInt" if f.type == "integer" else "Number" -%}
+{%- elif f.type == "array" -%}
+{%- if rules.min_items is defined %}{% set _ = constraints.append("min_length=" ~ rules.min_items) %}{% endif -%}
+{%- if rules.max_items is defined %}{% set _ = constraints.append("max_length=" ~ rules.max_items) %}{% endif -%}
+{%- if rules.unique_items %}{% set _ = checks.append("AfterValidator(check_unique_items)") %}{% endif -%}
+{%- set base = "List[" ~ ITEM_TYPES[f.item_type] ~ "]" -%}
+{%- elif f.type == "enum" -%}
+{%- set base = "Literal[" ~ (f.enum_values | map("tojson") | join(", ")) ~ "]" -%}
+{%- else -%}
+{%- set base = ITEM_TYPES[f.type] -%}
+{%- endif -%}
+{%- set extras = (["Field(" ~ (constraints | join(", ")) ~ ")"] if constraints else []) + checks -%}
+{%- if extras -%}
+Annotated[{{ base }}, {{ extras | join(", ") }}]
+{%- else -%}
+{{ base }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The lenient type a stored value is read as, without None. -#}
+{%- macro read_type(f) -%}
+{%- if f.type == "array" -%}List[{{ READ_TYPES[f.item_type] }}]{%- else -%}{{ READ_TYPES[f.type] }}{%- endif -%}
+{%- endmacro -%}
+
+{%- macro default_expression(f) -%}
+{%- if f.dynamic -%}Field(default_factory={{ DYNAMIC_FACTORIES[f.dynamic] }})
+{%- elif f.default is not none and f.default is not string and f.default is iterable -%}Field(default_factory=lambda: {{ literal(f.default) }})
+{%- else -%}{{ literal(f.default) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A request body field: create and replace apply defaults, update leaves an absent field unset. -#}
+{%- macro request_field(f, op) -%}
+{%- set type = request_type(f) ~ (" | None" if f.nullable else "") -%}
+{%- if op == "update" or (not f.required and not f.has_default) -%}
+{{ f.name }}: {{ type }} = None
+{%- elif f.has_default -%}
+{{ f.name }}: {{ type }} = {{ default_expression(f) }}
+{%- else -%}
+{{ f.name }}: {{ type }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A stored field with the value a create gives it when the body does not; the repository sets the system fields. -#}
+{%- macro entity_field(f) -%}
+{%- if f.system -%}
+{{ f.name }}: {{ read_type(f) }}{% if not f.required %} | None = None{% elif not f.dynamic %} = {{ literal(f.default) }}{% endif %}
+{%- else -%}
+{{ f.name }}: {{ read_type(f) }} | None = {{ default_expression(f) if f.has_default else "None" }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A response field; a stored record without the value reads as its static default (nullable fields as null). -#}
+{%- macro response_field(f) -%}
+{%- if f.system -%}
+{{ f.name }}: {{ read_type(f) }}
+{%- else -%}
+{{ f.name }}: {{ read_type(f) }} | None = {{ default_expression(dict(f, dynamic="", default=f.read_default)) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A model's classes: the stored entity, a request per body kind and the response. A resource model extends the Base
+    classes; the Base entity holds the members of the caller block after its fields. -#}
+{%- macro model_classes(name, fields, kinds) -%}
+{%- set extends = name != "Base" -%}
+class {{ name }}Entity({{ "BaseEntity" if extends else "BaseModel" }}):
+{%- for f in fields %}
+{%- if f.description %}
+    # {{ f.description }}
+{%- endif %}
+    {{ entity_field(f) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- if caller is defined %}
+{{ caller() }}
+{%- endif %}
+{%- for op, kind in kinds %}
+{%- set accepted = fields | selectattr("in_" ~ op) | list %}
+
+
+class {{ name }}{{ kind }}Request({{ ("Base" ~ kind ~ "Request") if extends else "RequestModel" }}):
+{%- if op == "update" and accepted %}
+    # Defaults skip validation: an absent field stays unset, an explicit null is rejected unless nullable.
+{%- endif %}
+{%- for f in accepted %}
+    {{ request_field(f, op) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- endfor %}
+
+
+class {{ name }}Response({{ "BaseResponse" if extends else "BaseModel" }}):
+{%- for f in fields | rejectattr("hidden") %}
+    {{ response_field(f) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- endmacro -%}
+
+{%- macro imports(body) -%}
+{%- set used = namespace(typing=[], pydantic=[], local=[]) -%}
+{%- for name in ["Annotated", "List", "Literal"] if body | regex_search("\\b" ~ name ~ "\\[") %}{% set used.typing = used.typing + [name] %}{% endfor -%}
+{%- for name in ["AfterValidator", "BaseModel", "ConfigDict", "Field", "StrictBool", "StrictStr"] if body | regex_search("\\b" ~ name ~ "\\b") %}{% set used.pydantic = used.pydantic + [name] %}{% endfor -%}
+{%- for name in ["DateStr", "DateTimeStr", "Number", "SafeInt", "UuidStr", "check_email", "check_unique_items", "check_uri", "generate_utc_timestamp", "new_uuid", "utc_today"] if body | regex_search("\\b" ~ name ~ "\\b") %}{% set used.local = used.local + [name] %}{% endfor -%}
+{%- if used.typing %}from typing import {{ used.typing | join(", ") }}
+{% endif -%}
+{%- if used.pydantic %}from pydantic import {{ used.pydantic | join(", ") }}
+{% endif -%}
+{%- if used.local %}from .fields import {{ used.local | join(", ") }}
+{% endif -%}
+{%- endmacro -%}
+
+{%- macro sample_dict(fields) -%}
+{ {%- for f in fields %}{{ f.name | tojson }}: {{ literal(f.sample) }}{{ ", " if not loop.last }}{% endfor -%} }
+{%- endmacro -%}
+
+{#- An assertion that expr equals a sample value, written the way ruff expects for None and booleans. -#}
+{%- macro expect(expr, value) -%}
+{%- if value is none or value is boolean -%}{{ expr }} is {{ literal(value) }}
+{%- else -%}{{ expr }} == {{ literal(value) }}
+{%- endif -%}
+{%- endmacro -%}

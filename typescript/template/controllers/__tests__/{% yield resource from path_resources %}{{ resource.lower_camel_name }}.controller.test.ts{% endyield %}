@@ -1,10 +1,17 @@
+{%- from 'shared/_fields.jinja' import DATE_TIME_CASES -%}
+{%- from 'typescript/_model.jinja' import literal, sample_object -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set client = resource.client_fields -%}
+{%- set body_ops = [("create", "post"), ("update", "update"), ("replace", "replace")] | selectattr(0, "in", ops) | list -%}
+{%- macro call(op, method, body, user="") -%}
+mockController.{{ method }}({% if op != "create" %}mockValidGuid, {% endif %}{{ body }}{% if user %}, '{{ user }}'{% endif %})
+{%- endmacro -%}
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { {{ r }}Controller } from '@controllers';
 import { {{ r }}Service, SchemaValidator } from '@services';
 import { NotFoundError, ValidationError } from '@errors';
-import { MockFn } from '../../test/mocks';
+import { MockFn{% if body_ops %}, invalidBodies{% endif %} } from '../../test/mocks';
 
 describe('{{ r }}Controller', () => {
     const mockGet = jest.fn<MockFn>();
@@ -29,58 +36,108 @@ describe('{{ r }}Controller', () => {
 
     const mockValidGuid = '91ed1c70-5412-449a-b949-80542a4eb3d5';
     const mockInvalidGuid = 'invalid-guid';
-    const mockBody = { name: 'mock{{ r }}' };
     const mockService = new Mock{{ r }}Service() as unknown as {{ r }}Service;
     const mockController = new {{ r }}Controller(mockService, new SchemaValidator());
-
-    const expectBadRequest = async (call: Promise<unknown>, message: string) => {
-        await expect(call).rejects.toBeInstanceOf(ValidationError);
-        await expect(call).rejects.toMatchObject({ statusCode: 400, message });
-    };
 
     const expectNotFound = async (call: Promise<unknown>, id: string) => {
         await expect(call).rejects.toBeInstanceOf(NotFoundError);
         await expect(call).rejects.toMatchObject({ statusCode: 404, message: `{{ r }} with id ${id} was not found.` });
     };
-{%- if "create" in ops %}
+{%- if body_ops %}
 
-    describe('post', () => {
-        it('should pass the validated body and user id to the service', async () => {
-            mockCreate.mockResolvedValue({ id: mockValidGuid, ...mockBody });
-            expect(await mockController.post(mockBody, 'mockUser')).toEqual({ id: mockValidGuid, ...mockBody });
-            expect(mockCreate).toHaveBeenCalledWith(mockBody, 'mockUser');
-        });
+    const expectBadRequest = async (call: Promise<unknown>) => {
+        await expect(call).rejects.toBeInstanceOf(ValidationError);
+        await expect(call).rejects.toMatchObject({ statusCode: 400 });
+    };
 
-        it('should return 400 when name is missing', async () => {
-            await expectBadRequest(mockController.post({}), 'name is required.');
-            expect(mockCreate).not.toHaveBeenCalled();
-        });
-
-        it('should return 400 when name is not a string', async () => {
-            await expectBadRequest(mockController.post({ name: 42 }), 'name must be a string.');
-            await expectBadRequest(mockController.post({ name: true }), 'name must be a string.');
-        });
-
-        it('should return 400 when name is empty', async () => {
-            await expectBadRequest(mockController.post({ name: '' }), 'name must not be empty.');
-        });
-
-        it('should return 400 for unknown fields, including system fields', async () => {
-            await expectBadRequest(mockController.post({ ...mockBody, invalidProp: 'x' }), 'Unknown field: invalidProp.');
-            await expectBadRequest(mockController.post({ ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
-            await expectBadRequest(
-                mockController.post({ ...mockBody, isDeleted: false, createdBy: 'x' }),
-                'Unknown fields: isDeleted, createdBy.',
-            );
-            expect(mockCreate).not.toHaveBeenCalled();
-        });
-
-        it('should return 400 for a body that is not an object', async () => {
-            await expectBadRequest(mockController.post([mockBody]), 'Request body must be a JSON object.');
-            await expectBadRequest(mockController.post('mock'), 'Request body must be a JSON object.');
-        });
-    });
+    const rejected: Record<string, unknown[]> = {
+{%- for f in client %}
+        {{ f.name }}: {{ literal(f.rejected) }},
+{%- endfor %}
+    };
+    const boundaryValues: [string, unknown][] = [
+{%- for f in client %}
+{%- for v in f.boundaries %}
+        ['{{ f.name }}', {{ literal(v) }}],
+{%- endfor %}
+{%- endfor %}
+    ];
 {%- endif %}
+{%- for op, method in body_ops %}
+{%- set accepted = client | selectattr("in_" ~ op) | list %}
+{%- set refused = client | rejectattr("in_" ~ op) | list %}
+{%- set required = accepted | selectattr("needs_value") | list if op != "update" else [] %}
+{%- set mock = {"create": "mockCreate", "update": "mockUpdate", "replace": "mockReplace"}[op] %}
+
+    describe('{{ method }}', () => {
+        const valid: Record<string, unknown> = {{ sample_object(accepted) }};
+
+        it('should pass the validated body and user id to the service', async () => {
+            await {{ call(op, method, "valid", "mockUser") }};
+            expect({{ mock }}).toHaveBeenCalledWith({% if op != "create" %}mockValidGuid, {% endif %}valid, 'mockUser');
+        });
+{%- if op == "update" %}
+
+        it('should accept an empty body and leave every field out', async () => {
+            await mockController.update(mockValidGuid, {});
+            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, {}, undefined);
+        });
+{%- for f in accepted if f.nullable %}
+
+        it('should pass null to clear {{ f.name }}', async () => {
+            await mockController.update(mockValidGuid, { {{ f.name }}: null });
+            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, { {{ f.name }}: null }, undefined);
+        });
+{%- endfor %}
+{%- else %}
+{%- set left_out = accepted | rejectattr("needs_value") | list %}
+{%- if left_out %}
+
+        it('should give fields left out their defaults', async () => {
+            await {{ call(op, method, sample_object(required)) }};
+            const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
+{%- for f in left_out %}
+{%- if f.dynamic %}
+            expect(sent.{{ f.name }}).toEqual(expect.any(String));
+{%- elif f.has_default %}
+            expect(sent.{{ f.name }}).toEqual({{ literal(f.default) }});
+{%- else %}
+            expect(sent).not.toHaveProperty('{{ f.name }}');
+{%- endif %}
+{%- endfor %}
+        });
+{%- endif %}
+{%- endif %}
+{%- for f in accepted if f.type == "date-time" %}
+
+        it('should hold {{ f.name }} in UTC with milliseconds', async () => {
+            await {{ call(op, method, "{ ...valid, " ~ f.name ~ ": " ~ (DATE_TIME_CASES[0].sent | tojson) ~ " }") }};
+            const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
+            expect(sent.{{ f.name }}).toEqual({{ DATE_TIME_CASES[0].stored | tojson }});
+        });
+{%- endfor %}
+
+        it.each(invalidBodies(valid, {{ required | map(attribute="name") | list | tojson }}, {{ sample_object(refused) }}, rejected))('should return 400 for %j', async (body) => {
+            await expectBadRequest({{ call(op, method, "body") }});
+            expect({{ mock }}).not.toHaveBeenCalled();
+        });
+{%- if accepted | selectattr("boundaries") | list %}
+
+        it.each(boundaryValues.filter(([name]) => name in valid))('should accept the edge value %s = %j', async (name, value) => {
+            await {{ call(op, method, "{ ...valid, [name]: value }") }};
+            const sent = {{ mock }}.mock.calls[0][{{ 0 if op == "create" else 1 }}] as Record<string, unknown>;
+            expect(sent[name]).toEqual(value);
+        });
+{%- endif %}
+{%- if op != "create" %}
+
+        it('should return 404 for an id that is not a UUID', async () => {
+            await expectNotFound(mockController.{{ method }}(mockInvalidGuid, valid), mockInvalidGuid);
+            expect({{ mock }}).not.toHaveBeenCalled();
+        });
+{%- endif %}
+    });
+{%- endfor %}
 {%- if "get_by_id" in ops %}
 
     describe('get', () => {
@@ -112,64 +169,6 @@ describe('{{ r }}Controller', () => {
 
             await mockController.list('abc');
             expect(mockList).toHaveBeenCalledWith(100);
-        });
-    });
-{%- endif %}
-{%- if "update" in ops %}
-
-    describe('update', () => {
-        it('should pass the path id, validated body and user id to the service', async () => {
-            await mockController.update(mockValidGuid, mockBody, 'mockUser');
-            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, mockBody, 'mockUser');
-        });
-
-        it('should accept an empty body', async () => {
-            await mockController.update(mockValidGuid, {});
-            expect(mockUpdate).toHaveBeenCalledWith(mockValidGuid, {}, undefined);
-        });
-
-        it('should return 400 when name is present but empty or not a string', async () => {
-            await expectBadRequest(mockController.update(mockValidGuid, { name: '' }), 'name must not be empty.');
-            await expectBadRequest(mockController.update(mockValidGuid, { name: 1 }), 'name must be a string.');
-            await expectBadRequest(mockController.update(mockValidGuid, { name: null }), 'name must be a string.');
-        });
-
-        it('should return 400 for unknown fields, including id', async () => {
-            await expectBadRequest(mockController.update(mockValidGuid, { ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
-            expect(mockUpdate).not.toHaveBeenCalled();
-        });
-
-        it('should return 400 for a body that is not an object', async () => {
-            await expectBadRequest(mockController.update(mockValidGuid, null), 'Request body must be a JSON object.');
-        });
-
-        it('should return 404 for an id that is not a UUID', async () => {
-            await expectNotFound(mockController.update(mockInvalidGuid, mockBody), mockInvalidGuid);
-            expect(mockUpdate).not.toHaveBeenCalled();
-        });
-    });
-{%- endif %}
-{%- if "replace" in ops %}
-
-    describe('replace', () => {
-        it('should pass the path id, validated body and user id to the service', async () => {
-            await mockController.replace(mockValidGuid, mockBody, 'mockUser');
-            expect(mockReplace).toHaveBeenCalledWith(mockValidGuid, mockBody, 'mockUser');
-        });
-
-        it('should return 400 when name is missing', async () => {
-            await expectBadRequest(mockController.replace(mockValidGuid, {}), 'name is required.');
-            expect(mockReplace).not.toHaveBeenCalled();
-        });
-
-        it('should return 400 for unknown fields, including id', async () => {
-            await expectBadRequest(mockController.replace(mockValidGuid, { ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
-            expect(mockReplace).not.toHaveBeenCalled();
-        });
-
-        it('should return 404 for an id that is not a UUID', async () => {
-            await expectNotFound(mockController.replace(mockInvalidGuid, mockBody), mockInvalidGuid);
-            expect(mockReplace).not.toHaveBeenCalled();
         });
     });
 {%- endif %}

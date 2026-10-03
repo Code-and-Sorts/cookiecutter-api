@@ -1,0 +1,7 @@
+# expect: requests.update lists a field more than once
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    requests: {update: [name, name]}

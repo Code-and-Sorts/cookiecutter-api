@@ -13,8 +13,9 @@ from controllers import ({% for resource in resources %}{{ resource.name }}Contr
 from utils.user_id import MAX_USER_ID_LENGTH, USER_ID_TOO_LONG_MESSAGE
 from conftest import ITEM_ID
 
-_BODY = b'{"name": "mockName"}'
-_ITEM = {"id": ITEM_ID, "name": "mockName"}
+# Routing tests pass the body through a mocked controller, so its content does not matter.
+_BODY = b'{"any": "body"}'
+_ITEM = {"id": ITEM_ID}
 _USER_ID = "user-1"
 _USER_HEADERS = {"X-User-Id": f"  {_USER_ID}  "}
 _TOO_LONG_HEADERS = {"X-User-Id": "u" * (MAX_USER_ID_LENGTH + 1)}
@@ -103,9 +104,8 @@ def describe_function_app():
     @pytest.mark.parametrize("data", [
         b"{not json",
         b"[]",
-        b'{"name": 42}',
-        b'{"name": "mockName", "id": "' + ITEM_ID.encode() + b'"}',
-        b'{"name": "mockName", "unknown": 1}',
+        b'{"id": "' + ITEM_ID.encode() + b'"}',
+        b'{"not_a_field": 1}',
         b"",
     ])
     def test_invalid_body_is_bad_request(module, name, method, route, item_id, body, query, action, args, status, data):

@@ -14,8 +14,9 @@ from repositories import ({% for resource in resources %}{{ resource.name }}Repo
 from utils.user_id import MAX_USER_ID_LENGTH, USER_ID_TOO_LONG_MESSAGE
 from conftest import ITEM_ID
 
-_BODY = '{"name": "mockName"}'
-_ITEM = {"id": ITEM_ID, "name": "mockName"}
+# Routing tests pass the body through a mocked controller, so its content does not matter.
+_BODY = '{"any": "body"}'
+_ITEM = {"id": ITEM_ID}
 _USER_ID = "user-1"
 _USER_HEADERS = {"X-User-Id": f"  {_USER_ID}  "}
 _TOO_LONG_HEADERS = {"X-User-Id": "u" * (MAX_USER_ID_LENGTH + 1)}
@@ -140,9 +141,8 @@ def describe_lambda_handler():
     @pytest.mark.parametrize("body", [
         "{not json",
         "[]",
-        '{"name": 42}',
-        '{"name": "mockName", "id": "' + ITEM_ID + '"}',
-        '{"name": "mockName", "unknown": 1}',
+        '{"id": "' + ITEM_ID + '"}',
+        '{"not_a_field": 1}',
         None,
     ])
     def test_invalid_body_is_bad_request(module, method, resource, item_id, body):

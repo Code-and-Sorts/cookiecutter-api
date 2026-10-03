@@ -1,0 +1,7 @@
+# expect: requests must map create, replace or update
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    requests: [name]

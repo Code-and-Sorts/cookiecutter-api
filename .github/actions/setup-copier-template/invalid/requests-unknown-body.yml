@@ -1,0 +1,7 @@
+# expect: requests.patch is not a request body
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    requests: {patch: [name]}

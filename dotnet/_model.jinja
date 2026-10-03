@@ -1,0 +1,211 @@
+{#- Renders base_fields and resource fields as C# properties, FluentValidation rules and test values. Never copied into a project. -#}
+{%- from 'shared/_fields.jinja' import MAX_SAFE_INTEGER, PATTERNS, PORTABLE, rewrite_pattern, sample_body_json, string_literal -%}
+{%- set CS_TYPES = {"string": "string", "integer": "long", "number": "double", "boolean": "bool", "date": "string", "date-time": "string", "uuid": "string", "enum": "string"} -%}
+{%- set DYNAMIC_DEFAULTS = {"now": "Fields.Now()", "today": "Fields.Today()", "uuid": "Fields.NewUuid()"} -%}
+{#- Checks of a value's shape, as (Fields method, description); arrays apply them to every item. -#}
+{%- set VALUE_CHECKS = {
+    "integer": ("Fields.IsSafeInteger", "an integer between -" ~ MAX_SAFE_INTEGER ~ " and " ~ MAX_SAFE_INTEGER),
+    "date": ("Fields.IsDate", "a date such as 2026-01-31"),
+    "date-time": ("Fields.IsDateTime", "a date-time with an offset, such as 2026-01-31T09:30:00Z"),
+    "uuid": ("Fields.IsUuid", "a UUID"),
+} -%}
+{%- set FORMAT_NAMES = {"email": "an email address", "uri": "an absolute URI"} -%}
+{#- Rules on a length or count, as (rule, FluentValidation check, message, unit). -#}
+{%- set COUNT_RULES = [
+    ("min_length", "Must(value => value == null || Fields.Length(value) >= %s)", "be at least %s long", "character"),
+    ("max_length", "Must(value => value == null || Fields.Length(value) <= %s)", "be at most %s long", "character"),
+    ("min_items", "Must(values => values == null || values.Count >= %s)", "have at least %s", "item"),
+    ("max_items", "Must(values => values == null || values.Count <= %s)", "have at most %s", "item"),
+] -%}
+{%- set BOUND_RULES = [("minimum", "GreaterThanOrEqualTo", "at least"), ("exclusive_minimum", "GreaterThan", "greater than"), ("maximum", "LessThanOrEqualTo", "at most"), ("exclusive_maximum", "LessThan", "less than")] -%}
+
+{#- The C# type of a field's value; every property is nullable, so a missing value, null and zero differ. -#}
+{%- macro cs_type(f) -%}
+{%- if f.type == "array" -%}List<{{ CS_TYPES[f.item_type] }}>{%- else -%}{{ CS_TYPES[f.type] }}{%- endif -%}
+{%- endmacro -%}
+
+{%- macro scalar(type, value) -%}
+{%- if type == "boolean" -%}{{ "true" if value else "false" }}
+{%- elif type in ["integer", "number"] -%}{{ value }}
+{%- else -%}{{ string_literal(value) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A C# expression for a value of the field; arrays are collection expressions, so they need a target type. -#}
+{%- macro literal(f, value) -%}
+{%- if value is none -%}null
+{%- elif f.type == "array" -%}[{% for item in value %}{{ scalar(f.item_type, item) }}{{ ", " if not loop.last }}{% endfor %}]
+{%- else -%}{{ scalar(f.type, value) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A C# verbatim string for a pattern; .NET's $ also matches before a final newline, so it becomes \z. -#}
+{%- macro regex(pattern) -%}
+@"{{ rewrite_pattern(pattern, {"$": "\\z"}) | replace('"', '""') }}"
+{%- endmacro -%}
+
+{#- A C# verbatim string for a field's pattern, rendered as every language renders it. -#}
+{%- macro field_regex(pattern) -%}
+{{ regex(rewrite_pattern(pattern, PORTABLE)) }}
+{%- endmacro -%}
+
+{#- The value a create or replace gives a field the body leaves out; dynamic defaults are read per request. -#}
+{%- macro default_value(f) -%}
+{%- if f.dynamic -%}{{ DYNAMIC_DEFAULTS[f.dynamic] }}{%- else -%}{{ literal(f, f.default) }}{%- endif -%}
+{%- endmacro -%}
+
+{#- The namespaces a model file uses, from the fields it renders: kind is entity, response, request or validation;
+    ops are the request bodies a request file renders and base marks the shared base types. -#}
+{%- macro usings(kind, fields, ops=[], base=false) -%}
+{%- set api = project_class_name ~ ".Api." -%}
+{%- set types = fields | map(attribute="type") | list + fields | map(attribute="item_type") | list -%}
+{%- set names = [] -%}
+{%- if kind == "validation" -%}
+{%- set ns = namespace(checked=types | select("in", VALUE_CHECKS) | list | length > 0) -%}
+{%- for f in fields if f.rules | select("in", ["min_length", "max_length", "pattern", "format"]) | list %}{% set ns.checked = true %}{% endfor -%}
+{%- if fields | map(attribute="rules") | selectattr("unique_items") | list %}{% set _ = names.append("System.Linq") %}{% endif -%}
+{%- set _ = names.extend(["FluentValidation", api ~ "Requests"]) -%}
+{%- if ns.checked %}{% set _ = names.append(api ~ "Utils") %}{% endif -%}
+{%- else -%}
+{%- if "array" in types or (kind == "request" and base) %}{% set _ = names.append("System.Collections.Generic") %}{% endif -%}
+{%- if fields or base %}{% set _ = names.append("System.Text.Json.Serialization") %}{% endif -%}
+{%- if kind != "entity" %}{% set _ = names.append(api ~ "Entities") %}{% endif -%}
+{%- set defaulted = fields | selectattr("dynamic") | list if ops | select("in", ["create", "replace"]) | list else [] -%}
+{%- if kind == "request" and (base or "date-time" in types or defaulted) %}{% set _ = names.append(api ~ "Utils") %}{% endif -%}
+{%- endif -%}
+{{ names | tojson }}
+{%- endmacro -%}
+
+{#- A C# file in a namespace under the API's holding body, after the usings a usings() call names. -#}
+{%- macro csharp_file(namespace, names, body) -%}
+namespace {{ project_class_name ~ ".Api." ~ namespace }};
+{% for name in names | from_json %}{{ "\n" if loop.first }}using {{ name }};
+{% endfor %}
+{{ body | trim }}
+{%- endmacro -%}
+
+{#- A property serialized under the field's declared name; responses write null instead of leaving it out. -#}
+{%- macro property(f, initializer="", response=false, order=none) -%}
+{%- if f.description %}
+    /// <summary>{{ f.description | e }}</summary>
+{%- endif %}
+    [JsonPropertyName("{{ f.name }}")]
+{%- if response %}
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+{%- endif %}
+{%- if order is not none %}
+    [JsonPropertyOrder({{ order }})]
+{%- endif %}
+    public {{ cs_type(f) }}? {{ f.pascal }} { get; set; }{{ (" = " ~ initializer ~ ";") if initializer }}
+{%- endmacro -%}
+
+{#- Properties separated by blank lines; each starts on a new line. A request body of op starts from the defaults. -#}
+{%- macro properties(fields, op="", response=false, order=none) -%}
+{%- for f in fields -%}
+{{ "\n" if not loop.first }}{{ property(f, default_value(f) if op in ["create", "replace"] and f.defaulted else "", response, order) }}
+{%- endfor -%}
+{%- endmacro -%}
+
+{#- The value stored for a request property; date-times are kept in UTC with milliseconds. -#}
+{%- macro stored(f) -%}
+{%- if "date-time" in [f.type, f.item_type] -%}Fields.UtcDateTime{{ "s" if f.type == "array" }}({{ f.pascal }})
+{%- else -%}{{ f.pascal }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Copies a request's fields onto target; an update copies only the fields its body sent. -#}
+{%- macro assignments(fields, op, target) -%}
+{%- for f in fields %}
+{%- if op == "update" %}
+        if (Sent.Contains("{{ f.name }}"))
+        {
+            {{ target }}.{{ f.pascal }} = {{ stored(f) }};
+        }
+{%- else %}
+        {{ target }}.{{ f.pascal }} = {{ stored(f) }};
+{%- endif %}
+{%- endfor -%}
+{%- endmacro -%}
+
+{#- Copies the shown fields of a stored record; a missing value reads as the field's static default. -#}
+{%- macro shown_assignments(fields, source) -%}
+{%- for f in fields %}
+        {{ f.pascal }} = {{ source }}.{{ f.pascal }}{% if f.has_read_default %} ?? {{ literal(f, f.read_default) }}{% endif %};
+{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro rule(target, check, message) %}
+        {{ target }}.{{ check }}.WithMessage({{ message | tojson }});
+{%- endmacro -%}
+
+{%- macro matches(pattern) -%}
+Must(value => value == null || Fields.Matches(value, {{ pattern }}))
+{%- endmacro -%}
+
+{%- macro bound(f, value) -%}
+{{ value }}{{ "L" if f.type == "integer" else "d" }}
+{%- endmacro -%}
+
+{#- FluentValidation rules for one accepted field; null passes every value rule, so only the null rule sees it. -#}
+{%- macro rules(f, op) -%}
+{%- set p = "RuleFor(x => x." ~ f.pascal ~ ")" -%}
+{%- set sent = "Sent.Contains(" ~ (f.name | tojson) ~ ")" -%}
+{%- set check = VALUE_CHECKS.get(f.item_type or f.type) -%}
+{%- if op != "update" and f.needs_value -%}
+{{ rule("RuleFor(x => x.Sent)", "Must(sent => sent.Contains(" ~ (f.name | tojson) ~ "))", f.name ~ " is required.") }}
+{%- endif -%}
+{%- if not f.nullable -%}
+{{ rule(p, "NotNull().When(x => x." ~ sent ~ ")", f.name ~ " must not be null.") }}
+{%- endif -%}
+{%- if check and f.type == "array" -%}
+{{ rule(p, "Must(values => values == null || values.TrueForAll(value => " ~ check[0] ~ "(value)))", f.name ~ " items must each be " ~ check[1] ~ ".") }}
+{%- elif check -%}
+{{ rule(p, "Must(" ~ check[0] ~ ")", f.name ~ " must be " ~ check[1] ~ ".") }}
+{%- endif -%}
+{%- if f.type == "enum" -%}
+{{ rule(p, "Must(value => value is null or " ~ (f.enum_values | map("tojson") | join(" or ")) ~ ")", f.name ~ " must be one of " ~ (f.enum_values | join(", ")) ~ ".") }}
+{%- endif -%}
+{%- for key, check_format, text, unit in COUNT_RULES if key in f.rules -%}
+{{ rule(p, check_format % f.rules[key], f.name ~ " must " ~ (text % (f.rules[key] ~ " " ~ unit ~ ("" if f.rules[key] == 1 else "s"))) ~ ".") }}
+{%- endfor -%}
+{%- for key, method, text in BOUND_RULES if key in f.rules -%}
+{{ rule(p, method ~ "(" ~ bound(f, f.rules[key]) ~ ")", f.name ~ " must be " ~ text ~ " " ~ f.rules[key] ~ ".") }}
+{%- endfor -%}
+{%- if "pattern" in f.rules -%}
+{{ rule(p, matches(field_regex(f.rules.pattern)), f.name ~ " must match the pattern " ~ f.rules.pattern ~ ".") }}
+{%- endif -%}
+{%- if "format" in f.rules -%}
+{{ rule(p, matches(regex(PATTERNS[f.rules.format])), f.name ~ " must be " ~ FORMAT_NAMES[f.rules.format] ~ ".") }}
+{%- endif -%}
+{%- if f.rules.unique_items -%}
+{%- set items = "values.Select(value => Fields.UtcDateTime(value))" if f.item_type == "date-time" else "values" -%}
+{{ rule(p, "Must(values => values == null || " ~ items ~ ".Distinct().Count() == values.Count)", f.name ~ " must not repeat an item.") }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Validator classes, one per (class, request type, fields, op, included base validator). -#}
+{%- macro validators(classes) -%}
+{%- for name, request, fields, op, base in classes %}
+
+public class {{ name }} : AbstractValidator<{{ request }}>
+{
+    public {{ name }}()
+    {
+{%- if base %}
+        Include(new {{ base }}());
+{%- endif %}
+{%- for f in fields %}{{ rules(f, op) }}{% endfor %}
+    }
+}
+{%- endfor %}
+{%- endmacro -%}
+
+{#- A C# string literal holding the JSON for value, for test bodies. -#}
+{%- macro json_string(value) -%}
+{{ value | tojson | tojson }}
+{%- endmacro -%}
+
+{#- A C# string literal holding a JSON object with every given field's sample value, for test bodies. -#}
+{%- macro sample_body(fields) -%}
+{{ json_string(sample_body_json(fields) | from_json) }}
+{%- endmacro -%}

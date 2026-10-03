@@ -1,123 +1,117 @@
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set lc = resource.lower_camel_name -%}
+{%- set ct = "TestContext.Current.CancellationToken" -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
-
+{% if "update" in ops or "replace" in ops %}
+using System;
+{%- endif %}
+{%- if "list" in ops %}
 using System.Collections.Generic;
+{%- endif %}
 using System.Threading;
 using System.Threading.Tasks;
+{%- if resource.has_dto %}
 using {{project_class_name}}.Api.Dtos;
+{%- endif %}
+{%- if resource.has_body %}
 using {{project_class_name}}.Api.Entities;
+{%- endif %}
 using {{project_class_name}}.Api.Interfaces;
 {%- if resource.has_body %}
 using {{project_class_name}}.Api.Requests;
 {%- endif %}
 using {{project_class_name}}.Api.Services;
+{%- if resource.has_body %}
+using {{project_class_name}}.Api.Utils;
+{%- endif %}
 using NSubstitute;
 using Xunit;
 
 public class {{ r }}ServiceTests
 {
-    private readonly I{{ r }}Repository _{{ r | to_lower_camel }}RepositoryMock;
-    private readonly {{ r }}Service _{{ r | to_lower_camel }}Service;
+    private const string ItemId = {{ r }}Samples.ItemId;
+    private readonly I{{ r }}Repository _{{ lc }}RepositoryMock;
+    private readonly {{ r }}Service _{{ lc }}Service;
 
     public {{ r }}ServiceTests()
     {
-        _{{ r | to_lower_camel }}RepositoryMock = Substitute.For<I{{ r }}Repository>();
-        _{{ r | to_lower_camel }}Service = new {{ r }}Service(_{{ r | to_lower_camel }}RepositoryMock);
+        _{{ lc }}RepositoryMock = Substitute.For<I{{ r }}Repository>();
+        _{{ lc }}Service = new {{ r }}Service(_{{ lc }}RepositoryMock);
     }
-{%- if "get_by_id" in resource.operations %}
+{%- if "get_by_id" in ops %}
 
     [Fact]
     public async Task GetAsync_ShouldReturn{{ r }}Dto()
     {
-        var itemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        var expectedItem = new {{ r }}Dto { Id = itemId, Name = "mock{{ r }}" };
-        _{{ r | to_lower_camel }}RepositoryMock.GetAsync(itemId, Arg.Any<CancellationToken>())
-            .Returns(expectedItem);
+        var expectedItem = {{ r }}Samples.Dto();
+        _{{ lc }}RepositoryMock.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.GetAsync(itemId, TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Service.GetAsync(ItemId, {{ ct }});
 
         Assert.Equal(expectedItem, result);
     }
 {%- endif %}
-{%- if "list" in resource.operations %}
+{%- if "list" in ops %}
 
     [Fact]
     public async Task GetListAsync_ShouldReturnListOf{{ r }}Dto()
     {
-        var expectedItemList = new List<{{ r }}Dto>
-        {
-            new {{ r }}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mock{{ r }}1" },
-            new {{ r }}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }
-        };
-        _{{ r | to_lower_camel }}RepositoryMock.GetListAsync(25, Arg.Any<CancellationToken>())
-            .Returns(expectedItemList);
+        var expectedItemList = new List<{{ r }}Dto> { {{ r }}Samples.Dto(), {{ r }}Samples.Dto() };
+        _{{ lc }}RepositoryMock.GetListAsync(25, Arg.Any<CancellationToken>()).Returns(expectedItemList);
 
-        var result = await _{{ r | to_lower_camel }}Service.GetListAsync(25, TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Service.GetListAsync(25, {{ ct }});
 
         Assert.Equal(expectedItemList, result);
     }
 {%- endif %}
-{%- if "create" in resource.operations %}
+{%- if "create" in ops %}
 
     [Fact]
-    public async Task CreateAsync_ShouldReturnCreated{{ r }}Dto()
+    public async Task CreateAsync_StoresTheRequestAsAnEntity()
     {
-        var createRequest = new Create{{ r }}Request { Name = "mockCreate{{ r }}" };
-        var expectedItem = new {{ r }}Dto { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = createRequest.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.CreateAsync(Arg.Any<{{ r }}Entity>(), "User1", Arg.Any<CancellationToken>())
-            .Returns(expectedItem);
+        var request = await RequestBody.DeserializeAsync<Create{{ r }}Request>(Mocks.CreateStream({{ r }}Samples.CreateBody), {{ ct }});
+        var expectedItem = {{ r }}Samples.Dto();
+        {{ r }}Entity? stored = null;
+        _{{ lc }}RepositoryMock.CreateAsync(Arg.Do<{{ r }}Entity>(item => stored = item), "User1", Arg.Any<CancellationToken>()).Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.CreateAsync(createRequest, "User1", TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Service.CreateAsync(request, "User1", {{ ct }});
 
         Assert.Equal(expectedItem, result);
-        await _{{ r | to_lower_camel }}RepositoryMock.Received(1).CreateAsync(
-            Arg.Is<{{ r }}Entity>(entity => entity.Name == createRequest.Name), "User1", Arg.Any<CancellationToken>());
+        Assert.NotNull(stored);
+        JsonAssert.Contains(request, stored);
     }
 {%- endif %}
-{%- if "update" in resource.operations %}
+{%- for op, Op in [("update", "Update"), ("replace", "Replace")] if op in ops %}
 
     [Fact]
-    public async Task UpdateAsync_ShouldReturnUpdated{{ r }}Dto()
+    public async Task {{ Op }}Async_AppliesTheRequestToTheStoredEntity()
     {
-        var updateRequest = new Update{{ r }}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockUpdate{{ r }}" };
-        var updated{{ r }} = new {{ r }}Entity { Id = updateRequest.Id, Name = updateRequest.Name };
-        var expectedItem = new {{ r }}Dto { Id = updated{{ r }}.Id, Name = updated{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.UpdateAsync(Arg.Any<{{ r }}Entity>(), "User1", Arg.Any<CancellationToken>())
-            .Returns(expectedItem);
+        var request = await RequestBody.DeserializeAsync<{{ Op }}{{ r }}Request>(Mocks.CreateStream({{ r }}Samples.{{ Op }}Body), {{ ct }});
+        request.Id = ItemId;
+        var expectedItem = {{ r }}Samples.Dto();
+        Action<{{ r }}Entity>? apply = null;
+        _{{ lc }}RepositoryMock.{{ Op }}Async(ItemId, Arg.Do<Action<{{ r }}Entity>>(action => apply = action), "User1", Arg.Any<CancellationToken>()).Returns(expectedItem);
 
-        var result = await _{{ r | to_lower_camel }}Service.UpdateAsync(updateRequest, "User1", TestContext.Current.CancellationToken);
+        var result = await _{{ lc }}Service.{{ Op }}Async(request, "User1", {{ ct }});
 
         Assert.Equal(expectedItem, result);
+        Assert.NotNull(apply);
+        var item = new {{ r }}Entity();
+        apply(item);
+        JsonAssert.Contains(request, item);
     }
-{%- endif %}
-{%- if "replace" in resource.operations %}
-
-    [Fact]
-    public async Task ReplaceAsync_ShouldReturnReplaced{{ r }}Dto()
-    {
-        var replaceRequest = new Replace{{ r }}Request { Id = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c", Name = "mockReplace{{ r }}" };
-        var replaced{{ r }} = new {{ r }}Entity { Id = replaceRequest.Id, Name = replaceRequest.Name };
-        var expectedItem = new {{ r }}Dto { Id = replaced{{ r }}.Id, Name = replaced{{ r }}.Name };
-        _{{ r | to_lower_camel }}RepositoryMock.ReplaceAsync(Arg.Any<{{ r }}Entity>(), "User1", Arg.Any<CancellationToken>())
-            .Returns(expectedItem);
-
-        var result = await _{{ r | to_lower_camel }}Service.ReplaceAsync(replaceRequest, "User1", TestContext.Current.CancellationToken);
-
-        Assert.Equal(expectedItem, result);
-    }
-{%- endif %}
-{%- if "delete" in resource.operations %}
+{%- endfor %}
+{%- if "delete" in ops %}
 
     [Fact]
     public async Task DeleteAsync_ShouldCallRepositoryDelete()
     {
-        var itemId = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c";
-        _{{ r | to_lower_camel }}RepositoryMock.DeleteAsync(itemId, "User1", Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+        _{{ lc }}RepositoryMock.DeleteAsync(ItemId, "User1", Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await _{{ r | to_lower_camel }}Service.DeleteAsync(itemId, "User1", TestContext.Current.CancellationToken);
+        await _{{ lc }}Service.DeleteAsync(ItemId, "User1", {{ ct }});
 
-        await _{{ r | to_lower_camel }}RepositoryMock.Received(1).DeleteAsync(itemId, "User1", Arg.Any<CancellationToken>());
+        await _{{ lc }}RepositoryMock.Received(1).DeleteAsync(ItemId, "User1", Arg.Any<CancellationToken>());
     }
 {%- endif %}
 }

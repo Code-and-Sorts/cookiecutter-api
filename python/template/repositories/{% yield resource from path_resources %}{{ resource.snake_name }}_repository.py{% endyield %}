@@ -4,12 +4,13 @@
 {% if 'list' in ops -%}
 from typing import List
 {% endif -%}
-from models import {{ model_names(resource, always_response=true) }}
+from models import {{ model_names(resource, entity=true, always_response=true) }}
 from .base_repository import BaseRepository
 
 
 class {{ r }}Repository(BaseRepository[{{ r }}Response]):
     resource_name = "{{ r }}"
+    entity_model = {{ r }}Entity
     response_model = {{ r }}Response
 {%- if "get_by_id" in ops %}
 
@@ -23,18 +24,18 @@ class {{ r }}Repository(BaseRepository[{{ r }}Response]):
 {%- endif %}
 {%- if "create" in ops %}
 
-    async def create(self, item: Base{{ r }}, user_id: str | None = None) -> {{ r }}Response:
+    async def create(self, item: {{ r }}CreateRequest, user_id: str | None = None) -> {{ r }}Response:
         return await self._create(item.model_dump(), user_id)
 {%- endif %}
 {%- if "update" in ops %}
 
-    async def update(self, item_id: str, changes: {{ r }}Update, user_id: str | None = None) -> {{ r }}Response:
+    async def update(self, item_id: str, changes: {{ r }}UpdateRequest, user_id: str | None = None) -> {{ r }}Response:
         return await self._update(item_id, changes.model_dump(exclude_unset=True), user_id)
 {%- endif %}
 {%- if "replace" in ops %}
 
-    async def replace(self, item_id: str, item: Base{{ r }}, user_id: str | None = None) -> {{ r }}Response:
-        return await self._replace(item_id, item.model_dump(), user_id)
+    async def replace(self, item_id: str, item: {{ r }}ReplaceRequest, user_id: str | None = None) -> {{ r }}Response:
+        return await self._update(item_id, item.model_dump(), user_id)
 {%- endif %}
 {%- if "delete" in ops %}
 

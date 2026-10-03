@@ -1,0 +1,9 @@
+# expect: set minimum or exclusive_minimum, not both
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: age, type: integer, rules: {minimum: 0, exclusive_minimum: 0}}

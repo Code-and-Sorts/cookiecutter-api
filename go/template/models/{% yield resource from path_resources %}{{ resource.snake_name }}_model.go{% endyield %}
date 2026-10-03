@@ -1,37 +1,34 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'go/_model.jinja' import field_rows, read_value, request_types, struct_fields -%}
 {%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set fields = resource.fields -%}
+{%- set create_extras = fields | rejectattr("in_create") | selectattr("defaulted") | list -%}
+{%- set defaulted = (fields | selectattr("in_create") | list + create_extras if "create" in ops else []) + (fields | selectattr("in_replace") | list if "replace" in ops else []) -%}
 package models
+{%- if defaulted | selectattr("dynamic", "equalto", "uuid") | list %}
+
+import "github.com/google/uuid"
+{%- endif %}
 
 type {{ r }} struct {
 	BaseEntity
-	Name string `json:"name" dynamodbav:"name" firestore:"name"`
+{{- struct_fields(field_rows(fields, stored=true) | from_json) }}
 }
 
 type {{ r }}Dto struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
+	BaseResponse
+{{- struct_fields(field_rows(fields | rejectattr("hidden")) | from_json) }}
 }
 
 func To{{ r }}Dto(item {{ r }}) {{ r }}Dto {
-	return {{ r }}Dto{Id: item.Id, Name: item.Name}
+	dto := {{ r }}Dto{BaseResponse: NewBaseResponse(item.BaseEntity)}
+{%- for f in fields | rejectattr("hidden") %}
+	dto.{{ f.pascal }} = {{ read_value(f, "item") }}
+{%- endfor %}
+	return dto
 }
-{%- if "create" in resource.operations %}
+{%- for op, kind in REQUEST_KINDS if op in ops %}
 
-type Create{{ r }}Request struct {
-	Name string `json:"name"`
-}
-{%- endif %}
-{%- if "update" in resource.operations %}
-
-// An empty Name leaves the stored name unchanged.
-type Update{{ r }}Request struct {
-	Id   string `json:"-"`
-	Name string `json:"name"`
-}
-{%- endif %}
-{%- if "replace" in resource.operations %}
-
-type Replace{{ r }}Request struct {
-	Id   string `json:"-"`
-	Name string `json:"name"`
-}
-{%- endif %}
+{{ request_types(op, kind ~ r ~ "Request", r, "Base" ~ kind ~ "Request", r ~ "{BaseEntity: r.BaseCreateRequest.ToEntity()}", fields | selectattr("in_" ~ op) | list, create_extras) }}
+{%- endfor %}

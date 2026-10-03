@@ -1,32 +1,17 @@
+{%- from 'shared/_fields.jinja' import REQUEST_KINDS -%}
+{%- from 'typescript/_model.jinja' import field_imports, model_types -%}
 {%- set r = resource.name -%}
-import { z } from 'zod';
-import { BaseIdentifier, BaseSchema, responseMapper } from './base.schema';
-
-export const {{ r }}Schema = z.object({
-    name: z.string().min(1),
-});
-
-// strict() rejects id and the system fields, so a body can never overwrite them.
-export const {{ r }}RequestSchema = {{ r }}Schema.strict();
-
-export const {{ r }}UpdateSchema = {{ r }}Schema.partial().strict();
-
-export const {{ r }}ResponseSchema = z.object({
-    ...BaseIdentifier.shape,
-    ...{{ r }}Schema.shape,
-});
-
-export const {{ r }}EntitySchema = z.object({
-    ...{{ r }}Schema.shape,
-    ...BaseSchema.shape,
-});
-
-export type {{ r }}Record = z.infer<typeof {{ r }}EntitySchema>;
-
-export type {{ r }} = z.infer<typeof {{ r }}Schema>;
-
-export type {{ r }}Response = z.infer<typeof {{ r }}ResponseSchema>;
-
-export type {{ r }}Update = z.infer<typeof {{ r }}UpdateSchema>;
-
-export const to{{ r }}Response = responseMapper({{ r }}ResponseSchema);
+{%- set kinds = REQUEST_KINDS | selectattr(0, "in", resource.operations) | list -%}
+{%- set body %}
+{{ model_types(r, r ~ "Record", resource.fields, kinds) }}
+{%- endset -%}
+{% if kinds %}import { z } from 'zod';
+{% endif %}{{ field_imports(body) }}import {
+{%- for kind in kinds | map(attribute=1) %}
+    Base{{ kind }}RequestSchema,
+{%- endfor %}
+    BaseEntity,
+    BaseResponse,
+    toBaseResponse,
+} from './base.schema';
+{{ body }}

@@ -5,7 +5,7 @@ import { SchemaValidator } from '@services';
 
 describe('SchemaValidator', () => {
     const validator = new SchemaValidator();
-    const schema = z.object({ name: z.string().min(1) }).strict();
+    const schema = z.object({ label: z.string().min(1) }).strict();
     const nested = z.object({ count: z.number().min(2), tags: z.array(z.string()) }).strict();
 
     const messageFor = (value: unknown, s: z.ZodType<unknown> = schema): string => {
@@ -20,32 +20,32 @@ describe('SchemaValidator', () => {
     };
 
     it('should return the parsed value when valid', () => {
-        expect(validator.validate({ name: 'mockName' }, schema)).toEqual({ name: 'mockName' });
+        expect(validator.validate({ label: 'mockLabel' }, schema)).toEqual({ label: 'mockLabel' });
     });
 
     it('should report a missing required field', () => {
-        expect(messageFor({})).toEqual('name is required.');
+        expect(messageFor({})).toEqual('label is required.');
     });
 
     it('should report a field of the wrong type without coercion', () => {
-        expect(messageFor({ name: 1 })).toEqual('name must be a string.');
-        expect(messageFor({ name: true })).toEqual('name must be a string.');
-        expect(messageFor({ name: null })).toEqual('name must be a string.');
+        expect(messageFor({ label: 1 })).toEqual('label must be a string.');
+        expect(messageFor({ label: true })).toEqual('label must be a string.');
+        expect(messageFor({ label: null })).toEqual('label must be a string.');
         expect(messageFor({ count: 3, tags: {} }, nested)).toEqual('tags must be an array.');
     });
 
     it('should report an empty string', () => {
-        expect(messageFor({ name: '' })).toEqual('name must not be empty.');
+        expect(messageFor({ label: '' })).toEqual('label must not be empty.');
     });
 
     it('should report unknown fields', () => {
-        expect(messageFor({ name: 'mockName', id: 'x' })).toEqual('Unknown field: id.');
-        expect(messageFor({ name: 'mockName', id: 'x', isDeleted: true })).toEqual('Unknown fields: id, isDeleted.');
+        expect(messageFor({ label: 'mockLabel', id: 'x' })).toEqual('Unknown field: id.');
+        expect(messageFor({ label: 'mockLabel', id: 'x', isDeleted: true })).toEqual('Unknown fields: id, isDeleted.');
     });
 
     it('should report a body that is not an object', () => {
         expect(messageFor([])).toEqual('Request body must be a JSON object.');
-        expect(messageFor('mockName')).toEqual('Request body must be a JSON object.');
+        expect(messageFor('mockLabel')).toEqual('Request body must be a JSON object.');
         expect(messageFor(null)).toEqual('Request body must be a JSON object.');
     });
 
@@ -54,6 +54,6 @@ describe('SchemaValidator', () => {
     });
 
     it('should join several issues', () => {
-        expect(messageFor({ name: 1, extra: true })).toEqual('name must be a string. Unknown field: extra.');
+        expect(messageFor({ label: 1, extra: true })).toEqual('label must be a string. Unknown field: extra.');
     });
 });

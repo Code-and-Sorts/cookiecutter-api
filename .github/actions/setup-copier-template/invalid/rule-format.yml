@@ -1,0 +1,9 @@
+# expect: rule format must be email or uri
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "cats"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: name, type: string, required: true}
+      - {name: phone, type: string, rules: {format: phone}}

@@ -1,5 +1,6 @@
 namespace {{project_class_name}}.Api.Interfaces;
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,5 +14,6 @@ public interface IDocumentStore<T> where T : BaseEntity
 
     Task CreateAsync(T item, CancellationToken ct = default);
 
-    Task SaveAsync(T item, CancellationToken ct = default);
+    // Reads the record once, lets change edit it and writes it back; null when the record is missing.
+    Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default);
 }

@@ -1,0 +1,662 @@
+{#- Field rules for base_model and resources: copier.yml validators and the derived field data templates render from. -#}
+{%- set TYPES = ["string", "integer", "number", "boolean", "date-time", "date", "uuid", "enum", "array"] -%}
+{%- set ITEM_TYPES = ["string", "integer", "number", "boolean", "date-time", "date", "uuid"] -%}
+{%- set FIELD_KEYS = ["name", "type", "required", "nullable", "default", "immutable", "managed", "hidden", "values", "items", "rules", "description", "example"] -%}
+{%- set RULE_KEYS = {"string": ["min_length", "max_length", "pattern", "format"], "integer": ["minimum", "maximum", "exclusive_minimum", "exclusive_maximum"], "number": ["minimum", "maximum", "exclusive_minimum", "exclusive_maximum"], "array": ["min_items", "max_items", "unique_items"]} -%}
+{%- set DYNAMIC_TYPES = {"$now": "date-time", "$today": "date", "$uuid": "uuid"} -%}
+{%- set MAX_SAFE_INTEGER = 9007199254740991 -%}
+{%- set REQUEST_KINDS = [("create", "Create"), ("replace", "Replace"), ("update", "Update")] -%}
+{%- set DEFAULT_FIELDS = [{"name": "name", "type": "string", "required": true, "rules": {"min_length": 1}}] -%}
+{#- The built-in base fields as base_model lists them; repositories, soft delete and list depend on them. -#}
+{%- set LOCKED_FIELDS = [
+    {"name": "id", "type": "uuid", "required": true, "managed": "create", "default": "$uuid"},
+    {"name": "isDeleted", "type": "boolean", "required": true, "managed": "create", "default": false, "hidden": true},
+    {"name": "createdTimestamp", "type": "date-time", "required": true, "managed": "create", "default": "$now", "hidden": true},
+    {"name": "updatedTimestamp", "type": "date-time", "required": true, "managed": "write", "default": "$now", "hidden": true},
+    {"name": "createdBy", "type": "string", "managed": "create", "default": "$user", "hidden": true},
+    {"name": "updatedBy", "type": "string", "managed": "write", "default": "$user", "hidden": true},
+] -%}
+{%- set LOCKED_NAMES = LOCKED_FIELDS | map(attribute="name") | list -%}
+{#- Lower-cased field names seen breaking a generated project's build or tests; render a name failing before adding it. -#}
+{%- set RESERVED_FIELD_NAMES = [
+    "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except",
+    "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass",
+    "raise", "return", "try", "while", "with", "yield",
+    "str", "int", "float", "bool", "dict", "json", "schema", "copy", "validate", "construct", "classmethod",
+    "constructor", "hasownproperty", "isprototypeof", "propertyisenumerable", "tolocalestring", "tostring",
+    "valueof", "ttl",
+    "equals", "gethashcode", "gettype", "memberwiseclone",
+    "applyto", "sent", "toentity", "fields", "stampcreate", "stampwrite", "base", "baseentity", "basecreaterequest",
+    "basereplacerequest", "baseupdaterequest", "baseresponse",
+] -%}
+{#- The date and time parts the date and date-time formats share; year 0000 is rejected, hours run to 23 and any
+    offset up to 23:59 is accepted, as RFC 3339 allows. -#}
+{%- set DATE_PART = "(000[1-9]|00[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])" -%}
+{%- set TIME_PART = "([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]" -%}
+{#- How every language rewrites a field's pattern: . becomes [^\n], since JavaScript's . also refuses \r, U+2028 and U+2029. -#}
+{%- set PORTABLE = {".": "[^\\n]"} -%}
+{#- The value formats every language checks with these same expressions, written in the syntax pattern_error allows. -#}
+{%- set PATTERNS = {
+    "uuid": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    "date": "^" ~ DATE_PART ~ "$",
+    "date_time": "^" ~ DATE_PART ~ "T" ~ TIME_PART ~ "(\\.[0-9]{1,9})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
+    "email": "^[^@ \\t\\n]+@[^@ \\t\\n]+\\.[^@ \\t\\n]+$",
+    "uri": "^[A-Za-z][A-Za-z0-9+.-]*:[^ \\t\\n]+$",
+} -%}
+{#- The characters a pattern may escape: \n, \t and the metacharacters, which every target engine reads literally. -#}
+{%- set PATTERN_ESCAPES = "nt\\^$.|?*+()[]{}-/" -%}
+{#- Static date-time defaults and examples must already be in the stored form. -#}
+{%- set CANONICAL_DATE_TIME_PATTERN = "^" ~ DATE_PART ~ "T" ~ TIME_PART ~ "\\.[0-9]{3}Z$" -%}
+{#- A character outside the BMP: lengths count it once, as every language counts code points. -#}
+{%- set WIDE_CHARACTER = "😺" -%}
+{#- Dates every language rejects: an impossible day, month 13 and year 0000. -#}
+{%- set INVALID_DATES = ["2026-02-30", "2026-13-01", "0000-01-01"] -%}
+{#- Date-times every language rejects: no offset, hour 24, a leap second, offset minute 60, year 0000, and offsets that
+    move the UTC value outside years 0001-9999. -#}
+{%- set INVALID_DATE_TIMES = [
+    "2026-01-31T09:30:00", "2026-01-31T24:00:00Z", "2026-01-31T23:59:60Z", "2026-01-31T09:30:00+14:60",
+    "0000-12-31T23:00:00-01:00", "0001-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00",
+] -%}
+{#- Date-times with an offset and the UTC millisecond form every language stores them in, for tests. -#}
+{%- set DATE_TIME_CASES = [
+    {"sent": "2026-01-31T11:30:00.1239+02:00", "stored": "2026-01-31T09:30:00.123Z"},
+    {"sent": "2026-01-31T00:30:00.123456789+23:59", "stored": "2026-01-30T00:31:00.123Z"},
+    {"sent": "2026-01-31T23:30:00-23:59", "stored": "2026-02-01T23:29:00.000Z"},
+    {"sent": "0001-01-01T00:00:00-00:00", "stored": "0001-01-01T00:00:00.000Z"},
+    {"sent": "9999-12-31T23:59:59.999Z", "stored": "9999-12-31T23:59:59.999Z"},
+] -%}
+
+{#- JSON with text as written: Copier reads derived values as YAML, which splits an escaped emoji into lone surrogates. -#}
+{%- macro as_json(value) -%}
+{{ value | to_json(ensure_ascii=false) }}
+{%- endmacro -%}
+
+{#- A string literal every target reads alike; C# would read U+0085, U+2028 and U+2029 as line breaks. -#}
+{%- macro string_literal(value) -%}
+{{ as_json(value) | replace("\u0085", "\\u0085") | replace("\u2028", "\\u2028") | replace("\u2029", "\\u2029") }}
+{%- endmacro -%}
+
+{#- A field as a YAML flow mapping, the way the base_model default writes it. -#}
+{%- macro field_yaml(f) -%}
+{ {%- for key, value in f.items() %}{{ key }}: {{ (value | tojson) if value is boolean else value }}{{ ", " if not loop.last }}{% endfor -%} }
+{%- endmacro -%}
+
+{%- macro date_error(value) -%}
+{%- if not (matches(value, PATTERNS.date) | trim) -%}
+must be a date such as "2026-01-31"
+{%- else -%}
+{%- set year = value[0:4] | int -%}
+{%- set leap = (year % 4 == 0 and year % 100 != 0) or year % 400 == 0 -%}
+{%- set days = [31, 29 if leap else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] -%}
+{%- if (value[8:10] | int) > days[(value[5:7] | int) - 1] -%}
+must be a real calendar date
+{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro scalar_error(type, value, enum_values=[]) -%}
+{%- if type == "boolean" -%}
+{%- if value is not boolean %}must be true or false{% endif -%}
+{%- elif type == "integer" -%}
+{%- if value is boolean or value is not integer -%}
+must be an integer
+{%- elif value > MAX_SAFE_INTEGER or value < -MAX_SAFE_INTEGER -%}
+must be between -{{ MAX_SAFE_INTEGER }} and {{ MAX_SAFE_INTEGER }}
+{%- endif -%}
+{%- elif type == "number" -%}
+{%- if value is boolean or value is not number %}must be a number{% endif -%}
+{%- elif value is not string -%}
+must be a quoted string
+{%- elif type == "date" -%}
+{{ date_error(value) }}
+{%- elif type == "date-time" -%}
+{%- if not (matches(value, CANONICAL_DATE_TIME_PATTERN) | trim) or (date_error(value[0:10]) | trim) -%}
+must be a UTC date-time with milliseconds, such as "2026-01-31T09:30:00.000Z"
+{%- endif -%}
+{%- elif type == "uuid" -%}
+{%- if not (matches(value, PATTERNS.uuid) | trim) %}must be a UUID{% endif -%}
+{%- elif type == "enum" -%}
+{%- if value not in enum_values %}must be one of {{ enum_values | join(', ') }}{% endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Why a static value (default, example or generated sample) is invalid for the field, or nothing. -#}
+{%- macro value_error(f, value) -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- if value is none -%}
+{%- if not f.nullable %}can only be null when the field is nullable: true{% endif -%}
+{%- elif f.type == "array" -%}
+{%- if value is string or value is mapping or value is not iterable -%}
+must be a list
+{%- else -%}
+{%- set ns = namespace(err="") -%}
+{%- for item in value if not ns.err -%}
+{%- set ns.err = scalar_error(f["items"], item) | trim -%}
+{%- endfor -%}
+{%- if ns.err -%}
+has an item that {{ ns.err }}
+{%- elif rules.min_items is defined and (value | length) < rules.min_items -%}
+must have at least {{ rules.min_items }} items
+{%- elif rules.max_items is defined and (value | length) > rules.max_items -%}
+must have at most {{ rules.max_items }} items
+{%- elif rules.unique_items and (value | unique(case_sensitive=true) | list | length) != (value | length) -%}
+must not repeat an item
+{%- endif -%}
+{%- endif -%}
+{%- else -%}
+{%- set err = scalar_error(f.type, value, f["values"]) | trim -%}
+{%- if err -%}
+{{ err }}
+{%- elif f.type == "string" -%}
+{%- if rules.min_length is defined and (value | length) < rules.min_length -%}
+must be at least {{ rules.min_length }} characters long
+{%- elif rules.max_length is defined and (value | length) > rules.max_length -%}
+must be at most {{ rules.max_length }} characters long
+{%- elif rules.pattern is defined and not (matches(value, rules.pattern) | trim) -%}
+must match the pattern {{ rules.pattern }}
+{%- elif rules.format == "email" and not (matches(value, PATTERNS.email) | trim) -%}
+must be an email address
+{%- elif rules.format == "uri" and not (matches(value, PATTERNS.uri) | trim) -%}
+must be an absolute URI
+{%- endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- if rules.minimum is defined and value < rules.minimum -%}
+must be at least {{ rules.minimum }}
+{%- elif rules.exclusive_minimum is defined and value <= rules.exclusive_minimum -%}
+must be greater than {{ rules.exclusive_minimum }}
+{%- elif rules.maximum is defined and value > rules.maximum -%}
+must be at most {{ rules.maximum }}
+{%- elif rules.exclusive_maximum is defined and value >= rules.exclusive_maximum -%}
+must be less than {{ rules.exclusive_maximum }}
+{%- endif -%}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Records a quantifier: bound is its largest count, or 0 for *, + and ?, whose repeats engines do not count;
+    unbounded marks *, + and {n,}. -#}
+{%- macro quantify(ns, c, bound, unbounded) -%}
+{%- if ns.after_open -%}
+{%- set ns.err = "repeats nothing with " ~ c ~ ": a quantifier must follow a character, class or group; escape it for a literal" -%}
+{%- elif ns.quantified == 1 and c == "?" -%}
+{%- set ns.quantified = 2 -%}
+{%- elif ns.quantified -%}
+{%- set ns.err = "has a quantifier right after another, as in a++ or a{2}*, which JavaScript and Go reject; only one ? may follow a quantifier, to make it lazy" -%}
+{%- elif unbounded and ns.last_unbounded -%}
+{%- set ns.err = "repeats a group that holds *, + or {n,} without bound, as in (a+)+, which JavaScript's backtracking engine can take exponential time to reject" -%}
+{%- else -%}
+{%- set ns.quantified = 1 -%}
+{%- set ns.last = ns.last * ([bound, 1] | max) -%}
+{%- set ns.stack = ns.stack[:-1] + [[ns.stack[-1], ns.last] | max] -%}
+{%- if unbounded %}{% set ns.unbounded = ns.unbounded[:-1] + [true] %}{% endif -%}
+{%- if ns.last > 1000 -%}
+{%- set ns.err = "repeats up to " ~ ns.last ~ " times through nested counted repeats; RE2 (Go) allows at most 1000" -%}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Records an atom: a character, class, group or anchor that a quantifier may follow, repeated count times; a group
+    that holds an unbounded quantifier is unbounded. -#}
+{%- macro atom(ns, count=1, unbounded=false) -%}
+{%- set ns.last = count -%}
+{%- set ns.last_unbounded = unbounded -%}
+{%- set ns.quantified = 0 -%}
+{%- set ns.after_open = false -%}
+{%- endmacro -%}
+
+{#- Why a pattern is outside the syntax RE2 (Go), ECMAScript with the u flag, .NET, Python and Rust (pydantic) all read
+    the same way, counting code points, or nothing. -#}
+{%- macro pattern_error(pattern) -%}
+{%- set ns = namespace(err="", escaped=false, in_class=false, class_text="", class_prev="", opened=false, group=false, braces=none, after_open=true, quantified=0, stack=[1], last=1, unbounded=[false], last_unbounded=false) -%}
+{%- for c in pattern if not ns.err -%}
+{%- set opened = ns.opened -%}
+{%- set ns.opened = false -%}
+{%- if c > "￾" -%}
+{%- set ns.err = "uses a character beyond U+FFFE, which .NET matches as two characters; patterns may only name characters up to U+FFFE" -%}
+{%- elif ns.group -%}
+{%- set ns.group = false -%}
+{%- if c != ":" -%}
+{%- set ns.err = "uses (?" ~ c ~ ", but only (?: groups are allowed: lookarounds, named groups and inline flags differ between the target regex engines" -%}
+{%- endif -%}
+{%- elif ns.braces is not none -%}
+{%- if c == "}" -%}
+{%- set counts = ns.braces.split(",") -%}
+{%- set low = counts[0] | int -%}
+{%- set high = (counts[1] | int) if counts[1:] and counts[1] else low -%}
+{%- if not (matches(ns.braces, "^[0-9]+(,[0-9]*)?$") | trim) or high > 1000 or high < low -%}
+{%- set ns.err = "has {" ~ ns.braces ~ "}, but a repeat must be {n}, {n,} or {n,m} with n <= m <= 1000; write \\{ for a literal brace" -%}
+{%- else -%}
+{{- quantify(ns, "{", high, counts[1:] and not counts[1]) -}}
+{%- endif -%}
+{%- set ns.braces = none -%}
+{%- else -%}
+{%- set ns.braces = ns.braces ~ c -%}
+{%- endif -%}
+{%- elif ns.escaped -%}
+{%- set ns.escaped = false -%}
+{%- if c not in PATTERN_ESCAPES or (c == "-" and not ns.in_class) -%}
+{%- set ns.err = "uses \\" ~ c ~ ", but only \\n, \\t and escaped metacharacters such as \\. are allowed (\\- only inside a class): classes such as \\d and \\w, anchors such as \\b and \\A, backreferences and \\u, \\x or \\p escapes differ between the target regex engines" -%}
+{%- elif ns.in_class -%}
+{%- set ns.class_text = ns.class_text ~ "\\" ~ c -%}
+{%- set ns.class_prev = "" -%}
+{%- else -%}
+{{- atom(ns) -}}
+{%- endif -%}
+{%- elif c == "\\" -%}
+{%- set ns.escaped = true -%}
+{%- elif ns.in_class -%}
+{%- if c == "[" -%}
+{%- set ns.err = "has [ inside a character class, which the target regex engines read differently (as in [[:alpha:]]); write \\[" -%}
+{%- elif c == "]" and ns.class_text in ["", "^"] -%}
+{%- set ns.err = "starts a character class with ], which the target regex engines read differently; write \\]" -%}
+{%- elif c == "]" -%}
+{%- set ns.in_class = false -%}
+{{- atom(ns) -}}
+{%- elif c in "&~-" and ns.class_prev == c -%}
+{%- set ns.err = "has " ~ c ~ c ~ " inside a character class, which pydantic's engine reads as a set operation; write one of them escaped" -%}
+{%- else -%}
+{%- set ns.class_text = ns.class_text ~ c -%}
+{%- set ns.class_prev = c -%}
+{%- endif -%}
+{%- elif c == "[" -%}
+{%- set ns.in_class = true -%}
+{%- set ns.class_text = "" -%}
+{%- set ns.class_prev = "" -%}
+{%- elif c == "{" -%}
+{%- set ns.braces = "" -%}
+{%- elif c in "}]" -%}
+{%- set ns.err = "has an unmatched " ~ c ~ ", which JavaScript's u flag rejects; write \\" ~ c ~ " for a literal" -%}
+{%- elif c == "(" -%}
+{%- set ns.stack = ns.stack + [1] -%}
+{%- set ns.unbounded = ns.unbounded + [false] -%}
+{%- set ns.opened = true -%}
+{%- set ns.after_open = true -%}
+{%- set ns.quantified = 0 -%}
+{%- elif c == ")" and ns.stack | length == 1 -%}
+{%- set ns.err = "has an unmatched )" -%}
+{%- elif c == ")" -%}
+{%- set inner = ns.stack[-1] -%}
+{%- set inner_unbounded = ns.unbounded[-1] -%}
+{%- set ns.stack = ns.stack[:-2] + [[ns.stack[-2], inner] | max] -%}
+{%- set ns.unbounded = ns.unbounded[:-2] + [ns.unbounded[-2] or inner_unbounded] -%}
+{{- atom(ns, inner, inner_unbounded) -}}
+{%- elif c == "?" and opened -%}
+{%- set ns.group = true -%}
+{%- elif c in "*+?" -%}
+{{- quantify(ns, c, 0, c != "?") -}}
+{%- elif c in "^|" -%}
+{{- atom(ns) -}}
+{%- set ns.after_open = true -%}
+{%- else -%}
+{{- atom(ns) -}}
+{%- endif -%}
+{%- endfor -%}
+{%- if ns.err -%}
+{{ ns.err }}
+{%- elif ns.group -%}
+ends with (?
+{%- elif ns.escaped -%}
+ends with a lone \
+{%- elif ns.in_class -%}
+has an unclosed [
+{%- elif ns.braces is not none -%}
+has an unclosed {
+{%- elif ns.stack | length > 1 -%}
+has an unclosed (
+{%- else -%}
+{{ compile_check(pattern) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Compiles the pattern with Python's re and renders nothing: a pattern it rejects raises, and Copier reports the
+    exception as the validator's message. -#}
+{%- macro compile_check(pattern) -%}
+{%- set _ = "" | regex_search(pattern) -%}
+{%- endmacro -%}
+
+{#- The pattern with each unescaped character outside a class that replacements names replaced, for an engine's dialect. -#}
+{%- macro rewrite_pattern(pattern, replacements) -%}
+{%- set ns = namespace(text="", escaped=false, in_class=false) -%}
+{%- for c in pattern -%}
+{%- set ns.text = ns.text ~ (replacements[c] if c in replacements and not ns.escaped and not ns.in_class else c) -%}
+{%- if not ns.escaped and c == "[" %}{% set ns.in_class = true %}{% elif not ns.escaped and c == "]" %}{% set ns.in_class = false %}{% endif -%}
+{%- set ns.escaped = c == "\\" and not ns.escaped -%}
+{%- endfor -%}
+{{ ns.text }}
+{%- endmacro -%}
+
+{#- "yes" when value matches pattern, else nothing; Python's $ also matches before a final newline, so it becomes \Z. -#}
+{%- macro matches(value, pattern) -%}
+{{ "yes" if value | regex_search(rewrite_pattern(pattern, {"$": "\\Z"})) is not none }}
+{%- endmacro -%}
+
+{%- macro rules_error(f) -%}
+{%- set rules = f.rules -%}
+{%- set allowed = RULE_KEYS.get(f.type, []) -%}
+{%- set ns = namespace(err="") -%}
+{%- if rules is not mapping -%}
+rules must be a mapping such as {min_length: 1}
+{%- else -%}
+{%- for key in rules if not ns.err and key not in allowed -%}
+{%- set ns.err = "rule '" ~ key ~ "' does not apply to " ~ f.type ~ " fields" ~ ((". Allowed: " ~ (allowed | join(', '))) if allowed else "") -%}
+{%- endfor -%}
+{%- for key in ["min_length", "max_length", "min_items", "max_items"] if not ns.err and key in rules and (rules[key] is boolean or rules[key] is not integer or rules[key] < 0) -%}
+{%- set ns.err = "rule '" ~ key ~ "' must be a whole number of at least 0" -%}
+{%- endfor -%}
+{%- for key in ["minimum", "maximum", "exclusive_minimum", "exclusive_maximum"] if not ns.err and key in rules -%}
+{%- if rules[key] is boolean or rules[key] is not number or (f.type == "integer" and rules[key] is not integer) -%}
+{%- set ns.err = "rule '" ~ key ~ "' must be " ~ ("an integer" if f.type == "integer" else "a number") -%}
+{%- elif rules[key] > MAX_SAFE_INTEGER or rules[key] < -MAX_SAFE_INTEGER -%}
+{%- set ns.err = "rule '" ~ key ~ "' must be between -" ~ MAX_SAFE_INTEGER ~ " and " ~ MAX_SAFE_INTEGER -%}
+{%- endif -%}
+{%- endfor -%}
+{%- if ns.err -%}
+{{ ns.err }}
+{%- elif "min_length" in rules and "max_length" in rules and rules.min_length > rules.max_length -%}
+rule min_length must not exceed max_length
+{%- elif "min_items" in rules and "max_items" in rules and rules.min_items > rules.max_items -%}
+rule min_items must not exceed max_items
+{%- elif "minimum" in rules and "exclusive_minimum" in rules -%}
+set minimum or exclusive_minimum, not both
+{%- elif "maximum" in rules and "exclusive_maximum" in rules -%}
+set maximum or exclusive_maximum, not both
+{%- elif "unique_items" in rules and rules.unique_items is not boolean -%}
+rule unique_items must be true or false
+{%- elif "format" in rules and rules.format not in ["email", "uri"] -%}
+rule format must be email or uri
+{%- elif "pattern" in rules and (rules.pattern is not string or not rules.pattern) -%}
+rule pattern must be a non-empty string
+{%- elif "pattern" in rules and (pattern_error(rules.pattern) | trim) -%}
+rule pattern {{ pattern_error(rules.pattern) | trim }}
+{%- else -%}
+{%- set low = rules.minimum if "minimum" in rules else rules.exclusive_minimum -%}
+{%- set high = rules.maximum if "maximum" in rules else rules.exclusive_maximum -%}
+{%- set exclusive = "exclusive_minimum" in rules or "exclusive_maximum" in rules -%}
+{%- if low is defined and high is defined and (low > high or (exclusive and low == high) or (f.type == "integer" and "exclusive_minimum" in rules and "exclusive_maximum" in rules and high - low < 2)) -%}
+rules leave no valid value between the lower and upper bound
+{%- endif -%}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A JSON value valid for the field when the answer gives no example or static default; value_error checks it. -#}
+{%- macro item_sample(type, index) -%}
+{%- if type == "string" -%}"item{{ index + 1 }}"
+{%- elif type == "integer" -%}{{ index + 1 }}
+{%- elif type == "number" -%}{{ index + 1.5 }}
+{%- elif type == "boolean" -%}{{ "true" if index % 2 == 0 else "false" }}
+{%- elif type == "date" -%}"2026-01-{{ "%02d" | format(index % 28 + 1) }}"
+{%- elif type == "date-time" -%}"2026-01-15T10:{{ "%02d" | format(index % 60) }}:00.000Z"
+{%- else -%}"6f1c2a3b-4d5e-4f60-8a7b-{{ "%012x" | format(index) }}"
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro generated_sample(f) -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- if f.type == "array" -%}
+{%- set count = [rules.min_items | default(1), 1] | max -%}
+{%- if rules.max_items is defined %}{% set count = [count, rules.max_items] | min %}{% endif -%}
+[{%- for index in range(count) -%}{{ item_sample(f["items"], index) }}{{ ", " if not loop.last }}{%- endfor -%}]
+{%- elif f.type == "string" -%}
+{%- if rules.format == "email" -%}"user@example.com"
+{%- elif rules.format == "uri" -%}"https://example.com/items/1"
+{%- else -%}
+{%- set ns = namespace(value="sample") -%}
+{%- if rules.max_length is defined and (ns.value | length) > rules.max_length %}{% set ns.value = "s" * rules.max_length %}{% endif -%}
+{%- if rules.min_length is defined and (ns.value | length) < rules.min_length %}{% set ns.value = ns.value ~ ("s" * (rules.min_length - (ns.value | length))) %}{% endif -%}
+{{ ns.value | tojson }}
+{%- endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- set step = 1 if f.type == "integer" else 0.5 -%}
+{%- set ns = namespace(value=(1 if f.type == "integer" else 1.5)) -%}
+{%- set low = rules.minimum if "minimum" in rules else (rules.exclusive_minimum + step if "exclusive_minimum" in rules else none) -%}
+{%- set high = rules.maximum if "maximum" in rules else (rules.exclusive_maximum - step if "exclusive_maximum" in rules else none) -%}
+{%- if low is not none and ns.value < low %}{% set ns.value = low %}{% endif -%}
+{%- if high is not none and ns.value > high -%}
+{%- set ns.value = high if low is none else (((low + high) // 2) if f.type == "integer" else (low + high) / 2) -%}
+{%- endif -%}
+{{ ns.value | tojson }}
+{%- elif f.type == "enum" -%}{{ f["values"][0] | tojson }}
+{%- else -%}{{ item_sample(f.type, 0) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- YAML reads unquoted dates and times as objects JSON cannot hold; they must be quoted strings. -#}
+{%- macro native_error(value) -%}
+{%- if value is mapping -%}
+must not be a mapping
+{%- elif value is not string and value is not number and value is not none and value is iterable -%}
+{%- for item in value if item is not string and item is not number and item is not none -%}
+{{ "has an item that must be a quoted string" if loop.first }}
+{%- endfor -%}
+{%- elif value is not string and value is not number and value is not none -%}
+must be a quoted string
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro dynamic_token(f) -%}
+{%- if "default" in f and f.default is string and f.default.startswith("$") and not f.default.startswith("$$") %}{{ f.default }}{% endif -%}
+{%- endmacro -%}
+
+{%- macro static_default_json(f) -%}
+{%- if "default" not in f or (dynamic_token(f) | trim) -%}null
+{%- elif f.default is string and f.default.startswith("$$") -%}{{ f.default[1:] | tojson }}
+{%- else -%}{{ f.default | tojson }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro sample_json(f) -%}
+{%- set static = static_default_json(f) | from_json -%}
+{%- if "example" in f -%}{{ f.example | tojson }}
+{%- elif static is not none -%}{{ static | tojson }}
+{%- else -%}{{ generated_sample(f) }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro enum_value_error(values) -%}
+{%- set ns = namespace(err="") -%}
+{%- for value in values if not ns.err and not (matches(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$") | trim) -%}
+{%- set ns.err = "enum value '" ~ value ~ "' must start with a letter or digit and use only letters, digits, _, . and -" -%}
+{%- endfor -%}
+{{ ns.err }}
+{%- endmacro -%}
+
+{#- Why one field (of base_model or a resource) is invalid, or nothing. owner names it: "base_model" or "Resource 'Cat'". -#}
+{%- macro check_field(f, owner) -%}
+{%- set name = f.name if f is mapping and f.name is string else "" -%}
+{%- set label = owner ~ " field '" ~ name ~ "'" -%}
+{%- set ns = namespace(err="") -%}
+{%- if f is not mapping -%}
+{%- set ns.err = owner ~ ": every field must be a mapping such as {name: color, type: string}." -%}
+{%- elif not name or not (matches(name, "^[a-z][a-zA-Z0-9]{0,62}$") | trim) -%}
+{%- set ns.err = owner ~ " field name '" ~ (f.name | default('')) ~ "' must be lowerCamelCase: a lower-case letter, then up to 62 letters or digits." -%}
+{%- elif (name | lower) in RESERVED_FIELD_NAMES -%}
+{%- set ns.err = label ~ " is reserved: it is a keyword, builtin or generated member in a target language." -%}
+{%- else -%}
+{%- for key in f if not ns.err and key not in FIELD_KEYS -%}
+{%- set ns.err = label ~ " has an unknown key '" ~ key ~ "'. Allowed: " ~ (FIELD_KEYS | join(', ')) ~ "." -%}
+{%- endfor -%}
+{%- set dynamic = dynamic_token(f) | trim -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- if ns.err -%}
+{%- elif f.type not in TYPES -%}
+{%- set ns.err = label ~ " has type '" ~ (f.type | default('')) ~ "'. Supported types: " ~ (TYPES | join(', ')) ~ "." -%}
+{%- else -%}
+{%- for key in ["required", "nullable", "immutable", "hidden"] if not ns.err and key in f and f[key] is not boolean -%}
+{%- set ns.err = label ~ ": " ~ key ~ " must be true or false." -%}
+{%- endfor -%}
+{%- if ns.err -%}
+{%- elif "managed" in f -%}
+{%- set ns.err = label ~ ": managed is reserved for the built-in base fields; the server only sets id, isDeleted, the timestamps, createdBy and updatedBy." -%}
+{%- elif "description" in f and f.description is not string -%}
+{%- set ns.err = label ~ ": description must be a string." -%}
+{%- elif "description" in f and f.description | regex_search("[\x00-\x1f\x7f\x85\u2028\u2029]") -%}
+{%- set ns.err = label ~ ": description must be one line without control characters, since it becomes a code comment." -%}
+{%- elif f.type == "enum" and (f["values"] is not defined or f["values"] is string or f["values"] is mapping or f["values"] is not iterable or not f["values"]) -%}
+{%- set ns.err = label ~ ": an enum needs a non-empty values list." -%}
+{%- elif f.type == "enum" and (f["values"] | reject("string") | list) -%}
+{%- set ns.err = label ~ ": enum values must be quoted strings (YAML reads yes, no, on, off and numbers as other types)." -%}
+{%- elif f.type == "enum" and (enum_value_error(f["values"]) | trim) -%}
+{%- set ns.err = label ~ ": " ~ (enum_value_error(f["values"]) | trim) ~ "." -%}
+{%- elif f.type == "enum" and (f["values"] | unique(case_sensitive=true) | list | length) != (f["values"] | length) -%}
+{%- set ns.err = label ~ ": enum values must be unique." -%}
+{%- elif f.type != "enum" and "values" in f -%}
+{%- set ns.err = label ~ ": values only applies to enum fields." -%}
+{%- elif f.type == "array" and f["items"] not in ITEM_TYPES -%}
+{%- set ns.err = label ~ ": an array needs items, one of " ~ (ITEM_TYPES | join(', ')) ~ "." -%}
+{%- elif f.type != "array" and "items" in f -%}
+{%- set ns.err = label ~ ": items only applies to array fields." -%}
+{%- elif "rules" in f and (rules_error(f) | trim) -%}
+{%- set ns.err = label ~ ": " ~ (rules_error(f) | trim) ~ "." -%}
+{%- elif dynamic and dynamic not in DYNAMIC_TYPES -%}
+{%- set ns.err = label ~ ": default " ~ dynamic ~ " is not a dynamic default. Use $now (date-time), $today (date) or $uuid (uuid), or write $$ for a literal $." -%}
+{%- elif dynamic and DYNAMIC_TYPES[dynamic] != f.type -%}
+{%- set ns.err = label ~ ": default " ~ dynamic ~ " only applies to " ~ DYNAMIC_TYPES[dynamic] ~ " fields." -%}
+{%- elif "default" in f and (native_error(f.default) | trim) -%}
+{%- set ns.err = label ~ ": default " ~ (native_error(f.default) | trim) ~ "." -%}
+{%- elif "example" in f and (native_error(f.example) | trim) -%}
+{%- set ns.err = label ~ ": example " ~ (native_error(f.example) | trim) ~ "." -%}
+{%- elif "default" in f and not dynamic and (value_error(f, static_default_json(f) | from_json) | trim) -%}
+{%- set ns.err = label ~ ": default " ~ (value_error(f, static_default_json(f) | from_json) | trim) ~ "." -%}
+{%- elif "example" in f and (f.example is none or (value_error(f, f.example) | trim)) -%}
+{%- set ns.err = label ~ ": example " ~ ((value_error(f, f.example) | trim) if f.example is not none else "must not be null") ~ "." -%}
+{%- elif value_error(f, sample_json(f) | from_json) | trim -%}
+{%- set ns.err = label ~ ": no valid sample value can be derived from its rules (" ~ (value_error(f, sample_json(f) | from_json) | trim) ~ "); add an example." -%}
+{%- endif -%}
+{%- endif -%}
+{%- endif -%}
+{{ ns.err }}
+{%- endmacro -%}
+
+{#- A wrongly typed JSON value for the field, for tests that expect a 400. -#}
+{%- macro invalid_json(f) -%}
+{%- if f.type == "string" -%}42
+{%- elif f.type in ["integer", "number"] -%}"1"
+{%- elif f.type == "boolean" -%}"true"
+{%- elif f.type == "enum" -%}"__invalid__"
+{%- elif f.type == "array" -%}"not-a-list"
+{%- else -%}"not-a-{{ f.type }}"
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Values just outside each rule, as a JSON list, for tests that expect a 400; a wrongly typed value is invalid_json. -#}
+{%- macro violations_json(f) -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- set values = [] -%}
+{%- if f.type == "string" -%}
+{%- if rules.min_length %}{% set _ = values.append("s" * (rules.min_length - 1)) %}{% endif -%}
+{%- if rules.max_length is defined %}{% set _ = values.append("s" * (rules.max_length + 1)) %}{% endif -%}
+{%- if rules.min_length and rules.pattern is not defined and rules.format is not defined %}{% set _ = values.append(WIDE_CHARACTER * (rules.min_length - 1)) %}{% endif -%}
+{%- if rules.max_length is defined and rules.pattern is not defined and rules.format is not defined %}{% set _ = values.append(WIDE_CHARACTER * (rules.max_length + 1)) %}{% endif -%}
+{%- if rules.pattern is defined and not (matches("!", rules.pattern) | trim) %}{% set _ = values.append("!") %}{% endif -%}
+{%- if rules.format == "email" %}{% set _ = values.append("not-an-email") %}{% endif -%}
+{%- if rules.format == "uri" %}{% set _ = values.append("not a uri") %}{% endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- if rules.minimum is defined %}{% set _ = values.append(rules.minimum - 1) %}{% endif -%}
+{%- if rules.exclusive_minimum is defined %}{% set _ = values.append(rules.exclusive_minimum) %}{% endif -%}
+{%- if rules.maximum is defined %}{% set _ = values.append(rules.maximum + 1) %}{% endif -%}
+{%- if rules.exclusive_maximum is defined %}{% set _ = values.append(rules.exclusive_maximum) %}{% endif -%}
+{%- if f.type == "integer" %}{% set _ = values.append(1.5) %}{% set _ = values.append(MAX_SAFE_INTEGER + 1) %}{% endif -%}
+{%- elif f.type == "array" -%}
+{%- set item = item_sample(f["items"], 0) | from_json -%}
+{%- set _ = values.append([item, item] if rules.unique_items else [none]) -%}
+{%- if rules.min_items %}{% set _ = values.append([item] * (rules.min_items - 1)) %}{% endif -%}
+{%- if rules.max_items is defined -%}
+{%- set ns = namespace(items=[]) -%}
+{%- for index in range(rules.max_items + 1) %}{% set ns.items = ns.items + [item_sample(f["items"], index) | from_json] %}{% endfor -%}
+{%- set _ = values.append(ns.items) -%}
+{%- endif -%}
+{%- elif f.type == "date" -%}
+{%- set _ = values.extend(INVALID_DATES) -%}
+{%- elif f.type == "date-time" -%}
+{%- set _ = values.extend(INVALID_DATE_TIMES) -%}
+{%- elif f.type == "enum" -%}
+{%- set _ = values.append(f["values"][0] | upper if (f["values"][0] | upper) not in f["values"] else "__invalid__") -%}
+{%- endif -%}
+{{ values | tojson }}
+{%- endmacro -%}
+
+{#- Valid edge values as a JSON list, for tests: rule bounds (lengths also in wide characters), the date-time year limits
+    and an integer written as a float. -#}
+{%- macro boundaries_json(f) -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- set values = [] -%}
+{%- if f.type == "string" and rules.pattern is not defined and rules.format is not defined -%}
+{%- for length in [rules.min_length, rules.max_length] if length is defined -%}
+{%- set _ = values.extend(["s" * length, WIDE_CHARACTER * length]) -%}
+{%- endfor -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- if rules.minimum is defined %}{% set _ = values.append(rules.minimum) %}{% endif -%}
+{%- if rules.maximum is defined %}{% set _ = values.append(rules.maximum) %}{% endif -%}
+{%- if f.type == "integer" %}{% set _ = values.append(sample_json(f) | from_json | float) %}{% endif -%}
+{%- elif f.type == "date-time" -%}
+{%- set _ = values.extend(["0001-01-01T00:00:00.000Z", "9999-12-31T23:59:59.999Z"]) -%}
+{%- elif f.type == "array" -%}
+{%- for count in [rules.min_items, rules.max_items] if count is defined -%}
+{%- set ns = namespace(items=[]) -%}
+{%- for index in range(count) %}{% set ns.items = ns.items + [item_sample(f["items"], index) | from_json] %}{% endfor -%}
+{%- set _ = values.append(ns.items) -%}
+{%- endfor -%}
+{%- endif -%}
+{{ values | tojson }}
+{%- endmacro -%}
+
+{#- The normalized field templates render from, as JSON, with the request bodies that accept it. -#}
+{%- macro field_data(f, system, in_create, in_replace, in_update) -%}
+{%- set nullable = f.nullable | default(false) -%}
+{%- set data = {
+    "name": f.name,
+    "pascal": f.name | to_camel,
+    "type": f.type,
+    "item_type": f["items"] if f.type == "array" else "",
+    "enum_values": f["values"] if f.type == "enum" else [],
+    "required": f.required | default(false),
+    "nullable": nullable,
+    "hidden": f.hidden | default(false),
+    "system": system,
+    "rules": f.rules | default({}),
+    "description": f.description | default(""),
+    "has_default": "default" in f,
+    "dynamic": (dynamic_token(f) | trim)[1:],
+    "default": static_default_json(f) | from_json,
+    "sample": sample_json(f) | from_json,
+    "rejected": [invalid_json(f) | from_json] + ([] if nullable else [none]) + (violations_json(f) | from_json),
+    "boundaries": boundaries_json(f) | from_json,
+    "in_create": in_create,
+    "in_replace": in_replace,
+    "in_update": in_update,
+} | tojson | from_json -%}
+{%- set read = data.default if data.has_default and not data.dynamic and not data.nullable else none -%}
+{{ as_json(dict(data,
+    read_default=read,
+    has_read_default=read is not none,
+    needs_value=data.required and not data.has_default,
+    defaulted=data.has_default and (data.dynamic != "" or data.default is not none))) }}
+{%- endmacro -%}
+
+{#- A resource's fields (or the default) as JSON; requests.<op> narrows a body, which otherwise skips immutable fields. -#}
+{%- macro resource_fields_json(r) -%}
+{%- set requests = r.requests if r.requests is mapping else {} -%}
+[{%- for f in (r.fields if r.fields is defined else DEFAULT_FIELDS) -%}
+{%- set mutable = not (f.immutable | default(false)) -%}
+{{ field_data(f, false,
+    (f.name in requests["create"]) if "create" in requests else true,
+    (f.name in requests["replace"]) if "replace" in requests else mutable,
+    (f.name in requests["update"]) if "update" in requests else mutable) }}{{ "," if not loop.last }}
+{%- endfor -%}]
+{%- endmacro -%}
+
+{#- base_model's fields as JSON; the built-in ones are system fields no body accepts. -#}
+{%- macro base_fields_json(base_model) -%}
+[{%- for f in base_model -%}
+{%- set client = f.name not in LOCKED_NAMES -%}
+{%- set mutable = client and not (f.immutable | default(false)) -%}
+{{ field_data(f, not client, client, mutable, mutable) }}{{ "," if not loop.last }}
+{%- endfor -%}]
+{%- endmacro -%}
+
+{%- macro sample_body_json(fields) -%}
+{%- set ns = namespace(body={}) -%}
+{%- for f in fields %}{% set ns.body = dict(ns.body, **{f.name: f.sample}) %}{% endfor -%}
+{{ ns.body | tojson(indent=2) }}
+{%- endmacro -%}

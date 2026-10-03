@@ -1,0 +1,14 @@
+# expect: define field 'age' differently
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: age, type: integer, hidden: true}
+  - name: "Dog"
+    endpoint: "dogs"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+    fields:
+      - {name: age, type: integer}

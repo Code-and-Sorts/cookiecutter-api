@@ -1,9 +1,16 @@
 import json
-from models import {{ resources[0].name }}Response
+from pydantic import BaseModel
 from .response_generator import response_generator
 
 _ID = "935e5045-4a1c-46c9-8e26-9d9d5c2597f3"
-_item = {{ resources[0].name }}Response(id=_ID, name="mockName")
+
+
+class _ItemResponse(BaseModel):
+    id: str
+    label: str | None = None
+
+
+_item = _ItemResponse(id=_ID, label="mockLabel")
 
 
 def _parts(response):
@@ -20,18 +27,18 @@ def _parts(response):
 
 
 def describe_response_generator():
-    def test_item_is_exactly_id_and_name():
+    def test_item_is_its_response_fields():
         status, content_type, body = _parts(response_generator(_item))
 
         assert status == 200
         assert content_type == "application/json"
-        assert json.loads(body) == {"id": _ID, "name": "mockName"}
+        assert json.loads(body) == {"id": _ID, "label": "mockLabel"}
 
     def test_list_of_items():
         status, _, body = _parts(response_generator([_item, _item]))
 
         assert status == 200
-        assert json.loads(body) == [{"id": _ID, "name": "mockName"}] * 2
+        assert json.loads(body) == [{"id": _ID, "label": "mockLabel"}] * 2
 
     def test_empty_list():
         status, content_type, body = _parts(response_generator([]))
