@@ -32,7 +32,7 @@
     "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "match", "nonlocal", "not",
     "or", "pass", "raise", "return", "try", "while", "with", "yield",
     "type", "func", "default", "range", "string", "object", "delete", "none", "true", "false", "nil", "new", "this",
-    "self", "cls", "struct", "interface", "package", "event", "base", "params",
+    "self", "cls", "struct", "interface", "package", "event", "base", "params", "str", "int", "float", "bool", "list",
     "copy", "dict", "json", "schema", "construct", "validate", "fields",
     "constructor", "prototype", "tostring", "valueof", "hasownproperty", "isprototypeof", "propertyisenumerable",
     "tolocalestring", "equals", "gethashcode", "gettype", "memberwiseclone", "finalize",
@@ -394,6 +394,61 @@ must be a quoted string
 {%- endif -%}
 {%- endmacro -%}
 
+{#- Values just outside each rule, as a JSON list, for tests that expect a 400; a wrongly typed value is invalid_json. -#}
+{%- macro violations_json(f) -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- set values = [] -%}
+{%- if f.type == "string" -%}
+{%- if rules.min_length %}{% set _ = values.append("s" * (rules.min_length - 1)) %}{% endif -%}
+{%- if rules.max_length is defined %}{% set _ = values.append("s" * (rules.max_length + 1)) %}{% endif -%}
+{%- if rules.pattern is defined and ("!" | regex_search(rules.pattern)) is none %}{% set _ = values.append("!") %}{% endif -%}
+{%- if rules.format == "email" %}{% set _ = values.append("not-an-email") %}{% endif -%}
+{%- if rules.format == "uri" %}{% set _ = values.append("not a uri") %}{% endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- if rules.minimum is defined %}{% set _ = values.append(rules.minimum - 1) %}{% endif -%}
+{%- if rules.exclusive_minimum is defined %}{% set _ = values.append(rules.exclusive_minimum) %}{% endif -%}
+{%- if rules.maximum is defined %}{% set _ = values.append(rules.maximum + 1) %}{% endif -%}
+{%- if rules.exclusive_maximum is defined %}{% set _ = values.append(rules.exclusive_maximum) %}{% endif -%}
+{%- if f.type == "integer" %}{% set _ = values.append(1.5) %}{% set _ = values.append(MAX_SAFE_INTEGER + 1) %}{% endif -%}
+{%- elif f.type == "array" -%}
+{%- set item = item_sample(f["items"], 0) | from_json -%}
+{%- set _ = values.append([item, item] if rules.unique_items else [none]) -%}
+{%- if rules.min_items %}{% set _ = values.append([item] * (rules.min_items - 1)) %}{% endif -%}
+{%- if rules.max_items is defined -%}
+{%- set ns = namespace(items=[]) -%}
+{%- for index in range(rules.max_items + 1) %}{% set ns.items = ns.items + [item_sample(f["items"], index) | from_json] %}{% endfor -%}
+{%- set _ = values.append(ns.items) -%}
+{%- endif -%}
+{%- elif f.type == "date" -%}
+{%- set _ = values.append("2026-02-30") -%}
+{%- elif f.type == "date-time" -%}
+{%- set _ = values.append("2026-01-31T09:30:00") -%}
+{%- elif f.type == "enum" -%}
+{%- set _ = values.append(f["values"][0] | upper if (f["values"][0] | upper) not in f["values"] else "__invalid__") -%}
+{%- endif -%}
+{{ values | tojson }}
+{%- endmacro -%}
+
+{#- Values exactly on each rule's bound, as a JSON list, for tests that expect them to be accepted. -#}
+{%- macro boundaries_json(f) -%}
+{%- set rules = f.rules if f.rules is mapping else {} -%}
+{%- set values = [] -%}
+{%- if f.type == "string" and rules.pattern is not defined and rules.format is not defined -%}
+{%- if rules.min_length is defined %}{% set _ = values.append("s" * rules.min_length) %}{% endif -%}
+{%- if rules.max_length is defined %}{% set _ = values.append("s" * rules.max_length) %}{% endif -%}
+{%- elif f.type in ["integer", "number"] -%}
+{%- if rules.minimum is defined %}{% set _ = values.append(rules.minimum) %}{% endif -%}
+{%- if rules.maximum is defined %}{% set _ = values.append(rules.maximum) %}{% endif -%}
+{%- elif f.type == "array" -%}
+{%- for count in [rules.min_items, rules.max_items] if count is defined -%}
+{%- set ns = namespace(items=[]) -%}
+{%- for index in range(count) %}{% set ns.items = ns.items + [item_sample(f["items"], index) | from_json] %}{% endfor -%}
+{%- set _ = values.append(ns.items) -%}
+{%- endfor -%}
+{%- endif -%}
+{{ values | tojson }}
+{%- endmacro -%}
+
 {#- The normalized field templates render from, as JSON. -#}
 {%- macro field_data(f, system=false) -%}
 {%- set dynamic = dynamic_token(f) | trim -%}
@@ -416,6 +471,8 @@ must be a quoted string
     "default": static_default_json(f) | from_json,
     "sample": sample_json(f) | from_json,
     "invalid": invalid_json(f) | from_json,
+    "violations": violations_json(f) | from_json,
+    "boundaries": boundaries_json(f) | from_json,
 } | tojson }}
 {%- endmacro -%}
 
@@ -439,4 +496,11 @@ must be a quoted string
     in_replace=not data.system and not data.immutable,
     in_update=not data.system and not data.immutable) | tojson }}{{ "," if not loop.last }}
 {%- endfor -%}]
+{%- endmacro -%}
+
+{#- A pretty-printed JSON request body holding every given field's sample value. -#}
+{%- macro sample_body_json(fields) -%}
+{%- set ns = namespace(body={}) -%}
+{%- for f in fields %}{% set ns.body = dict(ns.body, **{f.name: f.sample}) %}{% endfor -%}
+{{ ns.body | tojson(indent=2) }}
 {%- endmacro -%}

@@ -8,7 +8,7 @@ from conftest import ITEM_ID
 class _Body(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str = Field(min_length=1)
+    label: str = Field(min_length=1)
 
 
 def describe_require_uuid():
@@ -25,8 +25,8 @@ def describe_require_uuid():
 
 def describe_parse_body():
     def test_parses_valid_object():
-        assert parse_body(b'{"name": "Tom"}', _Body) == _Body(name="Tom")
-        assert parse_body('{"name": "Tom"}', _Body) == _Body(name="Tom")
+        assert parse_body(b'{"label": "Tom"}', _Body) == _Body(label="Tom")
+        assert parse_body('{"label": "Tom"}', _Body) == _Body(label="Tom")
 
     @pytest.mark.parametrize("raw", [None, b"", b"{", b"not json", b"\xff\xfe"])
     def test_rejects_malformed_json(raw):
@@ -35,21 +35,21 @@ def describe_parse_body():
         assert error.value.status_code == 400
         assert str(error.value) == "Request body must be valid JSON."
 
-    @pytest.mark.parametrize("raw", [b"[]", b'"name"', b"42", b"null", b"true"])
+    @pytest.mark.parametrize("raw", [b"[]", b'"label"', b"42", b"null", b"true"])
     def test_rejects_non_object(raw):
         with pytest.raises(ValidationError) as error:
             parse_body(raw, _Body)
         assert str(error.value) == "Request body must be a JSON object."
 
     @pytest.mark.parametrize("raw, problem", [
-        (b'{"name": "Tom", "id": "' + ITEM_ID.encode() + b'"}', "'id' is not an allowed field"),
-        (b'{"name": "Tom", "isDeleted": true}', "'isDeleted' is not an allowed field"),
-        (b'{"name": "Tom", "createdTimestamp": "2026-01-01T00:00:00.000Z"}', "'createdTimestamp' is not an allowed field"),
-        (b'{"name": 42}', "'name' must be a string"),
-        (b'{"name": true}', "'name' must be a string"),
-        (b'{"name": null}', "'name' must be a string"),
-        (b'{"name": ""}', "'name' must not be empty"),
-        (b'{}', "'name' is required"),
+        (b'{"label": "Tom", "id": "' + ITEM_ID.encode() + b'"}', "'id' is not an allowed field"),
+        (b'{"label": "Tom", "isDeleted": true}', "'isDeleted' is not an allowed field"),
+        (b'{"label": "Tom", "createdTimestamp": "2026-01-01T00:00:00.000Z"}', "'createdTimestamp' is not an allowed field"),
+        (b'{"label": 42}', "'label' must be a string"),
+        (b'{"label": true}', "'label' must be a string"),
+        (b'{"label": null}', "'label' must be a string"),
+        (b'{"label": ""}', "'label' must not be empty"),
+        (b'{}', "'label' is required"),
     ])
     def test_rejects_invalid_fields(raw, problem):
         with pytest.raises(ValidationError) as error:
@@ -59,5 +59,5 @@ def describe_parse_body():
 
     def test_lists_every_problem():
         with pytest.raises(ValidationError) as error:
-            parse_body(b'{"id": "x", "name": 1}', _Body)
-        assert str(error.value) == "Invalid request body: 'name' must be a string; 'id' is not an allowed field."
+            parse_body(b'{"id": "x", "label": 1}', _Body)
+        assert str(error.value) == "Invalid request body: 'label' must be a string; 'id' is not an allowed field."

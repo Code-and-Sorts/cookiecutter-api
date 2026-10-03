@@ -1,7 +1,7 @@
 {%- set methods = {'list': 'GET', 'get_by_id': 'GET', 'create': 'POST', 'update': 'PATCH', 'replace': 'PUT', 'delete': 'DELETE'} -%}
 {%- set labels = {'list': 'List', 'get_by_id': 'Get by ID', 'create': 'Create', 'update': 'Update', 'replace': 'Replace', 'delete': 'Delete'} -%}
 {%- set statuses = {'list': '200', 'get_by_id': '200', 'create': '201', 'update': '200', 'replace': '200', 'delete': '200'} -%}
-{%- set bodies = {'create': '{\\n  \\"name\\": \\"Item1\\"\\n}', 'update': '{\\n  \\"name\\": \\"Item1-Update\\"\\n}', 'replace': '{\\n  \\"name\\": \\"Item1-Replace\\"\\n}'} -%}
+{%- from 'shared/_fields.jinja' import sample_body_json -%}
 {%- set ns = namespace(sort=0) -%}
 {
     "clientName": "Thunder Client",
@@ -38,7 +38,7 @@
             ]
         },
 {%- endif %}
-{%- for resource in resources %}
+{%- for resource in path_resources %}
 {%- set outer = loop %}
 {%- set id_var = '{{' ~ (resource.name | to_lower_camel) ~ 'Id}}' %}
 {%- for op in resource.operations %}
@@ -68,10 +68,11 @@
 {%- else %}
             "headers": [],
 {%- endif %}
-{%- if op in bodies %}
+{%- if op in ['create', 'update', 'replace'] %}
+{%- set body_fields = (base_fields | rejectattr('system') | list) + resource.fields %}
             "body": {
                 "type": "json",
-                "raw": "{{ bodies[op] }}",
+                "raw": {{ sample_body_json(body_fields | selectattr('in_' ~ op)) | tojson }},
                 "form": []
             },
 {%- endif %}

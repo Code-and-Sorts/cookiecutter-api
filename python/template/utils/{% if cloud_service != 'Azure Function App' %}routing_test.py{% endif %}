@@ -61,14 +61,14 @@ def describe_resolve():
 
 def describe_event_body():
     def test_plain_body():
-        assert event_body({"body": '{"name": "a"}'}) == '{"name": "a"}'
+        assert event_body({"body": '{"label": "a"}'}) == '{"label": "a"}'
 
     def test_missing_body():
         assert event_body({}) is None
 
     def test_base64_body():
-        encoded = base64.b64encode(b'{"name": "a"}').decode()
-        assert event_body({"body": encoded, "isBase64Encoded": True}) == b'{"name": "a"}'
+        encoded = base64.b64encode(b'{"label": "a"}').decode()
+        assert event_body({"body": encoded, "isBase64Encoded": True}) == b'{"label": "a"}'
 
     def test_invalid_base64_body():
         with pytest.raises(ValidationError):

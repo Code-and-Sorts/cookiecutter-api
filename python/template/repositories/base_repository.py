@@ -1,4 +1,7 @@
 import uuid
+{%- if cloud_service == 'AWS Lambda' %}
+from decimal import Decimal
+{%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 from azure.cosmos.aio import ContainerProxy
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosResourceNotFoundError
@@ -16,7 +19,7 @@ from botocore.exceptions import ClientError
 {%- endif %}
 from typing import ClassVar, List
 from pydantic import BaseModel
-from models import generate_utc_timestamp
+from models import BaseEntity, generate_utc_timestamp
 from errors import NotFoundError
 
 _CREATION_FIELDS = ("createdTimestamp", "createdBy")
@@ -24,6 +27,11 @@ _CREATION_FIELDS = ("createdTimestamp", "createdBy")
 
 def _user_fields(user_id: str | None, *fields: str) -> dict:
     return {field: user_id for field in fields} if user_id else {}
+
+
+def _without_nulls(record: dict) -> dict:
+    """A field without a value is not stored, in every language and database."""
+    return {key: value for key, value in record.items() if value is not None}
 {%- if cloud_service == 'GCP Cloud Function' %}
 
 # The SDK retries for up to 300 s by default; keep each call inside the request deadline.
@@ -40,6 +48,27 @@ DYNAMODB_CONFIG = Config(
     read_timeout=2,
     retries={"total_max_attempts": 2, "mode": "standard"},
 )
+
+
+def to_dynamodb(value):
+    """The boto3 resource rejects float, so numbers travel as Decimal."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, list):
+        return [to_dynamodb(item) for item in value]
+    if isinstance(value, dict):
+        return {key: to_dynamodb(item) for key, item in value.items()}
+    return value
+
+
+def from_dynamodb(value):
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, list):
+        return [from_dynamodb(item) for item in value]
+    if isinstance(value, dict):
+        return {key: from_dynamodb(item) for key, item in value.items()}
+    return value
 {%- endif %}
 
 
@@ -47,6 +76,7 @@ class BaseRepository[ResponseT: BaseModel]:
     """Protected so each resource repository exposes only its enabled operations."""
 
     resource_name: ClassVar[str]
+    entity_model: ClassVar[type[BaseEntity]]
     response_model: ClassVar[type[BaseModel]]
 {%- if cloud_service == 'Azure Function App' %}
 
@@ -107,7 +137,7 @@ class BaseRepository[ResponseT: BaseModel]:
         if not item or item.get("isDeleted", False):
             raise self._not_found(item_id)
 
-        return item
+        return from_dynamodb(item)
 {%- endif %}
 
     async def _write(self, record: dict) -> None:
@@ -119,7 +149,7 @@ class BaseRepository[ResponseT: BaseModel]:
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
         async with self._table() as table:
-            await table.put_item(Item=record)
+            await table.put_item(Item=to_dynamodb(record))
 {%- endif %}
 
     async def _get_by_id(self, item_id: str) -> ResponseT:
@@ -158,47 +188,52 @@ class BaseRepository[ResponseT: BaseModel]:
                 )
                 items.extend(response.get("Items", []))
 
-        return [self.response_model.model_validate(item) for item in items[:limit]]
+        return [self.response_model.model_validate(from_dynamodb(item)) for item in items[:limit]]
 {%- endif %}
 
     async def _create(self, fields: dict, user_id: str | None = None) -> ResponseT:
+        """fields holds the body the create accepts; every other client field gets its default."""
         now = generate_utc_timestamp()
-        record = {
-            "id": str(uuid.uuid4()),
+        record = _without_nulls({
+            **self.entity_model.client_defaults(),
             **fields,
+            "id": str(uuid.uuid4()),
             "isDeleted": False,
             "createdTimestamp": now,
             "updatedTimestamp": now,
             **_user_fields(user_id, "createdBy", "updatedBy"),
-        }
+        })
         await self._write(record)
         return self.response_model.model_validate(record)
 
     async def _update(self, item_id: str, changes: dict, user_id: str | None = None) -> ResponseT:
         stored = await self._get_stored(item_id)
         stored.pop("updatedBy", None)
-        record = {
+        record = _without_nulls({
             **stored,
             **changes,
             "id": item_id,
             "updatedTimestamp": generate_utc_timestamp(),
             **_user_fields(user_id, "updatedBy"),
-        }
+        })
         await self._write(record)
         return self.response_model.model_validate(record)
 
     async def _replace(self, item_id: str, fields: dict, user_id: str | None = None) -> ResponseT:
+        """fields holds every field the replace accepts; the resource's other fields keep their stored values."""
         stored = await self._get_stored(item_id)
         now = generate_utc_timestamp()
-        record = {
-            "id": item_id,
+        kept = {name: stored[name] for name in self.entity_model.client_fields() if name in stored}
+        record = _without_nulls({
+            **kept,
             **fields,
+            "id": item_id,
             "isDeleted": False,
             "createdTimestamp": now,
             **{field: stored[field] for field in _CREATION_FIELDS if stored.get(field)},
             "updatedTimestamp": now,
             **_user_fields(user_id, "updatedBy"),
-        }
+        })
         await self._write(record)
         return self.response_model.model_validate(record)
 

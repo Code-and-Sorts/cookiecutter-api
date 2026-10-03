@@ -1,19 +1,38 @@
-from pydantic import BaseModel, ConfigDict, Field
+{%- from 'python/_model.jinja' import entity_field, imports, request_field, response_field -%}
+{%- set r = resource.name -%}
+{%- set ops = resource.operations -%}
+{%- set bases = [] -%}
+{%- for kind, op in [("Create", "create"), ("Replace", "replace"), ("Update", "update")] if op in ops %}{% set _ = bases.append("Base" ~ kind ~ "Request") %}{% endfor -%}
+{%- set body %}
 
 
-class Base{{ resource.name }}(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    name: str = Field(min_length=1)
-
-
-class {{ resource.name }}Update(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    # Defaults skip validation: an absent name stays unset, an explicit null is rejected.
-    name: str = Field(default=None, min_length=1)
+class {{ r }}Entity(BaseEntity):
+{%- for f in resource.fields %}
+    {{ entity_field(f) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- for kind, op in [("Create", "create"), ("Replace", "replace"), ("Update", "update")] if op in ops %}
+{%- set fields = resource.fields | selectattr("in_" ~ op) | list %}
 
 
-class {{ resource.name }}Response(BaseModel):
-    id: str
-    name: str
+class {{ r }}{{ kind }}Request(Base{{ kind }}Request):
+{%- if op == "update" and fields %}
+    # Defaults skip validation: an absent field stays unset, an explicit null is rejected unless nullable.
+{%- endif %}
+{%- for f in fields %}
+    {{ request_field(f, op) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- endfor %}
+
+
+class {{ r }}Response(BaseResponse):
+{%- for f in resource.fields | rejectattr("hidden") %}
+    {{ response_field(f) }}
+{%- else %}
+    pass
+{%- endfor %}
+{%- endset -%}
+{{ imports(body) }}from .base import {{ (bases + ["BaseEntity", "BaseResponse"]) | sort | join(", ") }}{{ body }}

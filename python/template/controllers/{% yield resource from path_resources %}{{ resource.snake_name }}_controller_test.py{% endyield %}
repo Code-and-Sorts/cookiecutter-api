@@ -2,11 +2,21 @@
 {%- set slug = r | to_snake -%}
 {%- set ops = resource.operations -%}
 {%- from 'python/_macros.jinja' import model_names -%}
-{%- set models = model_names(resource, with_update=false) -%}
+{%- from 'python/_model.jinja' import expect, literal, sample_dict -%}
+{%- set models = model_names(resource) -%}
+{%- set client = (base_fields | rejectattr("system") | list) + resource.fields -%}
+{%- set system = base_fields | selectattr("system") | list -%}
+{%- set body_ops = ops | select("in", ["create", "update", "replace"]) | list -%}
+{%- macro values(f) -%}
+[{{ literal(f.invalid) }}{% if not f.nullable %}, None{% endif %}{% for v in f.violations %}, {{ literal(v) }}{% endfor %}]
+{%- endmacro -%}
 import asyncio
+{%- if body_ops %}
+import json
+{%- endif %}
 import pytest
 from unittest.mock import AsyncMock
-from errors import NotFoundError{% if ('create' in ops) or ('update' in ops) or ('replace' in ops) %}, ValidationError{% endif %}
+from errors import NotFoundError{% if body_ops %}, ValidationError{% endif %}
 {%- if models %}
 from models import {{ models }}
 {%- endif %}
@@ -18,8 +28,51 @@ from controllers.pagination import DEFAULT_LIST_LIMIT
 from conftest import ITEM_ID
 {%- if models %}
 
-_response = {{ r }}Response(id=ITEM_ID, name="mockName")
+_response = {{ r }}Response(id=ITEM_ID, **{{ sample_dict(client | rejectattr("hidden")) }})
 {%- endif %}
+{%- if body_ops %}
+# Server-managed fields a body may never set.
+_SYSTEM_FIELDS = {{ sample_dict(system) }}
+# Per accepted field: a wrongly typed value, null unless nullable, and values just outside each rule.
+_INVALID_VALUES = {
+{%- for f in client %}
+    "{{ f.name }}": {{ values(f) }},
+{%- endfor %}
+}
+# Values exactly on a rule's bound, which a body may hold.
+_BOUNDARY_VALUES = [
+{%- for f in client %}
+{%- for v in f.boundaries %}
+    ("{{ f.name }}", {{ literal(v) }}),
+{%- endfor %}
+{%- endfor %}
+]
+
+
+def _encode(body) -> bytes:
+    return json.dumps(body).encode()
+
+
+def _invalid_bodies(valid: dict, required: list[str], refused: dict) -> list:
+    """Bodies the operation must reject: system, unknown and refused fields, bad values and missing required ones."""
+    bodies = [b"[]", b"{not json", _encode({**valid, "not_a_field": 1})]
+    bodies += [_encode({**valid, name: value}) for name, value in {**_SYSTEM_FIELDS, **refused}.items()]
+    bodies += [_encode({**valid, name: value}) for name in valid for value in _INVALID_VALUES[name]]
+    bodies += [_encode({key: value for key, value in valid.items() if key != name}) for name in required]
+    return bodies
+{%- endif %}
+{%- for op in body_ops %}
+{%- set accepted = client | selectattr("in_" ~ op) | list %}
+{%- set refused = client | rejectattr("in_" ~ op) | list %}
+
+_{{ op | upper }}_BODY = {{ sample_dict(accepted) }}
+_{{ op | upper }}_INVALID = _invalid_bodies(
+    _{{ op | upper }}_BODY,
+    {{ (accepted | selectattr("required") | rejectattr("has_default") | map(attribute="name") | list if op != "update" else []) | tojson }},
+    {{ sample_dict(refused) }},
+)
+_{{ op | upper }}_BOUNDARIES = [(name, value) for name, value in _BOUNDARY_VALUES if name in _{{ op | upper }}_BODY]
+{%- endfor %}
 
 
 def describe_{{ slug }}_controller():
@@ -67,87 +120,78 @@ def describe_{{ slug }}_controller():
             asyncio.run(controller.get_list("abc"))
             mock_service.get_list.assert_awaited_once_with(DEFAULT_LIST_LIMIT)
 {%- endif %}
-{%- if "create" in ops %}
+{%- for op in body_ops %}
+{%- set accepted = client | selectattr("in_" ~ op) | list %}
+{%- set kind = {"create": "Create", "replace": "Replace", "update": "Update"}[op] %}
+{%- set call = "controller.create(" if op == "create" else "controller." ~ op ~ "(ITEM_ID, " %}
+{%- set BODY = "_" ~ (op | upper) ~ "_BODY" %}
 
-    def describe_create():
+    def describe_{{ op }}():
         def test_passes_validated_body(controller, mock_service):
-            mock_service.create.return_value = _response
+            mock_service.{{ op }}.return_value = _response
 
-            assert asyncio.run(controller.create(b'{"name": "mockName"}', "user-1")) == _response
-            mock_service.create.assert_awaited_once_with(Base{{ r }}(name="mockName"), "user-1")
-
-        @pytest.mark.parametrize("body", [
-            b'{"name": "mockName", "id": "' + ITEM_ID.encode() + b'"}',
-            b'{"name": "mockName", "isDeleted": false}',
-            b'{"name": 1}',
-            b'{}',
-            b'[]',
-            b'{not json',
-        ])
-        def test_invalid_body_is_rejected(controller, mock_service, body):
-            with pytest.raises(ValidationError):
-                asyncio.run(controller.create(body))
-            mock_service.create.assert_not_called()
-{%- endif %}
-{%- if "update" in ops %}
-
-    def describe_update():
-        def test_passes_only_the_fields_sent(controller, mock_service):
-            mock_service.update.return_value = _response
-
-            assert asyncio.run(controller.update(ITEM_ID, b'{"name": "mockName"}', "user-1")) == _response
-            item_id, changes, user_id = mock_service.update.call_args.args
-            assert (item_id, user_id) == (ITEM_ID, "user-1")
-            assert changes.model_dump(exclude_unset=True) == {"name": "mockName"}
+            assert asyncio.run({{ call }}_encode({{ BODY }}), "user-1")) == _response
+            sent = mock_service.{{ op }}.call_args.args[-2]
+            assert isinstance(sent, {{ r }}{{ kind }}Request)
+            assert sent.model_dump(exclude_unset=True) == {{ BODY }}
+            assert mock_service.{{ op }}.call_args.args[-1] == "user-1"
+{%- if op == "update" %}
 
         def test_empty_object_changes_nothing(controller, mock_service):
             mock_service.update.return_value = _response
 
             asyncio.run(controller.update(ITEM_ID, b'{}'))
             assert mock_service.update.call_args.args[1].model_dump(exclude_unset=True) == {}
+{%- for f in accepted if f.nullable %}
 
-        @pytest.mark.parametrize("body", [
-            b'{"id": "' + ITEM_ID.encode() + b'"}',
-            b'{"name": null}',
-            b'{"name": ""}',
-            b'"mockName"',
-            b'',
-        ])
+        def test_null_clears_{{ f.name | to_snake }}(controller, mock_service):
+            mock_service.update.return_value = _response
+
+            asyncio.run(controller.update(ITEM_ID, b'{"{{ f.name }}": null}'))
+            assert mock_service.update.call_args.args[1].model_dump(exclude_unset=True) == {"{{ f.name }}": None}
+{%- endfor %}
+{%- else %}
+{%- set left_out = accepted | rejectattr("required") | list + accepted | selectattr("required") | selectattr("has_default") | list %}
+{%- if left_out %}
+
+        def test_fields_left_out_get_their_defaults(controller, mock_service):
+            mock_service.{{ op }}.return_value = _response
+            minimal = {{ sample_dict(accepted | selectattr("required") | rejectattr("has_default")) }}
+
+            asyncio.run({{ call }}_encode(minimal)))
+            sent = mock_service.{{ op }}.call_args.args[-2].model_dump()
+{%- for f in left_out %}
+{%- if f.dynamic %}
+            assert sent["{{ f.name }}"] is not None
+{%- else %}
+            assert {{ expect('sent["' ~ f.name ~ '"]', f.default) }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+
+        @pytest.mark.parametrize("body", _{{ op | upper }}_INVALID)
         def test_invalid_body_is_rejected(controller, mock_service, body):
             with pytest.raises(ValidationError):
-                asyncio.run(controller.update(ITEM_ID, body))
-            mock_service.update.assert_not_called()
+                asyncio.run({{ call }}body))
+            mock_service.{{ op }}.assert_not_called()
+{%- if accepted | selectattr("boundaries") | list %}
+
+        @pytest.mark.parametrize("name, value", _{{ op | upper }}_BOUNDARIES)
+        def test_values_on_a_rule_bound_are_accepted(controller, mock_service, name, value):
+            mock_service.{{ op }}.return_value = _response
+
+            asyncio.run({{ call }}_encode({**{{ BODY }}, name: value})))
+            assert getattr(mock_service.{{ op }}.call_args.args[-2], name) == value
+{%- endif %}
+{%- if op != "create" %}
 
         def test_non_uuid_id_is_not_found(controller, mock_service):
             with pytest.raises(NotFoundError):
-                asyncio.run(controller.update("not-a-uuid", b'{"name": "mockName"}'))
-            mock_service.update.assert_not_called()
+                asyncio.run(controller.{{ op }}("not-a-uuid", _encode({{ BODY }})))
+            mock_service.{{ op }}.assert_not_called()
 {%- endif %}
-{%- if "replace" in ops %}
-
-    def describe_replace():
-        def test_passes_validated_body(controller, mock_service):
-            mock_service.replace.return_value = _response
-
-            assert asyncio.run(controller.replace(ITEM_ID, b'{"name": "mockName"}', "user-1")) == _response
-            mock_service.replace.assert_awaited_once_with(ITEM_ID, Base{{ r }}(name="mockName"), "user-1")
-
-        @pytest.mark.parametrize("body", [
-            b'{"name": "mockName", "id": "' + ITEM_ID.encode() + b'"}',
-            b'{"name": false}',
-            b'{}',
-            b'null',
-        ])
-        def test_invalid_body_is_rejected(controller, mock_service, body):
-            with pytest.raises(ValidationError):
-                asyncio.run(controller.replace(ITEM_ID, body))
-            mock_service.replace.assert_not_called()
-
-        def test_non_uuid_id_is_not_found(controller, mock_service):
-            with pytest.raises(NotFoundError):
-                asyncio.run(controller.replace("not-a-uuid", b'{"name": "mockName"}'))
-            mock_service.replace.assert_not_called()
-{%- endif %}
+{%- endfor %}
 {%- if "delete" in ops %}
 
     def describe_delete():

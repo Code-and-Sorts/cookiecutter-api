@@ -1,11 +1,13 @@
 {%- set routes = [('list', 'get_list', 'GET', False, 200), ('get_by_id', 'get_by_id', 'GET', True, 200), ('create', 'create', 'POST', False, 201), ('update', 'update', 'PATCH', True, 200), ('replace', 'replace', 'PUT', True, 200), ('delete', 'delete', 'DELETE', True, 200)] -%}
+{%- set request_kinds = [('create', 'Create'), ('replace', 'Replace'), ('update', 'Update')] -%}
 
-{%- macro model_names(resource, with_update=true, always_response=false) -%}
+{#- The model classes a module that handles the resource imports. -#}
+{%- macro model_names(resource, entity=false, requests=true, always_response=false) -%}
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
 {%- set names = [] -%}
-{%- if ('create' in ops) or ('replace' in ops) %}{% set _ = names.append('Base' ~ r) %}{% endif -%}
-{%- if with_update and 'update' in ops %}{% set _ = names.append(r ~ 'Update') %}{% endif -%}
+{%- if entity %}{% set _ = names.append(r ~ 'Entity') %}{% endif -%}
+{%- for op, kind in request_kinds if requests and op in ops %}{% set _ = names.append(r ~ kind ~ 'Request') %}{% endfor -%}
 {%- if always_response or ops | reject('equalto', 'delete') | list %}{% set _ = names.append(r ~ 'Response') %}{% endif -%}
 {{- names | join(', ') -}}
 {%- endmacro -%}

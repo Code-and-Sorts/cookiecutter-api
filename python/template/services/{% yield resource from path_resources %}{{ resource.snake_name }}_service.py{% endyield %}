@@ -26,17 +26,17 @@ class {{ r }}Service:
 {%- endif %}
 {%- if "create" in ops %}
 
-    async def create(self, item: Base{{ r }}, user_id: str | None = None) -> {{ r }}Response:
+    async def create(self, item: {{ r }}CreateRequest, user_id: str | None = None) -> {{ r }}Response:
         return await self.repository.create(item, user_id)
 {%- endif %}
 {%- if "update" in ops %}
 
-    async def update(self, item_id: str, changes: {{ r }}Update, user_id: str | None = None) -> {{ r }}Response:
+    async def update(self, item_id: str, changes: {{ r }}UpdateRequest, user_id: str | None = None) -> {{ r }}Response:
         return await self.repository.update(item_id, changes, user_id)
 {%- endif %}
 {%- if "replace" in ops %}
 
-    async def replace(self, item_id: str, item: Base{{ r }}, user_id: str | None = None) -> {{ r }}Response:
+    async def replace(self, item_id: str, item: {{ r }}ReplaceRequest, user_id: str | None = None) -> {{ r }}Response:
         return await self.repository.replace(item_id, item, user_id)
 {%- endif %}
 {%- if "delete" in ops %}

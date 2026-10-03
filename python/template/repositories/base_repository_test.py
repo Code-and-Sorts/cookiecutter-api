@@ -16,15 +16,28 @@ from google.cloud.firestore import DELETE_FIELD, FieldFilter
 {%- if cloud_service == 'AWS Lambda' %}
 from botocore.exceptions import ClientError
 {%- endif %}
+from models import BaseEntity
 from repositories import BaseRepository
 {%- if cloud_service == 'GCP Cloud Function' %}
 from repositories.base_repository import FIRESTORE_CALL_OPTIONS
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-from repositories.base_repository import DYNAMODB_CONFIG
+from decimal import Decimal
+from repositories.base_repository import DYNAMODB_CONFIG, from_dynamodb, to_dynamodb
 {%- endif %}
 from errors import NotFoundError
 from conftest import ITEM_ID
+
+
+class _ItemEntity(BaseEntity):
+    name: str | None = None
+    color: str | None = "grey"
+    note: str | None = None
+
+    @classmethod
+    def client_fields(cls) -> list[str]:
+        # Only this test model's fields, whatever fields base_model adds.
+        return ["name", "color", "note"]
 
 
 class _ItemResponse(BaseModel):
@@ -34,6 +47,7 @@ class _ItemResponse(BaseModel):
 
 class _ItemRepository(BaseRepository[_ItemResponse]):
     resource_name = "Item"
+    entity_model = _ItemEntity
     response_model = _ItemResponse
 
 
@@ -113,9 +127,11 @@ def describe_base_repository_records():
 
             record = _written(repository)
             assert str(uuid.UUID(record["id"])) == record["id"]
+            # color was not in the body, so it gets its default; note has none and is not stored.
             assert record == {
                 "id": record["id"],
                 "name": "mockName1",
+                "color": "grey",
                 "isDeleted": False,
                 "createdTimestamp": _NOW,
                 "updatedTimestamp": _NOW,
@@ -150,6 +166,13 @@ def describe_base_repository_records():
             }
             assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Update")
 
+        def test_null_change_removes_the_field():
+            repository = _offline_repository({**_stored_item, "note": "old"})
+            with patch(_TIMESTAMP, return_value=_NOW):
+                asyncio.run(repository._update(ITEM_ID, {"note": None}))
+
+            assert "note" not in _written(repository)
+
         def test_no_changes_or_user_id_refreshes_timestamp_and_drops_updated_by():
             repository = _offline_repository({**_stored_item, "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
@@ -165,13 +188,18 @@ def describe_base_repository_records():
 
     def describe_replace():
         def test_overwrites_fields_and_keeps_creation_fields():
-            repository = _offline_repository({**_stored_item, "extra": "dropped", "updatedBy": "someone"})
+            stored = {**_stored_item, "color": "black", "note": "old", "extra": "dropped", "updatedBy": "someone"}
+            repository = _offline_repository(stored)
             with patch(_TIMESTAMP, return_value=_NOW):
-                result = asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}, "editor"))
+                result = asyncio.run(
+                    repository._replace(ITEM_ID, {"name": "mockName1-Replace", "note": None}, "editor")
+                )
 
+            # note was accepted and sent empty, so it is cleared; color was not accepted, so it is kept.
             assert _written(repository) == {
                 "id": ITEM_ID,
                 "name": "mockName1-Replace",
+                "color": "black",
                 "isDeleted": False,
                 "createdTimestamp": _CREATED,
                 "createdBy": "creator",
@@ -398,6 +426,14 @@ def describe_firestore_storage():
 {%- if cloud_service == 'AWS Lambda' %}
 
 
+def describe_dynamodb_numbers():
+    def test_floats_travel_as_decimal_and_come_back_as_numbers():
+        record = {"amount": 2.5, "count": 3, "flag": True, "scores": [1.5, 2], "nested": {"x": 0.1}}
+        stored = to_dynamodb(record)
+        assert stored == {"amount": Decimal("2.5"), "count": 3, "flag": True, "scores": [Decimal("1.5"), 2], "nested": {"x": Decimal("0.1")}}
+        assert from_dynamodb({**stored, "count": Decimal("3")}) == record
+
+
 def describe_dynamodb_storage():
     @pytest.fixture
     def table():
@@ -439,6 +475,10 @@ def describe_dynamodb_storage():
         def test_puts_item(table):
             asyncio.run(_repository(table)._write(_stored_item))
             table.put_item.assert_awaited_once_with(Item=_stored_item)
+
+        def test_converts_floats(table):
+            asyncio.run(_repository(table)._write({**_stored_item, "weight": 1.5}))
+            assert table.put_item.await_args.kwargs["Item"]["weight"] == Decimal("1.5")
 
     def describe_get_list():
         def test_scans_undeleted_items_with_limit(table):

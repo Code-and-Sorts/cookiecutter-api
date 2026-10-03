@@ -40,19 +40,19 @@ class {{ r }}Controller:
 {%- if "create" in ops %}
 
     async def create(self, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
-        return await self.service.create(parse_body(body, Base{{ r }}), user_id)
+        return await self.service.create(parse_body(body, {{ r }}CreateRequest), user_id)
 {%- endif %}
 {%- if "update" in ops %}
 
     async def update(self, item_id: str | None, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
         item_id = require_uuid(item_id, RESOURCE)
-        return await self.service.update(item_id, parse_body(body, {{ r }}Update), user_id)
+        return await self.service.update(item_id, parse_body(body, {{ r }}UpdateRequest), user_id)
 {%- endif %}
 {%- if "replace" in ops %}
 
     async def replace(self, item_id: str | None, body: bytes | str | None, user_id: str | None = None) -> {{ r }}Response:
         item_id = require_uuid(item_id, RESOURCE)
-        return await self.service.replace(item_id, parse_body(body, Base{{ r }}), user_id)
+        return await self.service.replace(item_id, parse_body(body, {{ r }}ReplaceRequest), user_id)
 {%- endif %}
 {%- if "delete" in ops %}
 
