@@ -136,22 +136,22 @@ resources:
 
 | Key | Meaning |
 |---|---|
-| `name` | lowerCamelCase JSON and database name. Keywords and builtins of any target language are reserved. |
-| `type` | `string`, `integer`, `number`, `boolean`, `date-time`, `date`, `uuid`, `enum` (with `values`) or `array` (with `items`, any type but `enum` and `array`). |
+| `name` | lowerCamelCase JSON and database name. Names that break a target language are reserved: Python keywords, a few builtins and members such as `str`, `json` or `toString`, and names of generated members such as `sent` or `applyTo`. |
+| `type` | `string`, `integer` (a whole number, also when sent as `1.0` or `1e3`), `number`, `boolean`, `date-time` (any RFC 3339 offset, stored in UTC with milliseconds; years 0001 to 9999), `date`, `uuid`, `enum` (with `values`) or `array` (with `items`, any type but `enum` and `array`). |
 | `required` | The client must send it on create and replace unless it has a `default`. |
-| `nullable` | `null` is a valid value; on update it clears the field. |
+| `nullable` | `null` is a valid value; on update it clears the field. A record without a value for a nullable field reads as `null`, even when the field has a default. |
 | `default` | A value, `null`, or `$now`, `$today`, `$uuid` evaluated on every write (`$$` escapes a literal `$`). Applied on create and replace, never on update; a stored record without the field reads as its static default. |
 | `immutable` | Accepted on create only; replace keeps the stored value. |
 | `hidden` | Stored but never returned. |
-| `rules` | `min_length`, `max_length`, `pattern`, `format` (`email`, `uri`) for strings; `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum` for numbers; `min_items`, `max_items`, `unique_items` for arrays. Patterns use the subset every target regex engine shares. |
+| `rules` | `min_length`, `max_length`, `pattern`, `format` (`email`, `uri`) for strings; `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum` for numbers; `min_items`, `max_items`, `unique_items` for arrays. Patterns are limited to what every target regex engine reads the same way: literal characters, `.`, classes such as `[a-z]` or `[^,]`, `^`, `$`, `|`, groups `( )` and `(?: )`, the repeats `*`, `+`, `?`, `{n}`, `{n,}` and `{n,m}` (up to 1000), and the escapes `\n`, `\t` and `\` before a metacharacter (`\.`). Shorthands such as `\d`, `\w`, `\s` and `\b`, other escapes, lookarounds, backreferences, named groups and POSIX classes are rejected. |
 | `example` | A valid value for generated tests and sample requests; needed for a `pattern` the default cannot satisfy. |
-| `description` | Documentation. |
+| `description` | Documentation: a comment on the field in the Python, TypeScript and .NET models, a JSON Schema description in Go, and a column in the generated README's data model. |
 
 `requests.create`, `requests.replace` and `requests.update` narrow the fields each body accepts
 (by default create accepts every field, replace and update every field that is not immutable).
 `base_model` is pre-populated with the built-in fields `id`, `isDeleted`, `createdTimestamp`,
-`updatedTimestamp`, `createdBy` and `updatedBy`. They are locked (only their `description` may
-change), set by the server and never accepted in a body; `createdBy`/`updatedBy` come from the
+`updatedTimestamp`, `createdBy` and `updatedBy`. They are locked (written exactly as
+pre-populated), set by the server and never accepted in a body; `createdBy`/`updatedBy` come from the
 `X-User-Id` header. Fields you append to `base_model`, such as `{name: tenantId, type: string,
 required: true}`, appear on every resource. Responses hold `id` and every field that is not
 hidden. Unknown fields, wrongly typed values and broken rules are rejected with a 400. Copier
@@ -198,8 +198,8 @@ over HTTP for every language and cloud: each enabled operation, validation, soft
 containers, `?limit=`, the health check, the stored record format (read straight from the
 emulator) and every declared field's types, rules, defaults and nullability. It reads `base_model`
 and the resources from the project's `.copier-answers.yml`, so every fixture is covered without
-changes. The `Integration Tests` workflow runs it for every language and cloud with the `single`,
-`edge`, `model` and `model-shared` fixtures on pushes to `main`; run it on a branch with
+changes. The `Integration Tests` workflow runs it for every language and cloud with the `single`
+and `edge` fixtures on pushes to `main`; run it on a branch with
 **Run workflow**, choosing a language, cloud and fixture or `all`.
 
 The `Template Checks` workflow runs on pull requests: `.github/scripts/check_invalid_answers.py`

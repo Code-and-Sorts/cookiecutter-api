@@ -113,26 +113,32 @@ fields, requests}`. The default is a single resource derived from the project na
 schema: `name`, `type`, `required`, `nullable`, `default`, `immutable`, `hidden`, `values`, `items`,
 `rules`, `example`, `description`; `requests.<create|replace|update>` narrows the fields a body accepts.
 The six pre-populated `base_model` fields (`id`, `isDeleted`, the timestamps, `createdBy`,
-`updatedBy`) are locked and `managed` (set by the server; `$user` is the `X-User-Id` header); only
-their `description` may change, and `managed` is refused anywhere else. README.md documents the keys.
+`updatedBy`) are locked and `managed` (set by the server; `$user` is the `X-User-Id` header). They are
+written once, as `LOCKED_FIELDS` in `shared/_fields.jinja`, which also renders the `base_model` default;
+`managed` is refused anywhere else. README.md documents the keys.
 
 - `shared/_fields.jinja` holds the field rules once: `check_field` (used by the `base_model` and
   `resources` validators, which stop at the first error and name the resource or `base_model` and the
-  field), the value `PATTERNS`, `MAX_SAFE_INTEGER`, `REQUEST_KINDS`, `DATE_TIME_EXAMPLE`, `DEFAULT_FIELDS`
-  and the derived field data. Add a rule, type or derived value there, never per language.
+  field), the value `PATTERNS`, `MAX_SAFE_INTEGER`, `REQUEST_KINDS`, `DATE_TIME_EXAMPLE`,
+  `OUT_OF_RANGE_DATE_TIMES`, `DEFAULT_FIELDS`, `string_literal` (every string a template writes into code, so
+  emoji are never escaped as surrogate pairs) and the derived field data. Add a rule, type or derived value
+  there, never per language. The integration suite renders the same macros (`tests/integration/project.py`)
+  instead of re-deriving values.
 - Templates never read the raw answers for fields: `base_fields`, `client_base_fields` and
   `path_resources[].fields`/`client_fields` hold normalized dicts with `pascal`, `item_type`,
   `enum_values`, flags with defaults filled in, `dynamic` (`now`, `today`, `uuid`, `user` or empty),
   static `default`, `read_default`/`has_read_default`, `needs_value` (required without a default),
   `defaulted` (create and replace fill a value), `in_create`/`in_replace`/`in_update`, and test data:
   `sample` (a valid value), `rejected` (a wrongly typed value, null unless nullable, every rule
-  violation) and `boundaries` (values on each rule's bound). A missing `fields` answer (an older
+  violation) and `boundaries` (valid edge values: each rule's bound, the first and last date-time years,
+  and an integer written as a whole float). A missing `fields` answer (an older
   answers file) falls back to `DEFAULT_FIELDS`; a missing `base_model` gets the question default.
 - Every language renders `BaseEntity`, `BaseCreateRequest`, `BaseReplaceRequest`,
   `BaseUpdateRequest` and `BaseResponse` from `client_base_fields`, and each resource's entity,
   request and response types extend them; generate code from loops over the fields, not per type.
-- Field names are checked against one union list of reserved names, so an answer valid in one
-  language is valid in all; resource names keep their per-language reserved lists.
+- Field names are checked against one union list of reserved names (`RESERVED_FIELD_NAMES`), so an answer
+  valid in one language is valid in all; resource names keep their per-language reserved lists. A field
+  name joins the list only after rendering it and watching a generated project fail to build or test.
 
 ### API Contract
 
@@ -157,8 +163,11 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **Fields:** create and replace give a field the body leaves out its default (`$now`, `$today`, `$uuid` per
   write) or no value; replace keeps the fields it does not accept; update changes only the fields sent and
   `null` clears a nullable one. A record without a field reads as its static default (`null` if nullable).
-  Date-times are accepted with any offset and stored in UTC with milliseconds; integers lie within
-  ±9007199254740991; patterns, `email` and `uri` use the shared `PATTERNS`.
+  Date-times are accepted with any offset and stored in UTC with milliseconds, and must fall in the years
+  0001 to 9999 in UTC (a leap second is a 400); integers lie within ±9007199254740991 and may be sent as
+  whole numbers such as `1.0` or `1e3`, since JavaScript cannot tell them apart; resources sharing a container
+  keep each other's fields on every write; `email` and `uri` use the shared `PATTERNS`. `pattern_error` allows only the regex
+  syntax RE2, ECMAScript, .NET, Python and Rust (pydantic) read the same way; widen it only after checking all five.
 - **Storage:** `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
   `Z`) and every field that has a value (a field without one is not stored, never `null`), plus
   `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both
@@ -250,7 +259,7 @@ To add a new cloud provider to an existing language template:
    option with unit tests, and a bootstrap branch
 6. **Update CI pipeline** — Add the new cloud service to the `cloud-service` matrix in the workflow YAML
 7. **Add it to the integration tests** — its host tool and base URL in `.github/actions/start-local-api`, the cloud in
-   the `integration-tests.yaml` plan, its `CLOUDS` slug in `tests/integration/project.py`, its `NOT_ROUTED`
+   the integration matrix (`.github/scripts/integration_matrix.py`), its `CLOUDS` slug in `tests/integration/project.py`, its `NOT_ROUTED`
    statuses in `tests/integration/test_operations.py`, and a store in `tests/integration/store.py`
 8. **Update `README.md`** — Change the support table cell from planned to complete
 
@@ -277,7 +286,7 @@ To add a new cloud provider to an existing language template:
    (its path filters include `copier.yml` and `shared/**`), and add the language to `publish-examples.yml`, the
    `template-setup.yml` language map and the setup issue form
 9. Add the language to the integration tests: its install and emulator commands in
-   `.github/actions/start-local-api` and the language in the `integration-tests.yaml` plan
+   `.github/actions/start-local-api` and the language in the integration matrix (`.github/scripts/integration_matrix.py`)
 10. Update the root `README.md` support table
 
 ## Template Variables
@@ -320,10 +329,9 @@ as JSON) without starting them.
 Its `template-language` input is passed as the `language` answer, and its `resources-fixture` input renders
 `fixtures/<name>-resources.yml`. CI uses `edge`: every resource
 shape the default single resource doesn't cover (each operation subset, shared and hyphenated containers,
-names of differing lengths) and no health check, and `model`: every field type, rule and kind of default,
-`requests` subsets, extra `base_model` fields and a resource with the default fields. `model-shared` (two
-models in one container) and `edge` run in the integration tests; `multi` only feeds the published example
-branches. Fold new field shapes into `model`.
+names of differing lengths, every field type, rule and kind of default, `requests` subsets, extra `base_model`
+fields, a resource with the default fields and different models in one container) and no health check.
+`multi` and `model` only feed the published example branches.
 Every language's pipeline also runs when the root `copier.yml` or `shared/` changes.
 
 `.github/workflows/template-checks.yaml` runs three scripts from `.github/scripts/` on pull requests:
@@ -351,13 +359,14 @@ operations, shared and separate containers, `?limit=`, the health check, `X-User
 format and every field's types, rules, defaults and nullability. It reads `base_model` and `resources` from the
 project's `.copier-answers.yml` and parametrizes itself (`@pytest.mark.ops` and `@pytest.mark.each_operation`
 pick the resources and operations a test needs, `@pytest.mark.fields` the field cases), so never render tests
-with Jinja; `values.py` mirrors the sample and violation rules of `shared/_fields.jinja` in Python. `store.py` reads records straight from the emulator, using the project's `.env.emulator`, and seeds a
+with Jinja. `project.py` renders the field data from `shared/_fields.jinja`, so samples, invalid values and
+edge values are the ones the unit tests use; `values.py` only adds values that change per call, checked with
+the same macros. `store.py` reads records straight from the emulator, using the project's `.env.emulator`, and seeds a
 container for a resource that cannot `create`. Contract changes go into the suite with the template change.
 The suite is a uv project with its own `uv.lock`: `uv sync --project tests/integration`, then
 `uv run --project tests/integration pytest tests/integration --project-dir <project> --base-url <url>`.
 
-`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single`, `edge`, `model` and
-`model-shared`; `multi` on
+`.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single` and `edge`; `multi` and `model` on
 request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
 contract or emulator change. Each job renders the project, then `.github/actions/start-local-api` starts the
 emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the
