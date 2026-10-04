@@ -2,11 +2,8 @@ namespace {{project_class_name}}.Api.Dtos;
 
 using System.Text.Json.Serialization;
 
-public class {{ resource.name }}Dto
+public class {{ resource.name }}Dto : BaseDto
 {
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = default!;
-
     [JsonPropertyName("name")]
     public string Name { get; set; } = default!;
 }

@@ -5,14 +5,30 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Utils;
 
 public abstract class EntityRepository<TEntity, TDto>(IDocumentStore<TEntity> store, string resourceName)
     where TEntity : BaseEntity
+    where TDto : BaseDto, new()
 {
-    protected abstract TDto ToDto(TEntity item);
+    protected abstract void MapFields(TEntity item, TDto dto);
+
+    private TDto ToDto(TEntity item)
+    {
+        var dto = new TDto
+        {
+            Id = item.Id,
+            CreatedTimestamp = item.CreatedTimestamp,
+            CreatedBy = item.CreatedBy,
+            UpdatedTimestamp = item.UpdatedTimestamp,
+            UpdatedBy = item.UpdatedBy,
+        };
+        MapFields(item, dto);
+        return dto;
+    }
 
     protected async Task<TDto> GetDtoAsync(string id, CancellationToken ct) => ToDto(await GetLiveAsync(id, ct));
 

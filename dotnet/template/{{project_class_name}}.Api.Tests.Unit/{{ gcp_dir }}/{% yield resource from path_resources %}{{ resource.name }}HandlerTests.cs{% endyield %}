@@ -60,13 +60,13 @@ public class {{ r }}HandlerTests
     {
         var httpContext = Mocks.CreateHttpContext("GET", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+            .Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" }));
 
         await _handler.HandleAsync(httpContext, ItemId);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
         Assert.Equal("application/json", httpContext.Response.ContentType);
-        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
     }
 {%- endif %}
 {%- if "list" in ops %}
@@ -78,14 +78,15 @@ public class {{ r }}HandlerTests
         _mock{{ r }}Controller.GetListAsync("2", Arg.Any<CancellationToken>())
             .Returns(new List<{{ r }}Dto>
             {
-                new() { Id = ItemId, Name = "mock{{ r }}1" },
-                new() { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" },
+                Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}1" }),
+                Mocks.WithAuditFields(new {{ r }}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }, userId: null),
             });
 
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Equal($"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }},{{ '{{' }}\"id\":\"5615ff05-3032-4459-88ad-b6a4c3e51ca0\",\"name\":\"mock{{ r }}2\"{{ '}}' }}]", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal($"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\",{Mocks.AuditJson()}{{ '}}' }},"
+            + $"{{ '{{' }}\"id\":\"5615ff05-3032-4459-88ad-b6a4c3e51ca0\",\"name\":\"mock{{ r }}2\",{Mocks.AuditJson(userId: null)}{{ '}}' }}]", Mocks.ReadResponseBody(httpContext));
     }
 
     [Fact]
@@ -107,12 +108,12 @@ public class {{ r }}HandlerTests
     {
         var httpContext = Mocks.CreateHttpContext(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST", "/{{ resource.endpoint }}");
         _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+            .Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" }));
 
         await _handler.HandleAsync(httpContext, null);
 
         Assert.Equal(201, httpContext.Response.StatusCode);
-        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
     }
 {%- if has_item %}
 
@@ -136,11 +137,12 @@ public class {{ r }}HandlerTests
     {
         var httpContext = Mocks.CreateHttpContext(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+            .Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" }));
 
         await _handler.HandleAsync(httpContext, ItemId);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockUpdated{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
         await _mock{{ r }}Controller.Received(1).UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 {%- endif %}
@@ -151,11 +153,12 @@ public class {{ r }}HandlerTests
     {
         var httpContext = Mocks.CreateHttpContext(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT", "/{{ resource.endpoint }}/" + ItemId);
         _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+            .Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" }));
 
         await _handler.HandleAsync(httpContext, ItemId);
 
         Assert.Equal(200, httpContext.Response.StatusCode);
+        Assert.Equal($"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockReplaced{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}", Mocks.ReadResponseBody(httpContext));
         await _mock{{ r }}Controller.Received(1).ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 {%- endif %}

@@ -58,8 +58,8 @@ public class {{ r }}RepositoryTests
 
         var result = await _repository.GetAsync(ItemId, TestContext.Current.CancellationToken);
 
-        Assert.Equal(ItemId, result.Id);
-        Assert.Equal("mock{{ r }}", result.Name);
+        Assert.Equal((ItemId, "mock{{ r }}", StoredTimestamp, "User2", StoredTimestamp, null),
+            (result.Id, result.Name, result.CreatedTimestamp, result.CreatedBy, result.UpdatedTimestamp, result.UpdatedBy));
     }
 {%- endif %}
 {%- if "list" in ops %}
@@ -79,9 +79,10 @@ public class {{ r }}RepositoryTests
     [Fact]
     public async Task CreateAsync_ShouldStoreItemAndReturn{{ r }}Dto()
     {
-        var result = await _repository.CreateAsync(new {{ r }}Entity { Name = "mock{{ r }}" }, null, TestContext.Current.CancellationToken);
+        var result = await _repository.CreateAsync(new {{ r }}Entity { Name = "mock{{ r }}" }, "User1", TestContext.Current.CancellationToken);
 
-        Assert.Equal("mock{{ r }}", result.Name);
+        Assert.True(result.Name == "mock{{ r }}" && result.CreatedBy == "User1" && result.UpdatedBy == "User1");
+        Assert.Equal(result.CreatedTimestamp, result.UpdatedTimestamp);
         await _mockStore.Received(1).CreateAsync(Arg.Is<{{ r }}Entity>(k => k.Id == result.Id && k.Name == "mock{{ r }}"), Arg.Any<CancellationToken>());
     }
 {%- endif %}
@@ -92,9 +93,11 @@ public class {{ r }}RepositoryTests
     {
         var stored = StoreHolds(StoredItem("mock{{ r }}Old"));
 
-        var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, null, TestContext.Current.CancellationToken);
+        var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, "User1", TestContext.Current.CancellationToken);
 
-        Assert.Equal("mock{{ r }}New", result.Name);
+        Assert.Equal((ItemId, "mock{{ r }}New", StoredTimestamp, "User2", stored.UpdatedTimestamp, "User1"),
+            (result.Id, result.Name, result.CreatedTimestamp, result.CreatedBy, result.UpdatedTimestamp, result.UpdatedBy));
+        Assert.NotEqual(StoredTimestamp, result.UpdatedTimestamp);
         Assert.True(stored.Name == "mock{{ r }}New" && stored.CreatedBy == "User2" && stored.CreatedTimestamp == StoredTimestamp);
     }
 
@@ -115,9 +118,11 @@ public class {{ r }}RepositoryTests
     {
         var stored = StoreHolds(StoredItem("mock{{ r }}Old"));
 
-        var result = await _repository.ReplaceAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, null, TestContext.Current.CancellationToken);
+        var result = await _repository.ReplaceAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, "User1", TestContext.Current.CancellationToken);
 
-        Assert.Equal("mock{{ r }}New", result.Name);
+        Assert.Equal((ItemId, "mock{{ r }}New", StoredTimestamp, "User2", stored.UpdatedTimestamp, "User1"),
+            (result.Id, result.Name, result.CreatedTimestamp, result.CreatedBy, result.UpdatedTimestamp, result.UpdatedBy));
+        Assert.NotEqual(StoredTimestamp, result.UpdatedTimestamp);
         Assert.True(stored.Name == "mock{{ r }}New" && stored.CreatedBy == "User2" && stored.CreatedTimestamp == StoredTimestamp);
     }
 {%- endif %}
