@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from pydantic import BaseModel
 {%- if cloud_service == 'Azure Function App' %}
+from azure.core import MatchConditions
 from azure.cosmos.exceptions import (
     CosmosAccessConditionFailedError,
     CosmosHttpResponseError,
@@ -24,6 +25,9 @@ from repositories.base_repository import FIRESTORE_CALL_OPTIONS
 from repositories.base_repository import DYNAMODB_CONFIG
 {%- endif %}
 from errors import NotFoundError
+{%- if cloud_service == 'Azure Function App' %}
+from utils.detect_error import detect_error
+{%- endif %}
 from conftest import ITEM_ID
 
 
@@ -148,6 +152,7 @@ def describe_base_repository_records():
                 "updatedTimestamp": _NOW,
                 "updatedBy": "editor",
             }
+            assert repository._write.call_args.args[1] is repository._get_stored.return_value
             assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Update")
 
         def test_no_changes_or_user_id_refreshes_timestamp_and_drops_updated_by():
@@ -178,6 +183,7 @@ def describe_base_repository_records():
                 "updatedTimestamp": _NOW,
                 "updatedBy": "editor",
             }
+            assert repository._write.call_args.args[1] is repository._get_stored.return_value
             assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Replace")
 
         def test_omits_unset_created_by_and_drops_updated_by_without_user_id():
@@ -201,6 +207,7 @@ def describe_cosmos_storage():
     def container():
         client = MagicMock()
         client.upsert_item = AsyncMock()
+        client.replace_item = AsyncMock()
         client.patch_item = AsyncMock()
         client.read = AsyncMock(return_value={"id": "items"})
         return client
@@ -223,9 +230,30 @@ def describe_cosmos_storage():
             assert str(error.value) == f"Item with id {ITEM_ID} was not found."
 
     def describe_write():
-        def test_upserts_record(container):
+        def test_upserts_a_new_record(container):
             asyncio.run(_ItemRepository(container)._write(_stored_item))
             container.upsert_item.assert_awaited_once_with(_stored_item)
+
+        def test_replaces_a_record_only_if_the_etag_it_was_read_with_matches(container):
+            record = {**_stored_item, "name": "changed"}
+            asyncio.run(_ItemRepository(container)._write(record, {**_stored_item, "_etag": "etag-1"}))
+            container.replace_item.assert_awaited_once_with(
+                ITEM_ID, record, etag="etag-1", match_condition=MatchConditions.IfNotModified
+            )
+            container.upsert_item.assert_not_called()
+
+        @pytest.mark.parametrize("write", [
+            lambda repository: repository._update(ITEM_ID, {"name": "raced"}),
+            lambda repository: repository._replace(ITEM_ID, {"name": "raced"}),
+        ], ids=["update", "replace"])
+        def test_a_write_that_lost_a_race_is_a_generic_500(container, write):
+            container.query_items.return_value = _AsyncIterator([{**_stored_item, "_etag": "etag-1"}])
+            container.replace_item.side_effect = CosmosAccessConditionFailedError(status_code=412, message="raced")
+            with pytest.raises(CosmosAccessConditionFailedError) as error:
+                asyncio.run(write(_ItemRepository(container)))
+
+            assert container.replace_item.call_args.kwargs["etag"] == "etag-1"
+            assert detect_error(error.value).status_code == 500
 
     def describe_get_list():
         def test_queries_undeleted_items_with_limit(container):

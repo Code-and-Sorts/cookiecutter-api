@@ -5,8 +5,8 @@ export interface DocumentStore<T extends BaseItemRecord> {
   read(id: string): Promise<T | undefined>;
   query(limit: number): Promise<T[]>;
   create(item: T): Promise<void>;
-  /** Resolves false when the item no longer exists. */
-  write(item: T): Promise<boolean>;
+  /** read is the record item was built from, so a store can refuse a write that races another. Resolves false when the item no longer exists. */
+  write(item: T, read: T): Promise<boolean>;
   /** Resolves false when the item is missing or already deleted; removes updatedBy when none is given. */
   softDelete(id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean>;
 }

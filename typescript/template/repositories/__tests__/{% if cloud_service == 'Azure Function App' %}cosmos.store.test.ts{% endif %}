@@ -11,6 +11,8 @@ const record = {
     createdTimestamp: '2024-03-24T00:00:00.000Z',
     updatedTimestamp: '2024-03-24T00:00:00.000Z',
 };
+const read = { ...record, _etag: 'etag-1' };
+const ifMatch = { accessCondition: { type: 'IfMatch', condition: 'etag-1' } };
 const cosmosError = (code: number, substatus?: number) => Object.assign(new Error('Cosmos error'), { code, substatus });
 const containerMissing = () => cosmosError(404, 1003);
 
@@ -52,15 +54,20 @@ describe('CosmosStore', () => {
         expect(create).toHaveBeenCalledWith(record);
     });
 
-    it('should replace an item by id and partition key', async () => {
-        expect(await store.write(record)).toBe(true);
+    it('should replace an item by id and partition key only if the ETag it was read with still matches', async () => {
+        expect(await store.write(record, read)).toBe(true);
         expect(item).toHaveBeenCalledWith(id, id);
-        expect(replace).toHaveBeenCalledWith(record);
+        expect(replace).toHaveBeenCalledWith(record, ifMatch);
     });
 
     it('should report a write to a vanished item as not found', async () => {
         replace.mockRejectedValue(cosmosError(404));
-        expect(await store.write(record)).toBe(false);
+        expect(await store.write(record, read)).toBe(false);
+    });
+
+    it('should rethrow a write that lost a race', async () => {
+        replace.mockRejectedValue(cosmosError(412));
+        await expect(store.write(record, read)).rejects.toMatchObject({ code: 412 });
     });
 
     it('should soft delete only a live item, setting or removing updatedBy', async () => {
@@ -90,7 +97,7 @@ describe('CosmosStore', () => {
 
     it('should rethrow a missing container and other failures', async () => {
         replace.mockRejectedValue(containerMissing());
-        await expect(store.write(record)).rejects.toMatchObject({ substatus: 1003 });
+        await expect(store.write(record, read)).rejects.toMatchObject({ substatus: 1003 });
         patch.mockRejectedValue(cosmosError(503));
         await expect(store.softDelete(id, '2025-01-01T00:00:00.000Z')).rejects.toMatchObject({ code: 503 });
     });
