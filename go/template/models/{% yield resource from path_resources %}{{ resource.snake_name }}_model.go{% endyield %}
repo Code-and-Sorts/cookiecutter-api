@@ -9,10 +9,11 @@ type {{ r }} struct {
 type {{ r }}Dto struct {
 	Id   string `json:"id"`
 	Name string `json:"name"`
+	AuditDto
 }
 
 func To{{ r }}Dto(item {{ r }}) {{ r }}Dto {
-	return {{ r }}Dto{Id: item.Id, Name: item.Name}
+	return {{ r }}Dto{Id: item.Id, Name: item.Name, AuditDto: item.ToAuditDto()}
 }
 {%- if "create" in resource.operations %}
 

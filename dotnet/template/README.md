@@ -80,7 +80,22 @@ Every response body is JSON (`Content-Type: application/json`), including errors
 {%- endif %}
 | anything unexpected | 500 | `{"errorMessage": "An unexpected error occurred."}` (the exception is logged with its stack trace) |
 
-An item is exactly `{"id": "<uuid>", "name": "<string>"}`. Request bodies must be a JSON object: `name` is required on create (`POST`) and replace (`PUT`) and optional on update (`PATCH`), and when present it must be a non-empty JSON string (numbers and booleans are not converted). Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with `400`, so clients can never set ids or system fields.
+An item has exactly these fields, the stored values (`createdBy` and `updatedBy` only when they are set; never `null`):
+
+```json
+{
+  "id": "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c",
+  "name": "{{ resources[0].name }}1",
+  "createdTimestamp": "2026-09-29T22:49:26.625Z",
+  "createdBy": "user-1",
+  "updatedTimestamp": "2026-09-30T08:12:03.041Z",
+  "updatedBy": "user-2"
+}
+```
+
+`isDeleted` and database fields are never returned. A create returns `createdTimestamp` equal to `updatedTimestamp`; update and replace return the new `updatedTimestamp` and `updatedBy` (absent when the request has no `X-User-Id`) with the created fields unchanged.
+
+Request bodies must be a JSON object: `name` is required on create (`POST`) and replace (`PUT`) and optional on update (`PATCH`), and when present it must be a non-empty JSON string (numbers and booleans are not converted). Any other field, including `id`, `isDeleted`, the timestamps, `createdBy` and `updatedBy`, is rejected with `400`, so clients can never set ids or system fields.
 
 Writes (`POST`, `PATCH`, `PUT` and `DELETE`) record who made them from the optional `X-User-Id` request header (surrounding whitespace is trimmed; an empty or missing header means no user). Create stores it as `createdBy` and `updatedBy`, and later writes store it as `updatedBy`, removing any earlier `updatedBy` when the header is absent. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 
@@ -367,10 +382,10 @@ Fields are written out in each layer, so a new field touches these files under `
 {%- if cloud_service == 'GCP Cloud Function' %} with `[FirestoreProperty("age")]`, and write it in `ToDocument`
 {%- elif cloud_service == 'AWS Lambda' %}, and map it in `WriteAttributes` and `ReadAttributes`
 {%- endif %}.
-2. `Models/Dtos/{{ r.name }}Dto.cs`: add the property clients get back.
+2. `Models/Dtos/{{ r.name }}Dto.cs`: add the property clients get back; it serializes after `name` and before the timestamps, which `BaseDto` holds.
 3. `Models/{{ r.name }}Requests.cs`: add `[JsonPropertyName("age")] public int? Age { get; set; }` to each request; `RequestBody` rejects any field without `[JsonPropertyName]`.
 4. `Models/Schemas/{{ r.name }}Validation.cs`: add the rules, for example `RuleFor(x => x.Age).GreaterThanOrEqualTo(0).When(x => x.Age != null);`.
-5. `Services/{{ r.name }}Service.cs` and `Repositories/{{ r.name }}Repository.cs`: copy the field from the request into the entity, set it in `ToDto`, and in the update merge keep the stored value when the request leaves it out (`changes.Age ?? current.Age`).
+5. `Services/{{ r.name }}Service.cs` and `Repositories/{{ r.name }}Repository.cs`: copy the field from the request into the entity, set it in `MapFields` (`EntityRepository` maps `id` and the audit fields), and in the update merge keep the stored value when the request leaves it out (`changes.Age ?? current.Age`).
 6. Add the field to the tests in `{{ project_class_name }}.Api.Tests.Unit` and to the Thunder Client requests in `.thunderclient/`.
 
 ## Running Tests

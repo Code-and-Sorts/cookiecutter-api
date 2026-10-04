@@ -20,13 +20,31 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 {%- if cloud_service == 'Azure Function App' %}
 using NSubstitute;
-using Xunit;
 {%- endif %}
+using Xunit;
+using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Utils;
 
 public static class Mocks
 {
     public static MemoryStream CreateStream(string body) => new(Encoding.UTF8.GetBytes(body));
+
+    public static TheoryData<string> ServerOwnedAndUnknownFields => ["id", "isDeleted", "createdTimestamp", "updatedTimestamp", "createdBy", "updatedBy", "unknown"];
+
+    public static T WithAuditFields<T>(T dto, string? userId = "User1") where T : BaseDto
+    {
+        dto.CreatedTimestamp = "2026-01-01T00:00:00.000Z";
+        dto.CreatedBy = userId;
+        dto.UpdatedTimestamp = "2026-01-02T00:00:00.000Z";
+        dto.UpdatedBy = userId;
+        return dto;
+    }
+
+    public static string AuditJson(string? userId = "User1") => userId == null
+        ? "\"createdTimestamp\":\"2026-01-01T00:00:00.000Z\",\"updatedTimestamp\":\"2026-01-02T00:00:00.000Z\""
+        : $"\"createdTimestamp\":\"2026-01-01T00:00:00.000Z\",\"createdBy\":\"{userId}\",\"updatedTimestamp\":\"2026-01-02T00:00:00.000Z\",\"updatedBy\":\"{userId}\"";
+
+    public static MemoryStream CreateBodyWithField(string field) => CreateStream("{\"name\":\"mockName\",\"" + field + "\":\"value\"}");
 {%- if cloud_service == 'Azure Function App' %}
 
     public static HttpRequestData CreateHttpRequestData<T>(T requestBody, string restMethod = "GET")

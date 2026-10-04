@@ -1,4 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
+from .base import BaseResponse
 
 
 class Base{{ resource.name }}(BaseModel):
@@ -14,6 +15,5 @@ class {{ resource.name }}Update(BaseModel):
     name: str = Field(default=None, min_length=1)
 
 
-class {{ resource.name }}Response(BaseModel):
-    id: str
+class {{ resource.name }}Response(BaseResponse):
     name: str

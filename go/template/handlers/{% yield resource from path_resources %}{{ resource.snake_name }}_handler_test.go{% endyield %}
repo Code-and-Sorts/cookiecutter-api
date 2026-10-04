@@ -37,6 +37,18 @@ import (
 )
 
 const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
+{%- if resource.has_dto %}
+
+const fake{{ r }}JSON = `{"id": "` + test{{ r }}ID + `", "name": "Fake", "createdTimestamp": "2026-01-01T00:00:00.000Z", "createdBy": "alice", "updatedTimestamp": "2026-01-02T00:00:00.000Z"}`
+
+func fake{{ r }}Dto() *models.{{ r }}Dto {
+	return &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "Fake", AuditDto: models.AuditDto{
+		CreatedTimestamp: "2026-01-01T00:00:00.000Z",
+		CreatedBy:        "alice",
+		UpdatedTimestamp: "2026-01-02T00:00:00.000Z",
+	}}
+}
+{%- endif %}
 
 {%- set fields = [('err', 'error', true), ('id', 'string', uses_id), ('limit', 'int', 'list' in ops), ('body', 'string', uses_body), ('userID', 'string', uses_user)] | selectattr(2) | list %}
 {%- set width = fields | map(attribute=0) | map('length') | max %}
@@ -53,7 +65,7 @@ func (f *fake{{ r }}Controller) Get(ctx context.Context, id string) (*models.{{ 
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+	return fake{{ r }}Dto(), nil
 }
 {%- endif %}
 {%- if "list" in ops %}
@@ -63,7 +75,7 @@ func (f *fake{{ r }}Controller) GetList(ctx context.Context, limit int) ([]model
 	if f.err != nil {
 		return nil, f.err
 	}
-	return []models.{{ r }}Dto{}, nil
+	return []models.{{ r }}Dto{*fake{{ r }}Dto()}, nil
 }
 {%- endif %}
 {%- if "create" in ops %}
@@ -74,7 +86,7 @@ func (f *fake{{ r }}Controller) Create(ctx context.Context, userID string, body 
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: test{{ r }}ID, Name: "Fake"}, nil
+	return fake{{ r }}Dto(), nil
 }
 {%- endif %}
 {%- if "update" in ops %}
@@ -85,7 +97,7 @@ func (f *fake{{ r }}Controller) Update(ctx context.Context, id, userID string, b
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+	return fake{{ r }}Dto(), nil
 }
 {%- endif %}
 {%- if "replace" in ops %}
@@ -96,7 +108,7 @@ func (f *fake{{ r }}Controller) Replace(ctx context.Context, id, userID string, 
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.{{ r }}Dto{Id: id, Name: "Fake"}, nil
+	return fake{{ r }}Dto(), nil
 }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -174,7 +186,7 @@ func TestGet{{ r }}List_ReturnsJSONArray(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodGet, false, "?limit=5", "")
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `[]`, body)
+	assert.JSONEq(t, `[`+fake{{ r }}JSON+`]`, body)
 	assert.Equal(t, 5, controller.limit)
 }
 
@@ -195,7 +207,7 @@ func TestGet{{ r }}_ReturnsItem(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodGet, true, "", "")
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 }
 {%- endif %}
@@ -207,7 +219,7 @@ func TestCreate{{ r }}_Returns201WithItem(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodPost, false, "", `{"name": "Fake"}`)
 
 	assert.Equal(t, http.StatusCreated, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON, body)
 	assert.Equal(t, `{"name": "Fake"}`, controller.body)
 	assert.Equal(t, "alice", controller.userID)
 }
@@ -220,7 +232,7 @@ func TestUpdate{{ r }}_ReturnsItem(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodPatch, true, "", `{"name": "Fake"}`)
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 	assert.Equal(t, `{"name": "Fake"}`, controller.body)
 	assert.Equal(t, "alice", controller.userID)
@@ -234,7 +246,7 @@ func TestReplace{{ r }}_ReturnsItem(t *testing.T) {
 	status, body := call{{ r }}(t, controller, http.MethodPut, true, "", `{"name": "Fake"}`)
 
 	assert.Equal(t, http.StatusOK, status)
-	assert.JSONEq(t, `{"id": "`+test{{ r }}ID+`", "name": "Fake"}`, body)
+	assert.JSONEq(t, fake{{ r }}JSON, body)
 	assert.Equal(t, test{{ r }}ID, controller.id)
 	assert.Equal(t, `{"name": "Fake"}`, controller.body)
 	assert.Equal(t, "alice", controller.userID)

@@ -2,7 +2,6 @@ import asyncio
 import uuid
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
-from pydantic import BaseModel
 {%- if cloud_service == 'Azure Function App' %}
 from azure.core import MatchConditions
 from azure.cosmos.exceptions import (
@@ -17,6 +16,7 @@ from google.cloud.firestore import DELETE_FIELD, FieldFilter
 {%- if cloud_service == 'AWS Lambda' %}
 from botocore.exceptions import ClientError
 {%- endif %}
+from models import BaseResponse
 from repositories import BaseRepository
 {%- if cloud_service == 'GCP Cloud Function' %}
 from repositories.base_repository import FIRESTORE_CALL_OPTIONS
@@ -31,8 +31,7 @@ from utils.detect_error import detect_error
 from conftest import ITEM_ID
 
 
-class _ItemResponse(BaseModel):
-    id: str
+class _ItemResponse(BaseResponse):
     name: str
 
 
@@ -54,8 +53,8 @@ _stored_item = {
     "createdBy": "creator",
 }
 _responses = [
-    _ItemResponse(id=ITEM_ID, name="mockName1"),
-    _ItemResponse(id=_ID2, name="mockName2"),
+    _ItemResponse(id=ITEM_ID, name="mockName1", createdTimestamp=_CREATED, createdBy="creator", updatedTimestamp=_CREATED),
+    _ItemResponse(id=_ID2, name="mockName2", createdTimestamp=_CREATED, createdBy="creator", updatedTimestamp=_CREATED),
 ]
 
 
@@ -124,13 +123,19 @@ def describe_base_repository_records():
                 "createdTimestamp": _NOW,
                 "updatedTimestamp": _NOW,
             }
-            assert result == _ItemResponse(id=record["id"], name="mockName1")
+            assert result.model_dump() == {
+                "id": record["id"],
+                "name": "mockName1",
+                "createdTimestamp": _NOW,
+                "updatedTimestamp": _NOW,
+            }
 
         def test_user_id_sets_created_and_updated_by():
             repository = _offline_repository()
-            asyncio.run(repository._create({"name": "mockName1"}, "editor"))
+            result = asyncio.run(repository._create({"name": "mockName1"}, "editor"))
 
             assert _written(repository)["createdBy"] == _written(repository)["updatedBy"] == "editor"
+            assert result.createdBy == result.updatedBy == "editor"
 
         def test_generates_a_new_id_each_time():
             repository = _offline_repository()
@@ -153,14 +158,22 @@ def describe_base_repository_records():
                 "updatedBy": "editor",
             }
             assert repository._write.call_args.args[1] is repository._get_stored.return_value
-            assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Update")
+            assert result.model_dump() == {
+                "id": ITEM_ID,
+                "name": "mockName1-Update",
+                "createdTimestamp": _CREATED,
+                "createdBy": "creator",
+                "updatedTimestamp": _NOW,
+                "updatedBy": "editor",
+            }
 
         def test_no_changes_or_user_id_refreshes_timestamp_and_drops_updated_by():
             repository = _offline_repository({**_stored_item, "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository._update(ITEM_ID, {}))
+                result = asyncio.run(repository._update(ITEM_ID, {}))
 
             assert _written(repository) == {**_stored_item, "updatedTimestamp": _NOW}
+            assert "updatedBy" not in result.model_dump()
 
         def test_not_found_error():
             repository = _offline_repository()
@@ -184,15 +197,23 @@ def describe_base_repository_records():
                 "updatedBy": "editor",
             }
             assert repository._write.call_args.args[1] is repository._get_stored.return_value
-            assert result == _ItemResponse(id=ITEM_ID, name="mockName1-Replace")
+            assert result.model_dump() == {
+                "id": ITEM_ID,
+                "name": "mockName1-Replace",
+                "createdTimestamp": _CREATED,
+                "createdBy": "creator",
+                "updatedTimestamp": _NOW,
+                "updatedBy": "editor",
+            }
 
         def test_omits_unset_created_by_and_drops_updated_by_without_user_id():
             stored = {key: value for key, value in _stored_item.items() if key != "createdBy"}
             repository = _offline_repository({**stored, "updatedBy": "someone"})
             with patch(_TIMESTAMP, return_value=_NOW):
-                asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
+                result = asyncio.run(repository._replace(ITEM_ID, {"name": "mockName1-Replace"}))
 
             assert not {"createdBy", "updatedBy"} & set(_written(repository))
+            assert not {"createdBy", "updatedBy"} & set(result.model_dump())
 
         def test_not_found_error():
             repository = _offline_repository()
