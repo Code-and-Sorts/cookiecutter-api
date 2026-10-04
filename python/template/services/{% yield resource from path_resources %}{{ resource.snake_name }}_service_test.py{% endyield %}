@@ -11,12 +11,12 @@ from models import {{ models }}
 {%- endif %}
 from services import {{ r }}Service
 from repositories import {{ r }}Repository
-from conftest import ITEM_ID
+from conftest import ITEM_ID, TIMESTAMPS
 {%- if models %}
 
 _responses = [
-    {{ r }}Response(id=ITEM_ID, name="mockName1"),
-    {{ r }}Response(id="de6cbc87-5969-458c-8444-3512a82250bc", name="mockName2"),
+    {{ r }}Response(id=ITEM_ID, name="mockName1", **TIMESTAMPS),
+    {{ r }}Response(id="de6cbc87-5969-458c-8444-3512a82250bc", name="mockName2", **TIMESTAMPS),
 ]
 {%- endif %}
 

@@ -7,9 +7,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from models import {{ model_names(resource, always_response=true) }}
 from repositories import BaseRepository, {{ r }}Repository
-from conftest import ITEM_ID
+from conftest import ITEM_ID, TIMESTAMPS
 
-_response = {{ r }}Response(id=ITEM_ID, name="mockName1")
+_response = {{ r }}Response(id=ITEM_ID, name="mockName1", **TIMESTAMPS)
 
 
 def _repository() -> {{ r }}Repository:
@@ -35,7 +35,7 @@ def describe_{{ r | to_snake }}_repository():
 
     def test_get_by_id_returns_{{ r | to_snake }}_response():
         repository = _repository()
-        repository._get_stored = AsyncMock(return_value={"id": ITEM_ID, "name": "mockName1", "isDeleted": False})
+        repository._get_stored = AsyncMock(return_value={"id": ITEM_ID, "name": "mockName1", "isDeleted": False, **TIMESTAMPS})
 
         result = asyncio.run(repository.get_by_id(ITEM_ID))
 
@@ -61,7 +61,7 @@ def describe_{{ r | to_snake }}_repository():
 
         record = repository._write.call_args.args[0]
         assert (record["name"], record["createdBy"]) == ("mockName1", "user-1")
-        assert result == {{ r }}Response(id=record["id"], name="mockName1")
+        assert result == {{ r }}Response.model_validate(record)
 {%- endif %}
 {%- if "update" in ops %}
 

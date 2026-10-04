@@ -16,8 +16,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 {%- endif %}
 from typing import ClassVar, List
-from pydantic import BaseModel
-from models import generate_utc_timestamp
+from models import BaseResponse, generate_utc_timestamp
 from errors import NotFoundError
 
 _CREATION_FIELDS = ("createdTimestamp", "createdBy")
@@ -44,11 +43,11 @@ DYNAMODB_CONFIG = Config(
 {%- endif %}
 
 
-class BaseRepository[ResponseT: BaseModel]:
+class BaseRepository[ResponseT: BaseResponse]:
     """Protected so each resource repository exposes only its enabled operations."""
 
     resource_name: ClassVar[str]
-    response_model: ClassVar[type[BaseModel]]
+    response_model: ClassVar[type[BaseResponse]]
 {%- if cloud_service == 'Azure Function App' %}
 
     def __init__(self, container_client: ContainerProxy):
