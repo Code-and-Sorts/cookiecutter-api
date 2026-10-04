@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: start-local-api.sh install|emulator|host
-# Runs in the generated project's directory with LANGUAGE, CLOUD and READY_TIMEOUT set.
+# Runs in the generated project's directory with LANGUAGE, CLOUD, HOST and READY_TIMEOUT set.
 set -euo pipefail
 
 # TypeScript projects use their package scripts; the other languages share the Make targets.
@@ -40,9 +40,9 @@ start_host() {
   local url pid deadline
   url=$(base_url)
   if [ "$LANGUAGE" = typescript ]; then
-    nohup yarn start:emulator > host.log 2>&1 &
+    nohup yarn "$([ "$HOST" = container ] && echo start:container || echo start:emulator)" > host.log 2>&1 &
   else
-    nohup make run-emulator > host.log 2>&1 &
+    nohup make "$([ "$HOST" = container ] && echo run-container || echo run-emulator)" > host.log 2>&1 &
   fi
   pid=$!
 

@@ -35,13 +35,18 @@ on:
         description: all runs single and edge; multi only adds cases those two cover.
         options: [all, single, edge, multi]
         default: all
+      host:
+        type: choice
+        description: container builds the Dockerfile of projects rendered with infrastructure (Azure for now).
+        options: [local, container, all]
+        default: local
 
 permissions:
   contents: read
 
 # Each push gets its own group so every commit to main is tested; a newer dispatch replaces an older one.
 concurrency:
-  group: integration-${{ github.event_name == 'push' && github.sha || github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}
+  group: integration-${{ github.event_name == 'push' && github.sha || github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}-${{ inputs.host || 'local' }}
   cancel-in-progress: true
 
 jobs:
@@ -50,24 +55,20 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
       - name: Build the matrix
         id: plan
         env:
           LANGUAGE: ${{ inputs.language || 'all' }}
           CLOUD: ${{ inputs.cloud || 'all' }}
           FIXTURE: ${{ inputs.fixture || 'all' }}
-        run: |
-          set -euo pipefail
-          pick() { jq -c --arg pick "$1" '[.[] | select($pick == "all" or (.slug? // .) == $pick)]'; }
-          languages=$(pick "$LANGUAGE" <<< '["python", "typescript", "dotnet", "go"]')
-          clouds=$(pick "$CLOUD" <<< '[{"name": "Azure Function App", "slug": "azure"}, {"name": "GCP Cloud Function", "slug": "gcp"}, {"name": "AWS Lambda", "slug": "aws"}]')
-          if [ "$FIXTURE" = multi ]; then fixtures='["multi"]'; else fixtures=$(pick "$FIXTURE" <<< '["single", "edge"]'); fi
-          matrix=$(jq -cn --argjson l "$languages" --argjson c "$clouds" --argjson f "$fixtures" '{language: $l, cloud: $c, fixture: $f}')
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "Matrix: $matrix"
+          HOST: ${{ inputs.host || 'local' }}
+        run: python .github/scripts/integration_matrix.py
 
   integration:
-    name: ${{ matrix.language }} / ${{ matrix.cloud.slug }} / ${{ matrix.fixture }}
+    name: ${{ matrix.language }} / ${{ matrix.cloud.slug }} / ${{ matrix.fixture }}${{ matrix.host == 'container' && ' / container' || '' }}
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -84,6 +85,7 @@ jobs:
           template-language: ${{ matrix.language }}
           template-cloud-service: ${{ matrix.cloud.name }}
           resources-fixture: ${{ matrix.fixture }}
+          include-infrastructure: ${{ matrix.host == 'container' }}
 
       # uv for every language: the suite uses it too.
       - name: Setup runtime
@@ -102,6 +104,8 @@ jobs:
         with:
           language: ${{ matrix.language }}
           cloud-service: ${{ matrix.cloud.name }}
+          host: ${{ matrix.host }}
+          ready-timeout: ${{ matrix.host == 'container' && '900' || '300' }}
 
       - name: Run the integration suite
         env:
@@ -131,7 +135,7 @@ jobs:
         if: ${{ !cancelled() && hashFiles('requests.jsonl') != '' }}
         uses: actions/upload-artifact@v7
         with:
-          name: requests-${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
+          name: requests-${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}${{ matrix.host == 'container' && '-container' || '' }}
           path: requests.jsonl
           retention-days: 7
 
@@ -151,7 +155,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: integration-${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
+          name: integration-${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}${{ matrix.host == 'container' && '-container' || '' }}
           path: |
             junit.xml
             KittenClaws

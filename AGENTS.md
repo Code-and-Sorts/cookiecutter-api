@@ -190,6 +190,9 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
   templates declare `AWS_ENDPOINT_URL_DYNAMODB` behind the `DynamoDbEndpoint` parameter so
   deployed stacks omit it; `sam local` passes it empty otherwise, which .NET must ignore.
 - Azure `local.settings.json` uses `"AzureWebJobsStorage": ""`: every trigger is HTTP, so no Azurite.
+- With container hosting (`infra_containers`), `shared/docker-compose.yml` adds an `api` service behind the `api`
+  profile: it builds the project's `Dockerfile`, publishes the host on 7071 and takes `.env.emulator` rendered with
+  `cosmos_host` set to the emulator's service name. `run-container` (Make) and `start:container` (TypeScript) start it.
 
 ### Infrastructure
 
@@ -380,8 +383,9 @@ The suite is a uv project with its own `uv.lock`: `uv sync --project tests/integ
 request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
 contract or emulator change. Each job renders the project, then `.github/actions/start-local-api` starts the
 emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the
-TypeScript `yarn` scripts) and outputs the base URL. Failed jobs upload the host and emulator logs, the JUnit
-XML and the project.
+TypeScript `yarn` scripts) and outputs the base URL. The `host` input `container` renders Azure projects with
+infrastructure and starts `run-container` or `start:container` instead, so the suite tests the Container Apps image.
+Failed jobs upload the host and emulator logs, the JUnit XML and the project.
 
 `--record <file>` makes the suite write every request it sends, the response, and the stored document before and
 after each write, one JSON line each (`recorder.py`); the workflow records every job, uploads the file as a

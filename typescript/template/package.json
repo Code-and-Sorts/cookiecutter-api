@@ -37,6 +37,9 @@
 {%- if cloud_service == 'Azure Function App' %}
     "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true func start --typescript",
 {%- endif %}
+{%- if infra_containers %}
+    "start:container": "docker compose --profile api up --build api",
+{%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
     "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true functions-framework --target=api",
 {%- endif %}
