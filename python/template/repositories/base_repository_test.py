@@ -31,9 +31,13 @@ from utils.detect_error import detect_error
 from conftest import ITEM_ID
 
 
-class _ItemRepository(BaseRepository[BaseResponse]):
+class _ItemResponse(BaseResponse):
+    name: str
+
+
+class _ItemRepository(BaseRepository[_ItemResponse]):
     resource_name = "Item"
-    response_model = BaseResponse
+    response_model = _ItemResponse
 
 
 _TIMESTAMP = "repositories.base_repository.generate_utc_timestamp"
@@ -49,8 +53,8 @@ _stored_item = {
     "createdBy": "creator",
 }
 _responses = [
-    BaseResponse(id=ITEM_ID, name="mockName1", createdTimestamp=_CREATED, createdBy="creator", updatedTimestamp=_CREATED),
-    BaseResponse(id=_ID2, name="mockName2", createdTimestamp=_CREATED, createdBy="creator", updatedTimestamp=_CREATED),
+    _ItemResponse(id=ITEM_ID, name="mockName1", createdTimestamp=_CREATED, createdBy="creator", updatedTimestamp=_CREATED),
+    _ItemResponse(id=_ID2, name="mockName2", createdTimestamp=_CREATED, createdBy="creator", updatedTimestamp=_CREATED),
 ]
 
 

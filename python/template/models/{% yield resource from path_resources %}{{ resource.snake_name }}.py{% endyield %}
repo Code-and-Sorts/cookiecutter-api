@@ -16,4 +16,4 @@ class {{ resource.name }}Update(BaseModel):
 
 
 class {{ resource.name }}Response(BaseResponse):
-    pass
+    name: str

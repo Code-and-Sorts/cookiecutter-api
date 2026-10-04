@@ -426,10 +426,11 @@ class {{ r.name }}Update(BaseModel):
 
 
 class {{ r.name }}Response(BaseResponse):
+    name: str
     age: int | None = None
 ```
 
-- `Base{{ r.name }}` is the create and replace body, `{{ r.name }}Update` the PATCH body (a default of `None` keeps an absent field unset), and `{{ r.name }}Response` what clients get back: it extends `BaseResponse` in `models/base.py`, which holds the id, name, timestamps and users every resource returns.
+- `Base{{ r.name }}` is the create and replace body, `{{ r.name }}Update` the PATCH body (a default of `None` keeps an absent field unset), and `{{ r.name }}Response` what clients get back: it extends `BaseResponse` in `models/base.py`, which holds the id, timestamps and users every resource returns and writes the resource's own fields between the id and the timestamps.
 - `extra="forbid"` keeps rejecting unknown fields, and `strict=True` rejects wrongly typed values instead of converting them.
 - Add the field to the model, service and controller tests, and to the Thunder Client requests in `.thunderclient/`.
 
