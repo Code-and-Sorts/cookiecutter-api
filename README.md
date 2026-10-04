@@ -53,26 +53,6 @@ cd my-api
 copier update --trust
 ```
 
-### Migrating a project generated from a language folder
-
-Projects generated before the single template (from `./cookiecutter-api/python` and the
-like) record the language folder as `_src_path` and no `_commit`, because the folder was
-not a Git repository root. `copier update` stops on them with "Cannot update because cannot
-obtain old template references". To move such a project to the single template, edit its
-`.copier-answers.yml`:
-
-1. Point `_src_path` at the repository, not the language folder (for example
-   `gh:Code-and-Sorts/cookiecutter-api`, or the root of your clone).
-2. Add `language: python` (or `typescript`, `dotnet`, `go`).
-3. Then either:
-   - Add `_commit:` set to the first commit of the single template, which renders the same
-     files the language folders did (`git log --diff-filter=A --format=%H -1 -- copier.yml`
-     in a clone prints it), commit, and run `copier update --trust`. Copier applies every
-     template change since that commit and keeps your own edits. Template changes made
-     between your project's generation and that commit are not replayed.
-   - Or run `copier recopy --trust --overwrite`, which renders the template again from your
-     answers over the project, then review `git diff` and restore your own edits.
-
 ### Multiple resources
 
 By default a generated project exposes one REST resource named after the project. To
