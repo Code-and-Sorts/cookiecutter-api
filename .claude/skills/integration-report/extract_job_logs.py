@@ -17,13 +17,16 @@ TIMESTAMP = re.compile(r"^\S+Z ")
 COMBO = re.compile(r"COMBO: (\w+) \| ([^|]+?) \| (\w+)")
 
 
-def log_lines(path: Path) -> list[str]:
-    raw = path.read_text()
+def log_text(raw: str) -> str:
+    """The log itself, whether the file is the GitHub tool's JSON output or the raw log."""
     try:
-        raw = json.loads(raw)["logs_content"]
+        return json.loads(raw)["logs_content"]
     except (ValueError, KeyError, TypeError):
-        pass
-    return [TIMESTAMP.sub("", line) for line in raw.splitlines()]
+        return raw
+
+
+def log_lines(path: Path) -> list[str]:
+    return [TIMESTAMP.sub("", line) for line in log_text(path.read_text()).splitlines()]
 
 
 def extract(path: Path, out: Path) -> None:
