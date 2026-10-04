@@ -24,9 +24,8 @@ runs:
       env:
         CLOUD: ${{ inputs.cloud-service }}
       run: |
-        for name in python node dotnet go uv; do
-          echo "$name=$(yq -r ".runtime_versions.default.clouds[\"$CLOUD\"].$name // .runtime_versions.default.$name" "$GITHUB_WORKSPACE/copier.yml")" >> "$GITHUB_OUTPUT"
-        done
+        python -c "import yaml" 2>/dev/null || python -m pip install --quiet pyyaml
+        python "$GITHUB_ACTION_PATH/read_versions.py"
       shell: bash
 
     - name: Set up Python
