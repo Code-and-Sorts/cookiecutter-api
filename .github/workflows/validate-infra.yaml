@@ -91,7 +91,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          tflint --init
+          for attempt in 1 2 3; do
+            tflint --init && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep 10
+          done
           tflint --format compact
         shell: bash
 
