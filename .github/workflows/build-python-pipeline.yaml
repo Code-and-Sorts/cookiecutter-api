@@ -71,29 +71,24 @@ jobs:
           cloud-service: ${{ matrix.cloud-service }}
 
       - name: Install dependencies
-        run: |
-          cd "KittenClaws"
-          uv sync
+        working-directory: KittenClaws
+        run: uv sync
         shell: bash
 
       - name: Run lint
-        run: |
-          cd "KittenClaws"
-          uv run ruff check .
+        working-directory: KittenClaws
+        run: uv run ruff check .
         shell: bash
 
       - name: Run unit tests
-        run: |
-            cd "KittenClaws"
-            uv run pytest --cov
+        working-directory: KittenClaws
+        run: uv run pytest --cov
         shell: bash
 
       - name: Run Makefile targets
         if: runner.os != 'Windows'
-        run: |
-            cd "KittenClaws"
-            make install
-            make test-unit
+        working-directory: KittenClaws
+        run: make install test-unit
         shell: bash
 
       - name: Run dependency vulnerability scan

@@ -74,39 +74,7 @@ runs:
         PROJECT_ENDPOINT: ${{ inputs.project-endpoint }}
         AUTHOR: ${{ inputs.author }}
         LICENSE: ${{ inputs.open-source-license }}
-        FIXTURES: ${{ github.action_path }}/fixtures
-      run: |
-        extra_args=()
-        data_files=()
-        if [ "$FIXTURE" != "single" ]; then
-          data_files+=("$FIXTURES/$FIXTURE-resources.yml")
-        fi
-        if [ "$INFRASTRUCTURE" = "true" ]; then
-          case "$CLOUD" in
-            "Azure Function App") cloud_slug=azure ;;
-            "GCP Cloud Function") cloud_slug=gcp ;;
-            "AWS Lambda") cloud_slug=aws ;;
-          esac
-          extra_args+=(--data include_infrastructure=true)
-          data_files+=("$FIXTURES/$cloud_slug-infra-environments.yml")
-        fi
-        if [ ${#data_files[@]} -gt 0 ]; then
-          cat "${data_files[@]}" > "$RUNNER_TEMP/copier-data.yml"
-          extra_args+=(--data-file "$RUNNER_TEMP/copier-data.yml")
-        fi
-        if [ -n "$PROJECT_ENDPOINT" ]; then
-          extra_args+=(--data project_endpoint="$PROJECT_ENDPOINT")
-        fi
-        # HEAD renders the checked-out commit (plus local edits) rather than the newest tag.
-        copier copy --defaults --trust --vcs-ref HEAD \
-          --data project_name="$PROJECT_NAME" \
-          --data project_description="$PROJECT_DESCRIPTION" \
-          --data author="$AUTHOR" \
-          --data language="$LANGUAGE" \
-          --data cloud_service="$CLOUD" \
-          --data open_source_license="$LICENSE" \
-          "${extra_args[@]}" \
-          . "./$OUTPUT"
+      run: python "$GITHUB_WORKSPACE/.github/scripts/render_template.py"
       shell: bash
 
     # A static check only: running the emulators is the integration tests' job. macOS runners have no Docker.
@@ -114,9 +82,5 @@ runs:
       if: runner.os == 'Linux'
       env:
         OUTPUT: ${{ inputs.output-dir }}
-      run: |
-        docker compose --project-directory "./$OUTPUT" config --quiet
-        if [ -f "./$OUTPUT/env.emulator.json" ]; then
-          python -m json.tool "./$OUTPUT/env.emulator.json" > /dev/null
-        fi
+      run: bash "$GITHUB_WORKSPACE/.github/scripts/validate_emulator_files.sh" "./$OUTPUT"
       shell: bash

@@ -19,6 +19,7 @@ cookiecutter-api/
 ├── go/template/             # Go template (Azure + GCP + AWS)
 ├── .github/
 │   ├── actions/             # Shared composite actions and resource fixtures
+│   ├── scripts/             # Scripts the workflows and actions call (no inline scripts)
 │   └── workflows/           # CI pipelines per language, infrastructure validation, integration tests, example publishing
 ├── tests/integration/       # Black-box HTTP suite for the API contract, run against the emulators
 ├── .claude/skills/           # Agent skills for this repository (integration-report)
@@ -194,7 +195,7 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
 
 `include_infrastructure` (asked only for Azure until GCP and AWS land) renders `infra/`, an Atmos project, and
 `.github/workflows/deploy.yml` (OIDC login; plans the first stack on pull requests, deploys every stack in order on
-`main`, then publishes the code with Core Tools or pushes the image to the registry).
+`main`, then publishes the code with Core Tools or pushes the image to the registry, through `infra/scripts/`).
 
 - **Stacks are the same shape on every cloud.** One Atmos component, `api`, with cloud-neutral variables: `name`,
   `stage`, `region`, `tags`, `network`, `compute` (`hosting`, `sku`, `runtime`, scaling, `app_settings`),
@@ -346,7 +347,8 @@ Pipelines use a small matrix, one job per distinct risk rather than every combin
 - Ubuntu: every cloud service, with the default single resource and with `edge`
 - Windows (path length, checkout) and macOS (BSD tools) once each, on different clouds
 - The newest GA runtime each cloud supports, set once in `runtime_versions` in `copier.yml` (with per-cloud
-  overrides under `clouds`, such as Node on Azure Functions); `setup-runtime` and `setup-copier-template` read it
+  overrides under `clouds`, such as Node on Azure Functions); `setup-runtime` reads it through
+  `.github/scripts/runtime_versions.py`
 
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
 
@@ -432,5 +434,13 @@ from. Atmos telemetry is off in `shared/infra/atmos.yaml`.
 - **.NET**: NuGet for packages, xUnit v3 for tests, solution/project structure
 - **Go**: Go modules, `go test`, gofmt enforced through golangci-lint
 - Template files use `{{ variable_name }}` in both filenames and content
+- **No inline scripts in workflows or composite actions**, in this repository's CI and in generated projects alike:
+  a `run:` step is one command. Loops, conditionals, heredocs, several commands or a `cd` before a command go in
+  a script the step calls, with `working-directory`, arguments or `env` for its inputs (a `with:` value stays a
+  value, never code; `actions/github-script` gets a `script:` that only `require`s a file). This repository's
+  scripts live in `.github/scripts/` (Python ones load `copier.yml` through `copier_config.py`); a generated
+  workflow calls `infra/scripts/`, rendered from `shared/infra/scripts/` and, per cloud,
+  `shared/infra/scripts/<cloud>/`. Steps that predate the rule (`dependency-audit`, `integration-tests`,
+  `publish-examples`, `template-setup`, `template-init`) move to scripts when they are next changed.
 - Comments only record a reason the code can't show (a platform or SDK quirk, a workaround, a security choice), in one short line; never restate what the code does
 - Keep controllers, services, and error types cloud-agnostic — only repositories and entry points should contain cloud-specific code

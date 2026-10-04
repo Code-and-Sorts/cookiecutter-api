@@ -50,16 +50,7 @@ jobs:
           include-infrastructure: "true"
 
       - name: Read the tool versions
-        run: |
-          python - >> "$GITHUB_ENV" <<'PY'
-          import yaml
-
-          answers = yaml.safe_load(open("copier.yml"))
-          tools = answers["infra_tools"]["default"]
-          print(f"TERRAFORM_VERSION={tools['terraform']}")
-          print(f"ATMOS_VERSION={tools['atmos']}")
-          print(f"UV_VERSION={answers['runtime_versions']['default']['uv']}")
-          PY
+        run: python .github/scripts/infra_tool_versions.py
         shell: bash
 
       - name: Set up Terraform
@@ -81,24 +72,21 @@ jobs:
         run: terraform fmt -check -recursive -diff KittenClaws/infra
         shell: bash
 
+      - name: Initialize the component
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: terraform init -backend=false -input=false
+        shell: bash
+
       - name: Validate the component
         working-directory: KittenClaws/infra/components/terraform/api
-        run: |
-          terraform init -backend=false -input=false
-          terraform validate
+        run: terraform validate
         shell: bash
 
       - name: Lint the component
         working-directory: KittenClaws/infra/components/terraform/api
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          for attempt in 1 2 3; do
-            tflint --init && break
-            [ "$attempt" -lt 3 ] || exit 1
-            sleep 10
-          done
-          tflint --format compact
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/tflint.sh"
         shell: bash
 
       - name: Run the component's unit tests
@@ -113,53 +101,21 @@ jobs:
 
       - name: Plan every stack against mocked providers
         working-directory: KittenClaws/infra
-        run: |
-          for stack in $(atmos list stacks); do
-            echo "::group::$stack"
-            atmos terraform generate varfile api -s "$stack" -f "$RUNNER_TEMP/$stack.tfvars.json"
-            terraform -chdir=components/terraform/api test -test-directory=tests/stacks -var-file="$RUNNER_TEMP/$stack.tfvars.json"
-            echo "::endgroup::"
-          done
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/plan_stacks.sh"
         shell: bash
 
       - name: Check the app settings are the names the code reads
+        run: python .github/scripts/check_app_settings.py KittenClaws "${{ matrix.template-type }}"
+        shell: bash
+
+      - name: Install actionlint
         working-directory: KittenClaws
-        run: |
-          (cd infra && atmos describe component api -s dev --format json) > "$RUNNER_TEMP/api.json"
-          python - "$RUNNER_TEMP/api.json" "${{ matrix.template-type }}" <<'PY'
-          import json, pathlib, sys
-
-          settings = json.load(open(sys.argv[1]))["vars"]["compute"]["app_settings"]
-          ignore_case = sys.argv[2] == "python"
-          sources = [
-              p.read_text(errors="ignore")
-              for p in pathlib.Path(".").rglob("*")
-              if p.is_file() and not {"infra", ".github", "node_modules", ".git"} & set(p.parts) and p.suffix != ".md"
-          ]
-          text = "\n".join(sources)
-          text = text.lower() if ignore_case else text
-
-          def read(name: str) -> bool:
-              name = name.lower() if ignore_case else name
-              if name in text:
-                  return True
-              if name.startswith("ConnectionStrings__"):
-                  return f'"{name.removeprefix("ConnectionStrings__")}"' in text
-              prefix, _, suffix = name.rpartition("_")
-              return f'"{prefix}_"' in text and f'"{suffix}"' in text
-
-          missing = [name for name in settings if not read(name)]
-          if missing:
-              sys.exit(f"App settings the code never reads: {', '.join(missing)}")
-          print(f"All {len(settings)} app settings are read by the code.")
-          PY
+        run: bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
         shell: bash
 
       - name: Lint the deploy workflow
         working-directory: KittenClaws
-        run: |
-          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint -color .github/workflows/deploy.yml
+        run: ./actionlint -color .github/workflows/deploy.yml
         shell: bash
 
       - name: Set up uv

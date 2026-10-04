@@ -2,23 +2,13 @@
 {%- set app_dir = project_class_name ~ '.Api' if language == 'dotnet' else '.' -%}
 {%- raw %}
 
-      - name: Build and push the image
-        if: steps.infra.outputs.app_hosting == 'container_app'
-        env:
-          REGISTRY: ${{ steps.infra.outputs.container_registry }}
-        run: |
-          az acr login --name "${REGISTRY%%.*}"
-          docker build --tag "$REGISTRY/api:$GITHUB_SHA" .
-          docker push "$REGISTRY/api:$GITHUB_SHA"
-        shell: bash
-
-      - name: Deploy the image
+      - name: Publish the image
         if: steps.infra.outputs.app_hosting == 'container_app'
         env:
           REGISTRY: ${{ steps.infra.outputs.container_registry }}
           APP: ${{ steps.infra.outputs.app_name }}
           RESOURCE_GROUP: ${{ steps.infra.outputs.resource_group_name }}
-        run: az containerapp update --name "$APP" --resource-group "$RESOURCE_GROUP" --image "$REGISTRY/api:$GITHUB_SHA"
+        run: bash infra/scripts/publish-image.sh "$REGISTRY" "$APP" "$RESOURCE_GROUP" "$GITHUB_SHA"
         shell: bash
 {%- endraw %}
 {%- if language == 'python' %}
@@ -47,13 +37,24 @@
         with:
           node-version: "{{ runtime.node }}.x"
 
+      - name: Enable Corepack
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: corepack enable
+        shell: bash
+
+      - name: Install dependencies
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: yarn install --no-immutable
+        shell: bash
+
       - name: Build
         if: steps.infra.outputs.app_hosting != 'container_app'
-        run: |
-          corepack enable
-          yarn install --no-immutable
-          yarn build
-          yarn workspaces focus --production
+        run: yarn build
+        shell: bash
+
+      - name: Keep only production dependencies
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: yarn workspaces focus --production
         shell: bash
 {%- elif language == 'go' %}
 
@@ -63,11 +64,18 @@
         with:
           go-version-file: go.mod
 
+      - name: Resolve modules
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: go mod tidy
+        shell: bash
+
       - name: Build
         if: steps.infra.outputs.app_hosting != 'container_app'
-        run: |
-          go mod tidy
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o handler
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -o handler
         shell: bash
 {%- else %}
 
@@ -90,7 +98,5 @@
           APP: ${{ steps.infra.outputs.app_name }}
 {%- endraw %}
         working-directory: {{ app_dir }}
-        run: |
-          [ -f local.settings.json ] || echo '{"IsEncrypted": false, "Values": {"FUNCTIONS_WORKER_RUNTIME": "{{ worker_runtime }}"}}' > local.settings.json
-          func azure functionapp publish "$APP"
+        run: bash "$GITHUB_WORKSPACE/infra/scripts/publish-functions.sh" "$APP" {{ worker_runtime }}
         shell: bash

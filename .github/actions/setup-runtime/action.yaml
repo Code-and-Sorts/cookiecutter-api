@@ -23,9 +23,7 @@ runs:
       id: versions
       env:
         CLOUD: ${{ inputs.cloud-service }}
-      run: |
-        python -c "import yaml" 2>/dev/null || python -m pip install --quiet pyyaml
-        python "$GITHUB_ACTION_PATH/read_versions.py"
+      run: python "$GITHUB_WORKSPACE/.github/scripts/runtime_versions.py"
       shell: bash
 
     - name: Set up Python

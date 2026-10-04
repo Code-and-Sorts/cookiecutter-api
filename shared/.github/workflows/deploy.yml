@@ -100,11 +100,7 @@ jobs:
 
       - name: Read outputs
         id: infra
-        working-directory: infra/components/terraform/api
-        run: |
-          for name in {{ outputs | join(' ') }}; do
-            echo "$name=$(terraform output -raw "$name")" >> "$GITHUB_OUTPUT"
-          done
+        run: bash infra/scripts/outputs.sh {{ outputs | join(' ') }}
         shell: bash
 {%- if azure %}
 {%- set publish %}{% include 'shared/.github/workflows/_deploy.azure.yml' %}{% endset %}
