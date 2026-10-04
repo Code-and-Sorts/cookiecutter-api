@@ -19,6 +19,10 @@
 
 A [Copier](https://github.com/copier-org/copier) template for generating REST APIs across multiple cloud platforms and languages.
 
+> [!WARNING]
+> This project is still in development. Things may change or break between versions, so
+> pin a template version if you depend on it.
+
 ## Usage
 
 Install Copier 9.18.2 or newer (and the Jinja extensions the templates use) with pip or pipx:
