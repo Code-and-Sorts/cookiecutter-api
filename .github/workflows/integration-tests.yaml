@@ -20,7 +20,6 @@ on:
       - .github/actions/setup-copier-template/**
       - .github/actions/setup-runtime/**
       - .github/actions/start-local-api/**
-  pull_request:
   workflow_dispatch:
     inputs:
       language:
@@ -65,7 +64,7 @@ jobs:
           LANGUAGE: ${{ inputs.language || 'all' }}
           CLOUD: ${{ inputs.cloud || 'all' }}
           FIXTURE: ${{ inputs.fixture || 'all' }}
-          HOST: ${{ inputs.host || (github.event_name == 'pull_request' && 'container' || 'local') }}
+          HOST: ${{ inputs.host || 'local' }}
         run: python .github/scripts/integration_matrix.py
 
   integration:
