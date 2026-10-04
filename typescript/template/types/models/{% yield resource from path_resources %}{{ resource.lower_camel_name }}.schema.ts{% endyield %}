@@ -1,6 +1,6 @@
 {%- set r = resource.name -%}
 import { z } from 'zod';
-import { BaseIdentifier, BaseSchema, responseMapper } from './base.schema';
+import { BaseSchema, responseMapper, responseSchema } from './base.schema';
 
 export const {{ r }}Schema = z.object({
     name: z.string().min(1),
@@ -11,10 +11,7 @@ export const {{ r }}RequestSchema = {{ r }}Schema.strict();
 
 export const {{ r }}UpdateSchema = {{ r }}Schema.partial().strict();
 
-export const {{ r }}ResponseSchema = z.object({
-    ...BaseIdentifier.shape,
-    ...{{ r }}Schema.shape,
-});
+export const {{ r }}ResponseSchema = responseSchema({{ r }}Schema);
 
 export const {{ r }}EntitySchema = z.object({
     ...{{ r }}Schema.shape,
