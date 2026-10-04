@@ -1,0 +1,7 @@
+.gcloudignore
+.git
+.gitignore
+#!include:.gitignore
+.env.emulator
+docker-compose.yml
+scripts/
