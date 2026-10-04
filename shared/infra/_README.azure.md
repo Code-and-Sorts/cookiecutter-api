@@ -28,8 +28,8 @@ client ──x-api-key──▶ API Management ──Entra ID token──▶ API
   or `E4`); `min_instances`, `max_instances` and `instance_memory_mb` (Flex Consumption) tune scaling.
 - `database.capacity`: `serverless`, `provisioned` (`throughput` from 400 RU/s, in steps of 100) or `autoscale`
   (`throughput` is the maximum, from 1000 in steps of 1000), shared by the database's containers; `free_tier`
-  and `delete_lock` (a CanNotDelete lock on the account, on by default for a stack named `prod`; managing locks
-  needs Owner or User Access Administrator).
+  and `delete_lock` (a CanNotDelete lock that stops deletes from outside Terraform, on by default for a stack
+  named `prod`; managing locks needs Owner or User Access Administrator).
 - `gateway.sku`: `Developer` (no SLA, one unit), `StandardV2` or `Premium`, with `capacity` units. These tiers can
   reach a private backend; Consumption, Basic, Standard and Basic v2 cannot.
 - `network.address_space` (default `10.20.0.0/16`, at least a `/22`).

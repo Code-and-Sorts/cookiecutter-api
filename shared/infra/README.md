@@ -31,7 +31,7 @@ values differ per cloud.
 {%- endfor %}
 
 Change a stack's tiers in `stacks/deploy/<stage>.yaml`, or add a stack by copying one. `database.delete_lock`
-protects the data from deletion and is on by default for a stack named `prod`.
+also stops deletes from outside Terraform, such as the portal, and is on by default for a stack named `prod`.
 
 `.github/workflows/deploy.yml` plans `{{ stacks[0] }}` on pull requests, and on `main` deploys
 {% for s in stacks %}`{{ s }}`{{ ' then ' if not loop.last }}{% endfor %}: it applies the stack, publishes the code (or builds and
@@ -82,7 +82,10 @@ terraform test -test-directory=tests/stacks -var-file=/tmp/{{ stacks[0] }}.tfvar
 
 ## Destroy
 
-Turn off `database.delete_lock` and apply first if it is on, then:
+The database, its containers and the storage account carry `lifecycle { prevent_destroy = true }`, so Terraform
+refuses any plan that would delete or replace them, including one that drops a container no resource uses any
+more. To tear a stack down on purpose, delete those `lifecycle` blocks in `components/terraform/api` in a local
+checkout, never in a commit, then:
 
 ```console
 cd infra

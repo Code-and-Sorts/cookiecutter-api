@@ -32,6 +32,10 @@ resource "azurerm_storage_account" "this" {
     bypass                     = ["AzureServices"]
     virtual_network_subnet_ids = [azurerm_subnet.app.id]
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "azurerm_storage_container" "deployments" {

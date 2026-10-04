@@ -26,6 +26,10 @@ resource "azurerm_cosmosdb_account" "this" {
       name = capabilities.value
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "azurerm_cosmosdb_sql_database" "this" {
@@ -40,6 +44,10 @@ resource "azurerm_cosmosdb_sql_database" "this" {
       max_throughput = autoscale_settings.value
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "azurerm_cosmosdb_sql_container" "this" {
@@ -51,6 +59,10 @@ resource "azurerm_cosmosdb_sql_container" "this" {
   database_name         = azurerm_cosmosdb_sql_database.this.name
   partition_key_paths   = ["/id"]
   partition_key_version = 2
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "azurerm_management_lock" "database" {

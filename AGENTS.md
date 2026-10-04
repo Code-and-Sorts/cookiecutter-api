@@ -230,6 +230,9 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
   Apps in an internal environment; Cosmos DB with public access and keys off, reached by a user-assigned identity
   (`AZURE_CLIENT_ID`) through a private endpoint, which is why every language's Cosmos client uses
   `DefaultAzureCredential` when no key is set; a storage account admitting only the app subnet.
+- **Data is never destroyed by a plan.** Every resource holding data (the database, its containers or tables, and
+  storage) has `lifecycle { prevent_destroy = true }` on every stack, and TFLint's rule for it stays on; Terraform
+  deletes a cloud lock before the resource it guards, so a lock only stops deletes from outside Terraform.
 - **Tests:** `components/terraform/api/tests/*.tftest.hcl` plan against mocked providers (`tests/mocks/`), so
   `terraform test` needs no account; `tests/stacks` plans one stack's real variables
   (`atmos terraform generate varfile`). Add a `run` for every new branch in the component.
