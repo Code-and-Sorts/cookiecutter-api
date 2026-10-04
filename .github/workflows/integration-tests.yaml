@@ -135,6 +135,13 @@ jobs:
           path: requests.jsonl
           retention-days: 7
 
+      - name: Print the request log
+        if: ${{ !cancelled() && hashFiles('requests.jsonl') != '' }}
+        run: |
+          echo "=== REQUEST LOG BEGIN ==="
+          cat requests.jsonl
+          echo "=== REQUEST LOG END ==="
+
       - name: Collect emulator logs
         if: failure() && hashFiles('KittenClaws/docker-compose.yml') != ''
         working-directory: KittenClaws
