@@ -291,6 +291,21 @@ yarn test:unit   # Jest with coverage thresholds
 yarn audit       # yarn npm audit --severity moderate
 ```
 
+
+### Adding a field
+{% set r = resources[0] %}
+Each resource's fields are one Zod schema in `types/models/{{ r.name | to_lower_camel }}.schema.ts`; the request, update, response and stored record types all derive from it, and the repositories store whatever the record holds. To add an optional `age`:
+
+```ts
+export const {{ r.name }}Schema = z.object({
+    name: z.string().min(1),
+    age: z.number().int().nonnegative().optional(),
+});
+```
+
+- `.strict()` on the request schemas keeps rejecting unknown fields, and `.partial()` makes every field optional on PATCH.
+- Add the field to the controller, service and repository tests in each layer's `__tests__` directory, and to the Thunder Client requests in `.thunderclient/`.
+
 ## Repository structure
 
 Each resource gets its own file in every layer, named after the resource in lowerCamelCase{% if resources | length > 1 %} (for example `{{ resources[0].name | to_lower_camel }}.controller.ts`){% endif %}. Each layer's `index.ts` re-exports them.
