@@ -162,7 +162,7 @@ to answer, writes to the emulator and leaves its records there; `make emulator-d
 ## Supported Templates
 
 Pick a row with the `language` answer (`python`, `typescript`, `dotnet` or `go`) and a
-column with `cloud_service`.
+column with `cloud_service`. Each ✅ links to that combination's generated example.
 
 <table width="100%">
   <tr>
@@ -178,27 +178,27 @@ column with `cloud_service`.
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/python.svg" height="18" title="Python"></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/azure-python" title="Complete: browse the azure-python example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/aws-python" title="Complete: browse the aws-python example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/gcp-python" title="Complete: browse the gcp-python example">✅</a></td>
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/typescript.svg" height="18" title="NodeJS"></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/azure-typescript" title="Complete: browse the azure-typescript example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/aws-typescript" title="Complete: browse the aws-typescript example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/gcp-typescript" title="Complete: browse the gcp-typescript example">✅</a></td>
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/dotnet.svg" height="18" title="dotnet"></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/azure-dotnet" title="Complete: browse the azure-dotnet example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/aws-dotnet" title="Complete: browse the aws-dotnet example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/gcp-dotnet" title="Complete: browse the gcp-dotnet example">✅</a></td>
   </tr>
   <tr>
     <td align="center"><img src="./.docs/imgs/golang.svg" height="18" title="Golang"></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/azure-go" title="Complete: browse the azure-go example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/aws-go" title="Complete: browse the aws-go example">✅</a></td>
+    <td align="center"><a href="https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/gcp-go" title="Complete: browse the gcp-go example">✅</a></td>
   </tr>
 </table>
 
@@ -208,21 +208,12 @@ column with `cloud_service`.
 
 ## Examples
 
-Python
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-py-az-func-api)
-
-Typescript
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-ts-az-func-api)
-
-Dotnet
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-cs-az-func-api)
-
-Go
-- [Function App Example](https://github.com/Code-and-Sorts/cookie-go-az-func-api)
-
-Every language and cloud is also rendered on each push to `main` and published to
-`example/<language>-<cloud>-<single|multi>` branches (for example
-`example/dotnet-azure-multi`), so you can browse the generated code without running Copier.
+Browse generated projects for every language and cloud in
+[cookiecutter-api-examples](https://github.com/Code-and-Sorts/cookiecutter-api-examples).
+Each combination lives on its own `<cloud>-<language>` branch (for example
+[`aws-typescript`](https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/aws-typescript)),
+rendered with two resources (`Cat` and `Dog`) and republished on every push to `main`
+by the `Publish Example Branches` workflow.
 
 ## Resources
 

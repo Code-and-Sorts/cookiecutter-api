@@ -1,24 +1,20 @@
 name: Publish Example Branches
 
-# Renders template combinations (language x cloud x resources fixture) with
-# Copier and force-publishes each generated project to its own example branch,
-# so the generated output is browsable without running Copier locally.
+# Renders every language x cloud combination with Copier (using the `multi`
+# resources fixture) and force-publishes each generated project to its own
+# branch in the examples repository, so the generated output is browsable
+# without running Copier locally:
 #
-# Branch naming:
-#   push to main      -> example/<language>-<cloud>-<fixture>
-#   pull request      -> example/pr-<number>-<language>-<cloud>-<fixture>
+#   https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/<cloud>-<language>
 #
-# On a pull request only the language(s) whose template dir changed are
-# rendered (so a Python PR publishes only example/pr-<n>-python-* branches);
-# a change to the root copier.yml or shared/ affects every language, so it
-# renders all four, as do pushes to main.
+# for example `aws-typescript` or `azure-dotnet`. The examples repository's
+# `main` branch holds only a README that links to each branch.
 #
-# Full-fidelity publishing (including each generated project's own
-# .github/workflows/build-pipeline.yml) requires a Personal Access Token with
-# `repo` + `workflow` scopes stored as the `EXAMPLES_PUBLISH_TOKEN` secret. When
-# that secret is absent the job falls back to the default GITHUB_TOKEN, which is
-# not permitted to push workflow files — so the generated workflows are
-# relocated to `.github/workflows-example/` and a note is added.
+# Pushing to another repository (including each generated project's
+# .github/workflows/build-pipeline.yml) needs a fine-grained Personal Access
+# Token scoped to Code-and-Sorts/cookiecutter-api-examples with Contents and
+# Workflows read and write, stored as the `EXAMPLES_PUBLISH_TOKEN` Actions
+# secret in this repository.
 
 on:
   push:
@@ -33,127 +29,67 @@ on:
       - shared/**
       - .github/workflows/publish-examples.yml
       - .github/actions/setup-copier-template/**
-  pull_request:
-    paths:
-      - go/**
-      - python/**
-      - typescript/**
-      - dotnet/**
-      - copier.yml
-      - shared/**
-      - .github/workflows/publish-examples.yml
-      - .github/actions/setup-copier-template/**
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: publish-examples-${{ github.ref }}
+  group: publish-examples
   cancel-in-progress: true
 
+env:
+  EXAMPLES_REPOSITORY: Code-and-Sorts/cookiecutter-api-examples
+
 jobs:
-  resolve:
-    runs-on: ubuntu-latest
-    outputs:
-      languages: ${{ steps.pick.outputs.languages }}
-    steps:
-      - name: Check out
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Pick languages to render
-        id: pick
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          all=(go python typescript dotnet)
-          sel=()
-          if [ "${EVENT}" = "pull_request" ]; then
-            changed=$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" || true)
-            for l in "${all[@]}"; do
-              if printf '%s\n' "${changed}" | grep -qE "^${l}/"; then
-                sel+=("${l}")
-              fi
-            done
-            # Render all when the root copier.yml or shared/ changed (every language uses
-            # them), or when no language dir changed (e.g. the workflow itself).
-            if [ ${#sel[@]} -eq 0 ] || grep -qE '^(copier\.yml$|shared/)' <<<"${changed}"; then
-              sel=("${all[@]}")
-            fi
-          else
-            sel=("${all[@]}")
-          fi
-          json=$(printf '%s\n' "${sel[@]}" | jq -R . | jq -cs .)
-          echo "languages=${json}" >> "$GITHUB_OUTPUT"
-          echo "Selected languages: ${json}"
-
   publish-examples:
-    needs: resolve
+    # Forks have neither the secret nor push access to the examples repository.
+    if: github.repository == 'Code-and-Sorts/cookiecutter-api'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        language: ${{ fromJSON(needs.resolve.outputs.languages) }}
+        language:
+          - python
+          - typescript
+          - dotnet
+          - go
         cloud:
           - name: "Azure Function App"
             slug: azure
-          - name: "GCP Cloud Function"
-            slug: gcp
           - name: "AWS Lambda"
             slug: aws
-        fixture:
-          - single
-          - multi
+          - name: "GCP Cloud Function"
+            slug: gcp
     steps:
+      - name: Check for publish token
+        env:
+          HAS_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN != '' }}
+        run: |
+          if [ "${HAS_TOKEN}" != "true" ]; then
+            echo "::error::The EXAMPLES_PUBLISH_TOKEN secret is not set. Add a fine-grained PAT with Contents and Workflows read and write on ${EXAMPLES_REPOSITORY}."
+            exit 1
+          fi
+
       - name: Check out
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Render example project
         uses: ./.github/actions/setup-copier-template
         with:
           template-language: ${{ matrix.language }}
           template-cloud-service: ${{ matrix.cloud.name }}
-          resources-fixture: ${{ matrix.fixture }}
+          resources-fixture: multi
           output-dir: _example
 
       - name: Publish to example branch
         env:
-          PUBLISH_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN || github.token }}
-          HAS_PAT: ${{ secrets.EXAMPLES_PUBLISH_TOKEN != '' }}
-          BRANCH: ${{ github.event_name == 'pull_request' && format('example/pr-{0}-{1}-{2}-{3}', github.event.pull_request.number, matrix.language, matrix.cloud.slug, matrix.fixture) || format('example/{0}-{1}-{2}', matrix.language, matrix.cloud.slug, matrix.fixture) }}
-          COMBO: "${{ matrix.language }} / ${{ matrix.cloud.name }} / ${{ matrix.fixture }}"
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PUBLISH_TOKEN: ${{ secrets.EXAMPLES_PUBLISH_TOKEN }}
+          BRANCH: ${{ matrix.cloud.slug }}-${{ matrix.language }}
+          COMBO: "${{ matrix.language }} / ${{ matrix.cloud.name }}"
         run: |
           set -euo pipefail
           cd _example
-
-          # The default GITHUB_TOKEN cannot push files under .github/workflows/.
-          # Without a publish PAT, relocate the generated workflows so the
-          # example branch can still be published.
-          if [ "${HAS_PAT}" != "true" ] && [ -d .github/workflows ]; then
-            mkdir -p .github/workflows-example
-            mv .github/workflows/* .github/workflows-example/
-            rmdir .github/workflows
-            {
-              printf '%s\n' \
-                '# Generated example' \
-                '' \
-                'Published automatically by the `Publish Example Branches` workflow.' \
-                '' \
-                'The generated CI lives in `.github/workflows-example/` instead of' \
-                '`.github/workflows/` because the default Actions token cannot publish' \
-                'workflow files. Configure an `EXAMPLES_PUBLISH_TOKEN` PAT (with `repo`' \
-                'and `workflow` scopes) to publish these examples with full fidelity.'
-            } > EXAMPLES_NOTE.md
-          fi
-
           git init -q
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -161,9 +97,9 @@ jobs:
           git add -A
           git commit -q \
             -m "chore(examples): ${COMBO}" \
-            -m "Generated by Copier from ${SOURCE_SHA}."
+            -m "Generated by Copier from ${GITHUB_REPOSITORY}@${GITHUB_SHA}."
           git push -q --force \
-            "https://x-access-token:${PUBLISH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "https://x-access-token:${PUBLISH_TOKEN}@github.com/${EXAMPLES_REPOSITORY}.git" \
             "HEAD:refs/heads/${BRANCH}"
 
-          echo "Published \`${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published [\`${BRANCH}\`](https://github.com/${EXAMPLES_REPOSITORY}/tree/${BRANCH})" >> "$GITHUB_STEP_SUMMARY"
