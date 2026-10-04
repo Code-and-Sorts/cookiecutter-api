@@ -18,6 +18,14 @@ type BaseEntity struct {
 	UpdatedBy        string `json:"updatedBy,omitempty" dynamodbav:"updatedBy,omitempty" firestore:"updatedBy,omitempty"`
 }
 
+// Embedded after id and name in every response type, so the keys follow them.
+type AuditDto struct {
+	CreatedTimestamp string `json:"createdTimestamp"`
+	CreatedBy        string `json:"createdBy,omitempty"`
+	UpdatedTimestamp string `json:"updatedTimestamp"`
+	UpdatedBy        string `json:"updatedBy,omitempty"`
+}
+
 func NewBaseEntity() BaseEntity {
 	now := Now()
 	return BaseEntity{Id: uuid.New().String(), CreatedTimestamp: now, UpdatedTimestamp: now}
@@ -26,6 +34,15 @@ func NewBaseEntity() BaseEntity {
 // Promoted to every record type, so generic repository code can reach the shared fields.
 func (b *BaseEntity) Base() *BaseEntity {
 	return b
+}
+
+func (b *BaseEntity) ToAuditDto() AuditDto {
+	return AuditDto{
+		CreatedTimestamp: b.CreatedTimestamp,
+		CreatedBy:        b.CreatedBy,
+		UpdatedTimestamp: b.UpdatedTimestamp,
+		UpdatedBy:        b.UpdatedBy,
+	}
 }
 
 {%- if 'create' in all_ops %}

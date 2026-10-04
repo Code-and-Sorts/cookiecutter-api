@@ -2,6 +2,7 @@
 package models
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,6 +31,31 @@ func TestBase_ReturnsTheEmbeddedFields(t *testing.T) {
 	entity.Base().IsDeleted = true
 
 	assert.True(t, entity.IsDeleted)
+}
+
+func TestToAuditDto_CopiesTheStoredAuditFields(t *testing.T) {
+	entity := BaseEntity{
+		Id:               "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c",
+		IsDeleted:        true,
+		CreatedTimestamp: "2026-01-01T00:00:00.000Z",
+		CreatedBy:        "alice",
+		UpdatedTimestamp: "2026-01-02T00:00:00.000Z",
+		UpdatedBy:        "bob",
+	}
+
+	body, err := json.Marshal(entity.ToAuditDto())
+
+	assert.NoError(t, err)
+	assert.Equal(t, `{"createdTimestamp":"2026-01-01T00:00:00.000Z","createdBy":"alice","updatedTimestamp":"2026-01-02T00:00:00.000Z","updatedBy":"bob"}`, string(body))
+}
+
+func TestToAuditDto_OmitsUnsetUserFields(t *testing.T) {
+	entity := NewBaseEntity()
+
+	body, err := json.Marshal(entity.ToAuditDto())
+
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"createdTimestamp": "`+entity.CreatedTimestamp+`", "updatedTimestamp": "`+entity.UpdatedTimestamp+`"}`, string(body))
 }
 {%- if 'create' in all_ops %}
 
