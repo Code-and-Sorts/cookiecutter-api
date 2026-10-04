@@ -30,6 +30,7 @@ override_module {
       storage_account                               = "stkittenclawsdev"
       site_function_app                             = "func-kitten-claws-dev"
       container_app                                 = "ca-kitten-claws-dev"
+      monitor_diagnostic_setting                    = "mds-kitten-claws-dev"
     } : key => { name = name, name_unique = strcontains(name, "-") ? "${name}-9096" : "${name}9096" } }
   }
 }
@@ -86,6 +87,16 @@ variables {
 
 run "flex_consumption_defaults" {
   command = plan
+
+  assert {
+    condition     = azurerm_function_app_flex_consumption.this[0].site_config[0].application_insights_connection_string == azurerm_application_insights.this.connection_string
+    error_message = "The function app reports to Application Insights."
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_monitor_diagnostic_setting.logs)) == toset(["app", "gateway", "database"]) && alltrue([for setting in azurerm_monitor_diagnostic_setting.logs : setting.log_analytics_workspace_id == azurerm_log_analytics_workspace.this.id])
+    error_message = "The function app, API Management and Cosmos DB send their logs to the Log Analytics workspace."
+  }
 
   assert {
     condition     = length(azurerm_function_app_flex_consumption.this) == 1 && length(azurerm_linux_function_app.this) == 0 && length(azurerm_container_app.this) == 0
@@ -456,6 +467,11 @@ run "container_app_hosting" {
       runtime       = { name = "node", version = "{{ runtime.node }}" }
       max_instances = 5
     }
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_monitor_diagnostic_setting.logs)) == toset(["gateway", "database"]) && azurerm_container_app_environment.this[0].log_analytics_workspace_id == azurerm_log_analytics_workspace.this.id
+    error_message = "Container Apps log through their environment, so only API Management and Cosmos DB need diagnostic settings."
   }
 
   assert {

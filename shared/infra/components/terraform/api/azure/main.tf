@@ -33,21 +33,3 @@ resource "azurerm_resource_group" "this" {
   location = var.region
   tags     = local.tags
 }
-
-resource "azurerm_log_analytics_workspace" "this" {
-  name                = local.names.operational_insights_workspace.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-  tags                = local.tags
-}
-
-resource "azurerm_application_insights" "this" {
-  name                = local.names.component.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
-  workspace_id        = azurerm_log_analytics_workspace.this.id
-  application_type    = "web"
-  tags                = local.tags
-}

@@ -12,3 +12,4 @@ skip-check:
   - CKV_AZURE_140
   - CKV2_AZURE_40
   - CKV2_AZURE_41
+  - CKV_TF_1

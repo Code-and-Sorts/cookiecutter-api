@@ -19,7 +19,9 @@ client ──x-api-key──▶ API Management ──Entra ID token──▶ API
   by `/id`.
 - **Storage** for the Functions host admits only the API's subnet; the host uses its managed identity (Premium
   keeps the account key, because its Azure Files content share needs it).
-- Log Analytics and Application Insights collect the API's and API Management's telemetry.
+- **Logs** (`logs.tf`): one Log Analytics workspace holds everything. Application Insights, which the API and API
+  Management report to, keeps its data there, and diagnostic settings send the function app's, API Management's and
+  Cosmos DB's platform logs to it (Container Apps log through their environment).
 - Resource names come from the [Azure Verified Modules naming utility](https://github.com/Azure/terraform-azure-avm-utl-naming):
   the Cloud Adoption Framework abbreviation, the project and the stage (`rg-{{ project_endpoint }}-<stage>`), plus
   four characters derived from the subscription for names that must be globally unique.
@@ -77,3 +79,4 @@ to `false` to close it too.
 | `CKV2_AZURE_33`, `CKV_AZURE_59` | The storage account admits only the API subnet, through a service endpoint. |
 | `CKV_AZURE_33`, `CKV2_AZURE_21` | Diagnostic logging for the Functions host's storage is left to the team. |
 | `CKV_AZURE_140`, `CKV2_AZURE_40`, `CKV2_AZURE_41` | Checkov reads azurerm 4 attribute names; local authentication, shared keys and the SAS expiry are set with their azurerm 5 names. |
+| `CKV_TF_1` | The naming module comes from the Terraform Registry, pinned to an exact version; registry modules have no commit hash. |
