@@ -48,7 +48,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font-ui); }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font-ui); overflow-wrap: anywhere; }
 .wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; display: grid; gap: 20px; }
 h1 { font-size: 1.5rem; font-weight: 600; margin: 0; text-wrap: balance; }
 h2 { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0; }
@@ -57,11 +57,12 @@ a { color: var(--accent); }
 code, .mono { font-family: var(--font-code); font-size: 12.5px; }
 .lede { color: var(--muted); max-width: 70ch; }
 
-.matrix-wrap { overflow-x: auto; }
-.matrix { border-collapse: separate; border-spacing: 6px; margin: -6px; }
-.matrix th { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 0 4px; }
+.matrix { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 6px; align-items: stretch; }
+.matrix .head { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); align-self: end; display: grid; }
+.matrix .head small { font-size: 0.6875rem; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.matrix .lang { align-self: center; padding-right: 4px; }
 .cell {
-  width: 100%; min-width: 132px; text-align: left; cursor: pointer;
+  width: 100%; min-width: 0; text-align: left; cursor: pointer;
   background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
   padding: 8px 10px; font: inherit; display: grid; gap: 2px;
 }
@@ -70,6 +71,7 @@ code, .mono { font-family: var(--font-code); font-size: 12.5px; }
 .cell[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
 .cell .n { font-family: var(--font-code); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
 .cell .n b { color: var(--fg); font-weight: 600; }
+.cell .short { display: none; }
 .cell.empty { cursor: default; opacity: 0.6; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
@@ -102,11 +104,11 @@ details.req[open] > summary::before { content: "▾"; }
 .tag { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
 
 .body { display: grid; gap: 14px; padding: 4px 12px 14px; border-top: 1px solid var(--line); }
-.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px; }
 .panel { min-width: 0; display: grid; gap: 6px; align-content: start; }
-.kv { width: 100%; border-collapse: collapse; font-family: var(--font-code); font-size: 12px; }
+.kv { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: var(--font-code); font-size: 12px; }
 .kv td { padding: 2px 6px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-.kv td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
+.kv td:first-child { color: var(--muted); width: 38%; }
 pre { margin: 0; background: var(--sunken); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; overflow-x: auto; font-family: var(--font-code); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .none { color: var(--muted); font-style: italic; font-size: 12.5px; }
 .doc td.added { background: var(--added); }
@@ -116,6 +118,14 @@ pre { margin: 0; background: var(--sunken); border: 1px solid var(--line); borde
 .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .legend .l-added::before { background: var(--added); } .legend .l-changed::before { background: var(--changed); } .legend .l-removed::before { background: var(--removed); }
 .more { justify-self: start; font: inherit; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+@media (max-width: 560px) {
+  .matrix .head small, .cell .full { display: none; }
+  .cell .short { display: inline; }
+  .kv td:first-child { width: 46%; }
+  .cell { padding: 6px 8px; }
+  .body { padding-inline: 8px; }
+  details.req > summary { padding: 8px; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -127,7 +137,7 @@ pre { margin: 0; background: var(--sunken); border: 1px solid var(--line); borde
 
   <section style="display:grid;gap:8px" aria-labelledby="pick">
     <h2 id="pick">Language and cloud</h2>
-    <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+    <div class="matrix" id="matrix" role="group" aria-label="Language and cloud"></div>
   </section>
 
   <section style="display:grid;gap:10px" aria-labelledby="reqs-h">
@@ -139,7 +149,7 @@ pre { margin: 0; background: var(--sunken); border: 1px solid var(--line); borde
       <label class="search"><input type="search" id="q" placeholder="Filter by test name, path or body text" aria-label="Filter requests"></label>
       <span class="count" id="count"></span>
     </form>
-    <div class="legend"><span class="l-added">added</span><span class="l-changed">changed</span><span class="l-removed">removed</span><span>— highlighted in the stored document's “after” column</span></div>
+    <div class="legend"><span class="l-added">added</span><span class="l-changed">changed</span><span class="l-removed">removed</span><span>Highlighted in the “Stored after” column.</span></div>
     <div id="list" style="display:grid;gap:16px"></div>
   </section>
 </div>
@@ -148,7 +158,8 @@ pre { margin: 0; background: var(--sunken); border: 1px solid var(--line); borde
 <script>
 const DATA = JSON.parse(document.getElementById("data").textContent);
 const LANG_NAMES = { python: "Python", typescript: "TypeScript", go: "Go", dotnet: ".NET" };
-const CLOUD_NAMES = { azure: "Azure Functions · Cosmos DB", gcp: "GCP Functions · Firestore", aws: "AWS Lambda · DynamoDB" };
+const CLOUD_NAMES = { azure: "Functions · Cosmos DB", gcp: "Functions · Firestore", aws: "Lambda · DynamoDB" };
+const CLOUD_SHORT = { azure: "Azure", gcp: "GCP", aws: "AWS" };
 const METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE"];
 const WRITES = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 const STATUS = ["2xx", "4xx", "5xx"];
@@ -171,22 +182,20 @@ document.getElementById("fixture").textContent = DATA.fixture || "single";
 if (DATA.run) document.getElementById("run").append("Source: ", el("a", { href: DATA.run, target: "_blank", rel: "noopener" }, "the Integration Tests run"), ".");
 
 function buildMatrix() {
-  const table = document.getElementById("matrix");
+  const grid = document.getElementById("matrix");
   const clouds = ["azure", "gcp", "aws"];
-  table.append(el("tr", {}, el("th", {}), clouds.map((c) => el("th", { scope: "col" }, CLOUD_NAMES[c]))));
+  grid.append(el("span", {}), ...clouds.map((c) => el("span", { class: "head" }, CLOUD_SHORT[c], el("small", {}, CLOUD_NAMES[c]))));
   for (const lang of ["python", "typescript", "go", "dotnet"]) {
-    const row = el("tr", {}, el("th", { scope: "row" }, LANG_NAMES[lang]));
+    grid.append(el("span", { class: "head lang" }, LANG_NAMES[lang]));
     for (const cloud of clouds) {
       const combo = DATA.combos.find((c) => c.language === lang && c.cloud === cloud);
       const n = combo ? combo.entries.length : 0;
       const writes = combo ? combo.entries.filter((e) => WRITES.has(e.method)).length : 0;
-      const btn = el("button", { type: "button", class: "cell" + (n ? "" : " empty"), "aria-pressed": "false", id: `cell-${lang}-${cloud}` },
-        el("span", {}, `${LANG_NAMES[lang]} on ${cloud.toUpperCase()}`),
-        el("span", { class: "n" }, n ? el("span", {}, el("b", {}, n), " requests · ", el("b", {}, writes), " writes") : "no log"));
+      const btn = el("button", { type: "button", class: "cell" + (n ? "" : " empty"), "aria-pressed": "false", id: `cell-${lang}-${cloud}`, "aria-label": `${LANG_NAMES[lang]} on ${CLOUD_SHORT[cloud]}` },
+        el("span", { class: "n" }, n ? el("span", {}, el("b", {}, n), el("span", { class: "full" }, " requests"), el("span", { class: "short" }, " req"), el("br"), el("b", {}, writes), " writes") : "no log"));
       if (n) btn.addEventListener("click", () => select(combo));
-      row.append(el("td", {}, btn));
+      grid.append(btn);
     }
-    table.append(row);
   }
 }
 
