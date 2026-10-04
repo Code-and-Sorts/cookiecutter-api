@@ -12,13 +12,14 @@ This is a [Copier](https://github.com/copier-org/copier) template repository tha
 cookiecutter-api/
 ├── copier.yml               # The one Copier config: questions, derived values, validators
 ├── shared/                  # Files identical across languages, included by each language's copy
+│   └── infra/               # Atmos stacks and the per-cloud Terraform component (include_infrastructure)
 ├── python/template/         # Python template (Azure + GCP + AWS)
 ├── typescript/template/     # TypeScript/Node.js template (Azure + GCP + AWS)
 ├── dotnet/template/         # .NET/C# template (Azure + GCP + AWS)
 ├── go/template/             # Go template (Azure + GCP + AWS)
 ├── .github/
 │   ├── actions/             # Shared composite actions and resource fixtures
-│   └── workflows/           # CI pipelines per language, integration tests, example publishing
+│   └── workflows/           # CI pipelines per language, infrastructure validation, integration tests, example publishing
 ├── tests/integration/       # Black-box HTTP suite for the API contract, run against the emulators
 ├── .claude/skills/           # Agent skills for this repository (integration-report)
 ├── .docs/                   # Documentation assets (images, SVGs)
@@ -131,7 +132,9 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   `createdBy`/`updatedBy`. Create sets both; update, replace and delete set `updatedBy`, and a write without the
   header removes it. Bodies still reject both fields. The header is not authenticated; every generated README says so.
 - **Auth:** resource routes need credentials and health is open where the platform allows it. Azure: function keys,
-  anonymous health function. AWS: API Gateway API keys (`x-api-key`, SAM usage plan), health exempt. GCP: IAM
+  anonymous health function; with `include_infrastructure`, an API Management API key (`x-api-key`) instead, health
+  open, and API Management calls the app with an Entra ID token (App Service authentication), so the functions'
+  auth level is `function_auth_level` (`anonymous`). AWS: API Gateway API keys (`x-api-key`, SAM usage plan), health exempt. GCP: IAM
   invoker (deployed with `--no-allow-unauthenticated`); the one function means health needs the token too.
 - `?limit=` on list is honoured everywhere; a missing, non-numeric or non-positive limit means 100, and more than
   1000 means 1000.
@@ -187,6 +190,43 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
   deployed stacks omit it; `sam local` passes it empty otherwise, which .NET must ignore.
 - Azure `local.settings.json` uses `"AzureWebJobsStorage": ""`: every trigger is HTTP, so no Azurite.
 
+### Infrastructure
+
+`include_infrastructure` (asked only for Azure until GCP and AWS land) renders `infra/`, an Atmos project, and
+`.github/workflows/deploy.yml` (OIDC login; plans the first stack on pull requests, deploys every stack in order on
+`main`, then publishes the code with Core Tools or pushes the image to the registry).
+
+- **Stacks are the same shape on every cloud.** One Atmos component, `api`, with cloud-neutral variables: `name`,
+  `stage`, `region`, `tags`, `network`, `compute` (`hosting`, `sku`, `runtime`, scaling, `app_settings`),
+  `database` (`capacity`, `throughput`, `containers`) and `gateway` (`sku`, `capacity`, `routes`,
+  `health_endpoint`). Only the values differ per cloud. `stacks/catalog/defaults.yaml` holds the state backend,
+  `stacks/catalog/api.yaml` what every stack shares (rendered from `language`, `resources` and `health_endpoint`),
+  and `stacks/deploy/<stage>.yaml` (one per `infra_environments` item, through `yield` over `path_environments`)
+  the region and tiers. `name_pattern: "{stage}"`, so stacks are `dev`, `prod` and so on.
+- **The Copier answers** `infra_region`, `infra_compute_hosting`, `infra_compute_sku`, `infra_database_capacity`,
+  `infra_database_throughput`, `infra_gateway_sku`, `infra_gateway_capacity` and `infra_admin_email` are the
+  defaults; each `infra_environments` item can override any of them without the `infra_` prefix.
+  `path_environments` resolves each stack's values (a SKU follows its hosting unless set); the
+  `infra_environments` validator repeats that resolution, because Copier has not computed `path_environments`
+  when it runs. Every cloud's choices share these questions (Copier checks a skipped question's default against
+  its choices, so the defaults must be valid choices); that validator rejects values that do not fit the cloud.
+- **Sources:** everything lives once in `shared/infra/` and each language includes it file by file. Cloud-neutral
+  files render under `{{ infra_dir }}`; a cloud's Terraform lives in `shared/infra/components/terraform/api/<cloud>/`
+  and renders under `{{ infra_<cloud>_dir }}/components/terraform/api/` (empty for other clouds), so a project
+  always gets `components/terraform/api`. Language differences (runtime, app setting names) belong in
+  `stacks/catalog/api.yaml`, never in Terraform.
+- **App settings** are names the code reads, with `${database_endpoint}` and `${database_name}` filled in by
+  Terraform (`templatestring`); the per-container names default to the container id, so they match the store
+  Terraform creates. CI checks every name appears in the generated code.
+- **Azure:** API Management (`Developer`, `StandardV2` or `Premium`, the tiers that reach a private backend) in the
+  virtual network; Functions (Flex Consumption, App Service plan or Premium) behind a private endpoint, or Container
+  Apps in an internal environment; Cosmos DB with public access and keys off, reached by a user-assigned identity
+  (`AZURE_CLIENT_ID`) through a private endpoint, which is why every language's Cosmos client uses
+  `DefaultAzureCredential` when no key is set; a storage account admitting only the app subnet.
+- **Tests:** `components/terraform/api/tests/*.tftest.hcl` plan against mocked providers (`tests/mocks/`), so
+  `terraform test` needs no account; `tests/stacks` plans one stack's real variables
+  (`atmos terraform generate varfile`). Add a `run` for every new branch in the component.
+
 ### Cloud → Database Mapping
 
 | Cloud Provider | Database | TypeScript Client | Python Client | .NET Client | Go Client |
@@ -215,7 +255,13 @@ To add a new cloud provider to an existing language template:
 7. **Add it to the integration tests** — its host tool and base URL in `.github/actions/start-local-api`, the cloud in
    the `integration-tests.yaml` plan, its `CLOUDS` slug in `tests/integration/project.py`, its `NOT_ROUTED`
    statuses in `tests/integration/test_operations.py`, and a store in `tests/integration/store.py`
-8. **Update `README.md`** — Change the support table cell from planned to complete
+8. **Add its infrastructure** (see [Infrastructure](#infrastructure)) — a component in
+   `shared/infra/components/terraform/api/<cloud>/` with the same variables and its `terraform test` suite, an
+   `infra_<cloud>_dir` derived value and the one-line includes in every language, the backend in
+   `stacks/catalog/defaults.yaml`, the cloud's app settings in `stacks/catalog/api.yaml`, its choices and defaults
+   in the `infra_*` questions and the `infra_environments` validator, its deploy steps in
+   `shared/.github/workflows/deploy.yml`, and the cloud in `validate-infra.yaml`
+9. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
 
@@ -238,7 +284,10 @@ To add a new cloud provider to an existing language template:
    `template-setup.yml` language map and the setup issue form
 8. Add the language to the integration tests: its install and emulator commands in
    `.github/actions/start-local-api` and the language in the `integration-tests.yaml` plan
-9. Update the root `README.md` support table
+9. Include the `shared/infra/` files, `shared/.github/workflows/deploy.yml` and `shared/_gitignore.infra`, add the
+   language's runtime and app setting names to `shared/infra/stacks/catalog/api.yaml` and its build and publish
+   steps to the deploy workflow, a `Dockerfile` for `infra_containers`, and the language to `validate-infra.yaml`
+10. Update the root `README.md` support table
 
 ## Template Variables
 
@@ -255,6 +304,9 @@ To add a new cloud provider to an existing language template:
 | `resources` | REST resources to generate | see [Resources](#resources) |
 | `author` | Project author | `"Your Name"` |
 | `open_source_license` | License type | `"MIT license"` |
+| `include_infrastructure` | Generate `infra/` and the deploy workflow (Azure for now) | `false` |
+| `infra_region`, `infra_compute_hosting`, `infra_compute_sku`, `infra_database_capacity`, `infra_database_throughput`, `infra_gateway_sku`, `infra_gateway_capacity`, `infra_admin_email` | Defaults for every stack | `"eastus"`, `"flex_consumption"`, `"FC1"`, `"serverless"`, `400`, `"Developer"`, `1`, `"admin@example.com"` |
+| `infra_environments` | Stacks, each `{name, ...overrides}` | `[{name: dev}, {name: prod}]` |
 
 `project_slug`, `project_endpoint`, `project_class_name`, and `project_lower_camel_name`
 are derived from `project_name` via `when: false` questions, so they are computed
@@ -291,6 +343,13 @@ Pipelines use a small matrix, one job per distinct risk rather than every combin
   Python 3.14, .NET 10, Go 1.27
 
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
+
+Each language pipeline has one more Ubuntu job (`include-infrastructure: "true"`, Azure, `edge`) that builds and
+tests the code rendered with infrastructure. `validate-infra.yaml` renders every language with
+`fixtures/infra-environments.yml` (one stack per hosting, database capacity and gateway tier) and runs `terraform fmt`,
+`validate`, TFLint, the component's `terraform test`, `atmos validate stacks`, a mocked plan of every stack, the app
+setting name check, actionlint on `deploy.yml` and Checkov (`.checkov.yaml` lists each skipped check with its
+reason). Nothing in this repository's CI deploys or holds cloud credentials.
 
 ### Integration Tests
 
@@ -350,7 +409,9 @@ Renovate keeps package versions current and merges its own PRs once every check 
 (see `renovate.json`), except integration test dependencies, which wait for a review. Its `pep621` manager
 updates `pyproject.toml` and the matching `uv.lock` together. Runtime versions
 (Node, Python, .NET, Go) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all support
-the new version GA, in `.github/actions/setup-runtime`.
+the new version GA, in `.github/actions/setup-runtime`. Its `terraform` manager bumps the provider pins in
+`shared/infra/components/terraform/api/*/versions.tf`, and regex managers the Atmos and Terraform versions in
+`shared/.github/workflows/deploy.yml`.
 
 ## Code Conventions
 

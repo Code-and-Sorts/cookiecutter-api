@@ -14,6 +14,11 @@ inputs:
     description: >-
       "single" renders the default resource derived from the project name; any other value
       renders fixtures/<value>-resources.yml ("edge" in CI, "multi" for the example branches).
+  include-infrastructure:
+    required: false
+    default: "false"
+    description: >-
+      "true" answers include_infrastructure and renders the stacks in fixtures/infra-environments.yml.
   output-dir:
     required: false
     default: "KittenClaws"
@@ -62,6 +67,7 @@ runs:
         LANGUAGE: ${{ inputs.template-language }}
         CLOUD: ${{ inputs.template-cloud-service }}
         FIXTURE: ${{ inputs.resources-fixture }}
+        INFRASTRUCTURE: ${{ inputs.include-infrastructure }}
         OUTPUT: ${{ inputs.output-dir }}
         PROJECT_NAME: ${{ inputs.project-name }}
         PROJECT_DESCRIPTION: ${{ inputs.project-description }}
@@ -71,8 +77,18 @@ runs:
         FIXTURES: ${{ github.action_path }}/fixtures
       run: |
         extra_args=()
+        # Copier takes one --data-file, so the fixtures are concatenated (their keys never overlap).
+        data_files=()
         if [ "$FIXTURE" != "single" ]; then
-          extra_args+=(--data-file "$FIXTURES/$FIXTURE-resources.yml")
+          data_files+=("$FIXTURES/$FIXTURE-resources.yml")
+        fi
+        if [ "$INFRASTRUCTURE" = "true" ]; then
+          extra_args+=(--data include_infrastructure=true)
+          data_files+=("$FIXTURES/infra-environments.yml")
+        fi
+        if [ ${#data_files[@]} -gt 0 ]; then
+          cat "${data_files[@]}" > "$RUNNER_TEMP/copier-data.yml"
+          extra_args+=(--data-file "$RUNNER_TEMP/copier-data.yml")
         fi
         if [ -n "$PROJECT_ENDPOINT" ]; then
           extra_args+=(--data project_endpoint="$PROJECT_ENDPOINT")

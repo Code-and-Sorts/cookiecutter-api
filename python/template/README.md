@@ -93,7 +93,11 @@ Request bodies must be a JSON object: create (POST) and replace (PUT) require `n
 Writes (create, update, replace and delete) may send an `X-User-Id` header naming the caller; it is the only way to set `createdBy` and `updatedBy`, which request bodies cannot contain. Surrounding whitespace is trimmed, an empty or missing header means no user, and a value longer than 256 characters is rejected with a 400 before the body is read. Reads ignore the header. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 {%- if cloud_service == 'Azure Function App' %}
 
-Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the health check is anonymous. For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
+{% if include_infrastructure -%}
+Deployed with [the infrastructure](#deploy-with-the-infrastructure), resource routes need an API Management API key (the `x-api-key` header) instead of a function key; the health check is open.
+{%- else -%}
+Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the health check is anonymous.
+{%- endif %} For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
@@ -198,7 +202,7 @@ Settings are read from environment variables (case-insensitive).
 | --- | --- | --- |
 {%- if cloud_service == 'Azure Function App' %}
 | `Cosmos_Db_Uri` | Cosmos DB account endpoint | required |
-| `Cosmos_Db_Key` | Cosmos DB account key | required |
+| `Cosmos_Db_Key` | Cosmos DB account key; leave it unset to authenticate with Microsoft Entra ID (`DefaultAzureCredential`, which picks the managed identity named by `AZURE_CLIENT_ID`) | unset |
 | `Cosmos_Db_Database_Name` | Cosmos DB database name | required |
 | `Cosmos_Db_Emulator` | `true` only for the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator)) | `false` |
 {%- for c in containers %}
@@ -394,6 +398,9 @@ Settings are read from environment variables (case-insensitive).
     'sdk_note': 'Every AWS SDK reads the variable natively.',
 } -%}
 {% include 'shared/_README.emulator.md' %}
+{% if include_infrastructure -%}
+{% include 'shared/_README.infra.md' %}
+{% endif -%}
 ## Development Workflow
 
 ### Adding a New Dependency

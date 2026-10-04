@@ -159,6 +159,58 @@ The base URL includes the route prefix: `http://localhost:7071/api` on Azure, `h
 GCP and `http://localhost:3000` on AWS. The suite waits up to `--ready-timeout` seconds (180) for the API
 to answer, writes to the emulator and leaves its records there; `make emulator-down` discards them.
 
+### Infrastructure (Atmos and Terraform)
+
+Answer `include_infrastructure` (Azure for now; GCP and AWS follow with the same stacks) to get an
+`infra/` folder with [Atmos](https://atmos.tools/) stacks and a Terraform component, and a
+`.github/workflows/deploy.yml` that plans on pull requests and deploys every stack in order on `main`
+(OIDC only, no stored cloud keys). On Azure each stack deploys:
+
+- **API Management**, the only public entry point. Resource routes need an API key (`x-api-key`); the
+  health check is open. It calls the API with an Entra ID token for its managed identity.
+- **The API**, private: Azure Functions behind a private endpoint, or an internal Container Apps
+  environment. App Service authentication admits only API Management's identity, so function keys are
+  not used.
+- **Cosmos DB**, private and keyless: only the API's managed identity reaches it, through a private endpoint.
+- A storage account for the Functions host (virtual network only), a virtual network, Log Analytics and
+  Application Insights.
+
+The defaults, used by every stack unless it overrides them, are asked once:
+
+| Question | Azure choices | Default |
+| --- | --- | --- |
+| `infra_region` | any region | `eastus` |
+| `infra_compute_hosting` | `flex_consumption`, `app_service`, `premium`, `container_app` | `flex_consumption` |
+| `infra_compute_sku` | `FC1`; a Linux App Service SKU (`B1`, `P1v3`, ...); `EP1`-`EP3`; a Container Apps workload profile (`Consumption`, `D4`, ...) | follows the hosting (`FC1`) |
+| `infra_database_capacity` | `serverless`, `provisioned`, `autoscale` | `serverless` |
+| `infra_database_throughput` | RU/s (provisioned from 400, autoscale maximum from 1000) | 400 or 1000 |
+| `infra_gateway_sku` | `Developer`, `StandardV2`, `Premium` (the tiers that reach a private backend) | `Developer` |
+| `infra_gateway_capacity` | API Management units | `1` |
+| `infra_admin_email` | API Management publisher email | `admin@example.com` |
+
+`infra_environments` lists the stacks, one file each in `infra/stacks/deploy/`. Each item has a `name`
+and may override any default for that stack alone, so stacks can be identical or differ:
+
+```yaml
+include_infrastructure: true
+infra_environments:
+  - name: dev
+  - name: qa
+  - name: stg
+    compute_hosting: premium
+  - name: prod
+    compute_hosting: premium
+    compute_sku: EP2
+    database_capacity: autoscale
+    database_throughput: 4000
+    gateway_sku: Premium
+```
+
+The component's Terraform tests plan against mocked providers (`terraform test`), so they run without an
+Azure account. The generated `infra/README.md` covers the one-time setup (state storage, the deployment
+identity and GitHub environments), running Atmos yourself and calling the API. This repository's CI renders,
+lints and tests the infrastructure for every language but never deploys it.
+
 ## Supported Templates
 
 Pick a row with the `language` answer (`python`, `typescript`, `dotnet` or `go`) and a
@@ -199,6 +251,12 @@ column with `cloud_service`.
     <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
+  </tr>
+  <tr>
+    <td align="center" title="include_infrastructure: Atmos stacks and Terraform, every language">Infrastructure</td>
+    <td align="center"><span title="Complete">✅</span></td>
+    <td align="center"><span title="Planned">🚧</span></td>
+    <td align="center"><span title="Planned">🚧</span></td>
   </tr>
 </table>
 

@@ -1,0 +1,7 @@
+# Terraform and Atmos
+.terraform/
+*.tfstate
+*.tfstate.*
+infra/components/terraform/**/backend.tf.json
+infra/components/terraform/**/*.terraform.tfvars.json
+infra/components/terraform/**/*.planfile

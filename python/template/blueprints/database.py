@@ -2,6 +2,7 @@
 import asyncio
 import azure.functions as func
 from azure.cosmos.aio import ContainerProxy, CosmosClient
+from azure.identity.aio import DefaultAzureCredential
 from config import get_settings
 from utils import detect_error, response_generator
 from utils.deadline import within_deadline
@@ -33,12 +34,17 @@ def cosmos_client_options(settings) -> dict:
     return options
 
 
+def cosmos_credential(settings):
+    # DefaultAzureCredential reads AZURE_CLIENT_ID to pick a user-assigned managed identity.
+    return settings.cosmos_db_key or DefaultAzureCredential()
+
+
 async def get_container(container_id: str) -> ContainerProxy:
     global _client
     settings = get_settings()
     async with _client_lock:
         if _client is None:
-            client = CosmosClient(settings.cosmos_db_uri, settings.cosmos_db_key, **cosmos_client_options(settings))
+            client = CosmosClient(settings.cosmos_db_uri, cosmos_credential(settings), **cosmos_client_options(settings))
             await client.__aenter__()
             _client = client
     database = _client.get_database_client(settings.cosmos_db_database_name)

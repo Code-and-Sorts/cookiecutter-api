@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 {% if cloud_service == 'Azure Function App' %}
     cosmos_db_uri: str
-    cosmos_db_key: str
+    cosmos_db_key: str | None = None
     cosmos_db_database_name: str
     cosmos_db_emulator: bool = False
 {%- elif cloud_service == 'GCP Cloud Function' %}

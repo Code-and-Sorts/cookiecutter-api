@@ -1,0 +1,15 @@
+FROM node:22-slim AS build
+WORKDIR /app
+RUN corepack enable
+COPY package.json .yarnrc.yml yarn.lock* ./
+RUN yarn install
+COPY . .
+RUN yarn build && yarn workspaces focus --production
+
+FROM mcr.microsoft.com/azure-functions/node:4-node22
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+WORKDIR /home/site/wwwroot
+COPY --from=build /app/package.json /app/host.json ./
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules

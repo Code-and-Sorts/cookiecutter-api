@@ -1,0 +1,22 @@
+# One stack per hosting, database capacity and gateway tier, so every branch of the Azure component plans.
+infra_environments:
+  - name: dev
+  - name: qa
+    compute_hosting: app_service
+    compute_sku: P0v3
+    database_capacity: provisioned
+    database_throughput: 400
+    gateway_sku: StandardV2
+  - name: stg
+    compute_hosting: container_app
+    compute_sku: D4
+    database_capacity: autoscale
+    gateway_sku: StandardV2
+    gateway_capacity: 2
+  - name: prod
+    region: westus3
+    compute_hosting: premium
+    compute_sku: EP2
+    database_capacity: autoscale
+    database_throughput: 4000
+    gateway_sku: Premium

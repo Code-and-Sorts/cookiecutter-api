@@ -5,6 +5,7 @@ go 1.27
 require (
 {%- if cloud_service == 'Azure Function App' %}
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 {%- elif cloud_service == 'GCP Cloud Function' %}
 	cloud.google.com/go/firestore v1.26.0

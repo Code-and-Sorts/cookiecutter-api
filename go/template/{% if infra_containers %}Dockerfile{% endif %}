@@ -1,0 +1,22 @@
+FROM --platform=$BUILDPLATFORM golang:1.27 AS build
+WORKDIR /src
+COPY go.mod go.sum* ./
+RUN go mod download
+COPY . .
+# make install (go mod tidy) writes go.sum, so a project that never ran it has none.
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o handler .
+
+FROM mcr.microsoft.com/azure-functions/base:4
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true \
+    FUNCTIONS_WORKER_RUNTIME=custom
+WORKDIR /home/site/wwwroot
+COPY host.json ./
+{%- if health_endpoint %}
+COPY healthApi/ ./healthApi/
+{%- endif %}
+{%- for resource in path_resources %}
+COPY {{ resource.lower_camel_name }}Api/ ./{{ resource.lower_camel_name }}Api/
+{%- endfor %}
+COPY --from=build /src/handler ./
+EXPOSE 80

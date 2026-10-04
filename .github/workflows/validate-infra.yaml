@@ -1,0 +1,161 @@
+name: Infrastructure Validation
+
+on:
+  push:
+    paths:
+      - "*/template/**"
+      - copier.yml
+      - shared/**
+      - .github/workflows/validate-infra.yaml
+      - .github/actions/setup-copier-template/**
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "*/template/**"
+      - copier.yml
+      - shared/**
+      - .github/workflows/validate-infra.yaml
+      - .github/actions/setup-copier-template/**
+
+env:
+  TERRAFORM_VERSION: "1.16.5"
+  ATMOS_VERSION: "1.230.1"
+  ATMOS_TELEMETRY_ENABLED: "false"
+
+# Static checks only: nothing here has cloud credentials, plans against a real account or applies.
+jobs:
+  validate-infra:
+    runs-on: ubuntu-latest
+    strategy:
+      # The Terraform component is the same for every language; the stacks' app settings are not.
+      matrix:
+        template-type:
+          - python
+          - typescript
+          - dotnet
+          - go
+        cloud-service:
+          - "Azure Function App"
+        fixture:
+          - single
+          - edge
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Setup Copier Template
+        uses: ./.github/actions/setup-copier-template
+        with:
+          template-language: ${{ matrix.template-type }}
+          template-cloud-service: ${{ matrix.cloud-service }}
+          resources-fixture: ${{ matrix.fixture }}
+          include-infrastructure: "true"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Set up Atmos
+        uses: cloudposse/github-action-setup-atmos@v2
+        with:
+          atmos-version: ${{ env.ATMOS_VERSION }}
+          install-wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive -diff KittenClaws/infra
+        shell: bash
+
+      - name: Validate the component
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+        shell: bash
+
+      - name: Lint the component
+        working-directory: KittenClaws/infra/components/terraform/api
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init
+          tflint --format compact
+        shell: bash
+
+      - name: Run the component's unit tests
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: terraform test
+        shell: bash
+
+      - name: Validate the stacks
+        working-directory: KittenClaws/infra
+        run: atmos validate stacks
+        shell: bash
+
+      # Catches stack values the Jinja templates render with the wrong shape or an invalid tier.
+      - name: Plan every stack against mocked providers
+        working-directory: KittenClaws/infra
+        run: |
+          for stack in $(atmos list stacks); do
+            echo "::group::$stack"
+            atmos terraform generate varfile api -s "$stack" -f "$RUNNER_TEMP/$stack.tfvars.json"
+            terraform -chdir=components/terraform/api test -test-directory=tests/stacks -var-file="$RUNNER_TEMP/$stack.tfvars.json"
+            echo "::endgroup::"
+          done
+        shell: bash
+
+      - name: Check the app settings are the names the code reads
+        working-directory: KittenClaws
+        run: |
+          atmos describe component api -s dev --format json > "$RUNNER_TEMP/api.json"
+          python - "$RUNNER_TEMP/api.json" "${{ matrix.template-type }}" <<'PY'
+          import json, pathlib, sys
+
+          settings = json.load(open(sys.argv[1]))["vars"]["compute"]["app_settings"]
+          ignore_case = sys.argv[2] == "python"  # pydantic-settings matches names case-insensitively
+          sources = [
+              p.read_text(errors="ignore")
+              for p in pathlib.Path(".").rglob("*")
+              if p.is_file() and not {"infra", ".github", "node_modules", ".git"} & set(p.parts) and p.suffix != ".md"
+          ]
+          text = "\n".join(sources)
+          text = text.lower() if ignore_case else text
+
+          def read(name: str) -> bool:
+              name = name.lower() if ignore_case else name
+              if name in text:
+                  return True
+              if name.startswith("ConnectionStrings__"):
+                  return f'"{name.removeprefix("ConnectionStrings__")}"' in text
+              prefix, _, suffix = name.rpartition("_")
+              return f'"{prefix}_"' in text and f'"{suffix}"' in text
+
+          missing = [name for name in settings if not read(name)]
+          if missing:
+              sys.exit(f"App settings the code never reads: {', '.join(missing)}")
+          print(f"All {len(settings)} app settings are read by the code.")
+          PY
+        shell: bash
+
+      - name: Lint the deploy workflow
+        working-directory: KittenClaws
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color .github/workflows/deploy.yml
+        shell: bash
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.22"
+
+      - name: Scan with Checkov
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: uvx --python 3.12 checkov --directory . --framework terraform --config-file .checkov.yaml --quiet --compact
+        shell: bash

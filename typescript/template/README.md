@@ -31,7 +31,11 @@ The API follows a controller → service → repository layout wired together by
 ## Endpoints
 
 {% if cloud_service == 'Azure Function App' -%}
-Azure Functions serves HTTP functions under the `/api` route prefix. Every route{% if health_endpoint %} except `/api/{{ health_endpoint }}`{% endif %} uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+Azure Functions serves HTTP functions under the `/api` route prefix. {% if include_infrastructure -%}
+Deployed with [the infrastructure](#deploy-with-the-infrastructure), every route{% if health_endpoint %} except `/api/{{ health_endpoint }}`{% endif %} needs an API Management API key (`x-api-key` header) instead of a function key.
+{%- else -%}
+Every route{% if health_endpoint %} except `/api/{{ health_endpoint }}`{% endif %} uses `authLevel: 'function'`, so deployed calls need a function key (`x-functions-key` header or `code` query parameter).
+{%- endif %}
 {%- elif cloud_service == 'GCP Cloud Function' -%}
 Paths are relative to the function URL (for example `https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}`, or `http://localhost:8080` locally). The deployed function is not public; see [Deploy](#deploy) for calling it.
 {%- else -%}
@@ -135,7 +139,7 @@ Stored records hold `id`, `name`, `isDeleted`, `createdTimestamp` and `updatedTi
 |---|---|---|
 {%- if cloud_service == 'Azure Function App' %}
 | `COSMOS_DB_URL` | yes | Cosmos DB account endpoint |
-| `COSMOS_DB_KEY` | yes | Cosmos DB account key |
+| `COSMOS_DB_KEY` | no | Cosmos DB account key; leave it unset to authenticate with Microsoft Entra ID (`DefaultAzureCredential`, which picks the managed identity named by `AZURE_CLIENT_ID`) |
 | `COSMOS_DB_DATABASE_NAME` | no | Database name (default `{{ project_endpoint }}s-sql-db`) |
 | `COSMOS_DB_EMULATOR` | no | `true` only for the local emulator (default `false`); see [Run locally against the emulator](#run-locally-against-the-emulator) |
 {%- elif cloud_service == 'GCP Cloud Function' %}
@@ -230,6 +234,9 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
     'sdk_note': 'Every AWS SDK reads the variable natively.',
 } -%}
 {% include 'shared/_README.emulator.md' %}
+{% if include_infrastructure -%}
+{% include 'shared/_README.infra.md' %}
+{% endif -%}
 ## Deploy
 
 {% if cloud_service == 'Azure Function App' -%}

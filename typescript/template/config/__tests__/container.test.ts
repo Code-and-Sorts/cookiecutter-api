@@ -1,4 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
+{%- if cloud_service == 'Azure Function App' %}
+import { DefaultAzureCredential } from '@azure/identity';
+{%- endif %}
 import {
 {%- for resource in resources %}
     {{ resource.name | to_lower_camel }}Controller,
@@ -49,6 +52,17 @@ describe('container', () => {
             const options = cosmosClientOptions(settings('https://account.documents.azure.com:443/', false));
 
             expect(options).toEqual({ endpoint: 'https://account.documents.azure.com:443/', key: 'key', connectionPolicy: cosmosConnectionPolicy });
+        });
+
+        it.each([undefined, ''])('should sign in with Microsoft Entra ID when the key is %p', (key) => {
+            const options = cosmosClientOptions({ ...settings('https://account.documents.azure.com:443/', false), COSMOS_DB_KEY: key });
+
+            expect(options).toEqual({
+                endpoint: 'https://account.documents.azure.com:443/',
+                aadCredentials: expect.any(DefaultAzureCredential),
+                connectionPolicy: cosmosConnectionPolicy,
+            });
+            expect(options).not.toHaveProperty('key');
         });
 
         it('should keep the configured endpoint for the emulator', () => {

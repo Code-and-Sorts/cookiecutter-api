@@ -269,3 +269,6 @@ __azurite_*.json
 __blobstorage__/
 __queuestorage__/
 __tablestorage__/
+{%- if include_infrastructure %}
+
+{% filter trim %}{% include 'shared/_gitignore.infra' %}{% endfilter %}{% endif %}

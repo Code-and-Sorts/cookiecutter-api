@@ -3,6 +3,7 @@ import { Container } from 'inversify';
 {% if cloud_service == 'Azure Function App' -%}
 import { Agent } from 'node:https';
 import { CosmosClient, CosmosClientOptions } from '@azure/cosmos';
+import { DefaultAzureCredential } from '@azure/identity';
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 import { Firestore } from '@google-cloud/firestore';
@@ -48,7 +49,12 @@ export const cosmosConnectionPolicy = {
 type CosmosSettings = Pick<typeof env, 'COSMOS_DB_URL' | 'COSMOS_DB_KEY' | 'COSMOS_DB_EMULATOR'>;
 
 export const cosmosClientOptions = (settings: CosmosSettings): CosmosClientOptions => {
-  const options = { endpoint: settings.COSMOS_DB_URL, key: settings.COSMOS_DB_KEY, connectionPolicy: cosmosConnectionPolicy };
+  const options: CosmosClientOptions = {
+    endpoint: settings.COSMOS_DB_URL,
+    // Deployed accounts disable keys; the managed identity named by AZURE_CLIENT_ID signs in instead.
+    ...(settings.COSMOS_DB_KEY ? { key: settings.COSMOS_DB_KEY } : { aadCredentials: new DefaultAzureCredential() }),
+    connectionPolicy: cosmosConnectionPolicy,
+  };
   if (!settings.COSMOS_DB_EMULATOR) {
     return options;
   }

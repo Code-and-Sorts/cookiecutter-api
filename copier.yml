@@ -257,3 +257,210 @@ body_resources:
     [{%- for r in path_resources if r.has_body -%}
     {{ r | tojson }}{{ "," if not loop.last }}
     {%- endfor -%}]
+
+include_infrastructure:
+  type: bool
+  default: false
+  # Only the Azure component exists so far; GCP and AWS follow with the same stacks.
+  when: "{{ cloud_service == 'Azure Function App' }}"
+  help: >-
+    Generate infra/ (Atmos stacks and Terraform for the API, its database and an API gateway)
+    and a GitHub Actions deploy workflow.
+  validator: >-
+    {%- set name = project_name.lower().replace(' ', '-').replace('_', '-') -%}
+    {%- if include_infrastructure and not (name | regex_search('^[a-z][a-z0-9\-]*\Z')) -%}
+    Cloud resource names start with '{{ name }}', which must start with a letter and hold only letters, digits and hyphens.
+    {%- endif -%}
+
+# Azure Functions checks function keys unless Entra ID (App Service authentication) fronts the app.
+function_auth_level:
+  type: str
+  when: false
+  default: "{{ 'anonymous' if include_infrastructure and cloud_service == 'Azure Function App' else 'function' }}"
+
+infra_region:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ {'Azure Function App': 'eastus', 'GCP Cloud Function': 'us-central1', 'AWS Lambda': 'us-east-1'}[cloud_service] }}"
+  help: Default region for every stack.
+  validator: >-
+    {%- if not (infra_region | regex_search('^[a-z][a-z0-9\-]*\Z')) -%}
+    Region '{{ infra_region }}' must be a lowercase region name such as eastus.
+    {%- endif -%}
+
+infra_compute_hosting:
+  type: str
+  when: "{{ include_infrastructure }}"
+  # Copier checks a skipped question's default against its choices too, so defaults are valid for every cloud.
+  default: flex_consumption
+  help: Default hosting for the API in every stack.
+  choices:
+    Azure Functions Flex Consumption: flex_consumption
+    Azure Functions on an App Service plan (dedicated): app_service
+    Azure Functions Premium (Elastic Premium): premium
+    Azure Functions on Azure Container Apps: container_app
+
+infra_compute_sku:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ {'flex_consumption': 'FC1', 'app_service': 'B1', 'premium': 'EP1', 'container_app': 'Consumption'}[infra_compute_hosting] }}"
+  help: >-
+    Default plan SKU for that hosting: FC1 (Flex Consumption), an App Service SKU such as B1, S1
+    or P1v3, EP1-EP3 (Premium), or a Container Apps workload profile (Consumption, D4, E4, ...).
+
+infra_database_capacity:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: serverless
+  help: Default database capacity mode in every stack.
+  choices:
+    Cosmos DB serverless: serverless
+    Cosmos DB provisioned throughput (shared by the database): provisioned
+    Cosmos DB autoscale throughput (shared by the database): autoscale
+
+infra_database_throughput:
+  type: int
+  when: "{{ include_infrastructure and infra_database_capacity != 'serverless' }}"
+  default: "{{ 1000 if infra_database_capacity == 'autoscale' else 400 }}"
+  help: RU/s for provisioned (at least 400), or the autoscale maximum (at least 1000, in steps of 1000).
+
+infra_gateway_sku:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: Developer
+  # Consumption, Basic, Standard and Basic v2 cannot reach a backend that only has a private endpoint.
+  help: Default API Management tier in every stack; each can reach the API privately.
+  choices:
+    API Management Developer (no SLA): Developer
+    API Management Standard v2: StandardV2
+    API Management Premium: Premium
+
+infra_gateway_capacity:
+  type: int
+  when: "{{ include_infrastructure }}"
+  default: 1
+  help: Default number of API Management units (Developer allows 1).
+
+infra_admin_email:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "admin@example.com"
+  help: Email for platform notifications (the API Management publisher email).
+  validator: >-
+    {%- if not (infra_admin_email | regex_search('^[^@\s]+@[^@\s]+\.[^@\s]+\Z')) -%}
+    '{{ infra_admin_email }}' is not an email address.
+    {%- endif -%}
+
+infra_environments:
+  type: yaml
+  multiline: true
+  when: "{{ include_infrastructure }}"
+  default: |
+    - name: dev
+    - name: prod
+  help: >-
+    Stacks to generate, one per environment. Each item: name (lowercase letters and digits, at
+    most 8, e.g. dev, qa, stg, prod) and optionally region, compute_hosting, compute_sku,
+    database_capacity, database_throughput, gateway_sku and gateway_capacity to override the
+    defaults above for that stack only.
+  validator: >-
+    {%- set keys = ["name", "region", "compute_hosting", "compute_sku", "database_capacity", "database_throughput", "gateway_sku", "gateway_capacity"] -%}
+    {%- set sku_defaults = {'flex_consumption': 'FC1', 'app_service': 'B1', 'premium': 'EP1', 'container_app': 'Consumption'} -%}
+    {%- set ns = namespace(err="", names=[]) -%}
+    {%- if infra_environments is string or infra_environments is mapping or (infra_environments | length) < 1 -%}
+    {%- set ns.err = "At least one environment is required, as a list of {name: ...} items." -%}
+    {%- endif -%}
+    {%- for raw in infra_environments if not ns.err -%}
+    {#- The same defaults as path_environments, which Copier has not computed yet. -#}
+    {%- set raw = raw if raw is mapping else {} -%}
+    {%- set hosting = raw.compute_hosting | default(infra_compute_hosting) -%}
+    {%- set capacity = raw.database_capacity | default(infra_database_capacity) -%}
+    {%- set gateway_sku = raw.gateway_sku | default(infra_gateway_sku) -%}
+    {%- set e = dict(
+    name=(raw.name | default('') | string),
+    region=(raw.region | default(infra_region) | string),
+    compute_hosting=hosting,
+    database_capacity=capacity,
+    database_throughput=(raw.database_throughput | default(infra_database_throughput if capacity == infra_database_capacity else (1000 if capacity == 'autoscale' else 400))),
+    gateway_sku=gateway_sku,
+    gateway_capacity=(raw.gateway_capacity | default(infra_gateway_capacity if gateway_sku == infra_gateway_sku else 1))) -%}
+    {%- set sku = raw.compute_sku | default(infra_compute_sku if hosting == infra_compute_hosting else sku_defaults.get(hosting, '')) | string -%}
+    {%- set where = "Environment '" ~ e.name ~ "'" -%}
+    {%- set unknown = raw.keys() | reject('in', keys) | list -%}
+    {%- if not raw -%}
+    {%- set ns.err = "Each environment must be a mapping such as {name: dev}." -%}
+    {%- elif unknown -%}
+    {%- set ns.err = where ~ " has unknown settings: " ~ (unknown | join(', ')) ~ ". Allowed: " ~ (keys | join(', ')) ~ "." -%}
+    {%- elif not (e.name | regex_search('^[a-z][a-z0-9]{0,7}\Z')) -%}
+    {%- set ns.err = "Environment name '" ~ e.name ~ "' must be lowercase letters and digits, start with a letter and be at most 8 characters." -%}
+    {%- elif e.name in ns.names -%}
+    {%- set ns.err = "Duplicate environment '" ~ e.name ~ "'." -%}
+    {%- elif not (e.region | regex_search('^[a-z][a-z0-9\-]*\Z')) -%}
+    {%- set ns.err = where ~ ": region '" ~ e.region ~ "' must be a lowercase region name." -%}
+    {%- elif e.compute_hosting not in ["flex_consumption", "app_service", "premium", "container_app"] -%}
+    {%- set ns.err = where ~ ": compute_hosting must be flex_consumption, app_service, premium or container_app." -%}
+    {%- elif e.compute_hosting == "flex_consumption" and sku != "FC1" -%}
+    {%- set ns.err = where ~ ": Flex Consumption only has the FC1 SKU." -%}
+    {%- elif e.compute_hosting == "app_service" and not (sku | regex_search('^(B[1-3]|S[1-3]|P[0-3]v3|P[1-5]mv3|P[0-5]v4|P[1-5]mv4)\Z')) -%}
+    {%- set ns.err = where ~ ": App Service SKU '" ~ sku ~ "' must be a Linux SKU such as B1, S1, P0v3 or P1v3." -%}
+    {%- elif e.compute_hosting == "premium" and sku not in ["EP1", "EP2", "EP3"] -%}
+    {%- set ns.err = where ~ ": Premium SKU must be EP1, EP2 or EP3." -%}
+    {%- elif e.compute_hosting == "container_app" and not (sku | regex_search('^(Consumption|D(4|8|16|32)|E(4|8|16|32)|NC(24|48|96)-A100)\Z')) -%}
+    {%- set ns.err = where ~ ": Container Apps workload profile '" ~ sku ~ "' must be Consumption or a type such as D4 or E4." -%}
+    {%- elif e.database_capacity not in ["serverless", "provisioned", "autoscale"] -%}
+    {%- set ns.err = where ~ ": database_capacity must be serverless, provisioned or autoscale." -%}
+    {%- elif e.database_capacity == "provisioned" and not (e.database_throughput is integer and e.database_throughput >= 400 and e.database_throughput % 100 == 0) -%}
+    {%- set ns.err = where ~ ": provisioned database_throughput must be at least 400 RU/s, in steps of 100." -%}
+    {%- elif e.database_capacity == "autoscale" and not (e.database_throughput is integer and e.database_throughput >= 1000 and e.database_throughput % 1000 == 0) -%}
+    {%- set ns.err = where ~ ": autoscale database_throughput must be at least 1000 RU/s, in steps of 1000." -%}
+    {%- elif e.gateway_sku not in ["Developer", "StandardV2", "Premium"] -%}
+    {%- set ns.err = where ~ ": gateway_sku must be Developer, StandardV2 or Premium." -%}
+    {%- elif not (e.gateway_capacity is integer and e.gateway_capacity >= 1 and e.gateway_capacity <= 31) -%}
+    {%- set ns.err = where ~ ": gateway_capacity must be a whole number from 1." -%}
+    {%- elif e.gateway_sku == "Developer" and e.gateway_capacity != 1 -%}
+    {%- set ns.err = where ~ ": the Developer tier has exactly 1 unit." -%}
+    {%- endif -%}
+    {%- set ns.names = ns.names + [e.name] -%}
+    {%- endfor -%}
+    {{ ns.err }}
+
+# Each environment with the defaults filled in; empty without infrastructure, so stack paths yield nothing.
+path_environments:
+  type: yaml
+  when: false
+  default: >-
+    [{%- if include_infrastructure and infra_environments is sequence and infra_environments is not string -%}
+    {%- set sku_defaults = {'flex_consumption': 'FC1', 'app_service': 'B1', 'premium': 'EP1', 'container_app': 'Consumption'} -%}
+    {%- for e in infra_environments if e is mapping -%}
+    {%- set hosting = e.compute_hosting | default(infra_compute_hosting) -%}
+    {%- set capacity = e.database_capacity | default(infra_database_capacity) -%}
+    {%- set gateway_sku = e.gateway_sku | default(infra_gateway_sku) -%}
+    {{ dict(
+    name=(e.name | default('') | string),
+    region=(e.region | default(infra_region) | string),
+    compute_hosting=hosting,
+    compute_sku=(e.compute_sku | default(infra_compute_sku if hosting == infra_compute_hosting else sku_defaults.get(hosting, ''))),
+    database_capacity=capacity,
+    database_throughput=(e.database_throughput | default(infra_database_throughput if capacity == infra_database_capacity else (1000 if capacity == 'autoscale' else 400))),
+    gateway_sku=gateway_sku,
+    gateway_capacity=(e.gateway_capacity | default(infra_gateway_capacity if gateway_sku == infra_gateway_sku else 1))) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}
+    {%- endif -%}]
+
+# Empty without infrastructure so Copier skips the infra/ paths.
+infra_dir:
+  type: str
+  when: false
+  default: "{{ 'infra' if include_infrastructure else '' }}"
+
+# The Terraform files differ per cloud; each cloud's copy renders only for that cloud.
+infra_azure_dir:
+  type: str
+  when: false
+  default: "{{ 'infra' if include_infrastructure and cloud_service == 'Azure Function App' else '' }}"
+
+# Container Apps hosting builds the API into a container image.
+infra_containers:
+  type: bool
+  when: false
+  default: "{{ path_environments | selectattr('compute_hosting', 'equalto', 'container_app') | list | length > 0 }}"

@@ -1,8 +1,12 @@
 import azure.functions as func
 from blueprints import BLUEPRINTS
 
+{% if function_auth_level == 'function' -%}
 # Resource functions require a function key{% if health_endpoint %}; the health check opts out{% endif %}.
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+{% else -%}
+# App Service authentication checks the Entra ID token before any function runs.
+{% endif -%}
+app = func.FunctionApp(http_auth_level=func.AuthLevel.{{ function_auth_level | upper }})
 
 for blueprint in BLUEPRINTS:
     app.register_functions(blueprint)

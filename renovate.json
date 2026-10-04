@@ -38,6 +38,24 @@
       "managerFilePatterns": ["/^shared/docker-compose\\.yml$/"],
       "matchStrings": ["image: (?<depName>[^:\\s]+):(?<currentValue>\\S+)"],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Atmos in the generated deploy workflow",
+      "managerFilePatterns": ["/^shared/\\.github/workflows/deploy\\.yml$/"],
+      "matchStrings": ["ATMOS_VERSION: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "cloudposse/atmos",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Terraform in the generated deploy workflow",
+      "managerFilePatterns": ["/^shared/\\.github/workflows/deploy\\.yml$/"],
+      "matchStrings": ["TERRAFORM_VERSION: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "hashicorp/terraform",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
     }
   ],
   "packageRules": [

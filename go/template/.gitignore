@@ -27,3 +27,6 @@ __tablestorage__/
 
 .env
 .env.local
+{%- if include_infrastructure %}
+
+{% filter trim %}{% include 'shared/_gitignore.infra' %}{% endfilter %}{% endif %}
