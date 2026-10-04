@@ -175,19 +175,17 @@ Answer `include_infrastructure` (Azure for now; GCP and AWS follow with the same
 - A storage account for the Functions host (virtual network only), a virtual network, Log Analytics and
   Application Insights.
 
-The defaults, used by every stack unless it overrides them, are asked once. Each cloud's choices are data in
+The defaults, used by every stack unless it overrides them, are asked once. Their choices and defaults
+depend on the cloud (see [Supported infrastructure](#supported-infrastructure)) and are data in
 `infra_clouds` in `copier.yml`, so GCP and AWS add their own without new questions:
 
-| Question | Azure choices | Default |
-| --- | --- | --- |
-| `infra_region` | any region | `eastus` |
-| `infra_compute_hosting` | `flex_consumption`, `app_service`, `premium`, `container_app` | `flex_consumption` |
-| `infra_compute_sku` | `FC1`; a Linux App Service SKU (`B1`, `P1v3`, ...); `EP1`-`EP3`; a Container Apps workload profile (`Consumption`, `D4`, ...) | follows the hosting (`FC1`) |
-| `infra_database_capacity` | `serverless`, `provisioned`, `autoscale` | `serverless` |
-| `infra_database_throughput` | RU/s (provisioned from 400, autoscale maximum from 1000) | 400 or 1000 |
-| `infra_gateway_sku` | `Developer`, `StandardV2`, `Premium` (the tiers that reach a private backend) | `Developer` |
-| `infra_gateway_capacity` | API Management units | `1` |
-| `infra_admin_email` | API Management publisher email | `admin@example.com` |
+| Question | Sets |
+| --- | --- |
+| `infra_region` | Region |
+| `infra_compute_hosting`, `infra_compute_sku` | Compute hosting and its plan SKU (the SKU follows the hosting unless set) |
+| `infra_database_capacity`, `infra_database_throughput` | Database capacity mode and, where the mode has one, its throughput |
+| `infra_gateway_sku`, `infra_gateway_capacity` | API gateway tier and units |
+| `infra_admin_email` | Contact email (on Azure, the API Management publisher email); default `admin@example.com` |
 
 `infra_environments` lists the stacks, one file each in `infra/stacks/deploy/`. Each item has a `name`
 and may override any default for that stack alone, so stacks can be identical or differ:
@@ -253,13 +251,38 @@ column with `cloud_service`.
     <td align="center"><span title="Complete">✅</span></td>
     <td align="center"><span title="Complete">✅</span></td>
   </tr>
-  <tr>
-    <td align="center" title="include_infrastructure: Atmos stacks and Terraform, every language">Infrastructure</td>
-    <td align="center"><span title="Complete">✅</span></td>
-    <td align="center"><span title="Planned">🚧</span></td>
-    <td align="center"><span title="Planned">🚧</span></td>
-  </tr>
 </table>
+
+### Supported infrastructure
+
+`include_infrastructure` works with every language. Each cloud deploys the same shape: a public API gateway with
+API keys, private compute, a private database and the network between them. A stack can pick any tier below;
+the defaults are what a stack gets unless it overrides them.
+
+#### <img src="./.docs/imgs/azure.svg" height="18"> Azure ✅
+
+| Infrastructure | Service | Supported tiers | Default |
+| --- | --- | --- | --- |
+| Compute | Azure Functions, Flex Consumption (`flex_consumption`) | `FC1` | `FC1`, the default hosting |
+| Compute | Azure Functions, App Service plan (`app_service`) | Linux `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`, `P1mv3`-`P5mv3`, `P0v4`-`P5v4`, `P1mv4`-`P5mv4` | `B1` |
+| Compute | Azure Functions, Premium (`premium`) | `EP1`-`EP3` | `EP1` |
+| Compute | Azure Functions on Azure Container Apps (`container_app`) | Workload profiles `Consumption`, `D4`-`D32`, `E4`-`E32`, `NC24-A100`-`NC96-A100` | `Consumption` |
+| Database | Cosmos DB for NoSQL | `serverless`; `provisioned` (from 400 RU/s, in steps of 100); `autoscale` (maximum from 1000 RU/s, in steps of 1000) | `serverless` |
+| API gateway | API Management | `Developer` (1 unit, no SLA), `StandardV2` (1-10 units), `Premium` (1-31 units) | `Developer` |
+| Network | Virtual network, private endpoints, private DNS | Any address space of `/22` or larger | `10.20.0.0/16` |
+| Identity | Entra ID application, user-assigned managed identities | | |
+| Monitoring | Log Analytics, Application Insights | | |
+
+API Management's Consumption, Basic, Standard and Basic v2 tiers are not offered: they cannot reach a backend
+that only has a private endpoint.
+
+#### <img src="./.docs/imgs/aws.svg" height="18"> AWS 🚧
+
+Planned: Lambda, DynamoDB and API Gateway with the same stacks.
+
+#### <img src="./.docs/imgs/google-cloud.svg" height="18"> GCP 🚧
+
+Planned: Cloud Run functions, Firestore and API Gateway with the same stacks.
 
 ---
 > [!NOTE]
