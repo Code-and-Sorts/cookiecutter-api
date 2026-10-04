@@ -70,7 +70,6 @@ func newStore[T any, P record[T]](resource string, container Container) *store[T
 {%- if need_get or need_write %}
 {%- if cloud_service == 'Azure Function App' %}
 
-// A write back sends the ETag it read as If-Match, so a write that races another fails (412, a 500) instead of losing it.
 type version = azcore.ETag
 {%- else %}
 

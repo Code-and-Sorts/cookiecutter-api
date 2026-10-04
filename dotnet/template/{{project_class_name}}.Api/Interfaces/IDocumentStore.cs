@@ -14,6 +14,5 @@ public interface IDocumentStore<T> where T : BaseEntity
 
     Task CreateAsync(T item, CancellationToken ct = default);
 
-    // One read feeds the write, so a store can refuse a write that races another; null when the item is missing.
     Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default);
 }

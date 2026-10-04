@@ -31,7 +31,6 @@ export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
     await this.container.items.create<T>(item);
   };
 
-  // A write that races another fails its If-Match (412) and becomes a 500 instead of losing that write.
   write = (item: T, read: T): Promise<boolean> =>
     this.ifFound(
       this.container.item(item.id, item.id).replace<T>(item, { accessCondition: { type: 'IfMatch', condition: (read as T & Resource)._etag } }),

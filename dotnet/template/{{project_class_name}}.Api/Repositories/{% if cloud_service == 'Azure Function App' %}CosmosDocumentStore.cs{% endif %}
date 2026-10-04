@@ -31,7 +31,6 @@ public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> whe
     public Task CreateAsync(T item, CancellationToken ct = default) =>
         container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
 
-    // A write that races another fails its If-Match (412) and becomes a 500 instead of losing that write.
     public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
     {
         if (await ReadAsync(id, ct) is not { } read)
