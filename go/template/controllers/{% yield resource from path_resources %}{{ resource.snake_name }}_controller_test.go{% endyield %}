@@ -32,6 +32,25 @@ const test{{ r }}ID = "0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c"
 
 const invalid{{ r }}ID = "not-a-uuid"
 {%- endif %}
+{%- if uses_body %}
+
+var rejected{{ r }}Fields = map[string]string{
+	"id":               `"` + test{{ r }}ID + `"`,
+	"isDeleted":        `false`,
+	"createdTimestamp": `"2026-01-01T00:00:00.000Z"`,
+	"updatedTimestamp": `"2026-01-01T00:00:00.000Z"`,
+	"createdBy":        `"someone"`,
+	"updatedBy":        `"someone"`,
+	"color":            `"red"`,
+}
+
+func with{{ r }}RejectedFields(bodies map[string]string) map[string]string {
+	for field, value := range rejected{{ r }}Fields {
+		bodies[field] = `{"name": "a", "` + field + `": ` + value + `}`
+	}
+	return bodies
+}
+{%- endif %}
 
 type Mock{{ r }}Service struct {
 	mock.Mock
@@ -209,16 +228,13 @@ func TestCreate{{ r }}_ReturnsCreated{{ r }}Dto(t *testing.T) {
 }
 
 func TestCreate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
-	bodies := map[string]string{
+	bodies := with{{ r }}RejectedFields(map[string]string{
 		"empty name":     `{"name": ""}`,
 		"missing name":   `{}`,
 		"number name":    `{"name": 5}`,
 		"malformed JSON": `invalid json`,
 		"array body":     `[]`,
-		"unknown field":  `{"name": "a", "color": "red"}`,
-		"client id":      `{"name": "a", "id": "` + test{{ r }}ID + `"}`,
-		"system field":   `{"name": "a", "createdBy": "someone"}`,
-	}
+	})
 
 	for name, body := range bodies {
 		t.Run(name, func(t *testing.T) {
@@ -274,14 +290,12 @@ func TestUpdate{{ r }}_AllowsBodyWithoutName(t *testing.T) {
 }
 
 func TestUpdate{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
-	bodies := map[string]string{
-		"empty name":    `{"name": ""}`,
-		"boolean name":  `{"name": true}`,
-		"null body":     `null`,
-		"unknown field": `{"color": "red"}`,
-		"client id":     `{"id": "` + test{{ r }}ID + `"}`,
-		"system field":  `{"updatedTimestamp": "2026-01-01T00:00:00.000Z"}`,
-	}
+	bodies := with{{ r }}RejectedFields(map[string]string{
+		"empty name":         `{"name": ""}`,
+		"boolean name":       `{"name": true}`,
+		"null body":          `null`,
+		"only unknown field": `{"color": "red"}`,
+	})
 
 	for name, body := range bodies {
 		t.Run(name, func(t *testing.T) {
@@ -323,11 +337,10 @@ func TestReplace{{ r }}_ReturnsReplaced{{ r }}Dto(t *testing.T) {
 }
 
 func TestReplace{{ r }}_ReturnsValidationError_ForInvalidBodies(t *testing.T) {
-	bodies := map[string]string{
-		"empty name":    `{"name": ""}`,
-		"missing name":  `{}`,
-		"unknown field": `{"name": "a", "isDeleted": false}`,
-	}
+	bodies := with{{ r }}RejectedFields(map[string]string{
+		"empty name":   `{"name": ""}`,
+		"missing name": `{}`,
+	})
 
 	for name, body := range bodies {
 		t.Run(name, func(t *testing.T) {
