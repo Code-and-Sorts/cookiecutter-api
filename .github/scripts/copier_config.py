@@ -6,7 +6,9 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "pyyaml"], check=True)
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", "pyyaml"], check=True
+    )
     import yaml
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -25,5 +27,4 @@ def runtime_versions(cloud: str) -> dict:
 
 def write(variable: str, values: dict) -> None:
     with open(os.environ[variable], "a", encoding="utf-8") as file:
-        for name, value in values.items():
-            file.write(f"{name}={value}\n")
+        file.writelines(f"{name}={value}\n" for name, value in values.items())

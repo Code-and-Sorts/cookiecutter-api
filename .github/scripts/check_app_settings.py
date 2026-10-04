@@ -8,10 +8,19 @@ SKIPPED = {"infra", ".github", "node_modules", ".git"}
 
 def app_settings(project: Path) -> dict:
     infra = project / "infra"
-    stack = subprocess.run(["atmos", "list", "stacks"], cwd=infra, check=True, capture_output=True, text=True).stdout.split()[0]
+    stack = subprocess.run(
+        ["atmos", "list", "stacks"],
+        cwd=infra,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split()[0]
     component = subprocess.run(
         ["atmos", "describe", "component", "api", "-s", stack, "--format", "json"],
-        cwd=infra, check=True, capture_output=True, text=True,
+        cwd=infra,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     return json.loads(component)["vars"]["compute"]["app_settings"]
 
@@ -20,7 +29,9 @@ def source_text(project: Path) -> str:
     return "\n".join(
         path.read_text(errors="ignore")
         for path in project.rglob("*")
-        if path.is_file() and not SKIPPED & set(path.relative_to(project).parts) and path.suffix != ".md"
+        if path.is_file()
+        and not SKIPPED & set(path.relative_to(project).parts)
+        and path.suffix != ".md"
     )
 
 
@@ -38,7 +49,10 @@ def main() -> None:
     settings = app_settings(project)
     text = source_text(project)
     if language == "python":
-        text, settings = text.lower(), {name.lower(): value for name, value in settings.items()}
+        text, settings = (
+            text.lower(),
+            {name.lower(): value for name, value in settings.items()},
+        )
     missing = [name for name in settings if not is_read(name, text)]
     if missing:
         sys.exit(f"App settings the code never reads: {', '.join(missing)}")

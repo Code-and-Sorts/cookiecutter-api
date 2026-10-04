@@ -13,11 +13,16 @@ def data_file(fixture: str, cloud: str, infrastructure: bool) -> list[str]:
     if fixture != "single":
         paths.append(FIXTURES / f"{fixture}-resources.yml")
     if infrastructure:
-        paths.append(FIXTURES / f"{default('infra_clouds')[cloud]['slug']}-infra-environments.yml")
+        paths.append(
+            FIXTURES
+            / f"{default('infra_clouds')[cloud]['slug']}-infra-environments.yml"
+        )
     if not paths:
         return []
     merged = Path(tempfile.mkdtemp()) / "copier-data.yml"
-    merged.write_text("".join(path.read_text(encoding="utf-8") for path in paths), encoding="utf-8")
+    merged.write_text(
+        "".join(path.read_text(encoding="utf-8") for path in paths), encoding="utf-8"
+    )
     return ["--data-file", str(merged)]
 
 
