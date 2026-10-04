@@ -1,7 +1,18 @@
 import re
 from datetime import datetime, timezone
 from unittest.mock import patch
-from .base import generate_utc_timestamp
+from .base import BaseResponse, generate_utc_timestamp
+from conftest import ITEM_ID
+
+_CREATED = "2024-08-10T20:41:30.123Z"
+_UPDATED = "2026-01-01T00:00:00.000Z"
+_stored = {
+    "id": ITEM_ID,
+    "name": "mockName",
+    "isDeleted": False,
+    "createdTimestamp": _CREATED,
+    "updatedTimestamp": _UPDATED,
+}
 
 
 def describe_generate_utc_timestamp():
@@ -13,3 +24,32 @@ def describe_generate_utc_timestamp():
         with patch("models.base.datetime") as mock_datetime:
             mock_datetime.now.return_value = fixed
             assert generate_utc_timestamp() == "2026-09-29T22:49:26.625Z"
+
+
+def describe_base_response():
+    def test_returns_stored_fields_in_order_with_users():
+        stored = {**_stored, "updatedBy": "editor", "createdBy": "creator"}
+
+        assert list(BaseResponse.model_validate(stored).model_dump().items()) == [
+            ("id", ITEM_ID),
+            ("name", "mockName"),
+            ("createdTimestamp", _CREATED),
+            ("createdBy", "creator"),
+            ("updatedTimestamp", _UPDATED),
+            ("updatedBy", "editor"),
+        ]
+
+    def test_omits_unset_users():
+        assert BaseResponse.model_validate(_stored).model_dump() == {
+            "id": ITEM_ID,
+            "name": "mockName",
+            "createdTimestamp": _CREATED,
+            "updatedTimestamp": _UPDATED,
+        }
+
+    def test_drops_is_deleted_and_database_metadata():
+        stored = {**_stored, "_etag": "etag-1", "_rid": "rid", "_ts": 1, "extra": "kept in storage"}
+
+        assert set(BaseResponse.model_validate(stored).model_dump()) == {
+            "id", "name", "createdTimestamp", "updatedTimestamp",
+        }

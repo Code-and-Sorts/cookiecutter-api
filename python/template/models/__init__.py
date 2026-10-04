@@ -1,4 +1,4 @@
-from .base import generate_utc_timestamp
+from .base import BaseResponse, generate_utc_timestamp
 {%- for resource in resources %}
 from .{{ resource.name | to_snake }} import (
     Base{{ resource.name }},
@@ -8,6 +8,7 @@ from .{{ resource.name | to_snake }} import (
 {%- endfor %}
 
 __all__ = [
+    "BaseResponse",
     "generate_utc_timestamp",
 {%- for resource in resources %}
     "Base{{ resource.name }}",

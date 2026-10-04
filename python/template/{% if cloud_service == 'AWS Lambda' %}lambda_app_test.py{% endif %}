@@ -12,10 +12,10 @@ from blueprints import database
 from controllers import ({% for resource in resources %}{{ resource.name }}Controller{% if not loop.last %}, {% endif %}{% endfor %})
 from repositories import ({% for resource in resources %}{{ resource.name }}Repository{% if not loop.last %}, {% endif %}{% endfor %})
 from utils.user_id import MAX_USER_ID_LENGTH, USER_ID_TOO_LONG_MESSAGE
-from conftest import ITEM_ID
+from conftest import ITEM_ID, TIMESTAMPS
 
 _BODY = '{"name": "mockName"}'
-_ITEM = {"id": ITEM_ID, "name": "mockName"}
+_ITEM = {"id": ITEM_ID, "name": "mockName", **TIMESTAMPS, "createdBy": "user-1", "updatedBy": "user-1"}
 _USER_ID = "user-1"
 _USER_HEADERS = {"X-User-Id": f"  {_USER_ID}  "}
 _TOO_LONG_HEADERS = {"X-User-Id": "u" * (MAX_USER_ID_LENGTH + 1)}
