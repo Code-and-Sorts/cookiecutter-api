@@ -41,18 +41,18 @@
     },
     {
       "customType": "regex",
-      "description": "Atmos in the generated deploy workflow",
-      "managerFilePatterns": ["/^shared/\\.github/workflows/deploy\\.yml$/"],
-      "matchStrings": ["ATMOS_VERSION: \"(?<currentValue>[^\"]+)\""],
+      "description": "Atmos for the generated deploy workflow and the infrastructure CI",
+      "managerFilePatterns": ["/^copier\\.yml$/"],
+      "matchStrings": ["\\n    atmos: \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "cloudposse/atmos",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"
     },
     {
       "customType": "regex",
-      "description": "Terraform in the generated deploy workflow",
-      "managerFilePatterns": ["/^shared/\\.github/workflows/deploy\\.yml$/"],
-      "matchStrings": ["TERRAFORM_VERSION: \"(?<currentValue>[^\"]+)\""],
+      "description": "Terraform for the generated deploy workflow and the infrastructure CI",
+      "managerFilePatterns": ["/^copier\\.yml$/"],
+      "matchStrings": ["\\n    terraform: \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "hashicorp/terraform",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"

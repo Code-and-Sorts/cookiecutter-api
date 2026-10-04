@@ -21,11 +21,6 @@ on:
 permissions:
   contents: read
 
-env:
-  TERRAFORM_VERSION: "1.16.5"
-  ATMOS_VERSION: "1.230.1"
-  ATMOS_TELEMETRY_ENABLED: "false"
-
 jobs:
   validate-infra:
     runs-on: ubuntu-latest
@@ -53,6 +48,17 @@ jobs:
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
           include-infrastructure: "true"
+
+      - name: Read the infrastructure tool versions
+        run: |
+          python - >> "$GITHUB_ENV" <<'PY'
+          import yaml
+
+          tools = yaml.safe_load(open("copier.yml"))["infra_tools"]["default"]
+          print(f"TERRAFORM_VERSION={tools['terraform']}")
+          print(f"ATMOS_VERSION={tools['atmos']}")
+          PY
+        shell: bash
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3

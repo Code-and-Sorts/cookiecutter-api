@@ -56,11 +56,10 @@ permissions:
   contents: read
 
 env:
-  ATMOS_VERSION: "1.230.1"
-  TERRAFORM_VERSION: "1.16.5"
+  ATMOS_VERSION: "{{ infra_tools.atmos }}"
+  TERRAFORM_VERSION: "{{ infra_tools.terraform }}"
   ATMOS_CLI_CONFIG_PATH: infra
   ATMOS_BASE_PATH: infra
-  ATMOS_TELEMETRY_ENABLED: "false"
 {%- if azure %}
   ARM_USE_OIDC: "true"
   ARM_USE_AZUREAD: "true"

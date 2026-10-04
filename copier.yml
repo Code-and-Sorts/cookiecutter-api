@@ -307,6 +307,13 @@ infra_clouds:
           Premium:
             max_capacity: 31
 
+infra_tools:
+  type: yaml
+  when: false
+  default:
+    terraform: "1.16.5"
+    atmos: "1.230.1"
+
 infra_cloud:
   type: yaml
   when: false

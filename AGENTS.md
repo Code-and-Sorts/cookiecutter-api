@@ -417,7 +417,8 @@ updates `pyproject.toml` and the matching `uv.lock` together. Runtime versions
 (Node, Python, .NET, Go) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all support
 the new version GA, in `.github/actions/setup-runtime`. Its `terraform` manager bumps the provider pins in
 `shared/infra/components/terraform/api/*/versions.tf`, and regex managers the Atmos and Terraform versions in
-`shared/.github/workflows/deploy.yml`.
+`infra_tools` in `copier.yml`, the one place both the generated deploy workflow and `validate-infra.yaml` read them
+from. Atmos telemetry is off in `shared/infra/atmos.yaml`.
 
 ## Code Conventions
 

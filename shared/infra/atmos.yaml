@@ -14,6 +14,10 @@ stacks:
     - "deploy/**/*"
   name_pattern: "{stage}"
 
+settings:
+  telemetry:
+    enabled: false
+
 logs:
   file: "/dev/stderr"
   level: Info
