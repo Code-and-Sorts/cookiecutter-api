@@ -1,7 +1,7 @@
 locals {
   setting_values = {
     database_endpoint = azurerm_cosmosdb_account.this.endpoint
-    database_name     = azurerm_cosmosdb_sql_database.this.name
+    database_name     = azurerm_cosmosdb_sql_database.this[var.name].name
   }
 
   storage_identity_settings = local.storage_key_access ? {} : {
@@ -16,7 +16,7 @@ locals {
     { AZURE_CLIENT_ID = azurerm_user_assigned_identity.api.client_id },
   )
 
-  app_name     = local.functions_hosting ? "func-${local.short}-${local.suffix}" : "ca-${local.short}"
+  app_name     = local.functions_hosting ? local.names.site_function_app.name_unique : local.names.container_app.name
   scm_action   = var.compute.public_deployments ? "Allow" : "Deny"
   runtime_name = var.compute.runtime.name
 
@@ -35,7 +35,7 @@ locals {
 resource "azurerm_service_plan" "this" {
   count = local.functions_hosting ? 1 : 0
 
-  name                         = "asp-${local.prefix}"
+  name                         = local.names.server_farm.name
   resource_group_name          = azurerm_resource_group.this.name
   location                     = azurerm_resource_group.this.location
   os_type                      = "Linux"
@@ -181,7 +181,7 @@ resource "azurerm_linux_function_app" "this" {
 resource "azurerm_private_endpoint" "app" {
   count = local.functions_hosting ? 1 : 0
 
-  name                = "pe-${local.prefix}-app"
+  name                = local.role_names.app.private_endpoint.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   subnet_id           = azurerm_subnet.endpoints.id
@@ -203,7 +203,7 @@ resource "azurerm_private_endpoint" "app" {
 resource "azurerm_container_registry" "this" {
   count = local.functions_hosting ? 0 : 1
 
-  name                = "cr${local.compact}"
+  name                = local.names.registry.name_unique
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   sku                 = "Basic"
@@ -223,7 +223,7 @@ resource "azurerm_role_assignment" "api_registry" {
 resource "azurerm_container_app_environment" "this" {
   count = local.functions_hosting ? 0 : 1
 
-  name                           = "cae-${local.prefix}"
+  name                           = local.names.managed_environment.name
   resource_group_name            = azurerm_resource_group.this.name
   location                       = azurerm_resource_group.this.location
   log_analytics_workspace_id     = azurerm_log_analytics_workspace.this.id
@@ -356,7 +356,7 @@ resource "azurerm_private_dns_zone" "container_apps" {
 resource "azurerm_private_dns_zone_virtual_network_link" "container_apps" {
   count = local.functions_hosting ? 0 : 1
 
-  name                = "link-${local.prefix}"
+  name                = local.names.private_dns_zone_virtual_network_link.name
   private_dns_zone_id = azurerm_private_dns_zone.container_apps[0].id
   virtual_network_id  = azurerm_virtual_network.this.id
   tags                = local.tags

@@ -86,8 +86,12 @@ variable "database" {
     containers  = list(string)
     free_tier   = optional(bool, false)
     delete_lock = optional(bool, false)
+    databases = optional(map(object({
+      throughput = optional(number)
+      containers = optional(list(string), [])
+    })), {})
   })
-  description = "Cosmos DB capacity (serverless, provisioned or autoscale), shared database throughput and one container per id."
+  description = "Cosmos DB capacity (serverless, provisioned or autoscale), the API's database throughput and containers, and further databases in the same account, each with its own throughput (default throughput) and containers."
 
   validation {
     condition     = contains(["serverless", "provisioned", "autoscale"], var.database.capacity)
@@ -95,12 +99,18 @@ variable "database" {
   }
 
   validation {
-    condition = (
+    condition = alltrue([
+      for throughput in concat([var.database.throughput], [for database in values(var.database.databases) : coalesce(database.throughput, var.database.throughput)]) :
       var.database.capacity == "serverless" ||
-      (var.database.capacity == "provisioned" && var.database.throughput >= 400 && var.database.throughput % 100 == 0) ||
-      (var.database.capacity == "autoscale" && var.database.throughput >= 1000 && var.database.throughput % 1000 == 0)
-    )
-    error_message = "database.throughput must be at least 400 RU/s in steps of 100 (provisioned) or 1000 in steps of 1000 (autoscale)."
+      (var.database.capacity == "provisioned" && throughput >= 400 && throughput % 100 == 0) ||
+      (var.database.capacity == "autoscale" && throughput >= 1000 && throughput % 1000 == 0)
+    ])
+    error_message = "Every database's throughput must be at least 400 RU/s in steps of 100 (provisioned) or 1000 in steps of 1000 (autoscale)."
+  }
+
+  validation {
+    condition     = !contains(keys(var.database.databases), var.name)
+    error_message = "database.databases cannot name the API's own database, which is named after var.name."
   }
 }
 

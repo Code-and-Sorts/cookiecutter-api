@@ -3,7 +3,7 @@ locals {
 }
 
 resource "azurerm_storage_account" "this" {
-  name                            = "st${local.compact}"
+  name                            = local.names.storage_account.name_unique
   resource_group_name             = azurerm_resource_group.this.name
   location                        = azurerm_resource_group.this.location
   account_tier                    = "Standard"

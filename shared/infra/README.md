@@ -19,7 +19,7 @@ infra/
 
 Run Atmos from `infra/`. The `api` component takes the same variables on every cloud: `name`, `stage`, `region`,
 `owner`, `network`, `compute` (`hosting`, `sku`, `runtime`, scaling, `app_settings`), `database` (`capacity`,
-`throughput`, `containers`, `delete_lock`) and `gateway` (`sku`, `capacity`, `routes`, `health_endpoint`). Only their
+`throughput`, `containers`, `databases`, `delete_lock`) and `gateway` (`sku`, `capacity`, `routes`, `health_endpoint`). Only their
 values differ per cloud.
 
 ## Stacks
@@ -32,6 +32,23 @@ values differ per cloud.
 
 Change a stack's tiers in `stacks/deploy/<stage>.yaml`, or add a stack by copying one. `database.delete_lock`
 also stops deletes from outside Terraform, such as the portal, and is on by default for a stack named `prod`.
+
+`database.databases` adds databases beside the API's own, which is named after the project and holds
+`database.containers`. Each has its own `containers` and `throughput` (default `database.throughput`) and shares the
+stack's capacity; the API only reads its own database. In `stacks/deploy/<stage>.yaml`, or in `stacks/catalog/api.yaml`
+for every stack:
+
+```yaml
+components:
+  terraform:
+    api:
+      vars:
+        database:
+          databases:
+            reporting:
+              throughput: 1000
+              containers: ["events"]
+```
 
 `.github/workflows/deploy.yml` plans `{{ stacks[0] }}` on pull requests, and on `main` deploys
 {% for s in stacks %}`{{ s }}`{{ ' then ' if not loop.last }}{% endfor %}: it applies the stack, publishes the code (or builds and

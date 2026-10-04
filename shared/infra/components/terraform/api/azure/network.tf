@@ -18,7 +18,7 @@ locals {
 }
 
 resource "azurerm_virtual_network" "this" {
-  name                = "vnet-${local.prefix}"
+  name                = local.names.virtual_network.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   address_space       = [var.network.address_space]
@@ -26,7 +26,7 @@ resource "azurerm_virtual_network" "this" {
 }
 
 resource "azurerm_subnet" "app" {
-  name                 = "snet-app"
+  name                 = local.role_names.app.virtual_network_subnet.name
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [local.subnets.app]
@@ -45,7 +45,7 @@ resource "azurerm_subnet" "app" {
 }
 
 resource "azurerm_subnet" "gateway" {
-  name                 = "snet-gateway"
+  name                 = local.role_names.gateway.virtual_network_subnet.name
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [local.subnets.gateway]
@@ -63,14 +63,14 @@ resource "azurerm_subnet" "gateway" {
 }
 
 resource "azurerm_subnet" "endpoints" {
-  name                 = "snet-endpoints"
+  name                 = local.role_names.endpoints.virtual_network_subnet.name
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [local.subnets.endpoints]
 }
 
 resource "azurerm_network_security_group" "gateway" {
-  name                = "nsg-${local.prefix}-gateway"
+  name                = local.role_names.gateway.network_security_group.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   tags                = local.tags
@@ -118,7 +118,7 @@ resource "azurerm_subnet_network_security_group_association" "gateway" {
 }
 
 resource "azurerm_network_security_group" "default" {
-  name                = "nsg-${local.prefix}"
+  name                = local.names.network_security_group.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   tags                = local.tags
@@ -148,7 +148,7 @@ resource "azurerm_private_dns_zone" "this" {
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   for_each = azurerm_private_dns_zone.this
 
-  name                = "link-${local.prefix}"
+  name                = local.names.private_dns_zone_virtual_network_link.name
   private_dns_zone_id = each.value.id
   virtual_network_id  = azurerm_virtual_network.this.id
   tags                = local.tags

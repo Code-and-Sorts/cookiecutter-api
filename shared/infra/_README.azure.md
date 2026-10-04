@@ -20,6 +20,9 @@ client ──x-api-key──▶ API Management ──Entra ID token──▶ API
 - **Storage** for the Functions host admits only the API's subnet; the host uses its managed identity (Premium
   keeps the account key, because its Azure Files content share needs it).
 - Log Analytics and Application Insights collect the API's and API Management's telemetry.
+- Resource names come from the [Azure Verified Modules naming utility](https://github.com/Azure/terraform-azure-avm-utl-naming):
+  the Cloud Adoption Framework abbreviation, the project and the stage (`rg-{{ project_endpoint }}-<stage>`), plus
+  four characters derived from the subscription for names that must be globally unique.
 
 ### Tiers
 

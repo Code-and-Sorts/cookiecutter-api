@@ -40,7 +40,7 @@ locals {
 }
 
 resource "azurerm_api_management" "this" {
-  name                 = "apim-${local.short}-${local.suffix}"
+  name                 = local.names.api_management_service.name_unique
   resource_group_name  = azurerm_resource_group.this.name
   location             = azurerm_resource_group.this.location
   publisher_name       = var.owner.name

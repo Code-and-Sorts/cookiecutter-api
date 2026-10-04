@@ -1,5 +1,5 @@
 resource "azurerm_cosmosdb_account" "this" {
-  name                               = "cosmos-${local.short}-${local.suffix}"
+  name                               = local.names.database_account_cosmos_db_for_no_sql_account.name_unique
   resource_group_name                = azurerm_resource_group.this.name
   location                           = azurerm_resource_group.this.location
   offer_type                         = "Standard"
@@ -32,14 +32,31 @@ resource "azurerm_cosmosdb_account" "this" {
   }
 }
 
+locals {
+  databases = merge(
+    { for name, database in var.database.databases : name => {
+      throughput = coalesce(database.throughput, var.database.throughput)
+      containers = database.containers
+    } },
+    { (var.name) = { throughput = var.database.throughput, containers = var.database.containers } },
+  )
+  containers = merge([
+    for database, settings in local.databases : {
+      for container in settings.containers : "${database}/${container}" => { database = database, name = container }
+    }
+  ]...)
+}
+
 resource "azurerm_cosmosdb_sql_database" "this" {
-  name                = var.name
+  for_each = local.databases
+
+  name                = each.key
   resource_group_name = azurerm_resource_group.this.name
   account_name        = azurerm_cosmosdb_account.this.name
-  throughput          = var.database.capacity == "provisioned" ? var.database.throughput : null
+  throughput          = var.database.capacity == "provisioned" ? each.value.throughput : null
 
   dynamic "autoscale_settings" {
-    for_each = var.database.capacity == "autoscale" ? [var.database.throughput] : []
+    for_each = var.database.capacity == "autoscale" ? [each.value.throughput] : []
     content {
       max_throughput = autoscale_settings.value
     }
@@ -51,12 +68,12 @@ resource "azurerm_cosmosdb_sql_database" "this" {
 }
 
 resource "azurerm_cosmosdb_sql_container" "this" {
-  for_each = toset(var.database.containers)
+  for_each = local.containers
 
-  name                  = each.value
+  name                  = each.value.name
   resource_group_name   = azurerm_resource_group.this.name
   account_name          = azurerm_cosmosdb_account.this.name
-  database_name         = azurerm_cosmosdb_sql_database.this.name
+  database_name         = azurerm_cosmosdb_sql_database.this[each.value.database].name
   partition_key_paths   = ["/id"]
   partition_key_version = 2
 
@@ -68,7 +85,7 @@ resource "azurerm_cosmosdb_sql_container" "this" {
 resource "azurerm_management_lock" "database" {
   count = var.database.delete_lock ? 1 : 0
 
-  name       = "cosmos-delete-lock"
+  name       = local.role_names.cosmos.lock.name
   scope      = azurerm_cosmosdb_account.this.id
   lock_level = "CanNotDelete"
   notes      = "Holds the API's data; set database.delete_lock to false to remove."
@@ -83,7 +100,7 @@ resource "azurerm_cosmosdb_sql_role_assignment" "api" {
 }
 
 resource "azurerm_private_endpoint" "database" {
-  name                = "pe-${local.prefix}-cosmos"
+  name                = local.role_names.cosmos.private_endpoint.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   subnet_id           = azurerm_subnet.endpoints.id

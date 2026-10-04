@@ -1,14 +1,14 @@
 data "azuread_client_config" "current" {}
 
 resource "azurerm_user_assigned_identity" "api" {
-  name                = "id-${local.prefix}-api"
+  name                = local.role_names.app.user_assigned_identity.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   tags                = local.tags
 }
 
 resource "azurerm_user_assigned_identity" "gateway" {
-  name                = "id-${local.prefix}-gateway"
+  name                = local.role_names.gateway.user_assigned_identity.name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   tags                = local.tags

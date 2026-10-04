@@ -146,13 +146,13 @@ run "database_is_private_and_keyless" {
   }
 
   assert {
-    condition     = length(azurerm_cosmosdb_sql_database.this.autoscale_settings) == 0
-    error_message = "A serverless database has no autoscale throughput."
+    condition     = keys(azurerm_cosmosdb_sql_database.this) == [var.name] && length(azurerm_cosmosdb_sql_database.this[var.name].autoscale_settings) == 0
+    error_message = "The API's database is named after the project and has no autoscale throughput when serverless."
   }
 
   assert {
-    condition     = toset(keys(azurerm_cosmosdb_sql_container.this)) == toset(["animals", "zoo-records"])
-    error_message = "One container per container id."
+    condition     = toset([for c in azurerm_cosmosdb_sql_container.this : c.name]) == toset(["animals", "zoo-records"]) && alltrue([for c in azurerm_cosmosdb_sql_container.this : c.database_name == var.name])
+    error_message = "One container per container id, in the API's database."
   }
 
   assert {
@@ -189,7 +189,7 @@ run "provisioned_database" {
   }
 
   assert {
-    condition     = azurerm_cosmosdb_sql_database.this.throughput == 800
+    condition     = azurerm_cosmosdb_sql_database.this[var.name].throughput == 800
     error_message = "Provisioned throughput is shared by the database."
   }
 
@@ -211,9 +211,74 @@ run "autoscale_database" {
   }
 
   assert {
-    condition     = azurerm_cosmosdb_sql_database.this.autoscale_settings[0].max_throughput == 4000
+    condition     = azurerm_cosmosdb_sql_database.this[var.name].autoscale_settings[0].max_throughput == 4000
     error_message = "Autoscale sets the maximum throughput."
   }
+}
+
+run "additional_databases" {
+  command = plan
+
+  variables {
+    database = {
+      capacity   = "provisioned"
+      throughput = 400
+      containers = ["animals"]
+      databases = {
+        reporting = { throughput = 1000, containers = ["events", "animals"] }
+        archive   = {}
+      }
+    }
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_cosmosdb_sql_database.this)) == toset([var.name, "reporting", "archive"])
+    error_message = "Every database in database.databases is created beside the API's."
+  }
+
+  assert {
+    condition     = azurerm_cosmosdb_sql_database.this["reporting"].throughput == 1000 && azurerm_cosmosdb_sql_database.this["archive"].throughput == 400
+    error_message = "A database's throughput defaults to database.throughput."
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_cosmosdb_sql_container.this)) == toset(["${var.name}/animals", "reporting/events", "reporting/animals"])
+    error_message = "Containers belong to their database, so two databases can hold the same container id."
+  }
+
+  assert {
+    condition     = azurerm_cosmosdb_sql_container.this["reporting/events"].database_name == "reporting"
+    error_message = "A container is created in its own database."
+  }
+}
+
+run "rejects_a_database_named_like_the_api" {
+  command = plan
+
+  variables {
+    database = {
+      capacity   = "serverless"
+      containers = ["animals"]
+      databases  = { "kitten-claws" = {} }
+    }
+  }
+
+  expect_failures = [var.database]
+}
+
+run "rejects_too_little_throughput_in_another_database" {
+  command = plan
+
+  variables {
+    database = {
+      capacity   = "provisioned"
+      throughput = 400
+      containers = ["animals"]
+      databases  = { reporting = { throughput = 450 } }
+    }
+  }
+
+  expect_failures = [var.database]
 }
 
 run "premium_hosting" {
