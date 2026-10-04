@@ -1,7 +1,11 @@
 {%- set r = resource.name -%}
 {%- set ops = resource.operations -%}
+{%- set writes_back = ops | select('in', ['update', 'replace', 'delete']) | list -%}
 namespace {{project_class_name}}.Api.Tests.Unit;
-{% if "list" in ops %}
+{% if writes_back %}
+using System;
+{%- endif %}
+{%- if "list" in ops %}
 using System.Collections.Generic;
 using System.Linq;
 {%- endif %}
@@ -33,6 +37,18 @@ public class {{ r }}RepositoryTests
         UpdatedTimestamp = StoredTimestamp,
         CreatedBy = "User2",
     };
+{%- if writes_back %}
+
+    private {{ r }}Entity StoreHolds({{ r }}Entity stored)
+    {
+        _mockStore.UpdateAsync(ItemId, Arg.Any<Action<{{ r }}Entity>>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            call.Arg<Action<{{ r }}Entity>>()(stored);
+            return stored;
+        });
+        return stored;
+    }
+{%- endif %}
 {%- if "get_by_id" in ops %}
 
     [Fact]
@@ -74,20 +90,18 @@ public class {{ r }}RepositoryTests
     [Fact]
     public async Task UpdateAsync_ShouldChangeNameAndKeepCreatedFields()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem("mock{{ r }}Old"));
+        var stored = StoreHolds(StoredItem("mock{{ r }}Old"));
 
         var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("mock{{ r }}New", result.Name);
-        await _mockStore.Received(1).SaveAsync(
-            Arg.Is<{{ r }}Entity>(k => k.Name == "mock{{ r }}New" && k.CreatedBy == "User2" && k.CreatedTimestamp == StoredTimestamp),
-            Arg.Any<CancellationToken>());
+        Assert.True(stored.Name == "mock{{ r }}New" && stored.CreatedBy == "User2" && stored.CreatedTimestamp == StoredTimestamp);
     }
 
     [Fact]
     public async Task UpdateAsync_ShouldKeepStoredName_WhenNameIsNotGiven()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem("mock{{ r }}Old"));
+        StoreHolds(StoredItem("mock{{ r }}Old"));
 
         var result = await _repository.UpdateAsync(new {{ r }}Entity { Id = ItemId, Name = null! }, null, TestContext.Current.CancellationToken);
 
@@ -99,14 +113,12 @@ public class {{ r }}RepositoryTests
     [Fact]
     public async Task ReplaceAsync_ShouldChangeNameAndKeepCreatedFields()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem("mock{{ r }}Old"));
+        var stored = StoreHolds(StoredItem("mock{{ r }}Old"));
 
         var result = await _repository.ReplaceAsync(new {{ r }}Entity { Id = ItemId, Name = "mock{{ r }}New" }, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("mock{{ r }}New", result.Name);
-        await _mockStore.Received(1).SaveAsync(
-            Arg.Is<{{ r }}Entity>(k => k.Name == "mock{{ r }}New" && k.CreatedBy == "User2" && k.CreatedTimestamp == StoredTimestamp),
-            Arg.Any<CancellationToken>());
+        Assert.True(stored.Name == "mock{{ r }}New" && stored.CreatedBy == "User2" && stored.CreatedTimestamp == StoredTimestamp);
     }
 {%- endif %}
 {%- if "delete" in ops %}
@@ -114,11 +126,11 @@ public class {{ r }}RepositoryTests
     [Fact]
     public async Task DeleteAsync_ShouldSoftDelete{{ r }}()
     {
-        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
+        var stored = StoreHolds(StoredItem());
 
         await _repository.DeleteAsync(ItemId, null, TestContext.Current.CancellationToken);
 
-        await _mockStore.Received(1).SaveAsync(Arg.Is<{{ r }}Entity>(k => k.IsDeleted && k.CreatedTimestamp == StoredTimestamp), Arg.Any<CancellationToken>());
+        Assert.True(stored.IsDeleted && stored.CreatedTimestamp == StoredTimestamp);
     }
 {%- endif %}
 }

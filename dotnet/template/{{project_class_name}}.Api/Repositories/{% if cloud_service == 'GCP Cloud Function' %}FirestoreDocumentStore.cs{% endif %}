@@ -1,5 +1,6 @@
 namespace {{project_class_name}}.Api.Repositories;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -25,6 +26,17 @@ public class FirestoreDocumentStore<T>(FirestoreDb firestoreDb, string collectio
     }
 
     public Task CreateAsync(T item, CancellationToken ct = default) => SaveAsync(item, ct);
+
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
+    {
+        var item = await GetAsync(id, ct);
+        if (item != null)
+        {
+            change(item);
+            await SaveAsync(item, ct);
+        }
+        return item;
+    }
 
     // An explicit field map, so unset createdBy/updatedBy are not stored as null.
     public Task SaveAsync(T item, CancellationToken ct = default) =>
