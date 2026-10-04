@@ -13,7 +13,7 @@ using {{project_class_name}}.Api.Interfaces;
 public class {{ r }}Repository(IDocumentStore<{{ r }}Entity> store)
     : EntityRepository<{{ r }}Entity, {{ r }}Dto>(store, "{{ r }}"), I{{ r }}Repository
 {
-    protected override {{ r }}Dto ToDto({{ r }}Entity item) => new() { Id = item.Id, Name = item.Name };
+    protected override void MapFields({{ r }}Entity item, {{ r }}Dto dto) => dto.Name = item.Name;
 {%- if "get_by_id" in ops %}
 
     public Task<{{ r }}Dto> GetAsync(string id, CancellationToken ct = default) => GetDtoAsync(id, ct);

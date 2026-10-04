@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using {{project_class_name}}.Api.Dtos;
 using {{project_class_name}}.Api.Entities;
 using {{project_class_name}}.Api.Interfaces;
 using {{project_class_name}}.Api.Repositories;
@@ -26,17 +27,22 @@ public class EntityRepositoryTests
         _repository = new TestRepository(_mockStore);
     }
 
-    private sealed class TestRepository(IDocumentStore<{{ r }}Entity> store) : EntityRepository<{{ r }}Entity, string>(store, "Thing")
+    private sealed class TestDto : BaseDto
     {
-        protected override string ToDto({{ r }}Entity item) => item.Name;
+        public string Name { get; set; } = default!;
+    }
 
-        public Task<string> Get(string id) => GetDtoAsync(id, TestContext.Current.CancellationToken);
+    private sealed class TestRepository(IDocumentStore<{{ r }}Entity> store) : EntityRepository<{{ r }}Entity, TestDto>(store, "Thing")
+    {
+        protected override void MapFields({{ r }}Entity item, TestDto dto) => dto.Name = item.Name;
 
-        public Task<IEnumerable<string>> List(int limit) => ListAsync(limit, TestContext.Current.CancellationToken);
+        public Task<TestDto> Get(string id) => GetDtoAsync(id, TestContext.Current.CancellationToken);
 
-        public Task<string> Insert({{ r }}Entity item, string? userId = null) => InsertAsync(item, userId, TestContext.Current.CancellationToken);
+        public Task<IEnumerable<TestDto>> List(int limit) => ListAsync(limit, TestContext.Current.CancellationToken);
 
-        public Task<string> Merge({{ r }}Entity changes, string? userId = null) =>
+        public Task<TestDto> Insert({{ r }}Entity item, string? userId = null) => InsertAsync(item, userId, TestContext.Current.CancellationToken);
+
+        public Task<TestDto> Merge({{ r }}Entity changes, string? userId = null) =>
             MergeAsync(changes, (current, update) => current.Name = update.Name, userId, TestContext.Current.CancellationToken);
 
         public Task Delete(string id, string? userId = null) => SoftDeleteAsync(id, userId, TestContext.Current.CancellationToken);
@@ -54,11 +60,28 @@ public class EntityRepositoryTests
     };
 
     [Fact]
-    public async Task Get_ReturnsTheStoredItem()
+    public async Task Get_ReturnsTheStoredFields()
     {
         _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(StoredItem());
 
-        Assert.Equal("stored", await _repository.Get(ItemId));
+        var result = await _repository.Get(ItemId);
+
+        Assert.Equal((ItemId, "stored", StoredTimestamp, "User2", StoredTimestamp, "User3"),
+            (result.Id, result.Name, result.CreatedTimestamp, result.CreatedBy, result.UpdatedTimestamp, result.UpdatedBy));
+    }
+
+    [Fact]
+    public async Task Get_LeavesUserIdsNull_WhenNotStored()
+    {
+        var stored = StoredItem();
+        stored.CreatedBy = null;
+        stored.UpdatedBy = null;
+        _mockStore.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(stored);
+
+        var result = await _repository.Get(ItemId);
+
+        Assert.Null(result.CreatedBy);
+        Assert.Null(result.UpdatedBy);
     }
 
     [Fact]
@@ -86,7 +109,7 @@ public class EntityRepositoryTests
 
         var result = await _repository.List(1);
 
-        Assert.Equal("first", Assert.Single(result));
+        Assert.Equal("first", Assert.Single(result).Name);
     }
 
     [Fact]
@@ -102,9 +125,13 @@ public class EntityRepositoryTests
     [InlineData(null)]
     public async Task Insert_StampsIdOneTimestampReadingAndUserId(string? userId)
     {
-        await _repository.Insert(new {{ r }}Entity { Name = "new" }, userId);
+        var item = new {{ r }}Entity { Name = "new" };
+
+        var result = await _repository.Insert(item, userId);
 
         await _mockStore.Received(1).CreateAsync(Arg.Is<{{ r }}Entity>(k => IsNewItem(k, userId)), Arg.Any<CancellationToken>());
+        Assert.Equal((item.Id, "new", item.CreatedTimestamp, userId, item.CreatedTimestamp, userId),
+            (result.Id, result.Name, result.CreatedTimestamp, result.CreatedBy, result.UpdatedTimestamp, result.UpdatedBy));
     }
 
     private static bool IsNewItem({{ r }}Entity item, string? userId) =>
@@ -130,11 +157,13 @@ public class EntityRepositoryTests
         var stored = StoredItem();
         StoreHolds(stored);
 
-        Assert.Equal("changed", await _repository.Merge(new {{ r }}Entity { Id = ItemId, Name = "changed" }, userId));
+        var result = await _repository.Merge(new {{ r }}Entity { Id = ItemId, Name = "changed" }, userId);
 
         Assert.True(stored.Id == ItemId && stored.Name == "changed" && stored.CreatedBy == "User2" && stored.UpdatedBy == userId
             && stored.CreatedTimestamp == StoredTimestamp && stored.UpdatedTimestamp != StoredTimestamp
             && System.Text.RegularExpressions.Regex.IsMatch(stored.UpdatedTimestamp, TimestampPattern));
+        Assert.Equal((ItemId, "changed", StoredTimestamp, "User2", stored.UpdatedTimestamp, userId),
+            (result.Id, result.Name, result.CreatedTimestamp, result.CreatedBy, result.UpdatedTimestamp, result.UpdatedBy));
     }
 
     [Fact]

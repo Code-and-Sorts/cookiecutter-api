@@ -100,14 +100,22 @@ public class {{ r }}ControllerTests
 
     [Theory]
     [InlineData("{\"name\":123}")]
-    [InlineData("{\"name\":\"mock{{ r }}\",\"id\":\"0f3a7ff7-a601-4d23-b33c-7f8f18b57a4c\"}")]
-    [InlineData("{\"name\":\"mock{{ r }}\",\"updatedBy\":\"me\"}")]
     [InlineData("{not json")]
     [InlineData("[]")]
     public async Task CreateAsync_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
         await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.CreateAsync(Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().CreateAsync(default!, default, default);
+    }
+
+    [Theory]
+    [MemberData(nameof(Mocks.ServerOwnedAndUnknownFields), MemberType = typeof(Mocks))]
+    public async Task CreateAsync_ThrowsBadRequest_WhenBodyHasServerOwnedOrUnknownField(string field)
+    {
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.CreateAsync(Mocks.CreateBodyWithField(field), "User1", TestContext.Current.CancellationToken));
+
+        Assert.Equal($"Unknown field: {field}.", exception.Message);
         await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().CreateAsync(default!, default, default);
     }
 {%- endif %}
@@ -144,12 +152,21 @@ public class {{ r }}ControllerTests
 
     [Theory]
     [InlineData("{\"name\":false}")]
-    [InlineData("{\"createdTimestamp\":\"2026-01-01T00:00:00.000Z\"}")]
     [InlineData("\"mock{{ r }}\"")]
     public async Task UpdateAsync_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
         await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default, default);
+    }
+
+    [Theory]
+    [MemberData(nameof(Mocks.ServerOwnedAndUnknownFields), MemberType = typeof(Mocks))]
+    public async Task UpdateAsync_ThrowsBadRequest_WhenBodyHasServerOwnedOrUnknownField(string field)
+    {
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.UpdateAsync(ItemId, Mocks.CreateBodyWithField(field), "User1", TestContext.Current.CancellationToken));
+
+        Assert.Equal($"Unknown field: {field}.", exception.Message);
         await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default, default);
     }
 
@@ -186,11 +203,21 @@ public class {{ r }}ControllerTests
 
     [Theory]
     [InlineData("{\"name\":1}")]
-    [InlineData("{\"name\":\"mock{{ r }}\",\"isDeleted\":false}")]
+    [InlineData("[]")]
     public async Task ReplaceAsync_ThrowsBadRequest_WhenBodyIsInvalid(string body)
     {
         await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateStream(body), null, TestContext.Current.CancellationToken));
 
+        await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().ReplaceAsync(default!, default, default);
+    }
+
+    [Theory]
+    [MemberData(nameof(Mocks.ServerOwnedAndUnknownFields), MemberType = typeof(Mocks))]
+    public async Task ReplaceAsync_ThrowsBadRequest_WhenBodyHasServerOwnedOrUnknownField(string field)
+    {
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _{{ lc }}Controller.ReplaceAsync(ItemId, Mocks.CreateBodyWithField(field), "User1", TestContext.Current.CancellationToken));
+
+        Assert.Equal($"Unknown field: {field}.", exception.Message);
         await _mock{{ r }}Service.DidNotReceiveWithAnyArgs().ReplaceAsync(default!, default, default);
     }
 

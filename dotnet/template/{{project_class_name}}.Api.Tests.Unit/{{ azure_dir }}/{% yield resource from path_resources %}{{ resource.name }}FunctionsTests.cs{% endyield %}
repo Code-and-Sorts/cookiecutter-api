@@ -49,11 +49,11 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Get{{ r }}_ReturnsCamelCaseItem_When{{ r }}IsFound()
     {
-        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+        _mock{{ r }}Controller.GetAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" }));
 
         var result = await _functions.Get{{ r }}(Mocks.CreateHttpRequestData("GET"), ItemId, TestContext.Current.CancellationToken);
 
-        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
+        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -84,12 +84,14 @@ public class {{ r }}FunctionsTests
     {
         _mock{{ r }}Controller.GetListAsync(null, Arg.Any<CancellationToken>()).Returns(new List<{{ r }}Dto>
         {
-            new() { Id = ItemId, Name = "mock{{ r }}1" },
+            Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}1" }),
+            Mocks.WithAuditFields(new {{ r }}Dto { Id = "5615ff05-3032-4459-88ad-b6a4c3e51ca0", Name = "mock{{ r }}2" }, userId: null),
         });
 
         var result = await _functions.Get{{ r }}List(Mocks.CreateHttpRequestData("GET"), TestContext.Current.CancellationToken);
 
-        Assert.Equal((200, $"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\"{{ '}}' }}]"), Mocks.ReadJsonResult(result));
+        Assert.Equal((200, $"[{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}1\",{Mocks.AuditJson()}{{ '}}' }},"
+            + $"{{ '{{' }}\"id\":\"5615ff05-3032-4459-88ad-b6a4c3e51ca0\",\"name\":\"mock{{ r }}2\",{Mocks.AuditJson(userId: null)}{{ '}}' }}]"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -131,11 +133,11 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Create{{ r }}_ReturnsCreated_When{{ r }}IsCreated()
     {
-        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" });
+        _mock{{ r }}Controller.CreateAsync(Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mock{{ r }}" }));
 
         var result = await _functions.Create{{ r }}(Mocks.CreateHttpRequestData(new Create{{ r }}Request { Name = "mock{{ r }}" }, "POST"), TestContext.Current.CancellationToken);
 
-        Assert.Equal((201, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
+        Assert.Equal((201, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mock{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -164,11 +166,11 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Update{{ r }}_ReturnsOk_When{{ r }}IsUpdated()
     {
-        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" });
+        _mock{{ r }}Controller.UpdateAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mockUpdated{{ r }}" }));
 
         var result = await _functions.Update{{ r }}(Mocks.CreateHttpRequestData(new Update{{ r }}Request { Name = "mockUpdated{{ r }}" }, "PATCH"), ItemId, TestContext.Current.CancellationToken);
 
-        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockUpdated{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
+        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockUpdated{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
@@ -186,11 +188,11 @@ public class {{ r }}FunctionsTests
     [Fact]
     public async Task Replace{{ r }}_ReturnsOk_When{{ r }}IsReplaced()
     {
-        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" });
+        _mock{{ r }}Controller.ReplaceAsync(ItemId, Arg.Any<Stream>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Mocks.WithAuditFields(new {{ r }}Dto { Id = ItemId, Name = "mockReplaced{{ r }}" }));
 
         var result = await _functions.Replace{{ r }}(Mocks.CreateHttpRequestData(new Replace{{ r }}Request { Name = "mockReplaced{{ r }}" }, "PUT"), ItemId, TestContext.Current.CancellationToken);
 
-        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockReplaced{{ r }}\"{{ '}}' }}"), Mocks.ReadJsonResult(result));
+        Assert.Equal((200, $"{{ '{{' }}\"id\":\"{ItemId}\",\"name\":\"mockReplaced{{ r }}\",{Mocks.AuditJson()}{{ '}}' }}"), Mocks.ReadJsonResult(result));
     }
 
     [Fact]
