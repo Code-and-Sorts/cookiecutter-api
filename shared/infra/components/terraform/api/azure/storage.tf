@@ -1,4 +1,3 @@
-# Premium keeps its content share on Azure Files, which needs the account key; other hostings use Entra ID only.
 locals {
   storage_key_access = var.compute.hosting == "premium"
 }
@@ -35,7 +34,6 @@ resource "azurerm_storage_account" "this" {
   }
 }
 
-# Flex Consumption reads its deployment package from here.
 resource "azurerm_storage_container" "deployments" {
   count = var.compute.hosting == "flex_consumption" ? 1 : 0
 
@@ -44,7 +42,6 @@ resource "azurerm_storage_container" "deployments" {
   container_access_type = "private"
 }
 
-# Premium needs its content share before the app is created, because the account only admits the virtual network.
 resource "azurerm_storage_share" "content" {
   count = var.compute.hosting == "premium" ? 1 : 0
 

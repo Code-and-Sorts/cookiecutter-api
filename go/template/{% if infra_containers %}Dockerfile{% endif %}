@@ -3,8 +3,8 @@ WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-# make install (go mod tidy) writes go.sum, so a project that never ran it has none.
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o handler .
+{%- if cloud_service == 'Azure Function App' %}
 
 FROM mcr.microsoft.com/azure-functions/base:4
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
@@ -20,3 +20,4 @@ COPY {{ resource.lower_camel_name }}Api/ ./{{ resource.lower_camel_name }}Api/
 {%- endfor %}
 COPY --from=build /src/handler ./
 EXPOSE 80
+{%- endif %}

@@ -1,8 +1,9 @@
-FROM mcr.microsoft.com/azure-functions/python:4-python3.14 AS requirements
+FROM python:3.14-slim AS requirements
 COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /bin/uv
 WORKDIR /src
 COPY pyproject.toml uv.lock ./
 RUN uv export --locked --no-dev --format requirements-txt --output-file requirements.txt
+{%- if cloud_service == 'Azure Function App' %}
 
 FROM mcr.microsoft.com/azure-functions/python:4-python3.14
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
@@ -10,3 +11,4 @@ ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
 COPY --from=requirements /src/requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --requirement /requirements.txt && rm /requirements.txt
 COPY . /home/site/wwwroot
+{%- endif %}

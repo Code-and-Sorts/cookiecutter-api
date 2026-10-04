@@ -1,4 +1,3 @@
-# Mocked providers: no Azure credentials, and mocked values are known at plan time.
 mock_provider "azurerm" {
   source          = "./tests/mocks/azurerm"
   override_during = plan
@@ -17,6 +16,11 @@ variables {
   name   = "kitten-claws"
   stage  = "dev"
   region = "eastus"
+
+  owner = {
+    name  = "Kitten Claws"
+    email = "admin@example.com"
+  }
 
   compute = {
     hosting = "flex_consumption"
@@ -37,8 +41,6 @@ variables {
 
   gateway = {
     sku             = "Developer"
-    publisher_name  = "Kitten Claws"
-    publisher_email = "admin@example.com"
     health_endpoint = "health"
     routes = [
       { name = "Cat", endpoint = "cats", operations = ["list", "get_by_id", "create", "update", "delete"] },
@@ -403,11 +405,9 @@ run "standard_v2_gateway_without_health" {
 
   variables {
     gateway = {
-      sku             = "StandardV2"
-      capacity        = 2
-      publisher_name  = "Kitten Claws"
-      publisher_email = "admin@example.com"
-      routes          = [{ name = "Owl", endpoint = "owls", operations = ["delete"] }]
+      sku      = "StandardV2"
+      capacity = 2
+      routes   = [{ name = "Owl", endpoint = "owls", operations = ["delete"] }]
     }
   }
 
@@ -494,10 +494,8 @@ run "rejects_a_gateway_tier_without_private_networking" {
 
   variables {
     gateway = {
-      sku             = "Consumption"
-      publisher_name  = "Kitten Claws"
-      publisher_email = "admin@example.com"
-      routes          = []
+      sku    = "Consumption"
+      routes = []
     }
   }
 

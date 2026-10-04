@@ -31,7 +31,6 @@ func CosmosClientOptions(endpoint string, emulator bool) *azcosmos.ClientOptions
 	return options
 }
 
-// Azure disables account keys; DefaultAzureCredential then picks the managed identity named by AZURE_CLIENT_ID.
 func NewCosmosClient(endpoint, key string, options *azcosmos.ClientOptions) (*azcosmos.Client, error) {
 	if key != "" {
 		cred, err := azcosmos.NewKeyCredential(key)

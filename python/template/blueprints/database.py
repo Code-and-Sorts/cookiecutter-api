@@ -35,7 +35,6 @@ def cosmos_client_options(settings) -> dict:
 
 
 def cosmos_credential(settings):
-    # DefaultAzureCredential reads AZURE_CLIENT_ID to pick a user-assigned managed identity.
     return settings.cosmos_db_key or DefaultAzureCredential()
 
 

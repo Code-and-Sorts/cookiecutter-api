@@ -46,8 +46,6 @@ jobs:
             template-type: python
             cloud-service: "AWS Lambda"
             fixture: single
-          # With infrastructure the Azure functions are anonymous behind Entra ID and Cosmos DB is keyless.
-          # Its own os label makes it a separate job: an include matching every matrix value merges into that job.
           - os: ubuntu-24.04
             template-type: python
             cloud-service: "Azure Function App"

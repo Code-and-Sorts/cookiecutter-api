@@ -1,17 +1,18 @@
 {%- set containers = path_resources | unique(attribute='container') | list -%}
-# The API component; each stack in deploy/ adds its region and tiers.
 components:
   terraform:
     api:
       vars:
         name: {{ project_endpoint | replace('_', '-') }}
+        owner:
+          name: {{ author | tojson }}
+          email: {{ infra_admin_email | tojson }}
         compute:
 {%- if cloud_service == 'Azure Function App' %}
 {%- if language == 'python' %}
           runtime:
             name: python
             version: "3.14"
-          # ${database_endpoint} and ${database_name} are filled in by Terraform.
           app_settings:
             Cosmos_Db_Uri: "${database_endpoint}"
             Cosmos_Db_Database_Name: "${database_name}"
@@ -22,7 +23,6 @@ components:
           runtime:
             name: node
             version: "22"
-          # ${database_endpoint} and ${database_name} are filled in by Terraform.
           app_settings:
             COSMOS_DB_URL: "${database_endpoint}"
             COSMOS_DB_DATABASE_NAME: "${database_name}"
@@ -33,7 +33,6 @@ components:
           runtime:
             name: custom
             version: "1.0"
-          # ${database_endpoint} and ${database_name} are filled in by Terraform.
           app_settings:
             CosmosDbEndpoint: "${database_endpoint}"
             CosmosDbDatabaseName: "${database_name}"
@@ -44,7 +43,6 @@ components:
           runtime:
             name: dotnet-isolated
             version: "10.0"
-          # ${database_endpoint} and ${database_name} are filled in by Terraform.
           app_settings:
             ConnectionStrings__CosmosDb: "AccountEndpoint=${database_endpoint};"
             CosmosDbDatabaseName: "${database_name}"
@@ -59,8 +57,6 @@ components:
             - "{{ c.container }}"
 {%- endfor %}
         gateway:
-          publisher_name: {{ author | tojson }}
-          publisher_email: {{ infra_admin_email | tojson }}
           health_endpoint: "{{ health_endpoint }}"
           routes:
 {%- for r in resources %}

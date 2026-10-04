@@ -19,7 +19,6 @@ locals {
     }
   ]...)
 
-  # Every call reaches the API with an Entra ID token for the gateway's identity, never with the caller's API key.
   backend_policy = <<-XML
     <policies>
       <inbound>
@@ -44,8 +43,8 @@ resource "azurerm_api_management" "this" {
   name                 = "apim-${local.short}-${local.suffix}"
   resource_group_name  = azurerm_resource_group.this.name
   location             = azurerm_resource_group.this.location
-  publisher_name       = var.gateway.publisher_name
-  publisher_email      = var.gateway.publisher_email
+  publisher_name       = var.owner.name
+  publisher_email      = var.owner.email
   sku_name             = "${var.gateway.sku}_${var.gateway.capacity}"
   virtual_network_type = "External"
   tags                 = local.tags
@@ -84,7 +83,6 @@ resource "azurerm_api_management_api" "api" {
   service_url           = "https://${local.app_hostname}/api"
   subscription_required = true
 
-  # The same header as API Gateway API keys on AWS.
   subscription_key_parameter_names {
     header = "x-api-key"
     query  = "api-key"
@@ -130,7 +128,6 @@ resource "azurerm_api_management_api_diagnostic" "api" {
   verbosity                = "information"
 }
 
-# API Management keys are per API, so the open health check is its own API on a longer path.
 resource "azurerm_api_management_api" "health" {
   count = var.gateway.health_endpoint == "" ? 0 : 1
 
@@ -183,7 +180,6 @@ resource "azurerm_api_management_product_api" "api" {
   resource_group_name = azurerm_resource_group.this.name
 }
 
-# The API key: callers send its primary or secondary key as x-api-key.
 resource "azurerm_api_management_subscription" "api" {
   display_name        = "${local.prefix} default"
   api_management_name = azurerm_api_management.this.name

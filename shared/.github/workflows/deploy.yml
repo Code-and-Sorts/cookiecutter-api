@@ -1,9 +1,45 @@
 {%- set stacks = path_environments | map(attribute='name') | list -%}
-{%- set runtime = {'python': 'python', 'typescript': 'node', 'dotnet': 'dotnet-isolated', 'go': 'custom'}[language] -%}
-{%- set app_dir = project_class_name ~ '.Api' if language == 'dotnet' else '.' -%}
-# Plans the first stack on pull requests; on main, deploys every stack in order. Each stack is a GitHub
-# environment holding the variables AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID for an
-# identity with a federated credential for that environment; add required reviewers to gate a stack.
+{%- set azure = cloud_service == 'Azure Function App' -%}
+{%- set outputs = ['app_name', 'app_hosting', 'container_registry', 'api_url'] + (['resource_group_name'] if azure else []) -%}
+{%- macro credentials() %}
+{%- if azure %}
+{%- raw %}
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+{%- endraw %}
+{%- endif %}
+{%- endmacro %}
+{%- macro setup() %}
+      - name: Check out
+        uses: actions/checkout@v7
+{%- if azure %}
+{%- raw %}
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+{%- endraw %}
+{%- endif %}
+{%- raw %}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Set up Atmos
+        uses: cloudposse/github-action-setup-atmos@v2
+        with:
+          atmos-version: ${{ env.ATMOS_VERSION }}
+          install-wrapper: false
+{%- endraw %}
+{%- endmacro -%}
 name: Deploy
 
 on:
@@ -25,8 +61,10 @@ env:
   ATMOS_CLI_CONFIG_PATH: infra
   ATMOS_BASE_PATH: infra
   ATMOS_TELEMETRY_ENABLED: "false"
+{%- if azure %}
   ARM_USE_OIDC: "true"
   ARM_USE_AZUREAD: "true"
+{%- endif %}
 
 jobs:
   plan:
@@ -36,27 +74,9 @@ jobs:
     concurrency:
       group: infra-{{ stacks[0] }}
       cancel-in-progress: false
-{%- raw %}
-    env:
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+{{- credentials() }}
     steps:
-      - name: Check out
-        uses: actions/checkout@v7
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-
-      - name: Set up Atmos
-        uses: cloudposse/github-action-setup-atmos@v2
-        with:
-          atmos-version: ${{ env.ATMOS_VERSION }}
-          install-wrapper: false
-{%- endraw %}
+{{- setup() }}
 
       - name: Plan
         run: atmos terraform plan api -s {{ stacks[0] }}
@@ -72,34 +92,9 @@ jobs:
     concurrency:
       group: infra-{{ stack }}
       cancel-in-progress: false
-{%- raw %}
-    env:
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+{{- credentials() }}
     steps:
-      - name: Check out
-        uses: actions/checkout@v7
-
-      - name: Log in to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-
-      - name: Set up Atmos
-        uses: cloudposse/github-action-setup-atmos@v2
-        with:
-          atmos-version: ${{ env.ATMOS_VERSION }}
-          install-wrapper: false
-{%- endraw %}
+{{- setup() }}
 
       - name: Deploy infrastructure
         run: atmos terraform deploy api -s {{ stack }}
@@ -108,105 +103,14 @@ jobs:
         id: infra
         working-directory: infra/components/terraform/api
         run: |
-          for name in app_name app_hosting resource_group_name container_registry api_url; do
+          for name in {{ outputs | join(' ') }}; do
             echo "$name=$(terraform output -raw "$name")" >> "$GITHUB_OUTPUT"
           done
         shell: bash
-{%- raw %}
-
-      - name: Build and push the image
-        if: steps.infra.outputs.app_hosting == 'container_app'
-        env:
-          REGISTRY: ${{ steps.infra.outputs.container_registry }}
-        run: |
-          az acr login --name "${REGISTRY%%.*}"
-          docker build --tag "$REGISTRY/api:$GITHUB_SHA" .
-          docker push "$REGISTRY/api:$GITHUB_SHA"
-        shell: bash
-
-      - name: Deploy the image
-        if: steps.infra.outputs.app_hosting == 'container_app'
-        env:
-          REGISTRY: ${{ steps.infra.outputs.container_registry }}
-          APP: ${{ steps.infra.outputs.app_name }}
-          RESOURCE_GROUP: ${{ steps.infra.outputs.resource_group_name }}
-        run: az containerapp update --name "$APP" --resource-group "$RESOURCE_GROUP" --image "$REGISTRY/api:$GITHUB_SHA"
-        shell: bash
-{%- endraw %}
-{%- if language == 'python' %}
-
-      - name: Set up Python
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-
-      - name: Set up uv
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        uses: astral-sh/setup-uv@v10.2.0
-        with:
-          version: "0.12.22"
-
-      - name: Build
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        run: uv export --quiet --no-dev --format requirements-txt --output-file requirements.txt
-        shell: bash
-{%- elif language == 'typescript' %}
-
-      - name: Set up Node
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22.x"
-
-      - name: Build
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        run: |
-          corepack enable
-          yarn install --no-immutable
-          yarn build
-          yarn workspaces focus --production
-        shell: bash
-{%- elif language == 'go' %}
-
-      - name: Set up Go
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-
-      - name: Build
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        run: |
-          go mod tidy
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o handler
-        shell: bash
-{%- else %}
-
-      - name: Set up .NET
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: "10.x"
+{%- if azure %}
+{%- set publish %}{% include 'shared/.github/workflows/_deploy.azure.yml' %}{% endset %}
+{{- publish.rstrip() }}
 {%- endif %}
-
-      - name: Set up Azure Functions Core Tools
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        run: npm install --global azure-functions-core-tools@4 --unsafe-perm true
-        shell: bash
-{%- raw %}
-
-      - name: Publish the functions
-        if: steps.infra.outputs.app_hosting != 'container_app'
-        env:
-          APP: ${{ steps.infra.outputs.app_name }}
-{%- endraw %}
-        working-directory: {{ app_dir }}
-        # local.settings.json is not committed; Core Tools reads the worker runtime from it.
-        run: |
-          [ -f local.settings.json ] || echo '{"IsEncrypted": false, "Values": {"FUNCTIONS_WORKER_RUNTIME": "{{ runtime }}"}}' > local.settings.json
-          func azure functionapp publish "$APP"
-        shell: bash
 {%- if health_endpoint %}
 
       - name: Check the health endpoint

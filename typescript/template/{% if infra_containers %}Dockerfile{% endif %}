@@ -5,6 +5,7 @@ COPY package.json .yarnrc.yml yarn.lock* ./
 RUN yarn install
 COPY . .
 RUN yarn build && yarn workspaces focus --production
+{%- if cloud_service == 'Azure Function App' %}
 
 FROM mcr.microsoft.com/azure-functions/node:4-node22
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
@@ -13,3 +14,4 @@ WORKDIR /home/site/wwwroot
 COPY --from=build /app/package.json /app/host.json ./
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
+{%- endif %}

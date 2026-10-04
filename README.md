@@ -175,7 +175,8 @@ Answer `include_infrastructure` (Azure for now; GCP and AWS follow with the same
 - A storage account for the Functions host (virtual network only), a virtual network, Log Analytics and
   Application Insights.
 
-The defaults, used by every stack unless it overrides them, are asked once:
+The defaults, used by every stack unless it overrides them, are asked once. Each cloud's choices are data in
+`infra_clouds` in `copier.yml`, so GCP and AWS add their own without new questions:
 
 | Question | Azure choices | Default |
 | --- | --- | --- |

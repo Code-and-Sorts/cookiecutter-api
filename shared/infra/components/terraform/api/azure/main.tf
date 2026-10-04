@@ -1,8 +1,7 @@
 data "azurerm_client_config" "current" {}
 
 locals {
-  prefix = "${var.name}-${var.stage}"
-  # Globally unique names get a suffix that is stable per subscription and stack.
+  prefix  = "${var.name}-${var.stage}"
   suffix  = substr(sha1("${data.azurerm_client_config.current.subscription_id}/${local.prefix}"), 0, 6)
   short   = replace(substr(local.prefix, 0, 24), "/-+$/", "")
   compact = "${substr(replace(var.name, "-", ""), 0, 8)}${var.stage}${local.suffix}"

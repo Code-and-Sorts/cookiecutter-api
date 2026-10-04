@@ -4,7 +4,6 @@ locals {
     database_name     = azurerm_cosmosdb_sql_database.this.name
   }
 
-  # The host reads AzureWebJobsStorage__* with the API's identity; Premium uses the provider's key-based connection.
   storage_identity_settings = local.storage_key_access ? {} : {
     AzureWebJobsStorage__accountName = azurerm_storage_account.this.name
     AzureWebJobsStorage__credential  = "managedidentity"
@@ -48,20 +47,19 @@ resource "azurerm_service_plan" "this" {
 resource "azurerm_function_app_flex_consumption" "this" {
   count = var.compute.hosting == "flex_consumption" ? 1 : 0
 
-  name                              = local.app_name
-  resource_group_name               = azurerm_resource_group.this.name
-  location                          = azurerm_resource_group.this.location
-  service_plan_id                   = azurerm_service_plan.this[0].id
-  runtime_name                      = var.compute.runtime.name
-  runtime_version                   = var.compute.runtime.version
-  storage_container_type            = "blobContainer"
-  storage_container_endpoint        = "${azurerm_storage_account.this.primary_blob_endpoint}${azurerm_storage_container.deployments[0].name}"
-  storage_authentication_type       = "UserAssignedIdentity"
-  storage_user_assigned_identity_id = azurerm_user_assigned_identity.api.id
-  maximum_instance_count            = var.compute.max_instances
-  instance_memory_in_mb             = var.compute.instance_memory_mb
-  virtual_network_subnet_id         = azurerm_subnet.app.id
-  # Only the SCM site is public (for deployments, Entra ID only); the API answers through its private endpoint.
+  name                                           = local.app_name
+  resource_group_name                            = azurerm_resource_group.this.name
+  location                                       = azurerm_resource_group.this.location
+  service_plan_id                                = azurerm_service_plan.this[0].id
+  runtime_name                                   = var.compute.runtime.name
+  runtime_version                                = var.compute.runtime.version
+  storage_container_type                         = "blobContainer"
+  storage_container_endpoint                     = "${azurerm_storage_account.this.primary_blob_endpoint}${azurerm_storage_container.deployments[0].name}"
+  storage_authentication_type                    = "UserAssignedIdentity"
+  storage_user_assigned_identity_id              = azurerm_user_assigned_identity.api.id
+  maximum_instance_count                         = var.compute.max_instances
+  instance_memory_in_mb                          = var.compute.instance_memory_mb
+  virtual_network_subnet_id                      = azurerm_subnet.app.id
   public_network_access_enabled                  = var.compute.public_deployments
   https_only                                     = true
   webdeploy_publish_basic_authentication_enabled = false
@@ -222,7 +220,6 @@ resource "azurerm_role_assignment" "api_registry" {
   principal_type       = "ServicePrincipal"
 }
 
-# An internal environment: the app is only reachable inside the virtual network.
 resource "azurerm_container_app_environment" "this" {
   count = local.functions_hosting ? 0 : 1
 
@@ -286,8 +283,7 @@ resource "azurerm_container_app" "this" {
     max_replicas = var.compute.max_instances
 
     container {
-      name = "api"
-      # A placeholder until the deploy workflow pushes the API image, which Terraform then leaves alone.
+      name   = "api"
       image  = "mcr.microsoft.com/k8se/quickstart:latest"
       cpu    = 0.5
       memory = "1Gi"
@@ -316,7 +312,6 @@ resource "azurerm_container_app" "this" {
   depends_on = [azurerm_role_assignment.api_registry, azurerm_role_assignment.api_storage, azurerm_cosmosdb_sql_role_assignment.api]
 }
 
-# App Service authentication for Container Apps, which azurerm does not expose.
 resource "azapi_resource" "container_app_auth" {
   count = local.functions_hosting ? 0 : 1
 

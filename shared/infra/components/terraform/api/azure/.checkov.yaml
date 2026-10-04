@@ -1,21 +1,14 @@
-# Checks this component fails on purpose, each with its reason.
 skip-check:
-  # Single-zone, single-instance and LRS defaults keep small stacks cheap; raise them per stack for production.
-  - CKV_AZURE_225 # App Service plan zone redundancy
-  - CKV_AZURE_212 # App Service plan minimum instances
-  - CKV_AZURE_206 # storage replication
-  # Platform-managed keys encrypt at rest; customer-managed keys need a Key Vault the template does not create.
-  - CKV_AZURE_100 # Cosmos DB customer-managed keys
-  - CKV2_AZURE_1 # storage customer-managed keys
-  # API Management is the API's only public entry point.
-  - CKV_AZURE_174 # API Management public access
-  # The storage account admits only the API subnet through a service endpoint, not a private endpoint.
-  - CKV2_AZURE_33 # storage private endpoint
-  - CKV_AZURE_59 # storage public access (network rules deny everything else)
-  # Diagnostic logging for the Functions host storage is left to the team.
-  - CKV_AZURE_33 # queue logging
-  - CKV2_AZURE_21 # blob read logging
-  # Checkov reads the azurerm 4 attribute names; these settings are set with their azurerm 5 names.
-  - CKV_AZURE_140 # Cosmos DB local authentication (local_authentication_enabled = false)
-  - CKV2_AZURE_40 # shared key access (only the Premium content share needs it)
-  - CKV2_AZURE_41 # SAS expiration policy (sas_policy sets one day)
+  - CKV_AZURE_225
+  - CKV_AZURE_212
+  - CKV_AZURE_206
+  - CKV_AZURE_100
+  - CKV2_AZURE_1
+  - CKV_AZURE_174
+  - CKV2_AZURE_33
+  - CKV_AZURE_59
+  - CKV_AZURE_33
+  - CKV2_AZURE_21
+  - CKV_AZURE_140
+  - CKV2_AZURE_40
+  - CKV2_AZURE_41

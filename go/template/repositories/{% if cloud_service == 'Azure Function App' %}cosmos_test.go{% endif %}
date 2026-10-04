@@ -63,7 +63,6 @@ func TestCosmosClientOptions_HTTPSEmulatorSkipsCertificateVerification(t *testin
 const cosmosEndpoint = "https://account.documents.azure.com:443/"
 
 func TestNewCosmosClient_UsesTheKeyWhenSet(t *testing.T) {
-	// An invalid value makes DefaultAzureCredential fail, so success shows the key was used.
 	t.Setenv("AZURE_TOKEN_CREDENTIALS", "invalid")
 
 	client, err := NewCosmosClient(cosmosEndpoint, base64.StdEncoding.EncodeToString([]byte("key")), CosmosClientOptions(cosmosEndpoint, false))

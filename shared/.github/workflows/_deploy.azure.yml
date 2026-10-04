@@ -1,0 +1,96 @@
+{%- set runtime = {'python': 'python', 'typescript': 'node', 'dotnet': 'dotnet-isolated', 'go': 'custom'}[language] -%}
+{%- set app_dir = project_class_name ~ '.Api' if language == 'dotnet' else '.' -%}
+{%- raw %}
+
+      - name: Build and push the image
+        if: steps.infra.outputs.app_hosting == 'container_app'
+        env:
+          REGISTRY: ${{ steps.infra.outputs.container_registry }}
+        run: |
+          az acr login --name "${REGISTRY%%.*}"
+          docker build --tag "$REGISTRY/api:$GITHUB_SHA" .
+          docker push "$REGISTRY/api:$GITHUB_SHA"
+        shell: bash
+
+      - name: Deploy the image
+        if: steps.infra.outputs.app_hosting == 'container_app'
+        env:
+          REGISTRY: ${{ steps.infra.outputs.container_registry }}
+          APP: ${{ steps.infra.outputs.app_name }}
+          RESOURCE_GROUP: ${{ steps.infra.outputs.resource_group_name }}
+        run: az containerapp update --name "$APP" --resource-group "$RESOURCE_GROUP" --image "$REGISTRY/api:$GITHUB_SHA"
+        shell: bash
+{%- endraw %}
+{%- if language == 'python' %}
+
+      - name: Set up Python
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.22"
+
+      - name: Build
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: uv export --quiet --no-dev --format requirements-txt --output-file requirements.txt
+        shell: bash
+{%- elif language == 'typescript' %}
+
+      - name: Set up Node
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.x"
+
+      - name: Build
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: |
+          corepack enable
+          yarn install --no-immutable
+          yarn build
+          yarn workspaces focus --production
+        shell: bash
+{%- elif language == 'go' %}
+
+      - name: Set up Go
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: |
+          go mod tidy
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o handler
+        shell: bash
+{%- else %}
+
+      - name: Set up .NET
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+{%- endif %}
+
+      - name: Set up Azure Functions Core Tools
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: npm install --global azure-functions-core-tools@4 --unsafe-perm true
+        shell: bash
+{%- raw %}
+
+      - name: Publish the functions
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        env:
+          APP: ${{ steps.infra.outputs.app_name }}
+{%- endraw %}
+        working-directory: {{ app_dir }}
+        run: |
+          [ -f local.settings.json ] || echo '{"IsEncrypted": false, "Values": {"FUNCTIONS_WORKER_RUNTIME": "{{ runtime }}"}}' > local.settings.json
+          func azure functionapp publish "$APP"
+        shell: bash

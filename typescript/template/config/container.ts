@@ -51,7 +51,6 @@ type CosmosSettings = Pick<typeof env, 'COSMOS_DB_URL' | 'COSMOS_DB_KEY' | 'COSM
 export const cosmosClientOptions = (settings: CosmosSettings): CosmosClientOptions => {
   const options: CosmosClientOptions = {
     endpoint: settings.COSMOS_DB_URL,
-    // Deployed accounts disable keys; the managed identity named by AZURE_CLIENT_ID signs in instead.
     ...(settings.COSMOS_DB_KEY ? { key: settings.COSMOS_DB_KEY } : { aadCredentials: new DefaultAzureCredential() }),
     connectionPolicy: cosmosConnectionPolicy,
   };

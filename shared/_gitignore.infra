@@ -1,4 +1,3 @@
-# Terraform and Atmos
 .terraform/
 *.tfstate
 *.tfstate.*

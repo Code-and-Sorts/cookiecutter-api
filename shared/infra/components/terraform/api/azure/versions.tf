@@ -17,10 +17,8 @@ terraform {
   }
 }
 
-# Credentials and the subscription come from the environment (ARM_* variables, OIDC in CI).
 provider "azurerm" {
   features {}
-  # Shared keys stay off wherever the hosting allows it.
   storage_use_azuread = true
 }
 

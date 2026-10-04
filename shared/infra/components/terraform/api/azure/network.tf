@@ -6,7 +6,6 @@ locals {
     endpoints = cidrsubnet(var.network.address_space, local.subnet_bits, 3)
   }
 
-  # Flex Consumption and Container Apps integrate through Microsoft.App/environments, plans through Microsoft.Web/serverFarms.
   app_delegation = contains(["flex_consumption", "container_app"], var.compute.hosting) ? {
     name    = "Microsoft.App/environments"
     actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
@@ -15,7 +14,6 @@ locals {
     actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
   }
 
-  # Developer and Premium are injected into the subnet; v2 tiers integrate with a delegated one.
   gateway_injected = contains(["Developer", "Premium"], var.gateway.sku)
 }
 
@@ -71,7 +69,6 @@ resource "azurerm_subnet" "endpoints" {
   address_prefixes     = [local.subnets.endpoints]
 }
 
-# The inbound rules API Management needs when injected into a virtual network.
 resource "azurerm_network_security_group" "gateway" {
   name                = "nsg-${local.prefix}-gateway"
   resource_group_name = azurerm_resource_group.this.name

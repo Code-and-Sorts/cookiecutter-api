@@ -1,17 +1,15 @@
 resource "azurerm_cosmosdb_account" "this" {
-  name                = "cosmos-${local.short}-${local.suffix}"
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
-  offer_type          = "Standard"
-  kind                = "GlobalDocumentDB"
-  free_tier_enabled   = var.database.free_tier
-  minimal_tls_version = "Tls12"
-  # Data-plane identities cannot change the account through key metadata.
+  name                               = "cosmos-${local.short}-${local.suffix}"
+  resource_group_name                = azurerm_resource_group.this.name
+  location                           = azurerm_resource_group.this.location
+  offer_type                         = "Standard"
+  kind                               = "GlobalDocumentDB"
+  free_tier_enabled                  = var.database.free_tier
+  minimal_tls_version                = "Tls12"
   access_key_metadata_writes_enabled = false
-  # Only the API's identity, through the private endpoint, reaches the data.
-  local_authentication_enabled  = false
-  public_network_access_enabled = false
-  tags                          = local.tags
+  local_authentication_enabled       = false
+  public_network_access_enabled      = false
+  tags                               = local.tags
 
   consistency_policy {
     consistency_level = "Session"
@@ -64,7 +62,6 @@ resource "azurerm_management_lock" "database" {
   notes      = "Holds the API's data; set database.delete_lock to false to remove."
 }
 
-# Cosmos DB Built-in Data Contributor.
 resource "azurerm_cosmosdb_sql_role_assignment" "api" {
   resource_group_name = azurerm_resource_group.this.name
   account_name        = azurerm_cosmosdb_account.this.name

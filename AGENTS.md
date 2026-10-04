@@ -203,18 +203,24 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
   `stacks/catalog/api.yaml` what every stack shares (rendered from `language`, `resources` and `health_endpoint`),
   and `stacks/deploy/<stage>.yaml` (one per `infra_environments` item, through `yield` over `path_environments`)
   the region and tiers. `name_pattern: "{stage}"`, so stacks are `dev`, `prod` and so on.
-- **The Copier answers** `infra_region`, `infra_compute_hosting`, `infra_compute_sku`, `infra_database_capacity`,
-  `infra_database_throughput`, `infra_gateway_sku`, `infra_gateway_capacity` and `infra_admin_email` are the
-  defaults; each `infra_environments` item can override any of them without the `infra_` prefix.
-  `path_environments` resolves each stack's values (a SKU follows its hosting unless set); the
-  `infra_environments` validator repeats that resolution, because Copier has not computed `path_environments`
-  when it runs. Every cloud's choices share these questions (Copier checks a skipped question's default against
-  its choices, so the defaults must be valid choices); that validator rejects values that do not fit the cloud.
+- **Each cloud's options are data.** `infra_clouds` in `copier.yml` maps a `cloud_service` to its `slug`, default
+  `region`, `compute.hostings` (each with a default `sku`, a `skus` regex and whether it runs a `container` image),
+  `database.capacities` (each with an optional `throughput` default, `min` and `step`) and `gateway.skus` (each with
+  a `max_capacity`), plus the default of each. `infra_cloud` is the chosen cloud's entry, and
+  `include_infrastructure` is only asked when it exists. The questions `infra_region`, `infra_compute_hosting`,
+  `infra_compute_sku`, `infra_database_capacity`, `infra_database_throughput`, `infra_gateway_sku`,
+  `infra_gateway_capacity` and `infra_admin_email` take their defaults, help and validation from `infra_cloud`, so
+  they have no `choices` (Copier checks a skipped question's default against its choices). Each
+  `infra_environments` item can override any of them without the `infra_` prefix. `path_environments` resolves each
+  stack's values (a SKU follows its hosting unless set); the `infra_environments` validator repeats that
+  resolution, because Copier has not computed `path_environments` when it runs.
 - **Sources:** everything lives once in `shared/infra/` and each language includes it file by file. Cloud-neutral
   files render under `{{ infra_dir }}`; a cloud's Terraform lives in `shared/infra/components/terraform/api/<cloud>/`
   and renders under `{{ infra_<cloud>_dir }}/components/terraform/api/` (empty for other clouds), so a project
   always gets `components/terraform/api`. Language differences (runtime, app setting names) belong in
-  `stacks/catalog/api.yaml`, never in Terraform.
+  `stacks/catalog/api.yaml`, never in Terraform. Cloud-specific prose and steps go in partials the shared files
+  include for that cloud: `shared/infra/_README.<cloud>.md` and `shared/.github/workflows/_deploy.<cloud>.yml`
+  (login and credentials are a branch in `deploy.yml`).
 - **App settings** are names the code reads, with `${database_endpoint}` and `${database_name}` filled in by
   Terraform (`templatestring`); the per-container names default to the container id, so they match the store
   Terraform creates. CI checks every name appears in the generated code.
@@ -255,12 +261,12 @@ To add a new cloud provider to an existing language template:
 7. **Add it to the integration tests** — its host tool and base URL in `.github/actions/start-local-api`, the cloud in
    the `integration-tests.yaml` plan, its `CLOUDS` slug in `tests/integration/project.py`, its `NOT_ROUTED`
    statuses in `tests/integration/test_operations.py`, and a store in `tests/integration/store.py`
-8. **Add its infrastructure** (see [Infrastructure](#infrastructure)) — a component in
+8. **Add its infrastructure** (see [Infrastructure](#infrastructure)) — an `infra_clouds` entry, a component in
    `shared/infra/components/terraform/api/<cloud>/` with the same variables and its `terraform test` suite, an
    `infra_<cloud>_dir` derived value and the one-line includes in every language, the backend in
-   `stacks/catalog/defaults.yaml`, the cloud's app settings in `stacks/catalog/api.yaml`, its choices and defaults
-   in the `infra_*` questions and the `infra_environments` validator, its deploy steps in
-   `shared/.github/workflows/deploy.yml`, and the cloud in `validate-infra.yaml`
+   `stacks/catalog/defaults.yaml`, the cloud's app settings in `stacks/catalog/api.yaml`, its login in
+   `shared/.github/workflows/deploy.yml` and its publish steps in `_deploy.<cloud>.yml`, `shared/infra/_README.<cloud>.md`,
+   `fixtures/<cloud>-infra-environments.yml`, and the cloud in `validate-infra.yaml`
 9. **Update `README.md`** — Change the support table cell from planned to complete
 
 ## Adding a New Language
@@ -346,10 +352,10 @@ Add a job or fixture only for a combination no existing job exercises; fold new 
 
 Each language pipeline has one more Ubuntu job (`include-infrastructure: "true"`, Azure, `edge`) that builds and
 tests the code rendered with infrastructure. `validate-infra.yaml` renders every language with
-`fixtures/infra-environments.yml` (one stack per hosting, database capacity and gateway tier) and runs `terraform fmt`,
+`fixtures/<cloud>-infra-environments.yml` (one stack per hosting, database capacity and gateway tier) and runs `terraform fmt`,
 `validate`, TFLint, the component's `terraform test`, `atmos validate stacks`, a mocked plan of every stack, the app
-setting name check, actionlint on `deploy.yml` and Checkov (`.checkov.yaml` lists each skipped check with its
-reason). Nothing in this repository's CI deploys or holds cloud credentials.
+setting name check, actionlint on `deploy.yml` and Checkov (`.checkov.yaml` lists the skipped checks; the generated
+`infra/README.md` gives each one's reason). Nothing in this repository's CI deploys or holds cloud credentials.
 
 ### Integration Tests
 

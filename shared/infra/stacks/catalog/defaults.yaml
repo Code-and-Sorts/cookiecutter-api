@@ -1,7 +1,6 @@
-{%- set state_name = (project_endpoint | replace('-', '') | replace('_', ''))[:16] -%}
-# Shared by every stack. The state store is created once by hand; see infra/README.md.
 terraform:
 {%- if cloud_service == 'Azure Function App' %}
+{%- set state_name = (project_endpoint | replace('-', '') | replace('_', ''))[:16] %}
   backend_type: azurerm
   backend:
     azurerm:

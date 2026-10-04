@@ -29,6 +29,14 @@ variable "tags" {
   description = "Tags added to every resource."
 }
 
+variable "owner" {
+  type = object({
+    name  = string
+    email = string
+  })
+  description = "Who runs the API; Azure names them as the API Management publisher."
+}
+
 variable "network" {
   type = object({
     address_space = optional(string, "10.20.0.0/16")
@@ -50,9 +58,7 @@ variable "compute" {
     min_instances      = optional(number, 0)
     max_instances      = optional(number, 100)
     instance_memory_mb = optional(number, 2048)
-    # Setting name to value; ${database_endpoint} and ${database_name} are filled in.
-    app_settings = optional(map(string), {})
-    # Lets CI deploy over the public SCM endpoint, which still requires Entra ID; the API itself stays private.
+    app_settings       = optional(map(string), {})
     public_deployments = optional(bool, true)
   })
   description = "How the API runs: flex_consumption, app_service, premium or container_app, and its plan SKU or workload profile."
@@ -75,11 +81,10 @@ variable "compute" {
 
 variable "database" {
   type = object({
-    capacity   = string
-    throughput = optional(number, 400)
-    containers = list(string)
-    free_tier  = optional(bool, false)
-    # A CanNotDelete lock on the account; set it to false and apply before destroying the stack.
+    capacity    = string
+    throughput  = optional(number, 400)
+    containers  = list(string)
+    free_tier   = optional(bool, false)
     delete_lock = optional(bool, false)
   })
   description = "Cosmos DB capacity (serverless, provisioned or autoscale), shared database throughput and one container per id."
@@ -103,9 +108,6 @@ variable "gateway" {
   type = object({
     sku             = string
     capacity        = optional(number, 1)
-    publisher_name  = string
-    publisher_email = string
-    # Public path prefix; the Functions host serves the API under /api too.
     path            = optional(string, "api")
     health_endpoint = optional(string, "")
     routes = list(object({

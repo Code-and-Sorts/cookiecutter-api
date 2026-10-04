@@ -1,4 +1,3 @@
-# One stack per hosting, database capacity and gateway tier, so every branch of the Azure component plans.
 infra_environments:
   - name: dev
   - name: qa

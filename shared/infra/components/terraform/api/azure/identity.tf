@@ -1,6 +1,5 @@
 data "azuread_client_config" "current" {}
 
-# Created before the app so its roles exist when it starts; the API reads AZURE_CLIENT_ID to pick it.
 resource "azurerm_user_assigned_identity" "api" {
   name                = "id-${local.prefix}-api"
   resource_group_name = azurerm_resource_group.this.name
@@ -15,7 +14,6 @@ resource "azurerm_user_assigned_identity" "gateway" {
   tags                = local.tags
 }
 
-# The audience API Management requests tokens for; App Service authentication only admits its identity.
 resource "azuread_application" "api" {
   display_name     = "${local.prefix}-api"
   owners           = [data.azuread_client_config.current.object_id]

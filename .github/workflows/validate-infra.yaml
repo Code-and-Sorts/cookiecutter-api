@@ -18,17 +18,18 @@ on:
       - .github/workflows/validate-infra.yaml
       - .github/actions/setup-copier-template/**
 
+permissions:
+  contents: read
+
 env:
   TERRAFORM_VERSION: "1.16.5"
   ATMOS_VERSION: "1.230.1"
   ATMOS_TELEMETRY_ENABLED: "false"
 
-# Static checks only: nothing here has cloud credentials, plans against a real account or applies.
 jobs:
   validate-infra:
     runs-on: ubuntu-latest
     strategy:
-      # The Terraform component is the same for every language; the stacks' app settings are not.
       matrix:
         template-type:
           - python
@@ -98,7 +99,6 @@ jobs:
         run: atmos validate stacks
         shell: bash
 
-      # Catches stack values the Jinja templates render with the wrong shape or an invalid tier.
       - name: Plan every stack against mocked providers
         working-directory: KittenClaws/infra
         run: |
@@ -113,12 +113,12 @@ jobs:
       - name: Check the app settings are the names the code reads
         working-directory: KittenClaws
         run: |
-          atmos describe component api -s dev --format json > "$RUNNER_TEMP/api.json"
+          (cd infra && atmos describe component api -s dev --format json) > "$RUNNER_TEMP/api.json"
           python - "$RUNNER_TEMP/api.json" "${{ matrix.template-type }}" <<'PY'
           import json, pathlib, sys
 
           settings = json.load(open(sys.argv[1]))["vars"]["compute"]["app_settings"]
-          ignore_case = sys.argv[2] == "python"  # pydantic-settings matches names case-insensitively
+          ignore_case = sys.argv[2] == "python"
           sources = [
               p.read_text(errors="ignore")
               for p in pathlib.Path(".").rglob("*")

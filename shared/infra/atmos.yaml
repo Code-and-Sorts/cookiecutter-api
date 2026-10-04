@@ -1,4 +1,3 @@
-# Run atmos from this directory: atmos terraform plan api -s <stage>
 base_path: "."
 
 components:

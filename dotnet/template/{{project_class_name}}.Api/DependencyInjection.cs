@@ -108,7 +108,6 @@ public static class DependencyInjection
         {
             throw new InvalidOperationException("The CosmosDb connection string has neither an AccountKey nor an AccountEndpoint.");
         }
-        // Azure disables account keys; AZURE_CLIENT_ID makes DefaultAzureCredential use the app's managed identity.
         return new CosmosClient(accountEndpoint, new DefaultAzureCredential(), options);
     }
 
