@@ -5,6 +5,7 @@ import pytest
 
 from api import OPERATIONS, Api, unique_name
 from project import Project
+from recorder import Recorder
 from store import new_record, open_store
 
 PROJECT = pytest.StashKey[Project]()
@@ -17,6 +18,7 @@ def pytest_addoption(parser):
         "--base-url", required=True, help="Base URL including the route prefix, e.g. http://localhost:7071/api."
     )
     group.addoption("--ready-timeout", type=float, default=180, help="Seconds to wait for the API to answer.")
+    group.addoption("--record", type=Path, help="Write every request, response and stored document to this JSONL file.")
 
 
 def pytest_configure(config):
@@ -83,17 +85,36 @@ def project(pytestconfig) -> Project:
 
 
 @pytest.fixture(scope="session")
-def api(pytestconfig, project):
+def store(project):
+    return open_store(project)
+
+
+@pytest.fixture(scope="session")
+def recorder(request, pytestconfig, project):
+    if pytestconfig.option.record is None:
+        yield None
+        return
+    store = request.getfixturevalue("store")
+    recorder = Recorder(pytestconfig.option.record, project, store, pytestconfig.option.base_url)
+    yield recorder
+    recorder.close()
+
+
+@pytest.fixture(scope="session")
+def api(pytestconfig, project, recorder):
     api = Api(pytestconfig.option.base_url)
     if probe := _probe_path(project):
         api.wait_until_ready(probe, pytestconfig.option.ready_timeout)
+    if recorder:
+        recorder.install(api.http)
     yield api
     api.http.close()
 
 
-@pytest.fixture(scope="session")
-def store(project):
-    return open_store(project)
+@pytest.fixture(autouse=True)
+def _name_recorded_requests(request, recorder):
+    if recorder:
+        recorder.test = request.node.nodeid
 
 
 @pytest.fixture

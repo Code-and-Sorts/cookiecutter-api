@@ -108,7 +108,7 @@ jobs:
           BASE_URL: ${{ steps.host.outputs.base-url }}
         run: >-
           uv run --project tests/integration --no-dev
-          pytest tests/integration --project-dir KittenClaws --base-url "$BASE_URL" --junitxml=junit.xml
+          pytest tests/integration --project-dir KittenClaws --base-url "$BASE_URL" --junitxml=junit.xml --record requests.jsonl
 
       - name: Summarize results
         if: ${{ !cancelled() && hashFiles('junit.xml') != '' }}
@@ -126,6 +126,14 @@ jobs:
           print("| --- | --- | --- | --- | --- | --- |")
           print(f"| {os.environ['COMBO']} | {total - failed - skipped} | {failed} | {skipped} |")
           EOF
+
+      - name: Upload the request log
+        if: ${{ !cancelled() && hashFiles('requests.jsonl') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: requests-${{ matrix.language }}-${{ matrix.cloud.slug }}-${{ matrix.fixture }}
+          path: requests.jsonl
+          retention-days: 7
 
       - name: Collect emulator logs
         if: failure() && hashFiles('KittenClaws/docker-compose.yml') != ''
