@@ -67,11 +67,24 @@ Paths are relative to the API Gateway stage URL (for example `https://<api-id>.e
 
 Every response the app sends is JSON (`Content-Type: application/json`), errors included.
 
-- An item is `{"id": "<uuid>", "name": "<string>"}`. A list is a JSON array (`[]` when empty).
+- An item holds its id, its fields and when and by whom it was created and last updated, with the stored values:
+
+  ```json
+  {
+    "id": "6f1c2b9e-8d4a-4e7b-9c3f-2a5d8e1b7c40",
+    "name": "{{ resources[0].name }}1",
+    "createdTimestamp": "2026-09-29T22:49:26.625Z",
+    "createdBy": "user-123",
+    "updatedTimestamp": "2026-09-30T08:12:03.041Z",
+    "updatedBy": "user-456"
+  }
+  ```
+
+  `createdBy` and `updatedBy` are present only when the record has them (see `X-User-Id` below); they are never `null`. A create answers with `createdTimestamp` equal to `updatedTimestamp`; PATCH and PUT answer with the new `updatedTimestamp` and the stored created fields. `isDeleted` and database metadata are never returned. A list is a JSON array of items (`[]` when empty).
 - A request body must be a JSON object holding only the resource's fields. POST and PUT require `name` as a non-empty string (numbers and booleans are not converted). PATCH may leave `name` out, but when present it must be a non-empty string.
 - Unknown fields are rejected, including `id`, `isDeleted`, the timestamps and `createdBy`/`updatedBy`, so clients can never set ids or system fields. The id comes from the path only.
 - `?limit=` on a list is optional: a missing or invalid value uses the default (100) and larger values are capped at 1000.
-- Writes record the user id sent in the optional `X-User-Id` header (any casing; surrounding whitespace is trimmed). POST stores it as `createdBy` and `updatedBy`; PATCH, PUT and DELETE store it as `updatedBy` and keep `createdBy`. A write without the header (or with an empty one) removes `updatedBy`, so it always names the latest writer. GET ignores the header and responses never include these fields. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read.
+- Writes record the user id sent in the optional `X-User-Id` header (any casing; surrounding whitespace is trimmed). POST stores it as `createdBy` and `updatedBy`; PATCH, PUT and DELETE store it as `updatedBy` and keep `createdBy`. A write without the header (or with an empty one) removes `updatedBy`, so it always names the latest writer. GET ignores the header. Items in responses carry the stored `createdBy`/`updatedBy`, so a write without the header answers without `updatedBy`. A value longer than 256 characters is rejected with `400 {"errorMessage": "X-User-Id must be at most 256 characters."}` before the body is read.
   The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 
 | Status | When | Body |

@@ -42,6 +42,25 @@ describe('{{ r }}Controller', () => {
         await expect(call).rejects.toBeInstanceOf(NotFoundError);
         await expect(call).rejects.toMatchObject({ statusCode: 404, message: `{{ r }} with id ${id} was not found.` });
     };
+{%- if ops | select('in', ['create', 'update', 'replace']) | list %}
+
+    const systemFields = {
+        id: mockValidGuid,
+        isDeleted: false,
+        createdTimestamp: '2024-03-24T00:00:00.000Z',
+        updatedTimestamp: '2024-03-24T00:00:00.000Z',
+        createdBy: 'mockUser',
+        updatedBy: 'mockUser',
+    };
+
+    const expectUnknownFieldsRejected = async (send: (body: object) => Promise<unknown>, service: jest.Mock<MockFn>) => {
+        await expectBadRequest(send({ ...mockBody, invalidProp: 'x' }), 'Unknown field: invalidProp.');
+        for (const [field, value] of Object.entries(systemFields)) {
+            await expectBadRequest(send({ ...mockBody, [field]: value }), `Unknown field: ${field}.`);
+        }
+        expect(service).not.toHaveBeenCalled();
+    };
+{%- endif %}
 {%- if "create" in ops %}
 
     describe('post', () => {
@@ -65,9 +84,8 @@ describe('{{ r }}Controller', () => {
             await expectBadRequest(mockController.post({ name: '' }), 'name must not be empty.');
         });
 
-        it('should return 400 for unknown fields, including system fields', async () => {
-            await expectBadRequest(mockController.post({ ...mockBody, invalidProp: 'x' }), 'Unknown field: invalidProp.');
-            await expectBadRequest(mockController.post({ ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
+        it('should return 400 for unknown fields, including id and system fields', async () => {
+            await expectUnknownFieldsRejected((body) => mockController.post(body), mockCreate);
             await expectBadRequest(
                 mockController.post({ ...mockBody, isDeleted: false, createdBy: 'x' }),
                 'Unknown fields: isDeleted, createdBy.',
@@ -134,9 +152,8 @@ describe('{{ r }}Controller', () => {
             await expectBadRequest(mockController.update(mockValidGuid, { name: null }), 'name must be a string.');
         });
 
-        it('should return 400 for unknown fields, including id', async () => {
-            await expectBadRequest(mockController.update(mockValidGuid, { ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
-            expect(mockUpdate).not.toHaveBeenCalled();
+        it('should return 400 for unknown fields, including id and system fields', async () => {
+            await expectUnknownFieldsRejected((body) => mockController.update(mockValidGuid, body), mockUpdate);
         });
 
         it('should return 400 for a body that is not an object', async () => {
@@ -162,9 +179,8 @@ describe('{{ r }}Controller', () => {
             expect(mockReplace).not.toHaveBeenCalled();
         });
 
-        it('should return 400 for unknown fields, including id', async () => {
-            await expectBadRequest(mockController.replace(mockValidGuid, { ...mockBody, id: mockValidGuid }), 'Unknown field: id.');
-            expect(mockReplace).not.toHaveBeenCalled();
+        it('should return 400 for unknown fields, including id and system fields', async () => {
+            await expectUnknownFieldsRejected((body) => mockController.replace(mockValidGuid, body), mockReplace);
         });
 
         it('should return 404 for an id that is not a UUID', async () => {
