@@ -191,7 +191,7 @@ Resources that use the same container share its records: there is no type discri
 
 ## Prerequisites
 
-- Dotnet 10.x
+- Dotnet {{ runtime.dotnet }}.x
 {%- if cloud_service == 'Azure Function App' %}
 
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
@@ -200,7 +200,7 @@ Resources that use the same container share its records: there is no type discri
 
 - [Dotnet](https://dotnet.microsoft.com/en-us/download): Dotnet SDK and CLI
 
-- Azure Account: An active Azure subscription for deploying the Function App. On Linux, .NET 10 apps must run on the [Flex Consumption](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan) plan (or Premium/Dedicated); the Linux Consumption plan does not support .NET 10.
+- Azure Account: An active Azure subscription for deploying the Function App. On Linux, .NET {{ runtime.dotnet }} apps must run on the [Flex Consumption](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan) plan (or Premium/Dedicated); the Linux Consumption plan does not support .NET {{ runtime.dotnet }}.
 
 - Cosmos DB NoSQL Account either deployed in Azure or emulated locally (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
@@ -285,7 +285,7 @@ Resources that use the same container share its records: there is no type discri
 5. Deploy
 
     ```console
-    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet10 --trigger-http --no-allow-unauthenticated --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
+    gcloud functions deploy {{ project_endpoint }} --gen2 --runtime=dotnet{{ runtime.dotnet }} --trigger-http --no-allow-unauthenticated --entry-point={{ project_class_name }}.Api.Function --source={{ project_class_name }}.Api --set-env-vars=GCP_PROJECT_ID=<project-id>
     ```
 
     The whole API is one HTTP function. The .NET Functions Framework names the entry point by its type, so `--entry-point` is the `{{ project_class_name }}.Api.Function` class, which routes every request by its path.

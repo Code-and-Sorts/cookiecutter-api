@@ -25,7 +25,7 @@ variables {
   compute = {
     hosting = "flex_consumption"
     sku     = "FC1"
-    runtime = { name = "python", version = "3.14" }
+    runtime = { name = "python", version = "{{ runtime.python }}" }
     app_settings = {
       Cosmos_Db_Uri               = "$${database_endpoint}"
       Cosmos_Db_Database_Name     = "$${database_name}"
@@ -63,7 +63,7 @@ run "flex_consumption_defaults" {
   }
 
   assert {
-    condition     = azurerm_function_app_flex_consumption.this[0].runtime_name == "python" && azurerm_function_app_flex_consumption.this[0].runtime_version == "3.14"
+    condition     = azurerm_function_app_flex_consumption.this[0].runtime_name == "python" && azurerm_function_app_flex_consumption.this[0].runtime_version == "{{ runtime.python }}"
     error_message = "The runtime comes from compute.runtime."
   }
 
@@ -223,7 +223,7 @@ run "premium_hosting" {
     compute = {
       hosting       = "premium"
       sku           = "EP2"
-      runtime       = { name = "dotnet-isolated", version = "10.0" }
+      runtime       = { name = "dotnet-isolated", version = "{{ runtime.dotnet }}.0" }
       min_instances = 2
     }
   }
@@ -303,7 +303,7 @@ run "container_app_hosting" {
     compute = {
       hosting       = "container_app"
       sku           = "D4"
-      runtime       = { name = "node", version = "22" }
+      runtime       = { name = "node", version = "{{ runtime.node }}" }
       max_instances = 5
     }
   }
@@ -482,7 +482,7 @@ run "rejects_a_sku_that_does_not_fit_the_hosting" {
     compute = {
       hosting = "flex_consumption"
       sku     = "EP1"
-      runtime = { name = "python", version = "3.14" }
+      runtime = { name = "python", version = "{{ runtime.python }}" }
     }
   }
 

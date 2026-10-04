@@ -156,7 +156,7 @@ Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensurin
 
 ## Prerequisites
 
-- Python 3.14
+- Python {{ runtime.python }}
 
 {% if cloud_service == 'Azure Function App' -%}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
@@ -165,7 +165,7 @@ Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensurin
 
 - [uv](https://docs.astral.sh/uv/): For dependency management and virtual environment setup.
 
-- Azure Account: An active Azure subscription for deploying the Function App. Python 3.14 apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
+- Azure Account: An active Azure subscription for deploying the Function App. Python {{ runtime.python }} apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
 
 - Cosmos DB NoSQL Account either deployed in Azure or emulated locally (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
@@ -316,7 +316,7 @@ Settings are read from environment variables (case-insensitive).
     ```console
     gcloud functions deploy {{ project_endpoint }} \
       --gen2 \
-      --runtime python314 \
+      --runtime python{{ runtime.python | replace('.', '') }} \
       --trigger-http \
       --no-allow-unauthenticated \
       --entry-point api \
@@ -379,7 +379,7 @@ Settings are read from environment variables (case-insensitive).
     curl -H "x-api-key: $API_KEY" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 
-    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `uv.lock`, installs them as Linux x86_64 (manylinux) wheels for Python 3.14 with `uv pip install --python-platform x86_64-manylinux_2_34 --python-version 3.14 --only-binary :all:`, and copies every project module except the tests. It needs `make` and uv, but not Docker.
+    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `uv.lock`, installs them as Linux x86_64 (manylinux) wheels for Python {{ runtime.python }} with `uv pip install --python-platform x86_64-manylinux_2_34 --python-version {{ runtime.python }} --only-binary :all:`, and copies every project module except the tests. It needs `make` and uv, but not Docker.
 {%- endif %}
 
 {% set emulator_settings -%}

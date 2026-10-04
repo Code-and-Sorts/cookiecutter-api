@@ -112,6 +112,29 @@ aws_dir:
   when: false
   default: "{{ 'Functions' if language == 'dotnet' and cloud_service == 'AWS Lambda' else '' }}"
 
+runtime_versions:
+  type: yaml
+  when: false
+  default:
+    python: "3.14"
+    node: "24"
+    dotnet: "10"
+    go: "1.27"
+    uv: "0.12.22"
+    clouds:
+      Azure Function App:
+        node: "22"
+
+runtime:
+  type: yaml
+  when: false
+  default: >-
+    {%- set ns = namespace(versions={}) -%}
+    {%- for name, version in runtime_versions.items() if name != 'clouds' -%}
+    {%- set ns.versions = dict(ns.versions, **{name: version}) -%}
+    {%- endfor -%}
+    {{ dict(ns.versions, **runtime_versions.clouds.get(cloud_service, {})) | tojson }}
+
 health_endpoint:
   type: str
   default: "health"

@@ -18,7 +18,7 @@ jobs:
           - macos-latest
           - windows-latest
         node-version:
-          - "{% endraw %}{{ '22.x' if cloud_service == 'Azure Function App' else '24.x' }}{% raw %}"
+          - "{% endraw %}{{ runtime.node }}.x{% raw %}"
       fail-fast: false
     steps:
       - name: Check out

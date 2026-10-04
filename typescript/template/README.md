@@ -240,7 +240,7 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
 ## Deploy
 
 {% if cloud_service == 'Azure Function App' -%}
-Create a Function App on the Flex Consumption plan with the Node.js 22 runtime, set the environment variables as app settings, and publish:
+Create a Function App on the Flex Consumption plan with the Node.js {{ runtime.node }} runtime, set the environment variables as app settings, and publish:
 
 ```console
 az functionapp create \
@@ -249,7 +249,7 @@ az functionapp create \
   --storage-account <storage-account> \
   --flexconsumption-location <region> \
   --runtime node \
-  --runtime-version 22 \
+  --runtime-version {{ runtime.node }} \
   --functions-version 4
 
 az functionapp config appsettings set \
@@ -261,13 +261,13 @@ yarn build
 func azure functionapp publish <function-app-name>
 ```
 {%- elif cloud_service == 'GCP Cloud Function' -%}
-Deploy the `api` entry point with the Node.js 24 runtime. Cloud Build installs the dependencies and runs `yarn build`:
+Deploy the `api` entry point with the Node.js {{ runtime.node }} runtime. Cloud Build installs the dependencies and runs `yarn build`:
 
 ```console
 gcloud functions deploy {{ project_endpoint }} \
   --gen2 \
   --region <region> \
-  --runtime nodejs24 \
+  --runtime nodejs{{ runtime.node }} \
   --source . \
   --entry-point api \
   --trigger-http \
@@ -284,7 +284,7 @@ curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
   https://<region>-<project>.cloudfunctions.net/{{ project_endpoint }}/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
 ```
 {%- else -%}
-`template.yaml` defines the Lambda function (Node.js 24, `nodejs24.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
+`template.yaml` defines the Lambda function (Node.js {{ runtime.node }}, `nodejs{{ runtime.node }}.x`), one API Gateway route per generated operation, and one DynamoDB table per container.
 
 ```console
 yarn build

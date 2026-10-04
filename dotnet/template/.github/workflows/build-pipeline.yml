@@ -18,7 +18,7 @@ jobs:
           - macos-latest
           - windows-latest
         dotnet-version:
-          - "10.x"
+          - "{% endraw %}{{ runtime.dotnet }}{% raw %}.x"
       fail-fast: false
     steps:
       - name: Check out

@@ -17,11 +17,7 @@
   ],
 {%- endif %}
   "engines": {
-{%- if cloud_service == 'Azure Function App' %}
-    "node": ">=22"
-{%- else %}
-    "node": ">=24"
-{%- endif %}
+    "node": ">={{ runtime.node }}"
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",

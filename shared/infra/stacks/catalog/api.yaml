@@ -12,7 +12,7 @@ components:
 {%- if language == 'python' %}
           runtime:
             name: python
-            version: "3.14"
+            version: "{{ runtime.python }}"
           app_settings:
             Cosmos_Db_Uri: "${database_endpoint}"
             Cosmos_Db_Database_Name: "${database_name}"
@@ -22,7 +22,7 @@ components:
 {%- elif language == 'typescript' %}
           runtime:
             name: node
-            version: "22"
+            version: "{{ runtime.node }}"
           app_settings:
             COSMOS_DB_URL: "${database_endpoint}"
             COSMOS_DB_DATABASE_NAME: "${database_name}"
@@ -42,7 +42,7 @@ components:
 {%- else %}
           runtime:
             name: dotnet-isolated
-            version: "10.0"
+            version: "{{ runtime.dotnet }}.0"
           app_settings:
             ConnectionStrings__CosmosDb: "AccountEndpoint=${database_endpoint};"
             CosmosDbDatabaseName: "${database_name}"

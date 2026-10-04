@@ -1,4 +1,4 @@
-{%- set runtime = {'python': 'python', 'typescript': 'node', 'dotnet': 'dotnet-isolated', 'go': 'custom'}[language] -%}
+{%- set worker_runtime = {'python': 'python', 'typescript': 'node', 'dotnet': 'dotnet-isolated', 'go': 'custom'}[language] -%}
 {%- set app_dir = project_class_name ~ '.Api' if language == 'dotnet' else '.' -%}
 {%- raw %}
 
@@ -27,13 +27,13 @@
         if: steps.infra.outputs.app_hosting != 'container_app'
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "{{ runtime.python }}"
 
       - name: Set up uv
         if: steps.infra.outputs.app_hosting != 'container_app'
         uses: astral-sh/setup-uv@v10.2.0
         with:
-          version: "0.12.22"
+          version: "{{ runtime.uv }}"
 
       - name: Build
         if: steps.infra.outputs.app_hosting != 'container_app'
@@ -45,7 +45,7 @@
         if: steps.infra.outputs.app_hosting != 'container_app'
         uses: actions/setup-node@v7
         with:
-          node-version: "22.x"
+          node-version: "{{ runtime.node }}.x"
 
       - name: Build
         if: steps.infra.outputs.app_hosting != 'container_app'
@@ -75,7 +75,7 @@
         if: steps.infra.outputs.app_hosting != 'container_app'
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "10.x"
+          dotnet-version: "{{ runtime.dotnet }}.x"
 {%- endif %}
 
       - name: Set up Azure Functions Core Tools
@@ -91,6 +91,6 @@
 {%- endraw %}
         working-directory: {{ app_dir }}
         run: |
-          [ -f local.settings.json ] || echo '{"IsEncrypted": false, "Values": {"FUNCTIONS_WORKER_RUNTIME": "{{ runtime }}"}}' > local.settings.json
+          [ -f local.settings.json ] || echo '{"IsEncrypted": false, "Values": {"FUNCTIONS_WORKER_RUNTIME": "{{ worker_runtime }}"}}' > local.settings.json
           func azure functionapp publish "$APP"
         shell: bash

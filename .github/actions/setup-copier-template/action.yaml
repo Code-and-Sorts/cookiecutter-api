@@ -45,17 +45,22 @@ inputs:
     description: License choice.
   python-version:
     required: false
-    default: "3.14"
-    description: Python used to run Copier.
+    default: ""
+    description: Python used to run Copier; empty uses runtime_versions.python in copier.yml.
 
 runs:
   using: "composite"
 
   steps:
+    - name: Read the Python version
+      id: python
+      run: echo "version=$(yq -r '.runtime_versions.default.python' "$GITHUB_WORKSPACE/copier.yml")" >> "$GITHUB_OUTPUT"
+      shell: bash
+
     - name: Set up python
       uses: actions/setup-python@v7
       with:
-        python-version: ${{ inputs.python-version }}
+        python-version: ${{ inputs.python-version || steps.python.outputs.version }}
 
     - name: Install Copier
       run: pip install copier jinja2-strcase jinja2-time

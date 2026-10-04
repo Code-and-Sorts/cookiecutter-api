@@ -1,7 +1,7 @@
 name: Setup Runtime
 description: >-
-  Set up the runtime and package manager a generated project needs. The versions here are the only
-  copy: the newest GA version every cloud supports.
+  Set up the runtime and package manager a generated project needs, at the versions in
+  runtime_versions in copier.yml.
 
 inputs:
   language:
@@ -19,24 +19,34 @@ runs:
   using: "composite"
 
   steps:
+    - name: Read runtime versions
+      id: versions
+      env:
+        CLOUD: ${{ inputs.cloud-service }}
+      run: |
+        for name in python node dotnet go uv; do
+          echo "$name=$(yq -r ".runtime_versions.default.clouds[\"$CLOUD\"].$name // .runtime_versions.default.$name" "$GITHUB_WORKSPACE/copier.yml")" >> "$GITHUB_OUTPUT"
+        done
+      shell: bash
+
     - name: Set up Python
       if: inputs.language == 'python'
       uses: actions/setup-python@v7
       with:
-        python-version: "3.14"
+        python-version: ${{ steps.versions.outputs.python }}
 
     - name: Set up uv
       if: inputs.language == 'python' || inputs.uv == 'true'
       uses: astral-sh/setup-uv@v10.2.0
       with:
-        version: "0.12.22"
+        version: ${{ steps.versions.outputs.uv }}
         enable-cache: true
 
     - name: Set up Node
       if: inputs.language == 'typescript'
       uses: actions/setup-node@v7
       with:
-        node-version: ${{ inputs.cloud-service == 'Azure Function App' && '22.x' || '24.x' }}
+        node-version: ${{ steps.versions.outputs.node }}.x
 
     - name: Enable Corepack
       if: inputs.language == 'typescript'
@@ -47,10 +57,10 @@ runs:
       if: inputs.language == 'dotnet'
       uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: "10.x"
+        dotnet-version: ${{ steps.versions.outputs.dotnet }}.x
 
     - name: Set up Go
       if: inputs.language == 'go'
       uses: actions/setup-go@v7
       with:
-        go-version: "1.27"
+        go-version: ${{ steps.versions.outputs.go }}

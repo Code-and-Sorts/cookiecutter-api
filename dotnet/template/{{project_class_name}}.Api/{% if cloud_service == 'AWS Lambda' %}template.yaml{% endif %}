@@ -17,7 +17,7 @@ Conditions:
 Globals:
   Function:
     Timeout: 30
-    Runtime: dotnet10
+    Runtime: dotnet{{ runtime.dotnet }}
     MemorySize: 256
     Environment:
       Variables:

@@ -155,7 +155,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
 ## Prerequisites
 
-- Go 1.27+
+- Go {{ runtime.go }}+
 {% if cloud_service == 'Azure Function App' %}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 
@@ -258,7 +258,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     ```console
     gcloud functions deploy {{project_endpoint}}-api \
       --gen2 \
-      --runtime go127 \
+      --runtime go{{ runtime.go | replace('.', '') }} \
       --region us-central1 \
       --source . \
       --entry-point api \

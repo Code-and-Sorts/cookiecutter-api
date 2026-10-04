@@ -1,6 +1,6 @@
 module {{project_endpoint}}
 
-go 1.27
+go {{ runtime.go }}
 
 require (
 {%- if cloud_service == 'Azure Function App' %}

@@ -285,7 +285,7 @@ To add a new cloud provider to an existing language template:
    same names to `COSMOS_SETTINGS` in `tests/integration/store.py`),
    `shared/env.emulator.json` (AWS), `shared/_Makefile.emulator` and `shared/_README.emulator.md`, and add
    a bootstrap command and the run command (see [Local Emulators](#local-emulators))
-7. Add the language's runtime to `.github/actions/setup-runtime`, create `.github/workflows/build-{language}-pipeline.yaml`
+7. Add the language's runtime version to `runtime_versions` in `copier.yml` and its setup step to `.github/actions/setup-runtime`, create `.github/workflows/build-{language}-pipeline.yaml`
    (its path filters include `copier.yml` and `shared/**`), and add the language to `publish-examples.yml`, the
    `template-setup.yml` language map and the setup issue form
 8. Add the language to the integration tests: its install and emulator commands in
@@ -345,8 +345,8 @@ integration suite in every language.
 Pipelines use a small matrix, one job per distinct risk rather than every combination:
 - Ubuntu: every cloud service, with the default single resource and with `edge`
 - Windows (path length, checkout) and macOS (BSD tools) once each, on different clouds
-- The newest GA runtime each cloud supports, set once in `setup-runtime`: Node 24 (Node 22 on Azure Functions),
-  Python 3.14, .NET 10, Go 1.27
+- The newest GA runtime each cloud supports, set once in `runtime_versions` in `copier.yml` (with per-cloud
+  overrides under `clouds`, such as Node on Azure Functions); `setup-runtime` and `setup-copier-template` read it
 
 Add a job or fixture only for a combination no existing job exercises; fold new resource shapes into `edge`.
 
@@ -414,8 +414,10 @@ into the next render.
 Renovate keeps package versions current and merges its own PRs once every check passes
 (see `renovate.json`), except integration test dependencies, which wait for a review. Its `pep621` manager
 updates `pyproject.toml` and the matching `uv.lock` together. Runtime versions
-(Node, Python, .NET, Go) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all support
-the new version GA, in `.github/actions/setup-runtime`. Its `terraform` manager bumps the provider pins in
+(Node, Python, .NET, Go, and uv) are bumped by hand once Azure Functions, Cloud Run functions and AWS Lambda all
+support the new version GA, in `runtime_versions` in `copier.yml`: templates render `runtime` (those versions with the
+chosen cloud's overrides) into project files, generated pipelines, Dockerfiles and the stacks, and CI reads the same
+values. Its `terraform` manager bumps the provider pins in
 `shared/infra/components/terraform/api/*/versions.tf`, and regex managers the Atmos and Terraform versions in
 `infra_tools` in `copier.yml`, the one place both the generated deploy workflow and `validate-infra.yaml` read them
 from. Atmos telemetry is off in `shared/infra/atmos.yaml`.

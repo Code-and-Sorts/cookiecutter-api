@@ -21,7 +21,7 @@ Conditions:
 Globals:
   Function:
     Timeout: 30
-    Runtime: python3.14
+    Runtime: python{{ runtime.python }}
     Environment:
       Variables:
         # sam local only sets variables the template declares; deployed stacks omit it.
