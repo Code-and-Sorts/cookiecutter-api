@@ -1,0 +1,45 @@
+[project]
+name = "kittenclaws"
+version = "0.1.0"
+description = "Kitties got claws...beware"
+authors = [{ name = "Sir Meowsalots" }]
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "pydantic>=2.13.5,<3",
+    "pydantic-settings>=2.15.0,<3",
+    "google-cloud-firestore>=2.33.0,<3",
+    "functions-framework>=3.10.2,<4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1,<10",
+    "pytest-cov>=7.1.0,<8",
+    "pytest-describe>=3.2.0,<4",
+    "ruff>=0.16.9,<0.17",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["*_test.py", "conftest.py"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+extend-exclude = [".aws-sam"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E402", "E501", "W293"]
+
+[tool.ruff.lint.per-file-ignores]
+"*_test.py" = ["F401", "F841"]
+
+[tool.ruff.format]
+quote-style = "double"
