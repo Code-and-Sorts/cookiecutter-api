@@ -48,13 +48,15 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
 
   protected updateRecord = (id: string, fields: Partial<RecordFields<T>>, userId?: string): Promise<T> =>
     this.guard(`Error upserting item with id ${id}.`, async () => {
-      const { updatedBy: _previous, ...current } = await this.findLive(id);
-      return this.save({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T);
+      const read = await this.findLive(id);
+      const { updatedBy: _previous, ...current } = read;
+      return this.save({ ...current, ...fields, id, updatedTimestamp: nowIso(), ...updatedBy(userId) } as T, read);
     });
 
   protected replaceRecord = (id: string, fields: RecordFields<T>, userId?: string): Promise<T> =>
     this.guard(`Error replacing item with id ${id}.`, async () => {
-      const { createdTimestamp, createdBy } = await this.findLive(id);
+      const read = await this.findLive(id);
+      const { createdTimestamp, createdBy } = read;
       return this.save({
         ...fields,
         id,
@@ -64,7 +66,7 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
         // Omitted, never stored as undefined, when the record has none.
         ...(createdBy !== undefined && { createdBy }),
         ...updatedBy(userId),
-      } as T);
+      } as T, read);
     });
 
   protected deleteRecord = (id: string, userId?: string): Promise<void> =>
@@ -82,8 +84,8 @@ export abstract class BaseRepository<T extends BaseItemRecord> {
     return record;
   };
 
-  private save = async (record: T): Promise<T> => {
-    if (!(await this.store.write(record))) {
+  private save = async (record: T, read: T): Promise<T> => {
+    if (!(await this.store.write(record, read))) {
       throw this.notFound(record.id);
     }
     return record;

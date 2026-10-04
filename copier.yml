@@ -29,13 +29,13 @@ project_name:
     {%- set project_lower_camel_name = project_name | to_lower_camel -%}
     {%- set project_class_name = project_name | to_camel -%}
     {%- set project_endpoint = project_name.lower().replace(' ', '-') -%}
-    {%- if language == 'python' and not (project_slug | regex_search('^[_a-zA-Z][_a-zA-Z0-9]+$')) -%}
+    {%- if language == 'python' and not (project_slug | regex_search('^[_a-zA-Z][_a-zA-Z0-9]+\Z')) -%}
     The project slug {{ project_slug }} is not a valid Python module name. Please do not use a - and use _ instead.
-    {%- elif language != 'python' and not (project_lower_camel_name | regex_search('^[a-z]+(?:[A-Z][a-z]+)*$')) -%}
+    {%- elif language != 'python' and not (project_lower_camel_name | regex_search('^[a-z]+(?:[A-Z][a-z]+)*\Z')) -%}
     The project lower camel {{ project_lower_camel_name }} is not valid camel case. Please create a name using camelCase.
-    {%- elif not (project_class_name | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- elif not (project_class_name | regex_search('^[A-Z][A-Za-z0-9]*\Z')) -%}
     The project class name {{ project_class_name }} is not a valid class name. Please create a class name using PascalCase.
-    {%- elif not (project_endpoint | regex_search('^[a-zA-Z0-9\-_]*$')) -%}
+    {%- elif not (project_endpoint | regex_search('^[a-zA-Z0-9\-_]*\Z')) -%}
     The project endpoint {{ project_endpoint }} is not a valid REST endpoint name. Please do not use a space or _ and use - instead.
     {%- endif -%}
 
@@ -117,7 +117,7 @@ health_endpoint:
   default: "health"
   help: URL segment for the health check (kebab-case); leave empty to generate no health check.
   validator: >-
-    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- if health_endpoint and not (health_endpoint | regex_search('^[a-z0-9][a-z0-9\-]*\Z')) -%}
     Health endpoint '{{ health_endpoint }}' must be a kebab-case URL segment, or empty to generate no health check.
     {%- endif -%}
 
@@ -184,17 +184,17 @@ resources:
     {%- set ns.name_clash = p -%}
     {%- endif -%}
     {%- endfor -%}
-    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*$')) -%}
+    {%- if not r.name or not (r.name | string | regex_search('^[A-Z][A-Za-z0-9]*\Z')) -%}
     {%- set ns.err = "Resource name '" ~ (r.name | default('')) ~ "' must be PascalCase." -%}
     {%- elif r.name in reserved_names -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' is reserved: it collides with a name the generated " ~ cloud_service ~ " project already uses. Reserved names: " ~ (reserved_names | join(', ')) ~ "." -%}
     {%- elif language == "python" and (r.name | to_snake) in python_keywords -%}
     {%- set ns.err = "Resource name '" ~ r.name ~ "' would generate the module name '" ~ (r.name | to_snake) ~ "', which is a Python keyword." -%}
-    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*$')) -%}
+    {%- elif not r.endpoint or not (r.endpoint | string | regex_search('^[a-z0-9][a-z0-9\-]*\Z')) -%}
     {%- set ns.err = "Resource endpoint '" ~ (r.endpoint | default('')) ~ "' must be a kebab-case URL segment." -%}
     {%- elif health_endpoint and r.endpoint == health_endpoint -%}
     {%- set ns.err = "Resource endpoint '" ~ r.endpoint ~ "' is reserved for the health check." -%}
-    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+$')) -%}
+    {%- elif not r.container or not (r.container | string | regex_search('^[A-Za-z0-9_\-]+\Z')) -%}
     {%- set ns.err = "Resource container '" ~ (r.container | default('')) ~ "' has an invalid id." -%}
     {%- elif (r.operations | default([]) | length) < 1 -%}
     {%- set ns.err = "Resource '" ~ r.name ~ "' must enable at least one operation." -%}

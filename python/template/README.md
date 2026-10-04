@@ -383,6 +383,32 @@ uv add <package-name>
 uv remove <package-name>
 ```
 
+### Adding a field
+{% set r = resources[0] %}
+Each resource's fields are plain Pydantic models in `models/{{ r.name | to_snake }}.py`; the repositories store whatever the model holds, so the model is usually the only file to change. To add an optional `age`:
+
+```python
+class Base{{ r.name }}(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    name: str = Field(min_length=1)
+    age: int | None = Field(default=None, ge=0)
+
+
+class {{ r.name }}Update(BaseModel):
+    ...
+    age: int = Field(default=None, ge=0)
+
+
+class {{ r.name }}Response(BaseModel):
+    ...
+    age: int | None = None
+```
+
+- `Base{{ r.name }}` is the create and replace body, `{{ r.name }}Update` the PATCH body (a default of `None` keeps an absent field unset), and `{{ r.name }}Response` what clients get back.
+- `extra="forbid"` keeps rejecting unknown fields, and `strict=True` rejects wrongly typed values instead of converting them.
+- Add the field to the model, service and controller tests, and to the Thunder Client requests in `.thunderclient/`.
+
 ## Running Tests
 
 Ensure your code is working as expected by running unit tests using pytest:

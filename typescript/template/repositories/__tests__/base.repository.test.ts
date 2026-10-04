@@ -19,6 +19,7 @@ class TestRepository extends BaseRepository<Item> {
 
 const id = '28535ae3-2f1b-4e81-ba13-0f46a0c74ea0';
 const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const lostRace = Object.assign(new Error('Precondition failed'), { code: 412 });
 const stored: Item = {
     id,
     name: 'stored',
@@ -125,7 +126,7 @@ describe('BaseRepository', () => {
             const result = await repository.updateRecord(id, { name: 'updated' }, 'editor');
             expect(result).toEqual({ ...stored, name: 'updated', updatedBy: 'editor', updatedTimestamp: expect.stringMatching(isoTimestamp) });
             expect(result.updatedTimestamp).not.toEqual(stored.updatedTimestamp);
-            expect(store.write).toHaveBeenCalledWith(result);
+            expect(store.write).toHaveBeenCalledWith(result, stored);
         });
 
         it('should drop the stored updatedBy without a user id', async () => {
@@ -143,8 +144,8 @@ describe('BaseRepository', () => {
             await expectNotFound(repository.updateRecord(id, { name: 'updated' }));
         });
 
-        it('should wrap a store failure in a proxy error', async () => {
-            const cause = new Error('down');
+        it('should wrap a store failure, such as a write that lost a race, in a proxy error', async () => {
+            const cause = lostRace;
             store.read.mockResolvedValue(stored);
             store.write.mockRejectedValue(cause);
             await expectProxyError(repository.updateRecord(id, { name: 'updated' }), `Error upserting item with id ${id}.`, cause);
@@ -164,7 +165,7 @@ describe('BaseRepository', () => {
                 createdTimestamp: stored.createdTimestamp,
                 updatedTimestamp: expect.stringMatching(isoTimestamp),
             });
-            expect(store.write).toHaveBeenCalledWith(result);
+            expect(store.write).toHaveBeenCalledWith(result, stored);
         });
 
         it('should omit createdBy when the stored record has none and updatedBy without a user id', async () => {
@@ -180,8 +181,8 @@ describe('BaseRepository', () => {
             expect(store.write).not.toHaveBeenCalled();
         });
 
-        it('should wrap a store failure in a proxy error', async () => {
-            const cause = new Error('down');
+        it('should wrap a store failure, such as a write that lost a race, in a proxy error', async () => {
+            const cause = lostRace;
             store.read.mockResolvedValue(stored);
             store.write.mockRejectedValue(cause);
             await expectProxyError(repository.replaceRecord(id, { name: 'replaced' }), `Error replacing item with id ${id}.`, cause);

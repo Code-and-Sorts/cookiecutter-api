@@ -359,6 +359,20 @@ dotnet add package <package-name>
 dotnet remove package <package-name>
 ```
 
+### Adding a field
+{% set r = resources[0] %}{% set api = project_class_name ~ '.Api' %}
+Fields are written out in each layer, so a new field touches these files under `{{ api }}` (shown for `{{ r.name }}`; to add an optional `Age`):
+
+1. `Models/Entities/{{ r.name }}Entity.cs`: add `public int? Age { get; set; }`
+{%- if cloud_service == 'GCP Cloud Function' %} with `[FirestoreProperty("age")]`, and write it in `ToDocument`
+{%- elif cloud_service == 'AWS Lambda' %}, and map it in `WriteAttributes` and `ReadAttributes`
+{%- endif %}.
+2. `Models/Dtos/{{ r.name }}Dto.cs`: add the property clients get back.
+3. `Models/{{ r.name }}Requests.cs`: add `[JsonPropertyName("age")] public int? Age { get; set; }` to each request; `RequestBody` rejects any field without `[JsonPropertyName]`.
+4. `Models/Schemas/{{ r.name }}Validation.cs`: add the rules, for example `RuleFor(x => x.Age).GreaterThanOrEqualTo(0).When(x => x.Age != null);`.
+5. `Services/{{ r.name }}Service.cs` and `Repositories/{{ r.name }}Repository.cs`: copy the field from the request into the entity, set it in `ToDto`, and in the update merge keep the stored value when the request leaves it out (`changes.Age ?? current.Age`).
+6. Add the field to the tests in `{{ project_class_name }}.Api.Tests.Unit` and to the Thunder Client requests in `.thunderclient/`.
+
 ## Running Tests
 
 Ensure your code is working as expected by running unit tests using dotnet test:

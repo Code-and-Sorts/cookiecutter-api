@@ -1,5 +1,6 @@
 import uuid
 {%- if cloud_service == 'Azure Function App' %}
+from azure.core import MatchConditions
 from azure.cosmos.aio import ContainerProxy
 from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosResourceNotFoundError
 {%- endif %}
@@ -110,9 +111,15 @@ class BaseRepository[ResponseT: BaseModel]:
         return item
 {%- endif %}
 
-    async def _write(self, record: dict) -> None:
+    async def _write(self, record: dict, read: dict | None = None) -> None:
+        """read is the record the write was built from, so a store can refuse a write that races another."""
 {%- if cloud_service == 'Azure Function App' %}
-        await self.container_client.upsert_item(record)
+        if read is None:
+            await self.container_client.upsert_item(record)
+        else:
+            await self.container_client.replace_item(
+                record["id"], record, etag=read["_etag"], match_condition=MatchConditions.IfNotModified
+            )
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
         await self.collection.document(record["id"]).set(record, **FIRESTORE_CALL_OPTIONS)
@@ -184,7 +191,7 @@ class BaseRepository[ResponseT: BaseModel]:
             "updatedTimestamp": generate_utc_timestamp(),
             **_user_fields(user_id, "updatedBy"),
         }
-        await self._write(record)
+        await self._write(record, stored)
         return self.response_model.model_validate(record)
 
     async def _replace(self, item_id: str, fields: dict, user_id: str | None = None) -> ResponseT:
@@ -199,7 +206,7 @@ class BaseRepository[ResponseT: BaseModel]:
             "updatedTimestamp": now,
             **_user_fields(user_id, "updatedBy"),
         }
-        await self._write(record)
+        await self._write(record, stored)
         return self.response_model.model_validate(record)
 
     async def _delete(self, item_id: str, user_id: str | None = None) -> None:

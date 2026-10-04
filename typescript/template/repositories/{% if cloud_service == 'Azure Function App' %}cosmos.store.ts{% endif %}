@@ -1,10 +1,14 @@
-import { Container, Database, PatchOperation } from '@azure/cosmos';
+import { Container, Database, PatchOperation, Resource } from '@azure/cosmos';
 import { BaseItemRecord } from '@models';
 import { DocumentStore, StoreFactory } from './document.store';
 
+type CosmosError = { code?: unknown; substatus?: unknown } | undefined;
+
 // Only an item-level 404 (no substatus) is a missing record; e.g. substatus 1003 (no such container) must stay a 500.
-export const isMissingItem = (error: { code?: unknown; substatus?: unknown } | undefined): boolean =>
-  error?.code === 404 && !error?.substatus;
+export const isMissingItem = (error: CosmosError): boolean => error?.code === 404 && !error?.substatus;
+
+// 412: the isDeleted = false precondition failed, so the record is already deleted.
+const isGone = (error: CosmosError): boolean => isMissingItem(error) || error?.code === 412;
 
 export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
   constructor(private readonly container: Container) {}
@@ -27,7 +31,11 @@ export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
     await this.container.items.create<T>(item);
   };
 
-  write = (item: T): Promise<boolean> => this.ifFound(this.container.item(item.id, item.id).replace<T>(item));
+  write = (item: T, read: T): Promise<boolean> =>
+    this.ifFound(
+      this.container.item(item.id, item.id).replace<T>(item, { accessCondition: { type: 'IfMatch', condition: (read as T & Resource)._etag } }),
+      isMissingItem,
+    );
 
   softDelete = (id: string, updatedTimestamp: string, updatedBy?: string): Promise<boolean> => {
     const operations: PatchOperation[] = [
@@ -39,16 +47,15 @@ export class CosmosStore<T extends BaseItemRecord> implements DocumentStore<T> {
       // Patch remove fails on a missing path, so the set above guarantees one exists.
       operations.push({ op: 'remove', path: '/updatedBy' });
     }
-    return this.ifFound(this.container.item(id, id).patch({ condition: 'FROM c WHERE c.isDeleted = false', operations }));
+    return this.ifFound(this.container.item(id, id).patch({ condition: 'FROM c WHERE c.isDeleted = false', operations }), isGone);
   };
 
-  private ifFound = async (operation: Promise<unknown>): Promise<boolean> => {
+  private ifFound = async (operation: Promise<unknown>, notFound: (error: CosmosError) => boolean): Promise<boolean> => {
     try {
       await operation;
       return true;
     } catch (error) {
-      // 412: the isDeleted = false precondition failed, so the record is already deleted.
-      if (isMissingItem(error) || error?.code === 412) {
+      if (notFound(error as CosmosError)) {
         return false;
       }
       throw error;

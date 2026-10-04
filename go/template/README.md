@@ -329,6 +329,16 @@ go get <package-path>
 go mod tidy
 ```
 
+### Adding a field
+{% set r = resources[0] %}{% set s = r.name | to_snake %}
+Fields are written out in each layer, so a new field touches these files (shown for `{{ r.name }}`; to add an optional `age`):
+
+1. `models/{{ s }}_model.go`: add ``Age *int64 `json:"age,omitempty" dynamodbav:"age,omitempty" firestore:"age,omitempty"` `` to `{{ r.name }}`, and ``Age *int64 `json:"age"` `` to `{{ r.name }}Dto` and each request struct, and copy it in `To{{ r.name }}Dto`. A pointer keeps an absent value distinct from `0`.
+2. `controllers/schemas/{{ s }}_*_request.json`: add the property and its rules, for example `"age": {"type": "integer", "minimum": 0}`, and list it under `required` if clients must send it. `additionalProperties: false` keeps rejecting unknown fields.
+3. `services/{{ s }}_service.go`: copy the field from each request into the `{{ r.name }}` it builds.
+4. `repositories/{{ s }}_repository.go`: in `Update`, copy the field onto the stored record only when it was sent (`if item.Age != nil`).
+5. Add the field to the model, controller, service and repository tests, and to the Thunder Client requests in `.thunderclient/`.
+
 ## Running Tests
 
 Ensure your code is working as expected by running unit tests using go test:

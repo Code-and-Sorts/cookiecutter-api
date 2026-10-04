@@ -123,7 +123,8 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
 - **Storage:** `id`, `name`, `isDeleted`, `createdTimestamp`, `updatedTimestamp` (ISO 8601 UTC, milliseconds,
   `Z`), plus `createdBy`/`updatedBy` only when set. Create reads the clock once and uses that value for both
   `createdTimestamp` and `updatedTimestamp` (never a separate default per field, which can differ by a
-  millisecond). Update and replace keep the created fields; delete is soft.
+  millisecond). Update and replace keep the created fields; delete is soft. A Cosmos DB write after a read sends the
+  ETag it read (If-Match), so a racing write is a 500, never lost.
 - **User id:** the optional `X-User-Id` header (trimmed, at most 256 characters, else 400) is the only source of
   `createdBy`/`updatedBy`. Create sets both; update, replace and delete set `updatedBy`, and a write without the
   header removes it. Bodies still reject both fields. The header is not authenticated; every generated README says so.

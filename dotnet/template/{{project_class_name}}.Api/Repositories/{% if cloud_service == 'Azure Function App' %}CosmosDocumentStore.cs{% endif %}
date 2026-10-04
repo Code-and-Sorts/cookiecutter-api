@@ -1,5 +1,6 @@
 namespace {{project_class_name}}.Api.Repositories;
 
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -10,19 +11,7 @@ using Microsoft.Azure.Cosmos;
 
 public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> where T : BaseEntity
 {
-    public async Task<T?> GetAsync(string id, CancellationToken ct = default)
-    {
-        try
-        {
-            var response = await container.ReadItemAsync<T>(id, new PartitionKey(id), null, ct);
-            return response.Resource;
-        }
-        // Only substatus 0 is a missing item; other 404s (e.g. 1003, no container) are config errors.
-        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0)
-        {
-            return null;
-        }
-    }
+    public async Task<T?> GetAsync(string id, CancellationToken ct = default) => (await ReadAsync(id, ct))?.Resource;
 
     public async Task<IReadOnlyList<T>> GetLiveListAsync(int limit, CancellationToken ct = default)
     {
@@ -42,6 +31,28 @@ public class CosmosDocumentStore<T>(Container container) : IDocumentStore<T> whe
     public Task CreateAsync(T item, CancellationToken ct = default) =>
         container.CreateItemAsync(item, new PartitionKey(item.Id), null, ct);
 
-    public Task SaveAsync(T item, CancellationToken ct = default) =>
-        container.ReplaceItemAsync(item, item.Id, new PartitionKey(item.Id), null, ct);
+    public async Task<T?> UpdateAsync(string id, Action<T> change, CancellationToken ct = default)
+    {
+        if (await ReadAsync(id, ct) is not { } read)
+        {
+            return null;
+        }
+        var item = read.Resource;
+        change(item);
+        await container.ReplaceItemAsync(item, id, new PartitionKey(id), new ItemRequestOptions { IfMatchEtag = read.ETag }, ct);
+        return item;
+    }
+
+    private async Task<ItemResponse<T>?> ReadAsync(string id, CancellationToken ct)
+    {
+        try
+        {
+            return await container.ReadItemAsync<T>(id, new PartitionKey(id), null, ct);
+        }
+        // Only substatus 0 is a missing item; other 404s (e.g. 1003, no container) are config errors.
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0)
+        {
+            return null;
+        }
+    }
 }
