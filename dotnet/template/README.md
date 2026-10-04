@@ -128,7 +128,7 @@ Each resource reads and writes the Cosmos DB container configured for its `conta
 | `{{ c.container }}` | `CosmosDbContainerName_{{ c.container_class }}` | `{{ c.container }}` | {{ resources | selectattr('container', 'equalto', c.container) | map(attribute='name') | join(', ') }} |
 {%- endfor %}
 
-The Cosmos DB connection string is read from `ConnectionStrings:CosmosDb` (`ConnectionStrings__CosmosDb` in `local.settings.json` `Values`, so a value already in the environment, such as the emulator's, takes precedence) and the database name from `CosmosDbDatabaseName`. Containers must use `/id` as their partition key.
+The Cosmos DB connection string is read from `ConnectionStrings:CosmosDb` (`ConnectionStrings__CosmosDb` in `local.settings.json` `Values`, so a value already in the environment, such as the emulator's, takes precedence) and the database name from `CosmosDbDatabaseName`. Containers must use `/id` as their partition key. The connection string's `AccountKey` is optional: with `AccountEndpoint` alone (`AccountEndpoint=https://<account>.documents.azure.com:443/;`) the client authenticates with Microsoft Entra ID (`DefaultAzureCredential`, which picks the managed identity named by `AZURE_CLIENT_ID`).{% if include_infrastructure %} Deployed with [the infrastructure](#deploy-with-the-infrastructure), the functions use the `Anonymous` auth level behind App Service authentication, and callers send an API Management API key (`x-api-key`) instead of a function key.{% endif %}
 
 `CosmosDbConnectionMode` selects the Cosmos DB connection mode: `Direct` (the default when the setting is missing, and the best choice in Azure) or `Gateway`. `local.settings.json` sets it to `Gateway` because the [Linux Cosmos DB emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) only supports Gateway mode. `CosmosDbEmulator=true` is for local development only (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
@@ -360,6 +360,9 @@ Resources that use the same container share its records: there is no type discri
     'sdk_note': 'The AWS SDK reads the variable natively; when `sam local` runs without `env.emulator.json` it passes the variable empty, and the client then ignores it instead of failing.',
 } -%}
 {% include 'shared/_README.emulator.md' %}
+{% if include_infrastructure -%}
+{% include 'shared/_README.infra.md' %}
+{% endif -%}
 ## Development Workflow
 
 ### Adding a New Dependency
