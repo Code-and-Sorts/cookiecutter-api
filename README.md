@@ -254,7 +254,3 @@ Below are the SDKs and frameworks used in the various templates.
 - [Cloud Functions](https://cloud.google.com/functions/docs) for hosting the APIs
 - [Firestore](https://cloud.google.com/firestore#documentation) for data storage
 - [Firestore emulator](https://cloud.google.com/firestore/docs/emulator) for local development
-
-## Acknowledgements
-
-Florian Maas' [cookiecutter-poetry](https://github.com/fpgmaas/cookiecutter-poetry) repository was a helpful resource for building out this template.

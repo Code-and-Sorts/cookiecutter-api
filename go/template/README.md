@@ -1,6 +1,6 @@
 # {{ project_class_name }} API
 
-[![](https://img.shields.io/badge/made%20using%20cookiecutter%20api-grey?style=for-the-badge&logo=cookiecutter)](https://github.com/Code-and-Sorts/cookiecutter-api)
+[![Made with Cookiecutter API](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Code-and-Sorts/cookiecutter-api/main/.docs/badge.json)](https://github.com/Code-and-Sorts/cookiecutter-api)
 
 ## Overview
 {% if cloud_service == 'Azure Function App' %}
