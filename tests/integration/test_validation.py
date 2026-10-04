@@ -51,7 +51,9 @@ def test_an_update_without_a_name_keeps_the_record(api, resource, make_record):
     record = make_record(resource)
     response = api.send("update", resource, record["id"], json={})
     assert response.status_code == 200, response.text
-    assert response.json() == record
+    body = response.json()
+    assert body["updatedTimestamp"] >= record["updatedTimestamp"]
+    assert {**body, "updatedTimestamp": None} == {**record, "updatedTimestamp": None}
 
 
 @pytest.mark.each_operation(*ITEM_OPERATIONS)

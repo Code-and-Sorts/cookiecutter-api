@@ -4,11 +4,10 @@ import re
 
 import pytest
 
-from api import unique_name
+from api import RESPONSE_FIELDS, USER_FIELDS, unique_name
 
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
-REQUIRED_FIELDS = {"id", "name", "isDeleted", "createdTimestamp", "updatedTimestamp"}
-USER_FIELDS = {"createdBy", "updatedBy"}
+REQUIRED_FIELDS = RESPONSE_FIELDS | {"isDeleted"}
 
 
 def stored(store, resource, item_id: str) -> dict:

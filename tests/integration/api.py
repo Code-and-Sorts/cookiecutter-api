@@ -20,10 +20,17 @@ OPERATIONS = tuple(ROUTES)
 ITEM_OPERATIONS = tuple(op for op, (_, addresses_item) in ROUTES.items() if addresses_item)
 BODY_OPERATIONS = ("create", "update", "replace")
 LIST_MAX = 1000
+RESPONSE_FIELDS = {"id", "name", "createdTimestamp", "updatedTimestamp"}
+USER_FIELDS = {"createdBy", "updatedBy"}
 
 
 def unique_name(resource: Resource) -> str:
     return f"{resource.name}-{uuid4().hex[:8]}"
+
+
+def response_of(record: dict) -> dict:
+    """The response the API owes for a stored record: no isDeleted, and user fields only when set."""
+    return {key: value for key, value in record.items() if key in RESPONSE_FIELDS | USER_FIELDS}
 
 
 def user_headers(user_id: str | None) -> dict[str, str]:

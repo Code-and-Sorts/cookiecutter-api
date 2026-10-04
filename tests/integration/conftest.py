@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from api import OPERATIONS, Api, unique_name
+from api import OPERATIONS, Api, response_of, unique_name
 from project import Project
 from recorder import Recorder
 from store import new_record, open_store
@@ -128,6 +128,6 @@ def make_record(api, store):
             return response.json()
         record = new_record(unique_name(resource))
         store.put(resource.container, record)
-        return {"id": record["id"], "name": record["name"]}
+        return response_of(record)
 
     return make

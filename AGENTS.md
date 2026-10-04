@@ -20,6 +20,7 @@ cookiecutter-api/
 │   ├── actions/             # Shared composite actions and resource fixtures
 │   └── workflows/           # CI pipelines per language, integration tests, example publishing
 ├── tests/integration/       # Black-box HTTP suite for the API contract, run against the emulators
+├── .claude/skills/           # Agent skills for this repository (integration-report)
 ├── .docs/                   # Documentation assets (images, SVGs)
 └── README.md                # Support matrix and usage docs
 ```
@@ -111,8 +112,9 @@ Every language and cloud must generate the same HTTP behaviour; change all four 
   Functions (the host default) and empty on GCP and AWS. The health check is `GET {prefix}/<health_endpoint>`,
   matched exactly. SAM path parameters are named `{id}`. GCP projects expose one HTTP function: entry point `api`, or the `Function` class in .NET, whose
   Functions Framework resolves entry points by type name.
-- **Responses:** always JSON. Create 201; get, update, replace 200 with `{"id", "name"}`; list 200 with an array
-  (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
+- **Responses:** always JSON. Create 201; get, update, replace 200 with `id`, `name`, `createdTimestamp`,
+  `updatedTimestamp`, and `createdBy`/`updatedBy` only when stored (never `null`), and never `isDeleted`; list 200
+  with an array of the same (`[]` when empty); delete 200 with `{"message": "<Name> with id <id> was deleted successfully."}`; health 200
   with `{"status": "ok"}`.
 - **Errors:** `{"errorMessage": "..."}`. 400 for malformed JSON, a non-object body, a missing (create and replace;
   update keeps the stored name), empty or non-string `name`, or any unknown field (including `id` and system fields, so a create can never overwrite a record);
@@ -308,6 +310,11 @@ contract or emulator change. Each job renders the project, then `.github/actions
 emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the
 TypeScript `yarn` scripts) and outputs the base URL. Failed jobs upload the host and emulator logs, the JUnit
 XML and the project.
+
+`--record <file>` makes the suite write every request it sends, the response, and the stored document before and
+after each write, one JSON line each (`recorder.py`); the workflow records every job, uploads the file as a
+`requests-<language>-<cloud>-<fixture>` artifact and prints it in the job log. The `integration-report` skill
+(`.claude/skills/integration-report/`) runs the workflow and turns those logs into one HTML page for review.
 
 ### Local Verification
 

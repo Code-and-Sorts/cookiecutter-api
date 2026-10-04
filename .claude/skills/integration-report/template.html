@@ -1,0 +1,293 @@
+<title>KittenClaws Request Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a language x cloud matrix picks one run; below it, filters and the run's requests grouped by test, each expanding to request, response and stored document. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --sunken: #eef1f4;
+  --fg: #1b2330;
+  --muted: #5d6878;
+  --line: #d9dee5;
+  --accent: #2f5fd0;
+  --accent-soft: #e3ebfb;
+  --get: #2f5fd0;
+  --post: #1d7a4b;
+  --patch: #a35a00;
+  --put: #7240b8;
+  --delete: #b4302b;
+  --ok: #1d7a4b;
+  --ok-soft: #e1f2e8;
+  --warn: #9a5b00;
+  --warn-soft: #fbeedb;
+  --bad: #b4302b;
+  --bad-soft: #f9e2e0;
+  --added: #e1f2e8;
+  --removed: #f9e2e0;
+  --changed: #fbf1d3;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161d; --surface: #1a2029; --sunken: #141922; --fg: #e3e8ef; --muted: #98a3b3; --line: #2c3542;
+    --accent: #7fa3f5; --accent-soft: #223252;
+    --get: #7fa3f5; --post: #5fc78f; --patch: #e9a54b; --put: #b48ef0; --delete: #f0817b;
+    --ok: #5fc78f; --ok-soft: #183427; --warn: #e9a54b; --warn-soft: #3a2b14; --bad: #f0817b; --bad-soft: #3d1d1c;
+    --added: #183427; --removed: #3d1d1c; --changed: #3a3215;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a2029; --sunken: #141922; --fg: #e3e8ef; --muted: #98a3b3; --line: #2c3542;
+  --accent: #7fa3f5; --accent-soft: #223252;
+  --get: #7fa3f5; --post: #5fc78f; --patch: #e9a54b; --put: #b48ef0; --delete: #f0817b;
+  --ok: #5fc78f; --ok-soft: #183427; --warn: #e9a54b; --warn-soft: #3a2b14; --bad: #f0817b; --bad-soft: #3d1d1c;
+  --added: #183427; --removed: #3d1d1c; --changed: #3a3215;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font-ui); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; display: grid; gap: 20px; }
+h1 { font-size: 1.5rem; font-weight: 600; margin: 0; text-wrap: balance; }
+h2 { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--font-code); font-size: 12.5px; }
+.lede { color: var(--muted); max-width: 70ch; }
+
+.matrix-wrap { overflow-x: auto; }
+.matrix { border-collapse: separate; border-spacing: 6px; margin: -6px; }
+.matrix th { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 0 4px; }
+.cell {
+  width: 100%; min-width: 132px; text-align: left; cursor: pointer;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font: inherit; display: grid; gap: 2px;
+}
+.cell:hover { border-color: var(--accent); }
+.cell:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cell[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.cell .n { font-family: var(--font-code); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
+.cell .n b { color: var(--fg); font-weight: 600; }
+.cell.empty { cursor: default; opacity: 0.6; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.filters fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.filters legend { float: left; margin-right: 6px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; font-size: 12.5px; user-select: none; }
+.chip input { margin: 0; accent-color: var(--accent); }
+.search { flex: 1 1 220px; min-width: 0; }
+.search input { width: 100%; font: inherit; color: var(--fg); background: var(--sunken); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.count { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+
+.test { display: grid; gap: 6px; }
+.test-name { font-family: var(--font-code); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.test-name b { color: var(--fg); font-weight: 600; }
+.reqs { display: grid; gap: 6px; }
+
+details.req { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+details.req[open] { border-color: var(--accent); }
+details.req > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; }
+details.req > summary::-webkit-details-marker { display: none; }
+details.req > summary::before { content: "▸"; color: var(--muted); width: 0.8em; }
+details.req[open] > summary::before { content: "▾"; }
+.method { font-family: var(--font-code); font-weight: 600; font-size: 12px; min-width: 4.6em; }
+.m-GET { color: var(--get); } .m-POST { color: var(--post); } .m-PATCH { color: var(--patch); } .m-PUT { color: var(--put); } .m-DELETE { color: var(--delete); }
+.path { font-family: var(--font-code); font-size: 12.5px; flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.pill { font-family: var(--font-code); font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
+.s2 { background: var(--ok-soft); color: var(--ok); }
+.s4 { background: var(--warn-soft); color: var(--warn); }
+.s5 { background: var(--bad-soft); color: var(--bad); }
+.tag { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
+
+.body { display: grid; gap: 14px; padding: 4px 12px 14px; border-top: 1px solid var(--line); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.panel { min-width: 0; display: grid; gap: 6px; align-content: start; }
+.kv { width: 100%; border-collapse: collapse; font-family: var(--font-code); font-size: 12px; }
+.kv td { padding: 2px 6px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.kv td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
+pre { margin: 0; background: var(--sunken); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; overflow-x: auto; font-family: var(--font-code); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.none { color: var(--muted); font-style: italic; font-size: 12.5px; }
+.doc td.added { background: var(--added); }
+.doc td.removed { background: var(--removed); text-decoration: line-through; }
+.doc td.changed { background: var(--changed); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.legend .l-added::before { background: var(--added); } .legend .l-changed::before { background: var(--changed); } .legend .l-removed::before { background: var(--removed); }
+.more { justify-self: start; font: inherit; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:6px">
+    <h1>KittenClaws Request Log</h1>
+    <p class="lede">Every request the integration suite sent to the generated KittenClaws API, rendered with the <code id="fixture"></code> resources fixture, with the response and, for creates, updates, replaces and deletes, the stored document before and after. <span id="run"></span></p>
+  </header>
+
+  <section style="display:grid;gap:8px" aria-labelledby="pick">
+    <h2 id="pick">Language and cloud</h2>
+    <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+  </section>
+
+  <section style="display:grid;gap:10px" aria-labelledby="reqs-h">
+    <h2 id="reqs-h">Requests</h2>
+    <form class="filters" id="filters" onsubmit="return false">
+      <fieldset id="methods"><legend>Method</legend></fieldset>
+      <fieldset id="statuses"><legend>Status</legend></fieldset>
+      <label class="chip"><input type="checkbox" id="writes-only"> Writes only</label>
+      <label class="search"><input type="search" id="q" placeholder="Filter by test name, path or body text" aria-label="Filter requests"></label>
+      <span class="count" id="count"></span>
+    </form>
+    <div class="legend"><span class="l-added">added</span><span class="l-changed">changed</span><span class="l-removed">removed</span><span>— highlighted in the stored document's “after” column</span></div>
+    <div id="list" style="display:grid;gap:16px"></div>
+  </section>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const LANG_NAMES = { python: "Python", typescript: "TypeScript", go: "Go", dotnet: ".NET" };
+const CLOUD_NAMES = { azure: "Azure Functions · Cosmos DB", gcp: "GCP Functions · Firestore", aws: "AWS Lambda · DynamoDB" };
+const METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE"];
+const WRITES = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+const STATUS = ["2xx", "4xx", "5xx"];
+const PAGE = 60;
+const state = { combo: null, shown: PAGE };
+
+function el(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") node.className = v; else if (k === "text") node.textContent = v; else node.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  return node;
+}
+const pretty = (text) => { if (text == null || text === "") return null; try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; } };
+const pathOf = (url) => { try { const u = new URL(url); return u.pathname + u.search; } catch { return url; } };
+const statusClass = (s) => "s" + String(s)[0];
+
+document.getElementById("fixture").textContent = DATA.fixture || "single";
+if (DATA.run) document.getElementById("run").append("Source: ", el("a", { href: DATA.run, target: "_blank", rel: "noopener" }, "the Integration Tests run"), ".");
+
+function buildMatrix() {
+  const table = document.getElementById("matrix");
+  const clouds = ["azure", "gcp", "aws"];
+  table.append(el("tr", {}, el("th", {}), clouds.map((c) => el("th", { scope: "col" }, CLOUD_NAMES[c]))));
+  for (const lang of ["python", "typescript", "go", "dotnet"]) {
+    const row = el("tr", {}, el("th", { scope: "row" }, LANG_NAMES[lang]));
+    for (const cloud of clouds) {
+      const combo = DATA.combos.find((c) => c.language === lang && c.cloud === cloud);
+      const n = combo ? combo.entries.length : 0;
+      const writes = combo ? combo.entries.filter((e) => WRITES.has(e.method)).length : 0;
+      const btn = el("button", { type: "button", class: "cell" + (n ? "" : " empty"), "aria-pressed": "false", id: `cell-${lang}-${cloud}` },
+        el("span", {}, `${LANG_NAMES[lang]} on ${cloud.toUpperCase()}`),
+        el("span", { class: "n" }, n ? el("span", {}, el("b", {}, n), " requests · ", el("b", {}, writes), " writes") : "no log"));
+      if (n) btn.addEventListener("click", () => select(combo));
+      row.append(el("td", {}, btn));
+    }
+    table.append(row);
+  }
+}
+
+function buildFilters() {
+  const m = document.getElementById("methods");
+  for (const method of METHODS) m.append(el("label", { class: "chip" }, el("input", { type: "checkbox", id: `m-${method}`, checked: "" }), el("span", { class: `m-${method}`, style: "font-family:var(--font-code);font-weight:600;font-size:12px" }, method)));
+  const s = document.getElementById("statuses");
+  for (const st of STATUS) s.append(el("label", { class: "chip" }, el("input", { type: "checkbox", id: `s-${st}`, checked: "" }), st));
+  document.getElementById("filters").addEventListener("input", () => { state.shown = PAGE; render(); });
+}
+
+function select(combo) {
+  state.combo = combo; state.shown = PAGE;
+  document.querySelectorAll(".cell").forEach((b) => b.setAttribute("aria-pressed", String(b.id === `cell-${combo.language}-${combo.cloud}`)));
+  try { localStorage.setItem("combo", `${combo.language}-${combo.cloud}`); } catch {}
+  render();
+}
+
+function matches(e) {
+  if (!document.getElementById(`m-${e.method}`)?.checked) return false;
+  if (!document.getElementById(`s-${String(e.status)[0]}xx`)?.checked) return false;
+  if (document.getElementById("writes-only").checked && !WRITES.has(e.method)) return false;
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  if (q && ![e.test, e.url, e.request_body, e.response_body].some((t) => (t || "").toLowerCase().includes(q))) return false;
+  return true;
+}
+
+function kvTable(obj) {
+  const keys = Object.keys(obj || {});
+  if (!keys.length) return el("p", { class: "none" }, "None");
+  return el("table", { class: "kv" }, el("tbody", {}, keys.map((k) => el("tr", {}, el("td", {}, k), el("td", {}, obj[k])))));
+}
+const bodyBlock = (text) => { const p = pretty(text); return p == null ? el("p", { class: "none" }, "No body") : el("pre", {}, p); };
+const fmt = (v) => (typeof v === "string" ? v : JSON.stringify(v));
+
+function docTable(doc, other, side) {
+  if (doc == null) return el("p", { class: "none" }, side === "before" ? "No document stored under this id" : "No document stored");
+  if (typeof doc === "string") return el("p", { class: "none" }, doc);
+  const keys = [...new Set([...Object.keys(doc), ...(other && typeof other === "object" ? Object.keys(other) : [])])].sort();
+  return el("table", { class: "kv doc" }, el("tbody", {}, keys.map((k) => {
+    const has = k in doc;
+    const otherHas = other && typeof other === "object" && k in other;
+    let cls = "";
+    if (side === "after" && other && typeof other === "object") {
+      if (has && !otherHas) cls = "added"; else if (!has && otherHas) cls = "removed"; else if (fmt(doc[k]) !== fmt(other[k])) cls = "changed";
+    }
+    if (!has && side === "before") return null;
+    return el("tr", {}, el("td", {}, k), el("td", { class: cls }, has ? fmt(doc[k]) : fmt(other[k])));
+  })));
+}
+
+function requestNode(e) {
+  const userId = e.request_headers && (e.request_headers["x-user-id"] ?? e.request_headers["X-User-Id"]);
+  const summary = el("summary", {},
+    el("span", { class: `method m-${e.method}` }, e.method),
+    el("span", { class: "path" }, pathOf(e.url)),
+    userId != null ? el("span", { class: "tag" }, `X-User-Id: ${userId}`) : null,
+    el("span", { class: `pill ${statusClass(e.status)}` }, e.status));
+  const d = el("details", { class: "req" }, summary);
+  d.addEventListener("toggle", () => {
+    if (!d.open || d.dataset.built) return;
+    d.dataset.built = "1";
+    const body = el("div", { class: "body" },
+      el("div", { class: "pair" },
+        el("div", { class: "panel" }, el("h2", {}, "Request"), el("p", { class: "mono" }, `${e.method} ${e.url}`), el("h2", {}, "Headers"), kvTable(e.request_headers), el("h2", {}, "Body"), bodyBlock(e.request_body)),
+        el("div", { class: "panel" }, el("h2", {}, "Response"), el("p", {}, el("span", { class: `pill ${statusClass(e.status)}` }, e.status)), el("h2", {}, "Body"), bodyBlock(e.response_body), el("h2", {}, "Headers"), kvTable(e.response_headers))));
+    if ("after" in e || "before" in e) {
+      const pair = el("div", { class: "pair" });
+      if ("before" in e) pair.append(el("div", { class: "panel" }, el("h2", {}, `Stored before · ${e.container}`), docTable(e.before, e.after, "before")));
+      pair.append(el("div", { class: "panel" }, el("h2", {}, `Stored after · ${e.container}`), "after" in e ? docTable(e.after, e.before, "after") : el("p", { class: "none" }, "Nothing to read: the response named no stored record")));
+      body.append(pair);
+    }
+    d.append(body);
+  });
+  return d;
+}
+
+function render() {
+  const list = document.getElementById("list");
+  list.replaceChildren();
+  if (!state.combo) return;
+  const entries = state.combo.entries.filter(matches);
+  document.getElementById("count").textContent = `${entries.length} of ${state.combo.entries.length} requests`;
+  const groups = new Map();
+  for (const e of entries.slice(0, state.shown)) { if (!groups.has(e.test)) groups.set(e.test, []); groups.get(e.test).push(e); }
+  for (const [test, reqs] of groups) {
+    const [file, name] = test.includes("::") ? test.split("::") : ["", test];
+    list.append(el("div", { class: "test" }, el("div", { class: "test-name" }, file ? `${file} › ` : "", el("b", {}, name)), el("div", { class: "reqs" }, reqs.map(requestNode))));
+  }
+  if (!entries.length) list.append(el("p", { class: "none" }, "No requests match these filters."));
+  if (entries.length > state.shown) {
+    const more = el("button", { type: "button", class: "more" }, `Show ${Math.min(PAGE, entries.length - state.shown)} more`);
+    more.addEventListener("click", () => { state.shown += PAGE; render(); });
+    list.append(more);
+  }
+}
+
+buildMatrix();
+buildFilters();
+let saved = null;
+try { saved = localStorage.getItem("combo"); } catch {}
+const first = DATA.combos.find((c) => `${c.language}-${c.cloud}` === saved && c.entries.length) || DATA.combos.find((c) => c.entries.length);
+if (first) select(first);
+</script>
