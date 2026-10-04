@@ -54,7 +54,7 @@ components:
         database:
           containers:
 {%- for c in containers %}
-            - "{{ c.container }}"
+            - name: "{{ c.container }}"
 {%- endfor %}
         gateway:
           health_endpoint: "{{ health_endpoint }}"

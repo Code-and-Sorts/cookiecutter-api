@@ -202,7 +202,8 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
 
 - **Stacks are the same shape on every cloud.** One Atmos component, `api`, with cloud-neutral variables: `name`,
   `stage`, `region`, `tags`, `network`, `compute` (`hosting`, `sku`, `runtime`, scaling, `app_settings`),
-  `database` (`capacity`, `throughput`, `containers`, and further `databases` the API does not read) and `gateway` (`sku`, `capacity`, `routes`,
+  `database` (`capacity`, `throughput`, `containers` with a `name` and `partition_key`, and further `databases` the API
+  does not read) and `gateway` (`sku`, `capacity`, `routes`,
   `health_endpoint`). Only the values differ per cloud. `stacks/catalog/defaults.yaml` holds the state backend,
   `stacks/catalog/api.yaml` what every stack shares (rendered from `language`, `resources` and `health_endpoint`),
   and `stacks/deploy/<stage>.yaml` (one per `infra_environments` item, through `yield` over `path_environments`)

@@ -35,8 +35,9 @@ also stops deletes from outside Terraform, such as the portal, and is on by defa
 
 `database.databases` adds databases beside the API's own, which is named after the project and holds
 `database.containers`. Each has its own `containers` and `throughput` (default `database.throughput`) and shares the
-stack's capacity; the API only reads its own database. In `stacks/deploy/<stage>.yaml`, or in `stacks/catalog/api.yaml`
-for every stack:
+stack's capacity; the API only reads its own database. Each container has a `name` and a `partition_key`: one path
+(default `/id`), or two or three paths for a hierarchical key. Keep `/id` on the API's own containers, which it reads
+and writes by id. In `stacks/deploy/<stage>.yaml`, or in `stacks/catalog/api.yaml` for every stack:
 
 ```yaml
 components:
@@ -47,7 +48,9 @@ components:
           databases:
             reporting:
               throughput: 1000
-              containers: ["events"]
+              containers:
+                - name: events
+                  partition_key: ["/tenantId", "/userId"]
 ```
 
 `.github/workflows/deploy.yml` plans `{{ stacks[0] }}` on pull requests, and on `main` deploys

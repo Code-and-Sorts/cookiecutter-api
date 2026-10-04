@@ -81,17 +81,23 @@ variable "compute" {
 
 variable "database" {
   type = object({
-    capacity    = string
-    throughput  = optional(number, 400)
-    containers  = list(string)
+    capacity   = string
+    throughput = optional(number, 400)
+    containers = list(object({
+      name          = string
+      partition_key = optional(list(string), ["/id"])
+    }))
     free_tier   = optional(bool, false)
     delete_lock = optional(bool, false)
     databases = optional(map(object({
       throughput = optional(number)
-      containers = optional(list(string), [])
+      containers = optional(list(object({
+        name          = string
+        partition_key = optional(list(string), ["/id"])
+      })), [])
     })), {})
   })
-  description = "Cosmos DB capacity (serverless, provisioned or autoscale), the API's database throughput and containers, and further databases in the same account, each with its own throughput (default throughput) and containers."
+  description = "Cosmos DB capacity (serverless, provisioned or autoscale), the API's database throughput and containers, and further databases in the same account, each with its own throughput (default throughput) and containers. A container's partition_key is one path, or two or three for a hierarchical key (default /id)."
 
   validation {
     condition     = contains(["serverless", "provisioned", "autoscale"], var.database.capacity)
@@ -106,6 +112,14 @@ variable "database" {
       (var.database.capacity == "autoscale" && throughput >= 1000 && throughput % 1000 == 0)
     ])
     error_message = "Every database's throughput must be at least 400 RU/s in steps of 100 (provisioned) or 1000 in steps of 1000 (autoscale)."
+  }
+
+  validation {
+    condition = alltrue([
+      for container in concat(var.database.containers, flatten([for database in values(var.database.databases) : database.containers])) :
+      length(container.partition_key) >= 1 && length(container.partition_key) <= 3 && alltrue([for path in container.partition_key : can(regex("^(/[^/\\s]+)+$", path))])
+    ])
+    error_message = "A container's partition_key is one to three paths such as /id or /tenantId."
   }
 
   validation {

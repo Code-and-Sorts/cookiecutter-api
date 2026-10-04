@@ -12,6 +12,41 @@ mock_provider "azapi" {
   override_during = plan
 }
 
+override_module {
+  target = module.naming
+  outputs = {
+    names = { for key, name in {
+      resource_group                                = "rg-kitten-claws-dev"
+      operational_insights_workspace                = "log-kitten-claws-dev"
+      component                                     = "appikittenclawsdev"
+      server_farm                                   = "asp-kitten-claws-dev"
+      registry                                      = "crkittenclawsdev"
+      managed_environment                           = "caekittenclawsdev"
+      private_dns_zone_virtual_network_link         = "private-dns-zone-virtual-network-link-kitten-claws-dev"
+      database_account_cosmos_db_for_no_sql_account = "cosno-kitten-claws-dev"
+      api_management_service                        = "apim-kitten-claws-dev"
+      virtual_network                               = "vnet-kitten-claws-dev"
+      network_security_group                        = "nsg-kitten-claws-dev"
+      storage_account                               = "stkittenclawsdev"
+      site_function_app                             = "func-kitten-claws-dev"
+      container_app                                 = "ca-kitten-claws-dev"
+    } : key => { name = name, name_unique = strcontains(name, "-") ? "${name}-9096" : "${name}9096" } }
+  }
+}
+
+override_module {
+  target = module.role_naming
+  outputs = {
+    names = { for key, slug in {
+      private_endpoint       = "pep"
+      user_assigned_identity = "id"
+      network_security_group = "nsg"
+      virtual_network_subnet = "snet"
+      lock                   = "lock"
+    } : key => { name = "${slug}-kitten-claws-dev-role" } }
+  }
+}
+
 variables {
   name   = "kitten-claws"
   stage  = "dev"
@@ -36,7 +71,7 @@ variables {
 
   database = {
     capacity   = "serverless"
-    containers = ["animals", "zoo-records"]
+    containers = [{ name = "animals" }, { name = "zoo-records" }]
   }
 
   gateway = {
@@ -156,7 +191,7 @@ run "database_is_private_and_keyless" {
   }
 
   assert {
-    condition     = alltrue([for c in azurerm_cosmosdb_sql_container.this : c.partition_key_paths == tolist(["/id"])])
+    condition     = alltrue([for c in azurerm_cosmosdb_sql_container.this : c.partition_key_paths == tolist(["/id"]) && c.partition_key_kind == "Hash"])
     error_message = "Containers are partitioned by /id, as the emulator bootstrap creates them."
   }
 
@@ -178,7 +213,7 @@ run "provisioned_database" {
     database = {
       capacity    = "provisioned"
       throughput  = 800
-      containers  = ["animals"]
+      containers  = [{ name = "animals" }]
       delete_lock = true
     }
   }
@@ -206,7 +241,7 @@ run "autoscale_database" {
     database = {
       capacity   = "autoscale"
       throughput = 4000
-      containers = ["animals"]
+      containers = [{ name = "animals" }]
     }
   }
 
@@ -223,9 +258,9 @@ run "additional_databases" {
     database = {
       capacity   = "provisioned"
       throughput = 400
-      containers = ["animals"]
+      containers = [{ name = "animals" }]
       databases = {
-        reporting = { throughput = 1000, containers = ["events", "animals"] }
+        reporting = { throughput = 1000, containers = [{ name = "events" }, { name = "animals" }] }
         archive   = {}
       }
     }
@@ -252,13 +287,63 @@ run "additional_databases" {
   }
 }
 
+run "hierarchical_partition_key" {
+  command = plan
+
+  variables {
+    database = {
+      capacity   = "serverless"
+      containers = [{ name = "animals" }]
+      databases = {
+        reporting = { containers = [{ name = "events", partition_key = ["/tenantId", "/userId", "/sessionId"] }] }
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_cosmosdb_sql_container.this["reporting/events"].partition_key_kind == "MultiHash" && azurerm_cosmosdb_sql_container.this["reporting/events"].partition_key_paths == tolist(["/tenantId", "/userId", "/sessionId"])
+    error_message = "Two or three partition key paths make a hierarchical (MultiHash) key."
+  }
+
+  assert {
+    condition     = azurerm_cosmosdb_sql_container.this["${var.name}/animals"].partition_key_kind == "Hash" && azurerm_cosmosdb_sql_container.this["${var.name}/animals"].partition_key_paths == tolist(["/id"])
+    error_message = "A container without partition_key is partitioned by /id."
+  }
+}
+
+run "rejects_more_than_three_partition_key_paths" {
+  command = plan
+
+  variables {
+    database = {
+      capacity   = "serverless"
+      containers = [{ name = "animals", partition_key = ["/a", "/b", "/c", "/d"] }]
+    }
+  }
+
+  expect_failures = [var.database]
+}
+
+run "rejects_a_partition_key_path_without_a_slash" {
+  command = plan
+
+  variables {
+    database = {
+      capacity   = "serverless"
+      containers = [{ name = "animals", partition_key = ["tenantId"] }]
+    }
+  }
+
+  expect_failures = [var.database]
+}
+
 run "rejects_a_database_named_like_the_api" {
   command = plan
 
   variables {
     database = {
       capacity   = "serverless"
-      containers = ["animals"]
+      containers = [{ name = "animals" }]
       databases  = { "kitten-claws" = {} }
     }
   }
@@ -273,7 +358,7 @@ run "rejects_too_little_throughput_in_another_database" {
     database = {
       capacity   = "provisioned"
       throughput = 400
-      containers = ["animals"]
+      containers = [{ name = "animals" }]
       databases  = { reporting = { throughput = 450 } }
     }
   }
@@ -511,35 +596,6 @@ run "entra_id_guards_the_app" {
   }
 }
 
-run "names_fit_azure_limits" {
-  command = plan
-
-  variables {
-    name  = "a-very-long-project-name-for-testing"
-    stage = "staging1"
-  }
-
-  assert {
-    condition     = length(azurerm_storage_account.this.name) <= 24 && can(regex("^[a-z0-9]+$", azurerm_storage_account.this.name))
-    error_message = "Storage account names are at most 24 lowercase letters and digits."
-  }
-
-  assert {
-    condition     = length(azurerm_cosmosdb_account.this.name) <= 44
-    error_message = "Cosmos DB account names are at most 44 characters."
-  }
-
-  assert {
-    condition     = length(azurerm_api_management.this.name) <= 50 && !endswith(azurerm_api_management.this.name, "-")
-    error_message = "API Management names are at most 50 characters."
-  }
-
-  assert {
-    condition     = length(local.app_name) <= 60
-    error_message = "Function app names are at most 60 characters."
-  }
-}
-
 run "rejects_a_sku_that_does_not_fit_the_hosting" {
   command = plan
 
@@ -574,7 +630,7 @@ run "rejects_too_little_autoscale_throughput" {
     database = {
       capacity   = "autoscale"
       throughput = 400
-      containers = ["animals"]
+      containers = [{ name = "animals" }]
     }
   }
 

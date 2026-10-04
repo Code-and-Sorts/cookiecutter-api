@@ -42,7 +42,7 @@ locals {
   )
   containers = merge([
     for database, settings in local.databases : {
-      for container in settings.containers : "${database}/${container}" => { database = database, name = container }
+      for container in settings.containers : "${database}/${container.name}" => merge(container, { database = database })
     }
   ]...)
 }
@@ -74,7 +74,8 @@ resource "azurerm_cosmosdb_sql_container" "this" {
   resource_group_name   = azurerm_resource_group.this.name
   account_name          = azurerm_cosmosdb_account.this.name
   database_name         = azurerm_cosmosdb_sql_database.this[each.value.database].name
-  partition_key_paths   = ["/id"]
+  partition_key_paths   = each.value.partition_key
+  partition_key_kind    = length(each.value.partition_key) > 1 ? "MultiHash" : "Hash"
   partition_key_version = 2
 
   lifecycle {
