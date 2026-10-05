@@ -58,10 +58,11 @@ variable "compute" {
     min_instances      = optional(number, 0)
     max_instances      = optional(number, 100)
     instance_memory_mb = optional(number, 2048)
+    cpu                = optional(number, 0.5)
     app_settings       = optional(map(string), {})
     public_deployments = optional(bool, true)
   })
-  description = "How the API runs: flex_consumption, app_service, premium or container_app, and its plan SKU or workload profile."
+  description = "How the API runs: flex_consumption, app_service, premium or container_app, its plan SKU or workload profile, and the container app's vCPUs (cpu; memory is twice that in GiB)."
 
   validation {
     condition     = contains(["flex_consumption", "app_service", "premium", "container_app"], var.compute.hosting)
@@ -76,6 +77,11 @@ variable "compute" {
       can(regex("^(Consumption|D(4|8|16|32)|E(4|8|16|32)|NC(24|48|96)-A100)$", var.compute.sku))
     )
     error_message = "compute.sku does not fit compute.hosting: FC1 for flex_consumption, EP1-EP3 for premium, a Linux App Service SKU for app_service, a workload profile for container_app."
+  }
+
+  validation {
+    condition     = var.compute.cpu >= 0.25 && var.compute.cpu <= 4 && floor(var.compute.cpu * 4) == var.compute.cpu * 4
+    error_message = "compute.cpu is the container app's vCPUs: 0.25 to 4 in steps of 0.25 (memory is twice that in GiB)."
   }
 }
 

@@ -40,7 +40,8 @@ client ──x-api-key──▶ API Management ──Entra ID token──▶ API
 
 - `compute.hosting`: `flex_consumption` (`sku: FC1`), `app_service` (a Linux SKU such as `B1`, `S1`, `P0v3`,
   `P1v3`), `premium` (`EP1`-`EP3`) or `container_app` (`Consumption`, or a dedicated workload profile such as `D4`
-  or `E4`); `min_instances`, `max_instances` and `instance_memory_mb` (Flex Consumption) tune scaling.
+  or `E4`); `min_instances`, `max_instances` and `instance_memory_mb` (Flex Consumption) tune scaling, and `cpu`
+  sets a container app's vCPUs (0.25 to 4 in steps of 0.25, default 0.5; memory is twice that in GiB).
 - `database.capacity`: `serverless`, `provisioned` (`throughput` from 400 RU/s, in steps of 100) or `autoscale`
   (`throughput` is the maximum, from 1000 in steps of 1000), shared by the database's containers; `free_tier`
   and `delete_lock` (a CanNotDelete lock that stops deletes from outside Terraform, on by default for a stack

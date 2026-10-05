@@ -466,7 +466,13 @@ run "container_app_hosting" {
       sku           = "D4"
       runtime       = { name = "node", version = "{{ runtime.node }}" }
       max_instances = 5
+      cpu           = 1.25
     }
+  }
+
+  assert {
+    condition     = azurerm_container_app.this[0].template[0].container[0].cpu == 1.25 && azurerm_container_app.this[0].template[0].container[0].memory == "2.5Gi"
+    error_message = "The container gets compute.cpu vCPUs and twice that in GiB of memory."
   }
 
   assert {
@@ -620,6 +626,21 @@ run "rejects_a_sku_that_does_not_fit_the_hosting" {
       hosting = "flex_consumption"
       sku     = "EP1"
       runtime = { name = "python", version = "{{ runtime.python }}" }
+    }
+  }
+
+  expect_failures = [var.compute]
+}
+
+run "rejects_a_container_cpu_off_the_quarter_steps" {
+  command = plan
+
+  variables {
+    compute = {
+      hosting = "container_app"
+      sku     = "Consumption"
+      runtime = { name = "python", version = "{{ runtime.python }}" }
+      cpu     = 0.3
     }
   }
 

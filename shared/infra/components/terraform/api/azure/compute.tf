@@ -20,6 +20,9 @@ locals {
   scm_action   = var.compute.public_deployments ? "Allow" : "Deny"
   runtime_name = var.compute.runtime.name
 
+  container_cpu    = var.compute.cpu
+  container_memory = "${local.container_cpu * 2}Gi"
+
   app_hostname = one(concat(
     azurerm_function_app_flex_consumption.this[*].default_hostname,
     azurerm_linux_function_app.this[*].default_hostname,
@@ -285,8 +288,8 @@ resource "azurerm_container_app" "this" {
     container {
       name   = "api"
       image  = "mcr.microsoft.com/k8se/quickstart:latest"
-      cpu    = 0.5
-      memory = "1Gi"
+      cpu    = local.container_cpu
+      memory = local.container_memory
 
       dynamic "env" {
         for_each = merge(local.app_settings, {
