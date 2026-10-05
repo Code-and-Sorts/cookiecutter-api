@@ -25,42 +25,21 @@ A [Copier](https://github.com/copier-org/copier) template for generating REST AP
 
 ## Usage
 
-Install Copier 9.18.2 or newer (and the Jinja extensions the templates use) with pip or pipx:
+Install [Copier](https://copier.readthedocs.io/) 9.18.2+ with the template's Jinja extensions, then generate a project and answer the prompts:
 
 ```console
-# pipx is strongly recommended.
 pipx install copier
 pipx inject copier jinja2-strcase jinja2-time
 
-# If pipx is not an option, install into your Python user directory.
-python -m pip install --user copier jinja2-strcase jinja2-time
-```
-
-The repository is one Copier template. Its first question is `language` (`python`,
-`typescript`, `dotnet` or `go`); answer it at the prompt or pass it with `--data`:
-
-```console
 copier copy --trust gh:Code-and-Sorts/cookiecutter-api ./my-api
-
-# Or from a clone, choosing the language up front
-git clone https://github.com/Code-and-Sorts/cookiecutter-api.git
-copier copy --trust --data language=python ./cookiecutter-api ./my-api
 ```
 
-`--trust` is needed because the template uses Jinja extensions. Follow the prompts to
-configure your project. The generated project includes a `.copier-answers.yml` file that
-records the template and the commit it came from, so you can pull in future template
-changes with:
-
-```console
-cd my-api
-copier update --trust
-```
+Run `copier update --trust` inside the project later to pull in template changes.
 
 ### Multiple resources
 
-By default a generated project exposes one REST resource named after the project. To
-expose several, answer the `resources` prompt or pass them in a YAML file:
+A project exposes one REST resource named after it by default. To add more, answer the
+`resources` prompt or pass a YAML file with `--data-file resources.yml`:
 
 ```yaml
 resources:
@@ -68,80 +47,21 @@ resources:
     endpoint: "cats"
     container: "animals"
     operations: ["list", "get_by_id", "create", "update", "delete"]
-  - name: "Dog"
-    endpoint: "dogs"
-    container: "animals"
-    operations: ["list", "get_by_id", "create", "replace", "delete"]
 ```
+
+`operations` can be any of `list`, `get_by_id`, `create`, `update` (PATCH), `replace` (PUT)
+and `delete`. Resources that share a `container` share their records.
+
+### Run locally
+
+Every project runs against a local database emulator in Docker, no cloud account needed:
 
 ```console
-copier copy --trust --data language=typescript --data-file resources.yml gh:Code-and-Sorts/cookiecutter-api ./my-api
+make emulator-up emulator-seed run-emulator                     # Python, .NET, Go
+yarn emulator:up && yarn emulator:seed && yarn start:emulator   # TypeScript
 ```
 
-`name` is the PascalCase type name, `endpoint` the URL segment, and `container` the storage
-container, collection or table. Resources that share a `container` share their records.
-`operations` is any subset of `list`, `get_by_id`, `create`, `update` (PATCH), `replace`
-(PUT) and `delete`; only those routes are generated.
-
-Every project also gets a `GET` health check named `health`, served under the same route
-prefix as its resources (for example `/api/health` on Azure Functions). Answer
-`health_endpoint` (or pass `--data health_endpoint=status`) to use another name, or leave it
-empty to skip the health check.
-
-Each resource gets its own files in every layer, for example `CatController.cs` and
-`DogController.cs` in .NET, or `controllers/cat.controller.ts` and
-`controllers/dog.controller.ts` in TypeScript.
-
-### Run locally against an emulator
-
-Every generated project can run without a cloud account. Its `docker-compose.yml` starts
-only the database emulator for the chosen cloud, `.env.emulator` holds the public emulator
-settings, and a bootstrap command creates one container or table per `container`:
-
-| Cloud | Emulator | Host port |
-| --- | --- | --- |
-| Azure | [Cosmos DB vNext emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) (plain HTTP, x64 and arm64) | 8081, Data Explorer on 1234 |
-| AWS | [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) | 8000 |
-| GCP | [Firestore emulator](https://cloud.google.com/firestore/docs/emulator) | 8085 |
-
-```console
-make emulator-up && make emulator-seed && make run-emulator   # Python, .NET and Go
-yarn emulator:up && yarn emulator:seed && yarn start:emulator  # TypeScript
-```
-
-The SDK clients switch to the emulator only when its settings are present (a
-Cosmos DB emulator flag, `AWS_ENDPOINT_URL_DYNAMODB` or `FIRESTORE_EMULATOR_HOST`), so
-deployed code paths are unchanged. AWS projects run through `sam local start-api` on the
-emulator's Docker network with `env.emulator.json`. Each generated README covers ports,
-credentials, limitations and troubleshooting. The compose file, `.env.emulator`,
-`env.emulator.json`, the shared Make targets and that README section are kept once in
-`shared/` for every language.
-
-### Integration tests
-
-`tests/integration` is one black-box pytest suite that checks the [API contract](./AGENTS.md#api-contract)
-over HTTP for every language and cloud: each enabled operation, validation, soft deletes, shared
-containers, `?limit=`, the health check and the stored record format (read straight from the
-emulator). It reads the resources from the project's `.copier-answers.yml`, so every fixture is
-covered without changes. The `Integration Tests` workflow runs it for every language and cloud with
-the `single` and `edge` resources fixtures on pushes to `main`; run it on a branch with **Run workflow**,
-choosing a language, cloud and fixture or `all`.
-
-To run it locally, render a project, start it with its emulator commands from
-[Run locally against an emulator](#run-locally-against-an-emulator), and point the suite at it with
-[uv](https://docs.astral.sh/uv/):
-
-```console
-copier copy --defaults --trust --vcs-ref HEAD --data language=go --data cloud_service="GCP Cloud Function" \
-  --data-file .github/actions/setup-copier-template/fixtures/edge-resources.yml . ../KittenClaws
-
-uv sync --project tests/integration
-uv run --project tests/integration pytest tests/integration --project-dir ../KittenClaws --base-url http://localhost:8080
-```
-
-The base URL includes the route prefix: `http://localhost:7071/api` on Azure, `http://localhost:8080` on
-GCP and `http://localhost:3000` on AWS. The suite waits up to `--ready-timeout` seconds (180) for the API
-to answer, writes to the emulator and leaves its records there; `make emulator-down` discards them.
+The generated README covers ports, settings and troubleshooting.
 
 ## Supported Templates
 
