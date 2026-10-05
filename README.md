@@ -140,25 +140,28 @@ Below are the SDKs and frameworks used in the various templates.
 - [Azure Function Apps](https://learn.microsoft.com/en-us/azure/azure-functions/) for hosting the APIs
 - [Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/) for data storage
 - [Cosmos DB Linux emulator (vNext)](https://learn.microsoft.com/en-us/azure/cosmos-db/emulator-linux) for local development
-- Cosmos DB SDKs: [azure-cosmos](https://pypi.org/project/azure-cosmos/) (Python),
-  [@azure/cosmos](https://www.npmjs.com/package/@azure/cosmos) (TypeScript),
-  [Microsoft.Azure.Cosmos](https://www.nuget.org/packages/Microsoft.Azure.Cosmos) (.NET),
-  [azcosmos](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos) (Go)
+- Cosmos DB SDKs:
+  - [azure-cosmos](https://pypi.org/project/azure-cosmos/) (Python)
+  - [@azure/cosmos](https://www.npmjs.com/package/@azure/cosmos) (TypeScript)
+  - [Microsoft.Azure.Cosmos](https://www.nuget.org/packages/Microsoft.Azure.Cosmos) (.NET)
+  - [azcosmos](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos) (Go)
 
 ### AWS
 - [Lambda docs](https://docs.aws.amazon.com/lambda/) for hosting the APIs
 - [DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStartedDynamoDB.html) for data storage
 - [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) for local development
-- DynamoDB SDKs: [aioboto3](https://pypi.org/project/aioboto3/) (Python),
-  [@aws-sdk/client-dynamodb](https://www.npmjs.com/package/@aws-sdk/client-dynamodb) (TypeScript),
-  [AWSSDK.DynamoDBv2](https://www.nuget.org/packages/AWSSDK.DynamoDBv2) (.NET),
-  [aws-sdk-go-v2/service/dynamodb](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/dynamodb) (Go)
+- DynamoDB SDKs:
+  - [aioboto3](https://pypi.org/project/aioboto3/) (Python)
+  - [@aws-sdk/client-dynamodb](https://www.npmjs.com/package/@aws-sdk/client-dynamodb) (TypeScript)
+  - [AWSSDK.DynamoDBv2](https://www.nuget.org/packages/AWSSDK.DynamoDBv2) (.NET)
+  - [aws-sdk-go-v2/service/dynamodb](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/dynamodb) (Go)
 
 ### Google Cloud
 - [Cloud Functions](https://cloud.google.com/functions/docs) for hosting the APIs
 - [Firestore](https://cloud.google.com/firestore#documentation) for data storage
 - [Firestore emulator](https://cloud.google.com/firestore/docs/emulator) for local development
-- Firestore SDKs: [google-cloud-firestore](https://pypi.org/project/google-cloud-firestore/) (Python),
-  [@google-cloud/firestore](https://www.npmjs.com/package/@google-cloud/firestore) (TypeScript),
-  [Google.Cloud.Firestore](https://www.nuget.org/packages/Google.Cloud.Firestore) (.NET),
-  [cloud.google.com/go/firestore](https://pkg.go.dev/cloud.google.com/go/firestore) (Go)
+- Firestore SDKs:
+  - [google-cloud-firestore](https://pypi.org/project/google-cloud-firestore/) (Python)
+  - [@google-cloud/firestore](https://www.npmjs.com/package/@google-cloud/firestore) (TypeScript)
+  - [Google.Cloud.Firestore](https://www.nuget.org/packages/Google.Cloud.Firestore) (.NET)
+  - [cloud.google.com/go/firestore](https://pkg.go.dev/cloud.google.com/go/firestore) (Go)
