@@ -20,6 +20,9 @@ on:
       - .github/actions/setup-copier-template/**
       - .github/actions/setup-runtime/**
 
+permissions:
+  contents: read
+
 jobs:
   build-python:
     runs-on: ${{ matrix.os }}
