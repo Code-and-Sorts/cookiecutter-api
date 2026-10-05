@@ -23,46 +23,6 @@ A [Copier](https://github.com/copier-org/copier) template for generating REST AP
 > This project is still in development. Things may change or break between versions, so
 > pin a template version if you depend on it.
 
-## Usage
-
-Install [Copier](https://copier.readthedocs.io/) 9.18.2+ with the template's Jinja extensions, then generate a project and answer the prompts:
-
-```console
-pipx install copier
-pipx inject copier jinja2-strcase jinja2-time
-
-copier copy --trust gh:Code-and-Sorts/cookiecutter-api ./my-api
-```
-
-Run `copier update --trust` inside the project later to pull in template changes.
-
-### Multiple resources
-
-A project exposes one REST resource named after it by default. To add more, answer the
-`resources` prompt or pass a YAML file with `--data-file resources.yml`:
-
-```yaml
-resources:
-  - name: "Cat"
-    endpoint: "cats"
-    container: "animals"
-    operations: ["list", "get_by_id", "create", "update", "delete"]
-```
-
-`operations` can be any of `list`, `get_by_id`, `create`, `update` (PATCH), `replace` (PUT)
-and `delete`. Resources that share a `container` share their records.
-
-### Run locally
-
-Every project runs against a local database emulator in Docker, no cloud account needed:
-
-```console
-make emulator-up emulator-seed run-emulator                     # Python, .NET, Go
-yarn emulator:up && yarn emulator:seed && yarn start:emulator   # TypeScript
-```
-
-The generated README covers ports, settings and troubleshooting.
-
 ## Supported Templates
 
 Pick a row with the `language` answer (`python`, `typescript`, `dotnet` or `go`) and a
@@ -111,6 +71,46 @@ rendered with two resources (`Cat` and `Dog`) and republished on every push to `
 ---
 > [!NOTE]
 > Each project follows the controller-service-repository pattern.
+
+## Usage
+
+Install [Copier](https://copier.readthedocs.io/) 9.18.2+ with the template's Jinja extensions, then generate a project and answer the prompts:
+
+```console
+pipx install copier
+pipx inject copier jinja2-strcase jinja2-time
+
+copier copy --trust gh:Code-and-Sorts/cookiecutter-api ./my-api
+```
+
+Run `copier update --trust` inside the project later to pull in template changes.
+
+### Multiple resources
+
+A project exposes one REST resource named after it by default. To add more, answer the
+`resources` prompt or pass a YAML file with `--data-file resources.yml`:
+
+```yaml
+resources:
+  - name: "Cat"
+    endpoint: "cats"
+    container: "animals"
+    operations: ["list", "get_by_id", "create", "update", "delete"]
+```
+
+`operations` can be any of `list`, `get_by_id`, `create`, `update` (PATCH), `replace` (PUT)
+and `delete`. Resources that share a `container` share their records.
+
+### Run locally
+
+Every project runs against a local database emulator in Docker, no cloud account needed:
+
+```console
+make emulator-up emulator-seed run-emulator                     # Python, .NET, Go
+yarn emulator:up && yarn emulator:seed && yarn start:emulator   # TypeScript
+```
+
+The generated README covers ports, settings and troubleshooting.
 
 ## Resources
 
