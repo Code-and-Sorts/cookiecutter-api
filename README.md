@@ -213,7 +213,7 @@ Below are the SDKs and frameworks used in the various templates.
 - [Jest](https://jestjs.io/) for testing
 - [Zod](https://zod.dev/) for schema validation
 
-## Dotnet
+### Dotnet
 - [Nuget](https://www.nuget.org/) for dependency management
 - [xUnit](https://xunit.net/) for testing
 - [FluentValidation](https://docs.fluentvalidation.net/en/latest/) for schema validation
