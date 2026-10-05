@@ -16,7 +16,6 @@ override_module {
   target = module.naming
   outputs = {
     names = { for key, name in {
-      resource_group                                = "rg-kitten-claws-dev"
       operational_insights_workspace                = "log-kitten-claws-dev"
       component                                     = "appikittenclawsdev"
       server_farm                                   = "asp-kitten-claws-dev"
@@ -39,6 +38,7 @@ override_module {
   target = module.role_naming
   outputs = {
     names = { for key, slug in {
+      resource_group         = "rg"
       private_endpoint       = "pep"
       user_assigned_identity = "id"
       network_security_group = "nsg"

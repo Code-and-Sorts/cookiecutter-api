@@ -1,6 +1,6 @@
 {%- set stacks = path_environments | map(attribute='name') | list -%}
 {%- set azure = cloud_service == 'Azure Function App' -%}
-{%- set outputs = ['app_name', 'app_hosting', 'container_registry', 'api_url'] + (['resource_group_name'] if azure else []) -%}
+{%- set outputs = ['app_name', 'app_hosting', 'container_registry', 'api_url'] + (['app_resource_group_name'] if azure else []) -%}
 {%- macro credentials() %}
 {%- if azure %}
 {%- raw %}

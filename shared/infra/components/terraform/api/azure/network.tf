@@ -19,15 +19,15 @@ locals {
 
 resource "azurerm_virtual_network" "this" {
   name                = local.names.virtual_network.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["network"].name
+  location            = azurerm_resource_group.this["network"].location
   address_space       = [var.network.address_space]
   tags                = local.tags
 }
 
 resource "azurerm_subnet" "app" {
   name                 = local.role_names.app.virtual_network_subnet.name
-  resource_group_name  = azurerm_resource_group.this.name
+  resource_group_name  = azurerm_resource_group.this["network"].name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [local.subnets.app]
 
@@ -46,7 +46,7 @@ resource "azurerm_subnet" "app" {
 
 resource "azurerm_subnet" "gateway" {
   name                 = local.role_names.gateway.virtual_network_subnet.name
-  resource_group_name  = azurerm_resource_group.this.name
+  resource_group_name  = azurerm_resource_group.this["network"].name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [local.subnets.gateway]
 
@@ -64,15 +64,15 @@ resource "azurerm_subnet" "gateway" {
 
 resource "azurerm_subnet" "endpoints" {
   name                 = local.role_names.endpoints.virtual_network_subnet.name
-  resource_group_name  = azurerm_resource_group.this.name
+  resource_group_name  = azurerm_resource_group.this["network"].name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [local.subnets.endpoints]
 }
 
 resource "azurerm_network_security_group" "gateway" {
   name                = local.role_names.gateway.network_security_group.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["network"].name
+  location            = azurerm_resource_group.this["network"].location
   tags                = local.tags
 
   security_rule {
@@ -119,8 +119,8 @@ resource "azurerm_subnet_network_security_group_association" "gateway" {
 
 resource "azurerm_network_security_group" "default" {
   name                = local.names.network_security_group.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["network"].name
+  location            = azurerm_resource_group.this["network"].location
   tags                = local.tags
 }
 
@@ -141,7 +141,7 @@ resource "azurerm_private_dns_zone" "this" {
   ))
 
   name                = each.value
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["network"].name
   tags                = local.tags
 }
 

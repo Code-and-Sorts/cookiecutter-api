@@ -53,12 +53,34 @@ run "names_come_from_the_naming_module" {
   command = plan
 
   assert {
-    condition     = azurerm_resource_group.this.name == "rg-kitten-claws-dev" && azurerm_virtual_network.this.name == "vnet-kitten-claws-dev"
+    condition     = azurerm_virtual_network.this.name == "vnet-kitten-claws-dev" && can(regex("^apim-kitten-claws-dev-[a-z0-9]{4}$", azurerm_api_management.this.name))
     error_message = "Names are the CAF abbreviation, the project and the stage."
   }
 
   assert {
-    condition     = azurerm_subnet.app.name == "snet-kitten-claws-dev-app" && azurerm_private_endpoint.database.name == "pep-kitten-claws-dev-cosmos"
+    condition     = { for role, group in azurerm_resource_group.this : role => group.name } == { for role in ["app", "data", "gateway", "monitoring", "network"] : role => "rg-kitten-claws-dev-${role}" }
+    error_message = "Each part of the stack has its own resource group, named after what it holds."
+  }
+
+  assert {
+    condition = alltrue([
+      azurerm_function_app_flex_consumption.this[0].resource_group_name == azurerm_resource_group.this["app"].name,
+      azurerm_storage_account.this.resource_group_name == azurerm_resource_group.this["app"].name,
+      azurerm_user_assigned_identity.api.resource_group_name == azurerm_resource_group.this["app"].name,
+      azurerm_cosmosdb_account.this.resource_group_name == azurerm_resource_group.this["data"].name,
+      azurerm_private_endpoint.database.resource_group_name == azurerm_resource_group.this["data"].name,
+      azurerm_api_management.this.resource_group_name == azurerm_resource_group.this["gateway"].name,
+      azurerm_user_assigned_identity.gateway.resource_group_name == azurerm_resource_group.this["gateway"].name,
+      azurerm_log_analytics_workspace.this.resource_group_name == azurerm_resource_group.this["monitoring"].name,
+      azurerm_application_insights.this.resource_group_name == azurerm_resource_group.this["monitoring"].name,
+      azurerm_virtual_network.this.resource_group_name == azurerm_resource_group.this["network"].name,
+      alltrue([for zone in azurerm_private_dns_zone.this : zone.resource_group_name == azurerm_resource_group.this["network"].name]),
+    ])
+    error_message = "Every resource lives in the resource group for its part of the stack."
+  }
+
+  assert {
+    condition     = azurerm_subnet.app.name == "snet-kitten-claws-dev-app" && azurerm_private_endpoint.database.name == "pep-kitten-claws-dev-data"
     error_message = "A type the component creates more than once is named after its role."
   }
 

@@ -1,6 +1,11 @@
-output "resource_group_name" {
-  value       = azurerm_resource_group.this.name
-  description = "Resource group holding every resource of the stack."
+output "app_resource_group_name" {
+  value       = azurerm_resource_group.this["app"].name
+  description = "Resource group of the API, which the deploy workflow publishes to."
+}
+
+output "resource_group_names" {
+  value       = { for role, group in azurerm_resource_group.this : role => group.name }
+  description = "Resource group of each part of the stack: app, data, gateway, monitoring and network."
 }
 
 output "api_url" {

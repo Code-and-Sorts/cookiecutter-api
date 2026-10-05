@@ -7,7 +7,7 @@
         env:
           REGISTRY: ${{ steps.infra.outputs.container_registry }}
           APP: ${{ steps.infra.outputs.app_name }}
-          RESOURCE_GROUP: ${{ steps.infra.outputs.resource_group_name }}
+          RESOURCE_GROUP: ${{ steps.infra.outputs.app_resource_group_name }}
         run: bash infra/scripts/publish-image.sh "$REGISTRY" "$APP" "$RESOURCE_GROUP" "$GITHUB_SHA"
         shell: bash
 {%- endraw %}

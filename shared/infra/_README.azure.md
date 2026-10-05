@@ -22,6 +22,16 @@ client ──x-api-key──▶ API Management ──Entra ID token──▶ API
 - **Logs** (`logs.tf`): one Log Analytics workspace holds everything. Application Insights, which the API and API
   Management report to, keeps its data there, and diagnostic settings send the function app's, API Management's and
   Cosmos DB's platform logs to it (Container Apps log through their environment).
+- **Resource groups:** one per part of the stack, so each has its own lifecycle and access:
+
+  | Resource group | Holds |
+  |---|---|
+  | `rg-{{ project_endpoint }}-<stage>-network` | Virtual network, subnets, NSGs and private DNS zones |
+  | `rg-{{ project_endpoint }}-<stage>-monitoring` | Log Analytics and Application Insights |
+  | `rg-{{ project_endpoint }}-<stage>-data` | Cosmos DB, its private endpoint and its delete lock |
+  | `rg-{{ project_endpoint }}-<stage>-app` | The API (plan, function app or container app), its storage, registry, private endpoint and identity |
+  | `rg-{{ project_endpoint }}-<stage>-gateway` | API Management and its identity |
+
 - Resource names come from the [Azure Verified Modules naming utility](https://github.com/Azure/terraform-azure-avm-utl-naming):
   the Cloud Adoption Framework abbreviation, the project and the stage (`rg-{{ project_endpoint }}-<stage>`), plus
   four characters derived from the subscription for names that must be globally unique.

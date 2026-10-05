@@ -2,15 +2,15 @@ data "azuread_client_config" "current" {}
 
 resource "azurerm_user_assigned_identity" "api" {
   name                = local.role_names.app.user_assigned_identity.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["app"].name
+  location            = azurerm_resource_group.this["app"].location
   tags                = local.tags
 }
 
 resource "azurerm_user_assigned_identity" "gateway" {
   name                = local.role_names.gateway.user_assigned_identity.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["gateway"].name
+  location            = azurerm_resource_group.this["gateway"].location
   tags                = local.tags
 }
 

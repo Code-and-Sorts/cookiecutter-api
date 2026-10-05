@@ -10,8 +10,8 @@ locals {
 
 resource "azurerm_log_analytics_workspace" "this" {
   name                = local.names.operational_insights_workspace.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["monitoring"].name
+  location            = azurerm_resource_group.this["monitoring"].location
   sku                 = "PerGB2018"
   retention_in_days   = 30
   tags                = local.tags
@@ -19,8 +19,8 @@ resource "azurerm_log_analytics_workspace" "this" {
 
 resource "azurerm_application_insights" "this" {
   name                = local.names.component.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["monitoring"].name
+  location            = azurerm_resource_group.this["monitoring"].location
   workspace_id        = azurerm_log_analytics_workspace.this.id
   application_type    = "web"
   tags                = local.tags

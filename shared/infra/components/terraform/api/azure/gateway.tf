@@ -41,8 +41,8 @@ locals {
 
 resource "azurerm_api_management" "this" {
   name                 = local.names.api_management_service.name_unique
-  resource_group_name  = azurerm_resource_group.this.name
-  location             = azurerm_resource_group.this.location
+  resource_group_name  = azurerm_resource_group.this["gateway"].name
+  location             = azurerm_resource_group.this["gateway"].location
   publisher_name       = var.owner.name
   publisher_email      = var.owner.email
   sku_name             = "${var.gateway.sku}_${var.gateway.capacity}"
@@ -64,7 +64,7 @@ resource "azurerm_api_management" "this" {
 resource "azurerm_api_management_logger" "this" {
   name                = "appi"
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
   resource_id         = azurerm_application_insights.this.id
 
   application_insights {
@@ -74,7 +74,7 @@ resource "azurerm_api_management_logger" "this" {
 
 resource "azurerm_api_management_api" "api" {
   name                  = var.name
-  resource_group_name   = azurerm_resource_group.this.name
+  resource_group_name   = azurerm_resource_group.this["gateway"].name
   api_management_name   = azurerm_api_management.this.name
   revision              = "1"
   display_name          = var.name
@@ -95,7 +95,7 @@ resource "azurerm_api_management_api_operation" "api" {
   operation_id        = each.key
   api_name            = azurerm_api_management_api.api.name
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
   display_name        = each.value.display_name
   method              = each.value.method
   url_template        = each.value.url_template
@@ -113,7 +113,7 @@ resource "azurerm_api_management_api_operation" "api" {
 resource "azurerm_api_management_api_policy" "api" {
   api_name            = azurerm_api_management_api.api.name
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
   xml_content         = format(local.backend_policy, "")
 }
 
@@ -121,7 +121,7 @@ resource "azurerm_api_management_api_diagnostic" "api" {
   identifier               = "applicationinsights"
   api_name                 = azurerm_api_management_api.api.name
   api_management_name      = azurerm_api_management.this.name
-  resource_group_name      = azurerm_resource_group.this.name
+  resource_group_name      = azurerm_resource_group.this["gateway"].name
   api_management_logger_id = azurerm_api_management_logger.this.id
   sampling_percentage      = 100
   always_log_errors        = true
@@ -132,7 +132,7 @@ resource "azurerm_api_management_api" "health" {
   count = var.gateway.health_endpoint == "" ? 0 : 1
 
   name                  = "${var.name}-health"
-  resource_group_name   = azurerm_resource_group.this.name
+  resource_group_name   = azurerm_resource_group.this["gateway"].name
   api_management_name   = azurerm_api_management.this.name
   revision              = "1"
   display_name          = "${var.name} health"
@@ -148,7 +148,7 @@ resource "azurerm_api_management_api_operation" "health" {
   operation_id        = "health"
   api_name            = azurerm_api_management_api.health[0].name
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
   display_name        = "Health check"
   method              = "GET"
   url_template        = "/"
@@ -159,13 +159,13 @@ resource "azurerm_api_management_api_policy" "health" {
 
   api_name            = azurerm_api_management_api.health[0].name
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
   xml_content         = format(local.backend_policy, "\n    <rewrite-uri template=\"/${var.gateway.health_endpoint}\" />")
 }
 
 resource "azurerm_api_management_product" "api" {
   product_id            = var.name
-  resource_group_name   = azurerm_resource_group.this.name
+  resource_group_name   = azurerm_resource_group.this["gateway"].name
   api_management_name   = azurerm_api_management.this.name
   display_name          = var.name
   subscription_required = true
@@ -177,13 +177,13 @@ resource "azurerm_api_management_product_api" "api" {
   product_id          = azurerm_api_management_product.api.product_id
   api_name            = azurerm_api_management_api.api.name
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
 }
 
 resource "azurerm_api_management_subscription" "api" {
   display_name        = "${local.prefix} default"
   api_management_name = azurerm_api_management.this.name
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["gateway"].name
   product_id          = azurerm_api_management_product.api.id
   state               = "active"
   allow_tracing       = false

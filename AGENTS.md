@@ -235,7 +235,8 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
   (`AZURE_CLIENT_ID`) through a private endpoint, which is why every language's Cosmos client uses
   `DefaultAzureCredential` when no key is set; a storage account admitting only the app subnet. Names come from the
   AVM naming module (`Azure/avm-utl-naming/azure`): `name_unique` where Azure needs a globally unique name, and
-  `role_naming` (one call per role) for a type the component creates more than once.
+  `role_naming` (one call per role) for a type the component creates more than once. Each part of the stack has its
+  own resource group, named by its role: `network`, `monitoring`, `data`, `app` and `gateway`.
 - **Data is never destroyed by a plan.** Every resource holding data (the database, its containers or tables, and
   storage) has `lifecycle { prevent_destroy = true }` on every stack, and TFLint's rule for it stays on; Terraform
   deletes a cloud lock before the resource it guards, so a lock only stops deletes from outside Terraform.

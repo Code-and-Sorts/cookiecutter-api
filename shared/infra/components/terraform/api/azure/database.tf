@@ -1,7 +1,7 @@
 resource "azurerm_cosmosdb_account" "this" {
   name                               = local.names.database_account_cosmos_db_for_no_sql_account.name_unique
-  resource_group_name                = azurerm_resource_group.this.name
-  location                           = azurerm_resource_group.this.location
+  resource_group_name                = azurerm_resource_group.this["data"].name
+  location                           = azurerm_resource_group.this["data"].location
   offer_type                         = "Standard"
   kind                               = "GlobalDocumentDB"
   free_tier_enabled                  = var.database.free_tier
@@ -16,7 +16,7 @@ resource "azurerm_cosmosdb_account" "this" {
   }
 
   geo_location {
-    location          = azurerm_resource_group.this.location
+    location          = azurerm_resource_group.this["data"].location
     failover_priority = 0
   }
 
@@ -51,7 +51,7 @@ resource "azurerm_cosmosdb_sql_database" "this" {
   for_each = local.databases
 
   name                = each.key
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["data"].name
   account_name        = azurerm_cosmosdb_account.this.name
   throughput          = var.database.capacity == "provisioned" ? each.value.throughput : null
 
@@ -71,7 +71,7 @@ resource "azurerm_cosmosdb_sql_container" "this" {
   for_each = local.containers
 
   name                  = each.value.name
-  resource_group_name   = azurerm_resource_group.this.name
+  resource_group_name   = azurerm_resource_group.this["data"].name
   account_name          = azurerm_cosmosdb_account.this.name
   database_name         = azurerm_cosmosdb_sql_database.this[each.value.database].name
   partition_key_paths   = each.value.partition_key
@@ -86,14 +86,14 @@ resource "azurerm_cosmosdb_sql_container" "this" {
 resource "azurerm_management_lock" "database" {
   count = var.database.delete_lock ? 1 : 0
 
-  name       = local.role_names.cosmos.lock.name
+  name       = local.role_names.data.lock.name
   scope      = azurerm_cosmosdb_account.this.id
   lock_level = "CanNotDelete"
   notes      = "Holds the API's data; set database.delete_lock to false to remove."
 }
 
 resource "azurerm_cosmosdb_sql_role_assignment" "api" {
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["data"].name
   account_name        = azurerm_cosmosdb_account.this.name
   role_definition_id  = "${azurerm_cosmosdb_account.this.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
   principal_id        = azurerm_user_assigned_identity.api.principal_id
@@ -101,9 +101,9 @@ resource "azurerm_cosmosdb_sql_role_assignment" "api" {
 }
 
 resource "azurerm_private_endpoint" "database" {
-  name                = local.role_names.cosmos.private_endpoint.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  name                = local.role_names.data.private_endpoint.name
+  resource_group_name = azurerm_resource_group.this["data"].name
+  location            = azurerm_resource_group.this["data"].location
   subnet_id           = azurerm_subnet.endpoints.id
   tags                = local.tags
 

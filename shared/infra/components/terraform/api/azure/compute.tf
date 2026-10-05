@@ -36,8 +36,8 @@ resource "azurerm_service_plan" "this" {
   count = local.functions_hosting ? 1 : 0
 
   name                         = local.names.server_farm.name
-  resource_group_name          = azurerm_resource_group.this.name
-  location                     = azurerm_resource_group.this.location
+  resource_group_name          = azurerm_resource_group.this["app"].name
+  location                     = azurerm_resource_group.this["app"].location
   os_type                      = "Linux"
   sku_name                     = var.compute.sku
   maximum_elastic_worker_count = var.compute.hosting == "premium" ? var.compute.max_instances : null
@@ -48,8 +48,8 @@ resource "azurerm_function_app_flex_consumption" "this" {
   count = var.compute.hosting == "flex_consumption" ? 1 : 0
 
   name                                           = local.app_name
-  resource_group_name                            = azurerm_resource_group.this.name
-  location                                       = azurerm_resource_group.this.location
+  resource_group_name                            = azurerm_resource_group.this["app"].name
+  location                                       = azurerm_resource_group.this["app"].location
   service_plan_id                                = azurerm_service_plan.this[0].id
   runtime_name                                   = var.compute.runtime.name
   runtime_version                                = var.compute.runtime.version
@@ -113,8 +113,8 @@ resource "azurerm_linux_function_app" "this" {
   count = contains(["app_service", "premium"], var.compute.hosting) ? 1 : 0
 
   name                                           = local.app_name
-  resource_group_name                            = azurerm_resource_group.this.name
-  location                                       = azurerm_resource_group.this.location
+  resource_group_name                            = azurerm_resource_group.this["app"].name
+  location                                       = azurerm_resource_group.this["app"].location
   service_plan_id                                = azurerm_service_plan.this[0].id
   storage_account_name                           = azurerm_storage_account.this.name
   storage_uses_managed_identity                  = local.storage_key_access ? null : true
@@ -182,8 +182,8 @@ resource "azurerm_private_endpoint" "app" {
   count = local.functions_hosting ? 1 : 0
 
   name                = local.role_names.app.private_endpoint.name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["app"].name
+  location            = azurerm_resource_group.this["app"].location
   subnet_id           = azurerm_subnet.endpoints.id
   tags                = local.tags
 
@@ -204,8 +204,8 @@ resource "azurerm_container_registry" "this" {
   count = local.functions_hosting ? 0 : 1
 
   name                = local.names.registry.name_unique
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this["app"].name
+  location            = azurerm_resource_group.this["app"].location
   sku                 = "Basic"
   admin_enabled       = false
   tags                = local.tags
@@ -224,8 +224,8 @@ resource "azurerm_container_app_environment" "this" {
   count = local.functions_hosting ? 0 : 1
 
   name                           = local.names.managed_environment.name
-  resource_group_name            = azurerm_resource_group.this.name
-  location                       = azurerm_resource_group.this.location
+  resource_group_name            = azurerm_resource_group.this["app"].name
+  location                       = azurerm_resource_group.this["app"].location
   log_analytics_workspace_id     = azurerm_log_analytics_workspace.this.id
   infrastructure_subnet_id       = azurerm_subnet.app.id
   internal_load_balancer_enabled = true
@@ -251,7 +251,7 @@ resource "azurerm_container_app" "this" {
   count = local.functions_hosting ? 0 : 1
 
   name                         = local.app_name
-  resource_group_name          = azurerm_resource_group.this.name
+  resource_group_name          = azurerm_resource_group.this["app"].name
   container_app_environment_id = azurerm_container_app_environment.this[0].id
   revision_mode                = "Single"
   workload_profile_name        = var.compute.sku == "Consumption" ? "Consumption" : "dedicated"
@@ -349,7 +349,7 @@ resource "azurerm_private_dns_zone" "container_apps" {
   count = local.functions_hosting ? 0 : 1
 
   name                = azurerm_container_app_environment.this[0].default_domain
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = azurerm_resource_group.this["network"].name
   tags                = local.tags
 }
 
