@@ -146,7 +146,9 @@ to answer, writes to the emulator and leaves its records there; `make emulator-d
 ## Supported Templates
 
 Pick a row with the `language` answer (`python`, `typescript`, `dotnet` or `go`) and a
-column with `cloud_service`. Each ✅ links to that combination's generated example.
+column with `cloud_service`. Each ✅ links to that combination's generated example in
+[cookiecutter-api-examples](https://github.com/Code-and-Sorts/cookiecutter-api-examples),
+rendered with two resources (`Cat` and `Dog`) and republished on every push to `main`.
 
 <table width="100%">
   <tr>
@@ -189,15 +191,6 @@ column with `cloud_service`. Each ✅ links to that combination's generated exam
 ---
 > [!NOTE]
 > Each project follows the controller-service-repository pattern.
-
-## Examples
-
-Browse generated projects for every language and cloud in
-[cookiecutter-api-examples](https://github.com/Code-and-Sorts/cookiecutter-api-examples).
-Each combination lives on its own `<cloud>-<language>` branch (for example
-[`aws-typescript`](https://github.com/Code-and-Sorts/cookiecutter-api-examples/tree/aws-typescript)),
-rendered with two resources (`Cat` and `Dog`) and republished on every push to `main`
-by the `Publish Example Branches` workflow.
 
 ## Resources
 
