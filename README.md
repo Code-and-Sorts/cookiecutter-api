@@ -76,17 +76,63 @@ the defaults are what a stack gets unless it overrides them.
 
 #### <img src="./.docs/imgs/azure.svg" height="18"> Azure ✅
 
-| Infrastructure | Service | Supported tiers | Default |
+##### Compute
+
+Each stack runs the API on one hosting, `flex_consumption` unless it picks another, and one of that hosting's SKUs.
+
+| Hosting | Service | SKUs | Default SKU |
 | --- | --- | --- | --- |
-| Compute | Azure Functions or Azure Container Apps: one hosting per stack | Pick one hosting, then its SKU:<br>`flex_consumption` (Flex Consumption): `FC1`<br>`app_service` (App Service plan): Linux `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`, `P1mv3`-`P5mv3`, `P0v4`-`P5v4`, `P1mv4`-`P5mv4` (default `B1`)<br>`premium` (Elastic Premium): `EP1`-`EP3` (default `EP1`)<br>`container_app` (Container Apps): workload profile `Consumption`, `D4`-`D32`, `E4`-`E32` or `NC24-A100`-`NC96-A100` (default `Consumption`) | `flex_consumption`, `FC1` |
-| Database | Cosmos DB for NoSQL | `serverless`; `provisioned` (from 400 RU/s, in steps of 100); `autoscale` (maximum from 1000 RU/s, in steps of 1000) | `serverless` |
-| API gateway | API Management | `Developer` (1 unit, no SLA), `StandardV2` (1-10 units), `Premium` (1-31 units) | `Developer` |
-| Network | Virtual network, private endpoints, private DNS | Any address space of `/22` or larger | `10.20.0.0/16` |
-| Identity | Entra ID application, user-assigned managed identities | | |
-| Monitoring | Log Analytics, Application Insights | | |
+| `flex_consumption` | Azure Functions, Flex Consumption | `FC1` | `FC1` |
+| `app_service` | Azure Functions, App Service plan | Linux `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`, `P1mv3`-`P5mv3`, `P0v4`-`P5v4`, `P1mv4`-`P5mv4` | `B1` |
+| `premium` | Azure Functions, Elastic Premium | `EP1`-`EP3` | `EP1` |
+| `container_app` | Azure Container Apps | Workload profiles `Consumption`, `D4`-`D32`, `E4`-`E32`, `NC24-A100`-`NC96-A100` | `Consumption` |
+
+##### Database
+
+Cosmos DB for NoSQL, with one capacity mode per stack, `serverless` unless it picks another.
+
+| Capacity | Throughput |
+| --- | --- |
+| `serverless` | Billed per request |
+| `provisioned` | From 400 RU/s, in steps of 100 |
+| `autoscale` | Maximum from 1000 RU/s, in steps of 1000 |
+
+##### API gateway
+
+API Management, `Developer` unless the stack picks another tier.
+
+| Tier | Units |
+| --- | --- |
+| `Developer` | 1 (no SLA) |
+| `StandardV2` | 1-10 |
+| `Premium` | 1-31 |
 
 API Management's Consumption, Basic, Standard and Basic v2 tiers are not offered: they cannot reach a backend
 that only has a private endpoint.
+
+##### Network
+
+| Resource | Details | Default |
+| --- | --- | --- |
+| Virtual network | Any address space of `/22` or larger, split into app, gateway and private endpoint subnets | `10.20.0.0/16` |
+| Private endpoints | Cosmos DB, and the API on Azure Functions (Container Apps run in an internal environment) | |
+| Private DNS | A `privatelink` zone per private endpoint, or the Container Apps environment's zone, linked to the virtual network | |
+
+##### Identity
+
+| Identity | Used by | For |
+| --- | --- | --- |
+| Entra ID application | The API | App Service authentication admits only tokens issued for it |
+| User-assigned managed identity | The API | Cosmos DB data, host storage (Premium keeps the account key for its content share) and the container registry |
+| User-assigned managed identity | API Management | The Entra ID token it sends to the API |
+
+##### Monitoring
+
+| Resource | Collects |
+| --- | --- |
+| Log Analytics workspace | Every log below, in one place |
+| Application Insights | Requests, dependencies and traces from the API and API Management |
+| Diagnostic settings | Platform logs of the function app, API Management and Cosmos DB |
 
 #### <img src="./.docs/imgs/aws.svg" height="18"> AWS 🚧
 
