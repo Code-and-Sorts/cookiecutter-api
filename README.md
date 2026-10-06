@@ -78,10 +78,7 @@ the defaults are what a stack gets unless it overrides them.
 
 | Infrastructure | Service | Supported tiers | Default |
 | --- | --- | --- | --- |
-| Compute | Azure Functions, Flex Consumption (`flex_consumption`) | `FC1` | `FC1`, the default hosting |
-| Compute | Azure Functions, App Service plan (`app_service`) | Linux `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`, `P1mv3`-`P5mv3`, `P0v4`-`P5v4`, `P1mv4`-`P5mv4` | `B1` |
-| Compute | Azure Functions, Premium (`premium`) | `EP1`-`EP3` | `EP1` |
-| Compute | Azure Functions on Azure Container Apps (`container_app`) | Workload profiles `Consumption`, `D4`-`D32`, `E4`-`E32`, `NC24-A100`-`NC96-A100` | `Consumption` |
+| Compute | Azure Functions or Azure Container Apps: one hosting per stack | Pick one hosting, then its SKU:<br>`flex_consumption` (Flex Consumption): `FC1`<br>`app_service` (App Service plan): Linux `B1`-`B3`, `S1`-`S3`, `P0v3`-`P3v3`, `P1mv3`-`P5mv3`, `P0v4`-`P5v4`, `P1mv4`-`P5mv4` (default `B1`)<br>`premium` (Elastic Premium): `EP1`-`EP3` (default `EP1`)<br>`container_app` (Container Apps): workload profile `Consumption`, `D4`-`D32`, `E4`-`E32` or `NC24-A100`-`NC96-A100` (default `Consumption`) | `flex_consumption`, `FC1` |
 | Database | Cosmos DB for NoSQL | `serverless`; `provisioned` (from 400 RU/s, in steps of 100); `autoscale` (maximum from 1000 RU/s, in steps of 1000) | `serverless` |
 | API gateway | API Management | `Developer` (1 unit, no SLA), `StandardV2` (1-10 units), `Premium` (1-31 units) | `Developer` |
 | Network | Virtual network, private endpoints, private DNS | Any address space of `/22` or larger | `10.20.0.0/16` |
