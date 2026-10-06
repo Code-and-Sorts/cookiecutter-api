@@ -68,7 +68,7 @@ rendered with two resources (`Cat` and `Dog`) and republished on every push to `
   </tr>
 </table>
 
-### Supported infrastructure
+### Supported infrastructure as code
 
 `include_infrastructure` works with every language. Each cloud deploys the same shape: a public API gateway with
 API keys, private compute, a private database and the network between them. A stack can pick any tier below;
@@ -205,7 +205,7 @@ Answer `include_infrastructure` (Azure for now; GCP and AWS follow with the same
   the [Azure Verified Modules naming utility](https://github.com/Azure/terraform-azure-avm-utl-naming).
 
 The defaults, used by every stack unless it overrides them, are asked once. Their choices and defaults
-depend on the cloud (see [Supported infrastructure](#supported-infrastructure)) and are data in
+depend on the cloud (see [Supported infrastructure as code](#supported-infrastructure-as-code)) and are data in
 `infra_clouds` in `copier.yml`, so GCP and AWS add their own without new questions:
 
 | Question | Sets |
