@@ -1,0 +1,16 @@
+terraform:
+{%- if cloud_service == 'Azure Function App' %}
+{%- set state_name = (project_endpoint | replace('-', '') | replace('_', ''))[:16] %}
+  backend_type: azurerm
+  backend:
+    azurerm:
+      resource_group_name: rg-{{ project_endpoint }}-tfstate
+      storage_account_name: st{{ state_name }}state
+      container_name: tfstate
+      key: api.terraform.tfstate
+      use_azuread_auth: true
+{%- endif %}
+
+vars:
+  tags:
+    project: {{ project_endpoint }}

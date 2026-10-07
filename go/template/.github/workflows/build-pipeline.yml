@@ -18,7 +18,7 @@ jobs:
           - macos-latest
           - windows-latest
         go-version:
-          - "1.27"
+          - "{% endraw %}{{ runtime.go }}{% raw %}"
       fail-fast: false
     steps:
       - name: Check out

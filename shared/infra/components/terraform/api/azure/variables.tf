@@ -1,0 +1,160 @@
+variable "name" {
+  type        = string
+  description = "Project name in kebab-case; every resource name starts with it."
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*$", var.name))
+    error_message = "name must be lowercase kebab-case."
+  }
+}
+
+variable "stage" {
+  type        = string
+  description = "Environment (stack) name, such as dev or prod."
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9]{0,7}$", var.stage))
+    error_message = "stage must be at most 8 lowercase letters and digits."
+  }
+}
+
+variable "region" {
+  type        = string
+  description = "Azure region for every resource."
+}
+
+variable "tags" {
+  type        = map(string)
+  default     = {}
+  description = "Tags added to every resource."
+}
+
+variable "owner" {
+  type = object({
+    name  = string
+    email = string
+  })
+  description = "Who runs the API; Azure names them as the API Management publisher."
+}
+
+variable "network" {
+  type = object({
+    address_space = optional(string, "10.20.0.0/16")
+  })
+  default     = {}
+  description = "Virtual network; the app, gateway and private endpoint subnets are /24s taken from it."
+
+  validation {
+    condition     = can(cidrhost(var.network.address_space, 0)) && tonumber(split("/", var.network.address_space)[1]) <= 22
+    error_message = "network.address_space must be a CIDR block of /22 or larger."
+  }
+}
+
+variable "compute" {
+  type = object({
+    hosting            = string
+    sku                = string
+    runtime            = object({ name = string, version = string })
+    min_instances      = optional(number, 0)
+    max_instances      = optional(number, 100)
+    instance_memory_mb = optional(number, 2048)
+    cpu                = optional(number, 0.5)
+    app_settings       = optional(map(string), {})
+    public_deployments = optional(bool, true)
+  })
+  description = "How the API runs: flex_consumption, app_service, premium or container_app, its plan SKU or workload profile, and the container app's vCPUs (cpu; memory is twice that in GiB)."
+
+  validation {
+    condition     = contains(["flex_consumption", "app_service", "premium", "container_app"], var.compute.hosting)
+    error_message = "compute.hosting must be flex_consumption, app_service, premium or container_app."
+  }
+
+  validation {
+    condition = (
+      var.compute.hosting == "flex_consumption" ? var.compute.sku == "FC1" :
+      var.compute.hosting == "premium" ? contains(["EP1", "EP2", "EP3"], var.compute.sku) :
+      var.compute.hosting == "app_service" ? can(regex("^(B[1-3]|S[1-3]|P[0-3]v3|P[1-5]mv3|P[0-5]v4|P[1-5]mv4)$", var.compute.sku)) :
+      can(regex("^(Consumption|D(4|8|16|32)|E(4|8|16|32)|NC(24|48|96)-A100)$", var.compute.sku))
+    )
+    error_message = "compute.sku does not fit compute.hosting: FC1 for flex_consumption, EP1-EP3 for premium, a Linux App Service SKU for app_service, a workload profile for container_app."
+  }
+
+  validation {
+    condition     = var.compute.cpu >= 0.25 && var.compute.cpu <= 4 && floor(var.compute.cpu * 4) == var.compute.cpu * 4
+    error_message = "compute.cpu is the container app's vCPUs: 0.25 to 4 in steps of 0.25 (memory is twice that in GiB)."
+  }
+}
+
+variable "database" {
+  type = object({
+    capacity   = string
+    throughput = optional(number, 400)
+    containers = list(object({
+      name          = string
+      partition_key = optional(list(string), ["/id"])
+    }))
+    free_tier   = optional(bool, false)
+    delete_lock = optional(bool, false)
+    databases = optional(map(object({
+      throughput = optional(number)
+      containers = optional(list(object({
+        name          = string
+        partition_key = optional(list(string), ["/id"])
+      })), [])
+    })), {})
+  })
+  description = "Cosmos DB capacity (serverless, provisioned or autoscale), the API's database throughput and containers, and further databases in the same account, each with its own throughput (default throughput) and containers. A container's partition_key is one path, or two or three for a hierarchical key (default /id)."
+
+  validation {
+    condition     = contains(["serverless", "provisioned", "autoscale"], var.database.capacity)
+    error_message = "database.capacity must be serverless, provisioned or autoscale."
+  }
+
+  validation {
+    condition = alltrue([
+      for throughput in concat([var.database.throughput], [for database in values(var.database.databases) : coalesce(database.throughput, var.database.throughput)]) :
+      var.database.capacity == "serverless" ||
+      (var.database.capacity == "provisioned" && throughput >= 400 && throughput % 100 == 0) ||
+      (var.database.capacity == "autoscale" && throughput >= 1000 && throughput % 1000 == 0)
+    ])
+    error_message = "Every database's throughput must be at least 400 RU/s in steps of 100 (provisioned) or 1000 in steps of 1000 (autoscale)."
+  }
+
+  validation {
+    condition = alltrue([
+      for container in concat(var.database.containers, flatten([for database in values(var.database.databases) : database.containers])) :
+      length(container.partition_key) >= 1 && length(container.partition_key) <= 3 && alltrue([for path in container.partition_key : can(regex("^(/[^/\\s]+)+$", path))])
+    ])
+    error_message = "A container's partition_key is one to three paths such as /id or /tenantId."
+  }
+
+  validation {
+    condition     = !contains(keys(var.database.databases), var.name)
+    error_message = "database.databases cannot name the API's own database, which is named after var.name."
+  }
+}
+
+variable "gateway" {
+  type = object({
+    sku             = string
+    capacity        = optional(number, 1)
+    path            = optional(string, "api")
+    health_endpoint = optional(string, "")
+    routes = list(object({
+      name       = string
+      endpoint   = string
+      operations = list(string)
+    }))
+  })
+  description = "API Management tier and the routes it publishes; routes need an API key, the health check does not."
+
+  validation {
+    condition     = contains(["Developer", "StandardV2", "Premium"], var.gateway.sku)
+    error_message = "gateway.sku must be Developer, StandardV2 or Premium: the tiers that can reach a private backend."
+  }
+
+  validation {
+    condition     = var.gateway.sku != "Developer" || var.gateway.capacity == 1
+    error_message = "The Developer tier has exactly 1 unit."
+  }
+}

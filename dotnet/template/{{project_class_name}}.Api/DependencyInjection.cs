@@ -13,6 +13,7 @@ using {{project_class_name}}.Api.Services;
 {%- if cloud_service == 'Azure Function App' %}
 using System.Data.Common;
 using {{project_class_name}}.Api.Utils;
+using Azure.Identity;
 using Microsoft.Azure.Cosmos;
 {%- elif cloud_service == 'GCP Cloud Function' %}
 using Google.Api.Gax;
@@ -91,9 +92,28 @@ public static class DependencyInjection
         }
 
         var cosmosOptions = CreateCosmosClientOptions(configuration, cosmosConnectionString);
-        services.AddSingleton(provider => new CosmosClient(cosmosConnectionString, cosmosOptions));
+        services.AddSingleton(provider => CreateCosmosClient(cosmosConnectionString, cosmosOptions));
         services.AddSingleton(provider => provider.GetRequiredService<CosmosClient>().GetDatabase(databaseName));
     }
+
+    public static CosmosClient CreateCosmosClient(string connectionString, CosmosClientOptions options)
+    {
+        if (HasAccountKey(connectionString))
+        {
+            return new CosmosClient(connectionString, options);
+        }
+
+        var connection = new DbConnectionStringBuilder { ConnectionString = connectionString };
+        if (!connection.TryGetValue("AccountEndpoint", out object? endpoint) || endpoint?.ToString() is not { Length: > 0 } accountEndpoint)
+        {
+            throw new InvalidOperationException("The CosmosDb connection string has neither an AccountKey nor an AccountEndpoint.");
+        }
+        return new CosmosClient(accountEndpoint, new DefaultAzureCredential(), options);
+    }
+
+    public static bool HasAccountKey(string connectionString) =>
+        new DbConnectionStringBuilder { ConnectionString = connectionString }.TryGetValue("AccountKey", out object? key)
+        && !string.IsNullOrEmpty(key?.ToString());
 
     public static CosmosClientOptions CreateCosmosClientOptions(IConfiguration configuration, string connectionString)
     {

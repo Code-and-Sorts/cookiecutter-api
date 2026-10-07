@@ -17,6 +17,39 @@ public class DependencyInjectionTests
     private const string AzureConnection = "AccountEndpoint=https://account.documents.azure.com:443/;AccountKey=a2V5;";
     private const string HttpEmulatorConnection = "AccountEndpoint=http://localhost:8081/;AccountKey=a2V5;";
     private const string HttpsEmulatorConnection = "AccountEndpoint=https://localhost:8081/;AccountKey=a2V5;";
+    private const string KeylessConnection = "AccountEndpoint=https://account.documents.azure.com:443/;";
+
+    [Theory]
+    [InlineData(AzureConnection, true)]
+    [InlineData("accountendpoint=http://localhost:8081/;accountkey=a2V5", true)]
+    [InlineData(KeylessConnection, false)]
+    [InlineData("AccountEndpoint=https://account.documents.azure.com:443/;AccountKey=;", false)]
+    public void HasAccountKey_DetectsANonEmptyAccountKey(string connectionString, bool expected)
+    {
+        Assert.Equal(expected, DependencyInjection.HasAccountKey(connectionString));
+    }
+
+    [Fact]
+    public void CreateCosmosClient_WithAnAccountKey_UsesTheConnectionString()
+    {
+        using var client = DependencyInjection.CreateCosmosClient(HttpEmulatorConnection, new CosmosClientOptions());
+
+        Assert.Equal(new Uri("http://localhost:8081/"), client.Endpoint);
+    }
+
+    [Fact]
+    public void CreateCosmosClient_WithoutAnAccountKey_UsesTheAccountEndpointAndACredential()
+    {
+        using var client = DependencyInjection.CreateCosmosClient(KeylessConnection, new CosmosClientOptions());
+
+        Assert.Equal(new Uri("https://account.documents.azure.com:443/"), client.Endpoint);
+    }
+
+    [Fact]
+    public void CreateCosmosClient_WithoutAnAccountKeyOrEndpoint_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => DependencyInjection.CreateCosmosClient("AccountKey=;", new CosmosClientOptions()));
+    }
 
     [Fact]
     public void CreateCosmosClientOptions_WithoutTheEmulatorFlag_KeepsProductionSettings()

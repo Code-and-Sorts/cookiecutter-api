@@ -21,7 +21,7 @@ Conditions:
 Globals:
   Function:
     Timeout: 30
-    Runtime: nodejs24.x
+    Runtime: nodejs{{ runtime.node }}.x
     Environment:
       Variables:
         # sam local only sets variables the template declares; deployed stacks omit it.

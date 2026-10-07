@@ -10,8 +10,10 @@ BODY = {"status": "ok"}
 bp = func.Blueprint()
 
 
+{% if function_auth_level == 'function' -%}
 # Anonymous, unlike the resource functions: load balancers and uptime probes
 # call it without a function key.
+{% endif -%}
 @bp.route(route=ENDPOINT, methods=[func.HttpMethod.GET], auth_level=func.AuthLevel.ANONYMOUS)
 async def health(req: func.HttpRequest) -> func.HttpResponse:
     return response_generator(BODY)

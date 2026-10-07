@@ -1,0 +1,15 @@
+**/bin
+**/obj
+**/local.settings.json
+.git
+.github
+.vscode
+.thunderclient
+.env
+.env.*
+TestResults
+*.Tests.Unit
+*.Bootstrap
+infra
+Dockerfile
+.dockerignore

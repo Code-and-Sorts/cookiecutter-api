@@ -49,6 +49,11 @@ jobs:
             template-type: go
             cloud-service: "AWS Lambda"
             fixture: single
+          - os: ubuntu-24.04
+            template-type: go
+            cloud-service: "Azure Function App"
+            fixture: edge
+            infrastructure: "true"
       fail-fast: false
     steps:
       - name: Check out
@@ -60,6 +65,7 @@ jobs:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
+          include-infrastructure: ${{ matrix.infrastructure || 'false' }}
 
       - name: Setup runtime
         uses: ./.github/actions/setup-runtime

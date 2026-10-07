@@ -17,11 +17,7 @@
   ],
 {%- endif %}
   "engines": {
-{%- if cloud_service == 'Azure Function App' %}
-    "node": ">=22"
-{%- else %}
-    "node": ">=24"
-{%- endif %}
+    "node": ">={{ runtime.node }}"
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsc-alias",
@@ -41,6 +37,9 @@
 {%- if cloud_service == 'Azure Function App' %}
     "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true func start --typescript",
 {%- endif %}
+{%- if infra_containers %}
+    "start:container": "docker compose --profile api up --build api",
+{%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
     "start:emulator": "yarn build && DOTENV_CONFIG_PATH=.env.emulator DOTENV_CONFIG_OVERRIDE=true functions-framework --target=api",
 {%- endif %}
@@ -56,6 +55,7 @@
 {%- if cloud_service == 'Azure Function App' %}
     "@azure/cosmos": "^4.10.1",
     "@azure/functions": "^4.16.5",
+    "@azure/identity": "^4.13.3",
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
     "@google-cloud/firestore": "^9.2.0",

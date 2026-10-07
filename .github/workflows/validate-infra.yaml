@@ -1,0 +1,129 @@
+name: Infrastructure Validation
+
+on:
+  push:
+    paths:
+      - "*/template/**"
+      - copier.yml
+      - shared/**
+      - .github/workflows/validate-infra.yaml
+      - .github/actions/setup-copier-template/**
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "*/template/**"
+      - copier.yml
+      - shared/**
+      - .github/workflows/validate-infra.yaml
+      - .github/actions/setup-copier-template/**
+
+permissions:
+  contents: read
+
+jobs:
+  validate-infra:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        template-type:
+          - python
+          - typescript
+          - dotnet
+          - go
+        cloud-service:
+          - "Azure Function App"
+        fixture:
+          - single
+          - edge
+      fail-fast: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Setup Copier Template
+        uses: ./.github/actions/setup-copier-template
+        with:
+          template-language: ${{ matrix.template-type }}
+          template-cloud-service: ${{ matrix.cloud-service }}
+          resources-fixture: ${{ matrix.fixture }}
+          include-infrastructure: "true"
+
+      - name: Read the tool versions
+        run: python .github/scripts/infra_tool_versions.py
+        shell: bash
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Set up Atmos
+        uses: cloudposse/github-action-setup-atmos@v2
+        with:
+          atmos-version: ${{ env.ATMOS_VERSION }}
+          install-wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive -diff KittenClaws/infra
+        shell: bash
+
+      - name: Initialize the component
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: terraform init -backend=false -input=false
+        shell: bash
+
+      - name: Validate the component
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: terraform validate
+        shell: bash
+
+      - name: Lint the component
+        working-directory: KittenClaws/infra/components/terraform/api
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/tflint.sh"
+        shell: bash
+
+      - name: Run the component's unit tests
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: terraform test
+        shell: bash
+
+      - name: Validate the stacks
+        working-directory: KittenClaws/infra
+        run: atmos validate stacks
+        shell: bash
+
+      - name: Plan every stack against mocked providers
+        working-directory: KittenClaws/infra
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/plan_stacks.sh"
+        shell: bash
+
+      - name: Check the app settings are the names the code reads
+        run: python .github/scripts/check_app_settings.py KittenClaws "${{ matrix.template-type }}"
+        shell: bash
+
+      - name: Install actionlint
+        working-directory: KittenClaws
+        run: bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        shell: bash
+
+      - name: Lint the deploy workflow
+        working-directory: KittenClaws
+        run: ./actionlint -color .github/workflows/deploy.yml
+        shell: bash
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Scan with Checkov
+        working-directory: KittenClaws/infra/components/terraform/api
+        run: uvx --python 3.12 checkov --directory . --framework terraform --config-file .checkov.yaml --quiet --compact
+        shell: bash

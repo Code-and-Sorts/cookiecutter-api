@@ -11,6 +11,12 @@ inputs:
   cloud-service:
     required: true
     description: Template cloud service, as answered to Copier.
+  host:
+    required: false
+    default: "local"
+    description: >-
+      local runs the project's own host (Core Tools, the Functions Framework or SAM); container builds its
+      Dockerfile and runs it with run-container (projects rendered with infrastructure only).
   project-dir:
     required: false
     default: "KittenClaws"
@@ -61,6 +67,7 @@ runs:
       env:
         LANGUAGE: ${{ inputs.language }}
         CLOUD: ${{ inputs.cloud-service }}
+        HOST: ${{ inputs.host }}
         READY_TIMEOUT: ${{ inputs.ready-timeout }}
       run: ${{ github.action_path }}/start-local-api.sh host
       shell: bash

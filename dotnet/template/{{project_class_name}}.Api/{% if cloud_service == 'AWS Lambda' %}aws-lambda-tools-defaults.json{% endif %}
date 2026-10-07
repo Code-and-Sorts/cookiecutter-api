@@ -2,7 +2,7 @@
     "profile": "",
     "region": "",
     "configuration": "Release",
-    "function-runtime": "dotnet10",
+    "function-runtime": "dotnet{{ runtime.dotnet }}",
     "function-memory-size": 256,
     "function-timeout": 30,
     "template": "template.yaml"

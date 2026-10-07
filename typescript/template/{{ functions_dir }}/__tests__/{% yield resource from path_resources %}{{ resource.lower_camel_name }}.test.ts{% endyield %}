@@ -58,7 +58,7 @@ describe('{{ resource.endpoint }} functions', () => {
 {%- if "list" in ops %}
 
     it('should register list', async () => {
-        expect(registrations['list{{ r }}']).toMatchObject({ methods: ['GET'], route: '{{ resource.endpoint }}', authLevel: 'function' });
+        expect(registrations['list{{ r }}']).toMatchObject({ methods: ['GET'], route: '{{ resource.endpoint }}', authLevel: '{{ function_auth_level }}' });
         expect(await call('list{{ r }}')).toEqual({ status: 200, body: [] });
         expect(controller.list).toHaveBeenCalledWith('5');
     });
@@ -66,7 +66,7 @@ describe('{{ resource.endpoint }} functions', () => {
 {%- if "get_by_id" in ops %}
 
     it('should register get by id', async () => {
-        expect(registrations['getById{{ r }}']).toMatchObject({ methods: ['GET'], route: '{{ resource.endpoint }}/{id}', authLevel: 'function' });
+        expect(registrations['getById{{ r }}']).toMatchObject({ methods: ['GET'], route: '{{ resource.endpoint }}/{id}', authLevel: '{{ function_auth_level }}' });
         expect((await call('getById{{ r }}', mockId)).status).toEqual(200);
         expect(controller.get).toHaveBeenCalledWith(mockId);
     });
@@ -74,7 +74,7 @@ describe('{{ resource.endpoint }} functions', () => {
 {%- if "create" in ops %}
 
     it('should register create with the body and user id', async () => {
-        expect(registrations['create{{ r }}']).toMatchObject({ methods: ['POST'], route: '{{ resource.endpoint }}', authLevel: 'function' });
+        expect(registrations['create{{ r }}']).toMatchObject({ methods: ['POST'], route: '{{ resource.endpoint }}', authLevel: '{{ function_auth_level }}' });
         expect((await call('create{{ r }}', undefined, mockBody)).status).toEqual(201);
         expect(controller.post).toHaveBeenCalledWith(mockBody, mockUser);
     });
@@ -89,7 +89,7 @@ describe('{{ resource.endpoint }} functions', () => {
 {%- if "update" in ops %}
 
     it('should register update with the path id, body and user id', async () => {
-        expect(registrations['update{{ r }}']).toMatchObject({ methods: ['PATCH'], route: '{{ resource.endpoint }}/{id}', authLevel: 'function' });
+        expect(registrations['update{{ r }}']).toMatchObject({ methods: ['PATCH'], route: '{{ resource.endpoint }}/{id}', authLevel: '{{ function_auth_level }}' });
         expect((await call('update{{ r }}', mockId, mockBody)).status).toEqual(200);
         expect(controller.update).toHaveBeenCalledWith(mockId, mockBody, mockUser);
     });
@@ -102,7 +102,7 @@ describe('{{ resource.endpoint }} functions', () => {
 {%- if "replace" in ops %}
 
     it('should register replace with the path id, body and user id', async () => {
-        expect(registrations['replace{{ r }}']).toMatchObject({ methods: ['PUT'], route: '{{ resource.endpoint }}/{id}', authLevel: 'function' });
+        expect(registrations['replace{{ r }}']).toMatchObject({ methods: ['PUT'], route: '{{ resource.endpoint }}/{id}', authLevel: '{{ function_auth_level }}' });
         expect((await call('replace{{ r }}', mockId, mockBody)).status).toEqual(200);
         expect(controller.replace).toHaveBeenCalledWith(mockId, mockBody, mockUser);
     });
@@ -115,7 +115,7 @@ describe('{{ resource.endpoint }} functions', () => {
 {%- if "delete" in ops %}
 
     it('should register delete with the user id and return its message', async () => {
-        expect(registrations['delete{{ r }}']).toMatchObject({ methods: ['DELETE'], route: '{{ resource.endpoint }}/{id}', authLevel: 'function' });
+        expect(registrations['delete{{ r }}']).toMatchObject({ methods: ['DELETE'], route: '{{ resource.endpoint }}/{id}', authLevel: '{{ function_auth_level }}' });
         expect(await call('delete{{ r }}', mockId)).toEqual({ status: 200, body: { message: 'deleted' } });
         expect(controller.delete).toHaveBeenCalledWith(mockId, mockUser);
     });

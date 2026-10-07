@@ -93,7 +93,11 @@ Request bodies must be a JSON object: create (POST) and replace (PUT) require `n
 Writes (create, update, replace and delete) may send an `X-User-Id` header naming the caller; it is the only way to set `createdBy` and `updatedBy`, which request bodies cannot contain. Surrounding whitespace is trimmed, an empty or missing header means no user, and a value longer than 256 characters is rejected with a 400 before the body is read. Reads ignore the header. The header is taken as sent and is not authenticated: any caller can set it. Before relying on `createdBy`/`updatedBy`, put the API behind an authenticating gateway or authorizer that sets `X-User-Id` from the verified identity and strips any value the client sent.
 {%- if cloud_service == 'Azure Function App' %}
 
-Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the health check is anonymous. For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
+{% if include_infrastructure -%}
+Deployed with [the infrastructure](#deploy-with-the-infrastructure), resource routes need an API Management API key (the `x-api-key` header) instead of a function key; the health check is open.
+{%- else -%}
+Resource functions use the `function` auth level, so calls need a function key (the `code` query parameter or the `x-functions-key` header) once deployed; the health check is anonymous.
+{%- endif %} For a method a resource does not enable, the Functions host itself answers 404 before any function runs.
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 
@@ -152,7 +156,7 @@ Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensurin
 
 ## Prerequisites
 
-- Python 3.14
+- Python {{ runtime.python }}
 
 {% if cloud_service == 'Azure Function App' -%}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
@@ -161,7 +165,7 @@ Dependency management is handled using [uv](https://docs.astral.sh/uv/), ensurin
 
 - [uv](https://docs.astral.sh/uv/): For dependency management and virtual environment setup.
 
-- Azure Account: An active Azure subscription for deploying the Function App. Python 3.14 apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
+- Azure Account: An active Azure subscription for deploying the Function App. Python {{ runtime.python }} apps need the Flex Consumption, Premium or Dedicated plan; Linux Consumption stops at Python 3.12.
 
 - Cosmos DB NoSQL Account either deployed in Azure or emulated locally (see [Run locally against the emulator](#run-locally-against-the-emulator)).
 {%- endif %}
@@ -198,7 +202,7 @@ Settings are read from environment variables (case-insensitive).
 | --- | --- | --- |
 {%- if cloud_service == 'Azure Function App' %}
 | `Cosmos_Db_Uri` | Cosmos DB account endpoint | required |
-| `Cosmos_Db_Key` | Cosmos DB account key | required |
+| `Cosmos_Db_Key` | Cosmos DB account key; leave it unset to authenticate with Microsoft Entra ID (`DefaultAzureCredential`, which picks the managed identity named by `AZURE_CLIENT_ID`) | unset |
 | `Cosmos_Db_Database_Name` | Cosmos DB database name | required |
 | `Cosmos_Db_Emulator` | `true` only for the local emulator (see [Run locally against the emulator](#run-locally-against-the-emulator)) | `false` |
 {%- for c in containers %}
@@ -312,7 +316,7 @@ Settings are read from environment variables (case-insensitive).
     ```console
     gcloud functions deploy {{ project_endpoint }} \
       --gen2 \
-      --runtime python314 \
+      --runtime python{{ runtime.python | replace('.', '') }} \
       --trigger-http \
       --no-allow-unauthenticated \
       --entry-point api \
@@ -375,7 +379,7 @@ Settings are read from environment variables (case-insensitive).
     curl -H "x-api-key: $API_KEY" https://<api-id>.execute-api.<region>.amazonaws.com/Prod/{{ resources[0].endpoint }}{% if 'list' not in resources[0].operations %}/<id>{% endif %}
     ```
 
-    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `uv.lock`, installs them as Linux x86_64 (manylinux) wheels for Python 3.14 with `uv pip install --python-platform x86_64-manylinux_2_34 --python-version 3.14 --only-binary :all:`, and copies every project module except the tests. It needs `make` and uv, but not Docker.
+    `sam build` runs the Makefile's `build-{{ project_class_name }}Function` target (`BuildMethod: makefile` in `template.yaml`): it exports the main dependencies from `uv.lock`, installs them as Linux x86_64 (manylinux) wheels for Python {{ runtime.python }} with `uv pip install --python-platform x86_64-manylinux_2_34 --python-version {{ runtime.python }} --only-binary :all:`, and copies every project module except the tests. It needs `make` and uv, but not Docker.
 {%- endif %}
 
 {% set emulator_settings -%}
@@ -394,6 +398,9 @@ Settings are read from environment variables (case-insensitive).
     'sdk_note': 'Every AWS SDK reads the variable natively.',
 } -%}
 {% include 'shared/_README.emulator.md' %}
+{% if include_infrastructure -%}
+{% include 'shared/_README.infra.md' %}
+{% endif -%}
 ## Development Workflow
 
 ### Adding a New Dependency

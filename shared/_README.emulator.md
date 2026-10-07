@@ -2,9 +2,9 @@
     (tool, core_tools, run_note, secret_files, cosmos_key, cosmos_flag, cosmos_https,
     missing_container, firestore_client, sdk_note) and `emulator_settings`. -#}
 {%- set cmd = {
-    'make': {'install': 'make install', 'up': 'make emulator-up', 'seed': 'make emulator-seed', 'run': 'make run-emulator', 'down': 'make emulator-down', 'logs': 'make emulator-logs',
+    'make': {'install': 'make install', 'up': 'make emulator-up', 'seed': 'make emulator-seed', 'run': 'make run-emulator', 'container': 'make run-container', 'down': 'make emulator-down', 'logs': 'make emulator-logs',
              'podman': 'for Podman, add `COMPOSE="podman compose"` to each `make` command'},
-    'yarn': {'install': 'yarn install', 'up': 'yarn emulator:up', 'seed': 'yarn emulator:seed', 'run': 'yarn start:emulator', 'down': 'yarn emulator:down', 'logs': 'yarn emulator:logs',
+    'yarn': {'install': 'yarn install', 'up': 'yarn emulator:up', 'seed': 'yarn emulator:seed', 'run': 'yarn start:emulator', 'container': 'yarn start:container', 'down': 'yarn emulator:down', 'logs': 'yarn emulator:logs',
              'podman': 'with Podman, run the `podman compose` equivalents of the `emulator:*` scripts'},
 }[emulator.tool] -%}
 ## Run locally against the emulator
@@ -18,6 +18,13 @@
 {{ "%-22s" | format(cmd.run) }}# {{ emulator.run_note }} with the emulator settings
 {{ "%-22s" | format(cmd.down) }}# docker compose down -v: stops the emulator and discards its data
 ```
+
+{%- if infra_containers %}
+
+To run the `Dockerfile` that Container Apps deploy instead of the local host, use `{{ cmd.container }}` in place of
+`{{ cmd.run }}`: it builds the image and starts it on `http://localhost:7071` beside the emulator
+(`docker compose --profile api up --build api`), reaching Cosmos DB as `http://cosmos:8081/` on the compose network.
+{%- endif %}
 
 `{{ cmd.logs }}` follows the emulator's logs. {{ emulator_settings }} `.env.emulator` is committed and holds only public emulator values; keep real credentials in untracked files such as {{ emulator.secret_files }}, which git ignores. The emulator keeps no data outside its container, so `{{ cmd.down }}` (or removing the container) discards every record.
 {%- if cloud_service == 'Azure Function App' %}

@@ -1,0 +1,23 @@
+base_path: "."
+
+components:
+  terraform:
+    base_path: "components/terraform"
+    auto_generate_backend_file: true
+    deploy_run_init: true
+    init_run_reconfigure: true
+    apply_auto_approve: false
+
+stacks:
+  base_path: "stacks"
+  included_paths:
+    - "deploy/**/*"
+  name_pattern: "{stage}"
+
+settings:
+  telemetry:
+    enabled: false
+
+logs:
+  file: "/dev/stderr"
+  level: Info
