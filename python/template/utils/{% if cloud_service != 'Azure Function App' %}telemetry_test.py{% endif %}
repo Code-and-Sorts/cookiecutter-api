@@ -1,0 +1,155 @@
+import json
+import logging
+import pytest
+from opentelemetry import context, trace
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+from utils import detect_error, telemetry
+
+TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736"
+SPAN_ID = "00f067aa0ba902b7"
+TRACEPARENT = f"00-{TRACE_ID}-{SPAN_ID}-01"
+OTLP = {"OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"}
+
+
+@pytest.fixture
+def remote_span():
+    span_context = trace.SpanContext(int(TRACE_ID, 16), int(SPAN_ID, 16), is_remote=True, trace_flags=trace.TraceFlags(1))
+    token = context.attach(trace.set_span_in_context(trace.NonRecordingSpan(span_context)))
+    yield
+    context.detach(token)
+
+
+@pytest.fixture
+def exported():
+    exporter = InMemoryLogRecordExporter()
+    provider = LoggerProvider()
+    provider.add_log_record_processor(SimpleLogRecordProcessor(exporter))
+    handler = LoggingHandler(logger_provider=provider)
+    logging.getLogger().addHandler(handler)
+    yield exporter
+    logging.getLogger().removeHandler(handler)
+
+
+def _clean_env(monkeypatch):
+    for name in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_SERVICE_NAME", "OTEL_RESOURCE_ATTRIBUTES"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def describe_log_exporters():
+    @pytest.mark.parametrize("environ, kinds", [
+        ({}, []),
+        ({"OTEL_EXPORTER_OTLP_ENDPOINT": ""}, []),
+        (OTLP, [OTLPLogExporter]),
+        ({"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs"}, [OTLPLogExporter]),
+    ])
+    def test_exporters_follow_the_environment(environ, kinds):
+        assert [type(exporter) for exporter in telemetry.log_exporters(environ)] == kinds
+
+
+def describe_build_logger_provider():
+    def test_platform_console_is_kept_when_nothing_exports():
+        assert telemetry.build_logger_provider({}, has_console=True) is None
+
+    def test_exporters_are_used_alongside_the_platform_console():
+        provider = telemetry.build_logger_provider(OTLP, has_console=True)
+
+        assert isinstance(provider, LoggerProvider)
+        provider.shutdown()
+
+    def test_console_gets_one_json_line_per_record(capsys, monkeypatch, remote_span):
+        _clean_env(monkeypatch)
+        provider = telemetry.build_logger_provider({}, has_console=False)
+        logger = logging.getLogger("telemetry-test")
+        handler = LoggingHandler(logger_provider=provider)
+        logger.addHandler(handler)
+        try:
+            logger.error("failed")
+        finally:
+            logger.removeHandler(handler)
+
+        (line,) = capsys.readouterr().out.splitlines()
+        record = json.loads(line)
+        assert record["body"] == "failed"
+        assert record["severity_text"] == "ERROR"
+        assert record["trace_id"] == f"0x{TRACE_ID}"
+        assert record["span_id"] == f"0x{SPAN_ID}"
+        assert record["resource"]["attributes"] | telemetry.RESOURCE == record["resource"]["attributes"]
+
+    def test_environment_overrides_the_resource(monkeypatch):
+        _clean_env(monkeypatch)
+        monkeypatch.setenv("OTEL_SERVICE_NAME", "renamed")
+        monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment.name=dev")
+
+        attributes = telemetry.build_logger_provider({}, has_console=False).resource.attributes
+
+        assert attributes["service.name"] == "renamed"
+        assert attributes["deployment.environment.name"] == "dev"
+        assert attributes["cloud.provider"] == telemetry.RESOURCE["cloud.provider"]
+
+
+def describe_configure_logging():
+    def test_root_logger_exports_when_an_endpoint_is_set(monkeypatch):
+        _clean_env(monkeypatch)
+        for name, value in OTLP.items():
+            monkeypatch.setenv(name, value)
+        telemetry.configure_logging.cache_clear()
+        root = logging.getLogger()
+        before = list(root.handlers)
+        try:
+            provider = telemetry.configure_logging()
+
+            assert isinstance(provider, LoggerProvider)
+            (added,) = [handler for handler in root.handlers if handler not in before]
+            assert isinstance(added, LoggingHandler)
+{%- if cloud_service == 'AWS Lambda' %}
+            telemetry.flush_logs()
+{%- endif %}
+        finally:
+            root.handlers = before
+            telemetry.configure_logging.cache_clear()
+
+    def test_nothing_changes_when_the_platform_console_is_enough(monkeypatch):
+        _clean_env(monkeypatch)
+        telemetry.configure_logging.cache_clear()
+        root = logging.getLogger()
+        before = list(root.handlers)
+        try:
+            assert telemetry.configure_logging() is None
+{%- if cloud_service == 'AWS Lambda' %}
+            telemetry.flush_logs()
+{%- endif %}
+            assert root.handlers == before
+        finally:
+            telemetry.configure_logging.cache_clear()
+
+
+def describe_trace_context():
+    @pytest.mark.parametrize("name", ["traceparent", "Traceparent", "TRACEPARENT"])
+    def test_traceparent_header_becomes_the_current_span(name):
+        with telemetry.trace_context({name: TRACEPARENT}):
+            span_context = trace.get_current_span().get_span_context()
+
+        assert (format(span_context.trace_id, "032x"), format(span_context.span_id, "016x")) == (TRACE_ID, SPAN_ID)
+        assert not trace.get_current_span().get_span_context().is_valid
+
+    def test_missing_headers_leave_no_span():
+        with telemetry.trace_context(None):
+            assert not trace.get_current_span().get_span_context().is_valid
+
+
+def describe_unexpected_error_record():
+    def test_carries_the_exception_and_the_trace(exported, remote_span):
+        try:
+            raise RuntimeError("secret detail")
+        except RuntimeError as error:
+            detect_error(error)
+
+        (record,) = [log.log_record for log in exported.get_finished_logs()]
+        assert record.severity_text == "ERROR"
+        assert record.attributes["exception.type"] == "RuntimeError"
+        assert record.attributes["exception.message"] == "secret detail"
+        assert "Traceback" in record.attributes["exception.stacktrace"]
+        assert (format(record.trace_id, "032x"), format(record.span_id, "016x")) == (TRACE_ID, SPAN_ID)

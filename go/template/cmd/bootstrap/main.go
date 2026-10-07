@@ -50,7 +50,6 @@ const (
 var errNotEmulator = errors.New("refusing to run outside the emulator")
 
 func main() {
-	slog.SetDefault(utils.NewLogger())
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := run(ctx); err != nil {

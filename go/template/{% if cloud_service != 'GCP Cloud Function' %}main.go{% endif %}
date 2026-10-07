@@ -1,10 +1,9 @@
 package main
 
 import (
+	"context"
 {%- if cloud_service == 'Azure Function App' %}
 	"errors"
-{%- else %}
-	"context"
 {%- endif %}
 	"log/slog"
 {%- if cloud_service == 'Azure Function App' %}
@@ -17,6 +16,7 @@ import (
 {% if cloud_service == 'Azure Function App' %}
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 {%- else %}
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -30,7 +30,11 @@ import (
 )
 
 func main() {
-	slog.SetDefault(utils.NewLogger())
+	logs, err := utils.SetupLogging(context.Background())
+	exitOnError("Failed to set up logging", err)
+{%- if cloud_service == 'Azure Function App' %}
+	utils.ShutdownOnSignal(logs)
+{%- endif %}
 	validator := newValidator()
 {%- if cloud_service == 'Azure Function App' %}
 	client, databaseName := newCosmosClient()
@@ -95,7 +99,11 @@ func cosmosContainer(client *azcosmos.Client, databaseName, setting, defaultName
 	}
 {%- endfor %}
 
-	lambda.Start(router.ServeRequest)
+	// Lambda freezes the process between invocations, so each one flushes its logs before returning.
+	lambda.Start(func(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+		defer logs.ForceFlush(ctx)
+		return router.ServeRequest(ctx, request)
+	})
 }
 {%- endif %}
 
