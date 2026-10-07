@@ -1,0 +1,33 @@
+name: Delete Example PR Branches
+
+# One-off cleanup: example previews moved to Code-and-Sorts/cookiecutter-api-examples,
+# so the example/pr-* branches left in this repository are no longer written or read.
+# Runs once when this file lands on main; remove the workflow afterwards.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/delete-example-branches.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branches:
+    if: github.repository == 'Code-and-Sorts/cookiecutter-api'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete example/pr-* branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          refs=$(gh api --paginate "repos/$REPO/git/matching-refs/heads/example/pr-" --jq '.[].ref')
+          echo "Deleting $(echo "$refs" | grep -c . || true) branches"
+          for ref in $refs; do
+            echo "$ref"
+            gh api -X DELETE "repos/$REPO/git/$ref"
+          done
