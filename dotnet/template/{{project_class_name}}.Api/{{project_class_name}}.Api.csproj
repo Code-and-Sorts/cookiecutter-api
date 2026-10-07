@@ -19,12 +19,16 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
 {%- endif %}
     <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
 {%- if cloud_service == 'Azure Function App' %}
     <!-- Microsoft.Azure.Cosmos fails the build without an explicit Newtonsoft.Json reference. -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.9.0" />
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.63.1" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.3.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.1" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />

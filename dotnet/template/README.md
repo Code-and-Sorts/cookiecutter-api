@@ -363,6 +363,15 @@ Resources that use the same container share its records: there is no type discri
 {% if include_infrastructure -%}
 {% include 'shared/_README.infra.md' %}
 {% endif -%}
+{%- set telemetry = {
+    'how': 'The API logs through `ILogger`, which `OpenTelemetry.Extensions.Hosting` bridges to the OpenTelemetry Logs SDK, set up once in `' ~ project_class_name ~ '.Api/Telemetry.cs`.',
+    'trace': {'Azure Function App': 'the invocation the Functions host started (`Microsoft.Azure.Functions.Worker.OpenTelemetry`)', 'GCP Cloud Function': "the request, which ASP.NET Core continues from its W3C `traceparent` header", 'AWS Lambda': "the request's W3C `traceparent` header"}[cloud_service],
+    'app_insights': 'Application Insights, through the Azure Monitor exporter',
+    'console': "The platform's own `ILogger` console, as before (" ~ {'Azure Function App': 'the Functions worker', 'GCP Cloud Function': 'the Functions Framework', 'AWS Lambda': '`AddConsole`'}[cloud_service] ~ '); OpenTelemetry is only added when a setting above is set',
+    'azure': 'The worker tells the host the app exports its own logs, so the host does not export them again. ASP.NET Core request logs are exported from `Warning` up, because the host records every request.',
+    'flush': 'records are exported as they are written',
+} -%}
+{% include 'shared/_README.telemetry.md' %}
 ## Development Workflow
 
 ### Adding a New Dependency
@@ -429,7 +438,8 @@ This uses `dotnet list package --vulnerable --include-transitive` to check for p
 {%- endif %}
 │   ├── Repositories
 │   ├── Services
-│   └── Utils
+│   ├── Utils
+{{ "%-40s" | format("│   └── Telemetry.cs") }}- OpenTelemetry logging and its exporters
 ├── {{ project_class_name }}.Api.Tests.Unit
 │   ├── Controllers
 │   ├── Functions

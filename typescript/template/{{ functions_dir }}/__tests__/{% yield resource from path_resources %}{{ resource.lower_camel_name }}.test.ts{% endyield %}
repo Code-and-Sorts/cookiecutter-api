@@ -14,21 +14,22 @@
 {%- set first = probes[ops[0]] -%}
 {%- set first_call = "call('" ~ first[0] ~ "'" ~ (", mockId, mockBody" if first[1] else ", undefined, mockBody") ~ ")" -%}
 import { describe, it, expect, beforeEach, beforeAll, jest } from '@jest/globals';
-import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { HttpRequest, HttpResponseInit } from '@azure/functions';
 import { NotFoundError, ValidationError } from '@errors';
-import { MockFn, mockController } from '../../test/mocks';
+import { logger } from '@utils';
+import { MockFn, mockController, mockFunctionsApp } from '../../test/mocks';
 
-jest.unstable_mockModule('@azure/functions', () => ({ app: { http: jest.fn<MockFn>() } }));
+jest.unstable_mockModule('@azure/functions', () => ({ app: mockFunctionsApp() }));
 jest.unstable_mockModule('@config/container', () => ({ {{ c }}Controller: mockController() }));
 
 const mockId = '91ed1c70-5412-449a-b949-80542a4eb3d5';
 const mockBody = { name: 'mockName' };
 const mockUser = 'mockUser';
 
-type Registration = { methods: string[]; route: string; authLevel: string; handler: (request: HttpRequest, context: InvocationContext) => Promise<HttpResponseInit> };
+type Registration = { methods: string[]; route: string; authLevel: string; handler: (request: HttpRequest) => Promise<HttpResponseInit> };
 let registrations: Record<string, Registration>;
 let controller: Record<string, jest.Mock<MockFn>>;
-let context: { log: jest.Mock<MockFn>; error: jest.Mock<MockFn> };
+const logError = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
 
 beforeAll(async () => {
     const { app } = await import('@azure/functions');
@@ -45,7 +46,7 @@ const call = async (name: string, id?: string, body?: unknown) => {
         query: new URLSearchParams('limit=5'),
         text: async () => (body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body)),
     } as unknown as HttpRequest;
-    const response = await registrations[name].handler(request, context as unknown as InvocationContext);
+    const response = await registrations[name].handler(request);
     expect(response.headers).toEqual({ 'Content-Type': 'application/json' });
     return { status: response.status, body: JSON.parse(response.body as string) as unknown };
 };
@@ -53,7 +54,6 @@ const call = async (name: string, id?: string, body?: unknown) => {
 describe('{{ resource.endpoint }} functions', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        context = { log: jest.fn<MockFn>(), error: jest.fn<MockFn>() };
     });
 {%- if "list" in ops %}
 
@@ -126,14 +126,14 @@ describe('{{ resource.endpoint }} functions', () => {
         expect(await {{ first_call }}).toEqual({ status: 404, body: { errorMessage: '{{ r }} with id x was not found.' } });
         controller.{{ first[2] }}.mockRejectedValueOnce(new ValidationError('name is required.'));
         expect(await {{ first_call }}).toEqual({ status: 400, body: { errorMessage: 'name is required.' } });
-        expect(context.error).not.toHaveBeenCalled();
+        expect(logError).not.toHaveBeenCalled();
     });
 
     it('should log unexpected errors and answer with a generic 500', async () => {
         const error = new Error('secret details');
         controller.{{ first[2] }}.mockRejectedValueOnce(error);
         expect(await {{ first_call }}).toEqual({ status: 500, body: { errorMessage: 'An unexpected error occurred.' } });
-        expect(context.error).toHaveBeenCalledWith(expect.any(String), error);
+        expect(logError).toHaveBeenCalledWith(expect.any(String), error);
     });
 {%- set disabled = all_ops | reject('in', ops) | list %}
 {%- if disabled %}

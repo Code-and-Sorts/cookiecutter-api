@@ -6,17 +6,17 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-{%- if need_write %}
+{%- if need_write or cloud_service == 'AWS Lambda' %}
 	"strings"
 {%- endif %}
 	"time"
 {%- if need_write %}
 	"unicode/utf8"
 {%- endif %}
-{%- if cloud_service == 'AWS Lambda' %}
-
+{% if cloud_service == 'AWS Lambda' %}
 	"github.com/aws/aws-lambda-go/events"
 {%- endif %}
+	"go.opentelemetry.io/otel/propagation"
 {% if need_write %}
 	"{{project_endpoint}}/models"
 {%- endif %}
@@ -80,12 +80,20 @@ func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 }
 
 func Middleware(next http.Handler) http.Handler {
-	return Recover(LogRequests(WithRequestTimeout(next)))
+	return WithTraceContext(Recover(LogRequests(WithRequestTimeout(next))))
+}
+
+// Logs carry the caller's trace and span ids when the request has a traceparent header.
+func WithTraceContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := propagation.TraceContext{}.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func LogRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Processing request", "method", r.Method, "path", r.URL.Path)
+		slog.InfoContext(r.Context(), "Processing request", "method", r.Method, "path", r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -106,7 +114,7 @@ func Recover(next http.Handler) http.Handler {
 				if recovered == http.ErrAbortHandler {
 					panic(recovered)
 				}
-				utils.LogUnexpected(recovered)
+				utils.LogUnexpected(r.Context(), recovered)
 				utils.WriteError(w, http.StatusInternalServerError, utils.UnexpectedErrorMessage)
 			}
 		}()
@@ -130,12 +138,13 @@ func (router *Router) Handle(resource string, handler RouteHandler) {
 }
 
 func (router *Router) ServeRequest(ctx context.Context, request events.APIGatewayProxyRequest) (response events.APIGatewayProxyResponse, err error) {
-	slog.Info("Processing request", "method", request.HTTPMethod, "path", request.Path)
+	ctx = traceContext(ctx, request.Headers)
+	slog.InfoContext(ctx, "Processing request", "method", request.HTTPMethod, "path", request.Path)
 	ctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			utils.LogUnexpected(recovered)
+			utils.LogUnexpected(ctx, recovered)
 			response = utils.GenerateErrorResponse(utils.UnexpectedErrorMessage, http.StatusInternalServerError)
 		}
 	}()
@@ -145,6 +154,15 @@ func (router *Router) ServeRequest(ctx context.Context, request events.APIGatewa
 		return utils.GenerateErrorResponse(utils.NotFoundMessage, http.StatusNotFound), nil
 	}
 	return handler(ctx, request), nil
+}
+
+// Logs carry the caller's trace and span ids when the request has a traceparent header, in any casing.
+func traceContext(ctx context.Context, headers map[string]string) context.Context {
+	carrier := propagation.MapCarrier{}
+	for name, value := range headers {
+		carrier[strings.ToLower(name)] = value
+	}
+	return propagation.TraceContext{}.Extract(ctx, carrier)
 }
 
 func serve(ctx context.Context, status int, call func() (any, error)) events.APIGatewayProxyResponse {

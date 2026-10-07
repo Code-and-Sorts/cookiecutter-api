@@ -176,6 +176,11 @@ run "app_settings_are_templated" {
     condition     = azurerm_function_app_flex_consumption.this[0].app_settings["AzureWebJobsStorage__credential"] == "managedidentity"
     error_message = "The host reaches storage with its managed identity."
   }
+
+  assert {
+    condition     = azurerm_function_app_flex_consumption.this[0].app_settings["OTEL_SERVICE_NAME"] == "kitten-claws" && azurerm_function_app_flex_consumption.this[0].app_settings["OTEL_RESOURCE_ATTRIBUTES"] == "deployment.environment.name=dev,cloud.region=eastus,cloud.platform=azure_functions"
+    error_message = "Every log record names the service, stage, region and platform it came from."
+  }
 }
 
 run "database_is_private_and_keyless" {
@@ -410,6 +415,11 @@ run "premium_hosting" {
   }
 
   assert {
+    condition     = azurerm_linux_function_app.this[0].site_config[0].application_insights_connection_string == azurerm_application_insights.this.connection_string
+    error_message = "The function app reads the Application Insights connection string its logs export to."
+  }
+
+  assert {
     condition     = azurerm_linux_function_app.this[0].app_settings["WEBSITE_CONTENTOVERVNET"] == "1" && azurerm_linux_function_app.this[0].app_settings["WEBSITE_CONTENTSHARE"] == "content"
     error_message = "Premium reads its content share over the virtual network."
   }
@@ -498,6 +508,15 @@ run "container_app_hosting" {
   assert {
     condition     = length(azapi_resource.container_app_auth) == 1
     error_message = "Container Apps authentication requires Entra ID."
+  }
+
+  assert {
+    condition = { for env in azurerm_container_app.this[0].template[0].container[0].env : env.name => env.value if startswith(env.name, "APPLICATIONINSIGHTS_") || startswith(env.name, "OTEL_") } == {
+      APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.this.connection_string
+      OTEL_RESOURCE_ATTRIBUTES              = "deployment.environment.name=dev,cloud.region=eastus,cloud.platform=azure_container_apps"
+      OTEL_SERVICE_NAME                     = "kitten-claws"
+    }
+    error_message = "The container exports its logs to Application Insights and names the platform it runs on."
   }
 
   assert {

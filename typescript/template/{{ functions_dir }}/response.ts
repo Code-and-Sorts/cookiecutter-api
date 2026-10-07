@@ -1,5 +1,6 @@
-import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { HttpRequest, HttpResponseInit } from '@azure/functions';
 import { detectError, parseUserId, USER_ID_HEADER } from '@utils';
+import './telemetry';
 
 export const jsonResponse = (status: number, body: unknown): HttpResponseInit => ({
   status,
@@ -7,18 +8,18 @@ export const jsonResponse = (status: number, body: unknown): HttpResponseInit =>
   headers: { 'Content-Type': 'application/json' },
 });
 
-export const errorResponse = (error: unknown, context: InvocationContext): HttpResponseInit => {
-  const { status, body } = detectError(error, (...args: unknown[]) => context.error(...args));
+export const errorResponse = (error: unknown): HttpResponseInit => {
+  const { status, body } = detectError(error);
   return jsonResponse(status, body);
 };
 
 export const handle =
   (status: number, fn: (request: HttpRequest) => Promise<unknown>) =>
-  async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
+  async (request: HttpRequest): Promise<HttpResponseInit> => {
     try {
       return jsonResponse(status, await fn(request));
     } catch (error) {
-      return errorResponse(error, context);
+      return errorResponse(error);
     }
   };
 

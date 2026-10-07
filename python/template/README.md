@@ -401,6 +401,18 @@ Settings are read from environment variables (case-insensitive).
 {% if include_infrastructure -%}
 {% include 'shared/_README.infra.md' %}
 {% endif -%}
+{%- set telemetry_sdk = 'The API logs with the standard `logging` module, bridged to the OpenTelemetry Logs SDK (`opentelemetry-sdk` and the `opentelemetry-instrumentation-logging` handler) in `utils/telemetry.py`.' -%}
+{%- set telemetry = {
+    'how': 'The API logs with the standard `logging` module. The Functions worker forwards every record to the Functions host, which exports it with OpenTelemetry.' if cloud_service == 'Azure Function App' else telemetry_sdk,
+    'trace': 'the invocation the Functions host started' if cloud_service == 'Azure Function App' else "the request's W3C `traceparent` header",
+    'resource': "the host's resource attributes: `OTEL_SERVICE_NAME` names the service and `OTEL_RESOURCE_ATTRIBUTES` adds to them" if cloud_service == 'Azure Function App' else '',
+    'app_insights': 'Application Insights, exported by the Functions host',
+    'otlp': 'An OTLP endpoint, exported by the Functions host' if cloud_service == 'Azure Function App' else '',
+    'console': {'Azure Function App': "The Functions worker's console", 'GCP Cloud Function': 'One JSON line per record on stdout', 'AWS Lambda': "The Lambda runtime's console, which already receives every `logging` record"}[cloud_service],
+    'azure': 'The app adds no exporter of its own: the Python worker crashes once the OTLP exporter loads its protobuf, and it cannot yet tell the host that the app exports its logs (`PYTHON_ENABLE_OPENTELEMETRY` fails every invocation), so an Azure Monitor exporter in the app would send each record twice.',
+    'flush': 'each invocation flushes its records before it returns',
+} -%}
+{% include 'shared/_README.telemetry.md' %}
 ## Development Workflow
 
 ### Adding a New Dependency
@@ -500,7 +512,7 @@ Each resource gets its own module in every layer, named after the resource. Ever
 {%- for resource in resources %}
 {{ "%-34s" | format("│   " ~ ("└── " if loop.last else "├── ") ~ (resource.name | to_snake) ~ "_service.py") }}- {{ resource.name }}Service
 {%- endfor %}
-{{ "%-34s" | format("├── utils") }}- JSON responses, error handling, database deadline, `X-User-Id` header{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
+{{ "%-34s" | format("├── utils") }}- JSON responses, error handling, {% if cloud_service != 'Azure Function App' %}OpenTelemetry logging, {% endif %}database deadline, `X-User-Id` header{% if cloud_service != 'Azure Function App' %} and routing{% endif %}
 {{ "%-34s" | format("├── .env.emulator") }}- Public settings for the local emulator
 {{ "%-34s" | format("├── conftest.py") }}- Constants shared by the unit tests
 {{ "%-34s" | format("├── docker-compose.yml") }}- Local {{ db }} emulator

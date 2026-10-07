@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import * as ff from '@google-cloud/functions-framework';
+import { context } from '@opentelemetry/api';
 import {
   errorResponse,
 {%- if health_endpoint %}
@@ -11,7 +12,7 @@ import {
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
 } from '@routes';
-import { INVALID_JSON_MESSAGE, runWithSignal } from '@utils';
+import { INVALID_JSON_MESSAGE, runWithSignal, traceContext } from '@utils';
 
 type Next = (error?: unknown) => void;
 type ExpressApplication = { handle(req: ff.Request, res: ff.Response, next?: Next): void };
@@ -75,7 +76,7 @@ export const api = async (req: ff.Request, res: ff.Response): Promise<void> => {
   };
   res.on('close', onClose);
   try {
-    await runWithSignal(controller.signal, () => route(req, res));
+    await context.with(traceContext(req.headers), () => runWithSignal(controller.signal, () => route(req, res)));
   } finally {
     res.off('close', onClose);
   }
