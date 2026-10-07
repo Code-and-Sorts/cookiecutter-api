@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
@@ -28,6 +29,21 @@ func CosmosClientOptions(endpoint string, emulator bool) *azcosmos.ClientOptions
 		options.Transport = &http.Client{Transport: transport}
 	}
 	return options
+}
+
+func NewCosmosClient(endpoint, key string, options *azcosmos.ClientOptions) (*azcosmos.Client, error) {
+	if key != "" {
+		cred, err := azcosmos.NewKeyCredential(key)
+		if err != nil {
+			return nil, err
+		}
+		return azcosmos.NewClientWithKey(endpoint, cred, options)
+	}
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, err
+	}
+	return azcosmos.NewClient(endpoint, cred, options)
 }
 
 // Only substatus 0 is a missing item; others (e.g. 1003, no such container) are config errors and stay 500s.

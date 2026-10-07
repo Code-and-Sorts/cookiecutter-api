@@ -8,7 +8,7 @@
 {
     "bindings": [
         {
-            "authLevel": "function",
+            "authLevel": "{{ function_auth_level }}",
             "type": "httpTrigger",
             "direction": "in",
             "name": "req",

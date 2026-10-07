@@ -54,11 +54,11 @@ _WRITE_ROUTES = [route for route in _ROUTES if route[7] in {{ writes }}]
 
 def describe_function_app():
     @pytest.mark.parametrize("module, name, method, route, item_id, body, query, action, args, status", _ROUTES)
-    def test_registers_function_level_route(module, name, method, route, item_id, body, query, action, args, status):
+    def test_registers_{{ function_auth_level }}_level_route(module, name, method, route, item_id, body, query, action, args, status):
         trigger = _FUNCTIONS[name].get_trigger()
         assert trigger.route == route
         assert [str(m) for m in trigger.methods] == [method]
-        assert trigger.auth_level == func.AuthLevel.FUNCTION
+        assert trigger.auth_level == func.AuthLevel.{{ function_auth_level | upper }}
 {%- if health_endpoint %}
 
     def test_health_is_anonymous():
@@ -184,6 +184,25 @@ def describe_get_container():
         client.get_database_client.assert_called_with("db")
         client.get_database_client.return_value.get_container_client.assert_called_with("container-name")
         assert first is second
+
+    @pytest.mark.parametrize("key", [None, ""])
+    def test_without_a_key_authenticates_with_entra_id(settings, key):
+        settings.cosmos_db_key = key
+        with patch.object(database, "CosmosClient") as client_class, \
+                patch.object(database, "DefaultAzureCredential") as credential_class:
+            client_class.return_value.__aenter__ = AsyncMock()
+            asyncio.run(database.get_container("container"))
+
+        credential_class.assert_called_once_with()
+        client_class.assert_called_once_with("https://cosmos", credential_class.return_value, **database.CLIENT_OPTIONS)
+
+    def test_with_a_key_creates_no_credential():
+        with patch.object(database, "CosmosClient") as client_class, \
+                patch.object(database, "DefaultAzureCredential") as credential_class:
+            client_class.return_value.__aenter__ = AsyncMock()
+            asyncio.run(database.get_container("container"))
+
+        credential_class.assert_not_called()
 
 
 def describe_cosmos_client_options():

@@ -42,12 +42,12 @@ build: install ## Build the Lambda package with SAM
 	@sam build
 
 # SAM's builder can't read uv, so `sam build` runs this target (BuildMethod: makefile).
-# The python3.14 Lambda runtime runs on Amazon Linux 2023, whose glibc is 2.34.
+# The python{{ runtime.python }} Lambda runtime runs on Amazon Linux 2023, whose glibc is 2.34.
 .PHONY: build-{{ project_class_name }}Function
 build-{{ project_class_name }}Function:
 	uv export --quiet --no-dev --format requirements-txt --output-file "$(ARTIFACTS_DIR)/requirements.txt"
 	uv pip install --quiet --requirement "$(ARTIFACTS_DIR)/requirements.txt" --target "$(ARTIFACTS_DIR)" \
-		--python-platform x86_64-manylinux_2_34 --python-version 3.14 --only-binary :all:
+		--python-platform x86_64-manylinux_2_34 --python-version {{ runtime.python }} --only-binary :all:
 	rm "$(ARTIFACTS_DIR)/requirements.txt"
 	find . -name '*.py' ! -name '*_test.py' ! -name conftest.py ! -path './.*' ! -path './scripts/*' | while read -r file; do \
 		mkdir -p "$(ARTIFACTS_DIR)/$$(dirname "$$file")" && cp "$$file" "$(ARTIFACTS_DIR)/$$file"; \

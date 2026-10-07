@@ -1,0 +1,24 @@
+import:
+  - catalog/defaults
+  - catalog/api
+
+vars:
+  stage: {{ env.name }}
+  region: {{ env.region }}
+
+components:
+  terraform:
+    api:
+      vars:
+        compute:
+          hosting: {{ env.compute_hosting }}
+          sku: {{ env.compute_sku }}
+        database:
+          capacity: {{ env.database_capacity }}
+{%- if env.database_capacity != 'serverless' %}
+          throughput: {{ env.database_throughput }}
+{%- endif %}
+          delete_lock: {{ 'true' if env.name in ['prod', 'prd', 'production'] else 'false' }}
+        gateway:
+          sku: {{ env.gateway_sku }}
+          capacity: {{ env.gateway_capacity }}

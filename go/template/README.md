@@ -41,11 +41,15 @@ The REST API exposes the following resources and operations:
 
 {%- if health_endpoint %}
 
-A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and answers `200 {"status":"ok"}`{% if cloud_service == 'Azure Function App' %} without a function key{% elif cloud_service == 'AWS Lambda' %} without an API key{% endif %}.
+A health check is served at `GET {{ route_prefix }}/{{ health_endpoint }}` and answers `200 {"status":"ok"}`{% if cloud_service == 'Azure Function App' %} without {{ 'an API key' if include_infrastructure else 'a function key' }}{% elif cloud_service == 'AWS Lambda' %} without an API key{% endif %}.
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
 
-Routes are served under the Functions host's default `/api` prefix. The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed){% if health_endpoint %}; the health check function is anonymous{% endif %}.
+Routes are served under the Functions host's default `/api` prefix. {% if include_infrastructure -%}
+Deployed with [the infrastructure](#deploy-with-the-infrastructure), resource routes need an API Management API key (the `x-api-key` header) instead of a function key{% if health_endpoint %}; the health check is open{% endif %}.
+{%- else -%}
+The resource functions use function-level keys (pass `?code=<key>` or the `x-functions-key` header when deployed){% if health_endpoint %}; the health check function is anonymous{% endif %}.
+{%- endif %} `CosmosDbEndpoint` and `CosmosDbDatabaseName` are required; leave `CosmosDbKey` empty to authenticate with Microsoft Entra ID (`DefaultAzureCredential`, which picks the managed identity named by `AZURE_CLIENT_ID`).
 {%- elif cloud_service == 'AWS Lambda' %}
 
 API Gateway passes the item id as the `{id}` path parameter (for example `/{{ resources[0].endpoint }}/{id}` in `template.yaml`). Every route{% if health_endpoint %} except `/{{ health_endpoint }}`{% endif %} requires an API key sent as `x-api-key: <value>`; step 5 of [Setup and Installation](#setup-and-installation) shows how to read it after deploying. `sam local start-api` does not enforce API keys. An API key identifies a caller but is not strong authentication; for that, add an IAM, Cognito or Lambda authorizer.
@@ -151,7 +155,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 
 ## Prerequisites
 
-- Go 1.27+
+- Go {{ runtime.go }}+
 {% if cloud_service == 'Azure Function App' %}
 - [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools): To run the Function Apps locally.
 
@@ -254,7 +258,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     ```console
     gcloud functions deploy {{project_endpoint}}-api \
       --gen2 \
-      --runtime go127 \
+      --runtime go{{ runtime.go | replace('.', '') }} \
       --region us-central1 \
       --source . \
       --entry-point api \
@@ -330,6 +334,9 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     'sdk_note': 'Every AWS SDK reads the variable natively.',
 } -%}
 {% include 'shared/_README.emulator.md' %}
+{% if include_infrastructure -%}
+{% include 'shared/_README.infra.md' %}
+{% endif -%}
 ## Development Workflow
 
 ### Adding a New Dependency
@@ -424,7 +431,7 @@ checks, the schema validator, the generic database store, the base entity, error
 │   ├── {{ resource.name | to_snake }}_repository.go
 {%- endfor %}
 {%- if cloud_service == 'Azure Function App' %}
-│   ├── cosmos.go                  # client options; tells a missing item from a missing container
+│   ├── cosmos.go                  # client (key or Entra ID) and options; tells a missing item from a missing container
 │   ├── cosmos_test.go
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}

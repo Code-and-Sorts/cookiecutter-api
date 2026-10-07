@@ -1,0 +1,66 @@
+{%- set containers = path_resources | unique(attribute='container') | list -%}
+components:
+  terraform:
+    api:
+      vars:
+        name: {{ project_endpoint | replace('_', '-') }}
+        owner:
+          name: {{ author | tojson }}
+          email: {{ infra_admin_email | tojson }}
+        compute:
+{%- if cloud_service == 'Azure Function App' %}
+{%- if language == 'python' %}
+          runtime:
+            name: python
+            version: "{{ runtime.python }}"
+          app_settings:
+            Cosmos_Db_Uri: "${database_endpoint}"
+            Cosmos_Db_Database_Name: "${database_name}"
+{%- for c in containers %}
+            Container_Name_{{ c.container_key }}: "{{ c.container }}"
+{%- endfor %}
+{%- elif language == 'typescript' %}
+          runtime:
+            name: node
+            version: "{{ runtime.node }}"
+          app_settings:
+            COSMOS_DB_URL: "${database_endpoint}"
+            COSMOS_DB_DATABASE_NAME: "${database_name}"
+{%- for c in containers %}
+            COSMOS_CONTAINER_{{ c.env_key }}: "{{ c.container }}"
+{%- endfor %}
+{%- elif language == 'go' %}
+          runtime:
+            name: custom
+            version: "1.0"
+          app_settings:
+            CosmosDbEndpoint: "${database_endpoint}"
+            CosmosDbDatabaseName: "${database_name}"
+{%- for c in containers %}
+            CosmosDbContainerName_{{ c.container_class }}: "{{ c.container }}"
+{%- endfor %}
+{%- else %}
+          runtime:
+            name: dotnet-isolated
+            version: "{{ runtime.dotnet }}.0"
+          app_settings:
+            ConnectionStrings__CosmosDb: "AccountEndpoint=${database_endpoint};"
+            CosmosDbDatabaseName: "${database_name}"
+{%- for c in containers %}
+            CosmosDbContainerName_{{ c.container_class }}: "{{ c.container }}"
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+        database:
+          containers:
+{%- for c in containers %}
+            - name: "{{ c.container }}"
+{%- endfor %}
+        gateway:
+          health_endpoint: "{{ health_endpoint }}"
+          routes:
+{%- for r in resources %}
+            - name: {{ r.name }}
+              endpoint: {{ r.endpoint }}
+              operations: [{{ r.operations | join(', ') }}]
+{%- endfor %}

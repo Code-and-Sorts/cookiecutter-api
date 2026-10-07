@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -57,6 +58,41 @@ func TestCosmosClientOptions_HTTPSEmulatorSkipsCertificateVerification(t *testin
 	require.True(t, ok)
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, int32(1), options.Retry.MaxRetries)
+}
+
+const cosmosEndpoint = "https://account.documents.azure.com:443/"
+
+func TestNewCosmosClient_UsesTheKeyWhenSet(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "invalid")
+
+	client, err := NewCosmosClient(cosmosEndpoint, base64.StdEncoding.EncodeToString([]byte("key")), CosmosClientOptions(cosmosEndpoint, false))
+
+	require.NoError(t, err)
+	assert.Equal(t, cosmosEndpoint, client.Endpoint())
+}
+
+func TestNewCosmosClient_RejectsAMalformedKey(t *testing.T) {
+	_, err := NewCosmosClient(cosmosEndpoint, "not a base64 key!", CosmosClientOptions(cosmosEndpoint, false))
+
+	assert.Error(t, err)
+}
+
+func TestNewCosmosClient_UsesDefaultAzureCredentialWithoutAKey(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "invalid")
+
+	_, err := NewCosmosClient(cosmosEndpoint, "", CosmosClientOptions(cosmosEndpoint, false))
+
+	assert.ErrorContains(t, err, "AZURE_TOKEN_CREDENTIALS")
+}
+
+func TestNewCosmosClient_UsesTheManagedIdentityWithoutAKey(t *testing.T) {
+	t.Setenv("AZURE_TOKEN_CREDENTIALS", "ManagedIdentityCredential")
+	t.Setenv("AZURE_CLIENT_ID", "00000000-0000-0000-0000-000000000001")
+
+	client, err := NewCosmosClient(cosmosEndpoint, "", CosmosClientOptions(cosmosEndpoint, false))
+
+	require.NoError(t, err)
+	assert.Equal(t, cosmosEndpoint, client.Endpoint())
 }
 
 func TestIsItemNotFound_OtherErrors(t *testing.T) {

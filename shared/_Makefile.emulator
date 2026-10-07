@@ -16,5 +16,12 @@ emulator-down: ## Stop the emulator and discard its data
 emulator-logs: ## Follow the emulator's logs
 	@$(COMPOSE) logs -f
 
+{%- if infra_containers %}
+
+.PHONY: run-container
+run-container: ## Build the container image and run it against the emulator on http://localhost:7071 (after emulator-up and emulator-seed)
+	@$(COMPOSE) --profile api up --build api
+{%- endif %}
+
 .PHONY: run-emulator
 run-emulator: ## Run the API against the emulator (after emulator-up and emulator-seed)

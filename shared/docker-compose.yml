@@ -11,6 +11,23 @@ services:
       timeout: 5s
       retries: 36
       start_period: 60s
+{%- if infra_containers %}
+  api:
+    build: .
+    profiles: ["api"]
+    ports:
+      - "7071:80"
+    environment:
+{%- set cosmos_host = 'cosmos' %}
+{%- set settings %}{% include 'shared/.env.emulator' %}{% endset %}
+{%- for line in settings.splitlines() if '=' in line and not line.startswith('#') %}
+{%- set setting = line.split('=', 1) %}
+      {{ setting[0] }}: {{ setting[1].strip('"') | tojson }}
+{%- endfor %}
+    depends_on:
+      cosmos:
+        condition: service_healthy
+{%- endif %}
 {%- elif cloud_service == 'GCP Cloud Function' %}
   firestore:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:587.0.0-emulators

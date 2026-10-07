@@ -1,0 +1,102 @@
+{%- set worker_runtime = {'python': 'python', 'typescript': 'node', 'dotnet': 'dotnet-isolated', 'go': 'custom'}[language] -%}
+{%- set app_dir = project_class_name ~ '.Api' if language == 'dotnet' else '.' -%}
+{%- raw %}
+
+      - name: Publish the image
+        if: steps.infra.outputs.app_hosting == 'container_app'
+        env:
+          REGISTRY: ${{ steps.infra.outputs.container_registry }}
+          APP: ${{ steps.infra.outputs.app_name }}
+          RESOURCE_GROUP: ${{ steps.infra.outputs.app_resource_group_name }}
+        run: bash infra/scripts/publish-image.sh "$REGISTRY" "$APP" "$RESOURCE_GROUP" "$GITHUB_SHA"
+        shell: bash
+{%- endraw %}
+{%- if language == 'python' %}
+
+      - name: Set up Python
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-python@v7
+        with:
+          python-version: "{{ runtime.python }}"
+
+      - name: Set up uv
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "{{ runtime.uv }}"
+
+      - name: Build
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: uv export --quiet --no-dev --format requirements-txt --output-file requirements.txt
+        shell: bash
+{%- elif language == 'typescript' %}
+
+      - name: Set up Node
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-node@v7
+        with:
+          node-version: "{{ runtime.node }}.x"
+
+      - name: Enable Corepack
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: corepack enable
+        shell: bash
+
+      - name: Install dependencies
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: yarn install --no-immutable
+        shell: bash
+
+      - name: Build
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: yarn build
+        shell: bash
+
+      - name: Keep only production dependencies
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: yarn workspaces focus --production
+        shell: bash
+{%- elif language == 'go' %}
+
+      - name: Set up Go
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Resolve modules
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: go mod tidy
+        shell: bash
+
+      - name: Build
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -o handler
+        shell: bash
+{%- else %}
+
+      - name: Set up .NET
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "{{ runtime.dotnet }}.x"
+{%- endif %}
+
+      - name: Set up Azure Functions Core Tools
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        run: npm install --global azure-functions-core-tools@4 --unsafe-perm true
+        shell: bash
+{%- raw %}
+
+      - name: Publish the functions
+        if: steps.infra.outputs.app_hosting != 'container_app'
+        env:
+          APP: ${{ steps.infra.outputs.app_name }}
+{%- endraw %}
+        working-directory: {{ app_dir }}
+        run: bash "$GITHUB_WORKSPACE/infra/scripts/publish-functions.sh" "$APP" {{ worker_runtime }}
+        shell: bash

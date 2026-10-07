@@ -1,0 +1,117 @@
+{%- set stacks = path_environments | map(attribute='name') | list -%}
+{%- set azure = cloud_service == 'Azure Function App' -%}
+{%- set outputs = ['app_name', 'app_hosting', 'container_registry', 'api_url'] + (['app_resource_group_name'] if azure else []) -%}
+{%- macro credentials() %}
+{%- if azure %}
+{%- raw %}
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+{%- endraw %}
+{%- endif %}
+{%- endmacro %}
+{%- macro setup() %}
+      - name: Check out
+        uses: actions/checkout@v7
+{%- if azure %}
+{%- raw %}
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+{%- endraw %}
+{%- endif %}
+{%- raw %}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Set up Atmos
+        uses: cloudposse/github-action-setup-atmos@v2
+        with:
+          atmos-version: ${{ env.ATMOS_VERSION }}
+          install-wrapper: false
+{%- endraw %}
+{%- endmacro -%}
+name: Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ATMOS_VERSION: "{{ infra_tools.atmos }}"
+  TERRAFORM_VERSION: "{{ infra_tools.terraform }}"
+  ATMOS_CLI_CONFIG_PATH: infra
+  ATMOS_BASE_PATH: infra
+{%- if azure %}
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+{%- endif %}
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: {{ stacks[0] }}
+    concurrency:
+      group: infra-{{ stacks[0] }}
+      cancel-in-progress: false
+{{- credentials() }}
+    steps:
+{{- setup() }}
+
+      - name: Plan
+        run: atmos terraform plan api -s {{ stacks[0] }}
+{%- for stack in stacks %}
+
+  deploy-{{ stack }}:
+    if: github.event_name != 'pull_request'
+{%- if not loop.first %}
+    needs: deploy-{{ loop.previtem }}
+{%- endif %}
+    runs-on: ubuntu-latest
+    environment: {{ stack }}
+    concurrency:
+      group: infra-{{ stack }}
+      cancel-in-progress: false
+{{- credentials() }}
+    steps:
+{{- setup() }}
+
+      - name: Deploy infrastructure
+        run: atmos terraform deploy api -s {{ stack }}
+
+      - name: Read outputs
+        id: infra
+        run: bash infra/scripts/outputs.sh {{ outputs | join(' ') }}
+        shell: bash
+{%- if azure %}
+{%- set publish %}{% include 'shared/.github/workflows/_deploy.azure.yml' %}{% endset %}
+{{- publish.rstrip() }}
+{%- endif %}
+{%- if health_endpoint %}
+
+      - name: Check the health endpoint
+        env:
+          API_URL: {{ '${{ steps.infra.outputs.api_url }}' }}
+        run: curl --fail --silent --show-error --retry 10 --retry-delay 15 --retry-all-errors "$API_URL/{{ health_endpoint }}"
+        shell: bash
+{%- endif %}
+{%- endfor %}

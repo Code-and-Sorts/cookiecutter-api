@@ -57,19 +57,15 @@ func main() {
 
 func newCosmosClient() (*azcosmos.Client, string) {
 	endpoint := os.Getenv("CosmosDbEndpoint")
-	key := os.Getenv("CosmosDbKey")
 	databaseName := os.Getenv("CosmosDbDatabaseName")
-	if endpoint == "" || key == "" || databaseName == "" {
-		exitOnError("Missing settings", errors.New("CosmosDbEndpoint, CosmosDbKey and CosmosDbDatabaseName are required"))
+	if endpoint == "" || databaseName == "" {
+		exitOnError("Missing settings", errors.New("CosmosDbEndpoint and CosmosDbDatabaseName are required"))
 	}
 
 	emulator, err := strconv.ParseBool(utils.Getenv("CosmosDbEmulator", "false"))
 	exitOnError("CosmosDbEmulator must be true or false", err)
 
-	cred, err := azcosmos.NewKeyCredential(key)
-	exitOnError("Failed to create Cosmos DB credential", err)
-
-	client, err := azcosmos.NewClientWithKey(endpoint, cred, repositories.CosmosClientOptions(endpoint, emulator))
+	client, err := repositories.NewCosmosClient(endpoint, os.Getenv("CosmosDbKey"), repositories.CosmosClientOptions(endpoint, emulator))
 	exitOnError("Failed to create Cosmos DB client", err)
 
 	return client, databaseName

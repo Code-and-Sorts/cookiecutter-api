@@ -2,3 +2,10 @@
 docker-compose.yml
 scripts
 dist-scripts
+{% if include_infrastructure -%}
+infra
+{% endif -%}
+{% if infra_containers -%}
+Dockerfile
+.dockerignore
+{% endif -%}

@@ -1,0 +1,1 @@
+{% include 'shared/infra/stacks/deploy/_stack.yaml' -%}

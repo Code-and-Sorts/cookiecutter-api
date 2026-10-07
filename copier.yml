@@ -112,6 +112,29 @@ aws_dir:
   when: false
   default: "{{ 'Functions' if language == 'dotnet' and cloud_service == 'AWS Lambda' else '' }}"
 
+runtime_versions:
+  type: yaml
+  when: false
+  default:
+    python: "3.14"
+    node: "24"
+    dotnet: "10"
+    go: "1.27"
+    uv: "0.12.22"
+    clouds:
+      Azure Function App:
+        node: "22"
+
+runtime:
+  type: yaml
+  when: false
+  default: >-
+    {%- set ns = namespace(versions={}) -%}
+    {%- for name, version in runtime_versions.items() if name != 'clouds' -%}
+    {%- set ns.versions = dict(ns.versions, **{name: version}) -%}
+    {%- endfor -%}
+    {{ dict(ns.versions, **runtime_versions.clouds.get(cloud_service, {})) | tojson }}
+
 health_endpoint:
   type: str
   default: "health"
@@ -257,3 +280,264 @@ body_resources:
     [{%- for r in path_resources if r.has_body -%}
     {{ r | tojson }}{{ "," if not loop.last }}
     {%- endfor -%}]
+
+infra_clouds:
+  type: yaml
+  when: false
+  default:
+    Azure Function App:
+      name: Azure
+      slug: azure
+      region: eastus
+      compute:
+        default: flex_consumption
+        hostings:
+          flex_consumption:
+            sku: FC1
+            skus: "^FC1\\Z"
+            container: false
+          app_service:
+            sku: B1
+            skus: "^(B[1-3]|S[1-3]|P[0-3]v3|P[1-5]mv3|P[0-5]v4|P[1-5]mv4)\\Z"
+            container: false
+          premium:
+            sku: EP1
+            skus: "^EP[1-3]\\Z"
+            container: false
+          container_app:
+            sku: Consumption
+            skus: "^(Consumption|D(4|8|16|32)|E(4|8|16|32)|NC(24|48|96)-A100)\\Z"
+            container: true
+      database:
+        default: serverless
+        capacities:
+          serverless: {}
+          provisioned:
+            throughput: 400
+            min: 400
+            step: 100
+          autoscale:
+            throughput: 1000
+            min: 1000
+            step: 1000
+      gateway:
+        default: Developer
+        skus:
+          Developer:
+            max_capacity: 1
+          StandardV2:
+            max_capacity: 10
+          Premium:
+            max_capacity: 31
+
+infra_tools:
+  type: yaml
+  when: false
+  default:
+    terraform: "1.16.5"
+    atmos: "1.230.1"
+
+infra_cloud:
+  type: yaml
+  when: false
+  default: "{{ infra_clouds.get(cloud_service, {}) | tojson }}"
+
+include_infrastructure:
+  type: bool
+  default: false
+  when: "{{ infra_cloud | length > 0 }}"
+  help: >-
+    Generate infra/ (Atmos stacks and Terraform for the API, its database and an API gateway)
+    and a GitHub Actions deploy workflow.
+  validator: >-
+    {%- set name = project_name.lower().replace(' ', '-').replace('_', '-') -%}
+    {%- if include_infrastructure and not (name | regex_search('^[a-z][a-z0-9\-]*\Z')) -%}
+    Cloud resource names start with '{{ name }}', which must start with a letter and hold only letters, digits and hyphens.
+    {%- endif -%}
+
+function_auth_level:
+  type: str
+  when: false
+  default: "{{ 'anonymous' if include_infrastructure and cloud_service == 'Azure Function App' else 'function' }}"
+
+infra_region:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ infra_cloud.region if infra_cloud else '' }}"
+  help: Default region for every stack.
+  validator: >-
+    {%- if not (infra_region | regex_search('^[a-z][a-z0-9\-]*\Z')) -%}
+    Region '{{ infra_region }}' must be a lowercase region name such as {{ infra_cloud.region }}.
+    {%- endif -%}
+
+infra_compute_hosting:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ infra_cloud.compute.default if infra_cloud else '' }}"
+  help: "Default hosting for the API in every stack: {{ infra_cloud.compute.hostings | list | join(', ') }}."
+  validator: >-
+    {%- if infra_compute_hosting not in infra_cloud.compute.hostings -%}
+    Hosting must be one of {{ infra_cloud.compute.hostings | list | join(', ') }}.
+    {%- endif -%}
+
+infra_compute_sku:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ infra_cloud.compute.hostings[infra_compute_hosting].sku if infra_cloud and infra_compute_hosting in infra_cloud.compute.hostings else '' }}"
+  help: Default plan SKU or workload profile for that hosting.
+  validator: >-
+    {%- if not (infra_compute_sku | regex_search(infra_cloud.compute.hostings[infra_compute_hosting].skus)) -%}
+    SKU '{{ infra_compute_sku }}' does not fit {{ infra_compute_hosting }} (expected {{ infra_cloud.compute.hostings[infra_compute_hosting].skus }}).
+    {%- endif -%}
+
+infra_database_capacity:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ infra_cloud.database.default if infra_cloud else '' }}"
+  help: "Default database capacity mode in every stack: {{ infra_cloud.database.capacities | list | join(', ') }}."
+  validator: >-
+    {%- if infra_database_capacity not in infra_cloud.database.capacities -%}
+    Capacity must be one of {{ infra_cloud.database.capacities | list | join(', ') }}.
+    {%- endif -%}
+
+infra_database_throughput:
+  type: int
+  when: "{{ include_infrastructure and infra_cloud.database.capacities.get(infra_database_capacity, {}).throughput is defined }}"
+  default: "{{ infra_cloud.database.capacities.get(infra_database_capacity, {}).get('throughput', 0) if infra_cloud else 0 }}"
+  help: Default throughput for that capacity mode.
+  validator: >-
+    {%- set rule = infra_cloud.database.capacities[infra_database_capacity] -%}
+    {%- if infra_database_throughput < rule.min or infra_database_throughput % rule.step != 0 -%}
+    Throughput must be at least {{ rule.min }}, in steps of {{ rule.step }}.
+    {%- endif -%}
+
+infra_gateway_sku:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "{{ infra_cloud.gateway.default if infra_cloud else '' }}"
+  help: "Default API gateway tier in every stack: {{ infra_cloud.gateway.skus | list | join(', ') }}."
+  validator: >-
+    {%- if infra_gateway_sku not in infra_cloud.gateway.skus -%}
+    Gateway tier must be one of {{ infra_cloud.gateway.skus | list | join(', ') }}.
+    {%- endif -%}
+
+infra_gateway_capacity:
+  type: int
+  when: "{{ include_infrastructure }}"
+  default: 1
+  help: Default number of gateway units.
+  validator: >-
+    {%- set limit = infra_cloud.gateway.skus.get(infra_gateway_sku, {}).get('max_capacity', 1) -%}
+    {%- if infra_gateway_capacity < 1 or infra_gateway_capacity > limit -%}
+    {{ infra_gateway_sku }} takes 1 to {{ limit }} units.
+    {%- endif -%}
+
+infra_admin_email:
+  type: str
+  when: "{{ include_infrastructure }}"
+  default: "admin@example.com"
+  help: Email for platform notifications, such as the API gateway's publisher email.
+  validator: >-
+    {%- if not (infra_admin_email | regex_search('^[^@\s]+@[^@\s]+\.[^@\s]+\Z')) -%}
+    '{{ infra_admin_email }}' is not an email address.
+    {%- endif -%}
+
+infra_environments:
+  type: yaml
+  multiline: true
+  when: "{{ include_infrastructure }}"
+  default: |
+    - name: dev
+    - name: prod
+  help: >-
+    Stacks to generate, one per environment. Each item: name (lowercase letters and digits, at
+    most 8, e.g. dev, qa, stg, prod) and optionally region, compute_hosting, compute_sku,
+    database_capacity, database_throughput, gateway_sku and gateway_capacity to override the
+    defaults above for that stack only.
+  validator: >-
+    {%- set keys = ["name", "region", "compute_hosting", "compute_sku", "database_capacity", "database_throughput", "gateway_sku", "gateway_capacity"] -%}
+    {%- set hostings = infra_cloud.compute.hostings -%}
+    {%- set capacities = infra_cloud.database.capacities -%}
+    {%- set gateways = infra_cloud.gateway.skus -%}
+    {%- set ns = namespace(err="", names=[]) -%}
+    {%- if infra_environments is string or infra_environments is mapping or (infra_environments | length) < 1 -%}
+    {%- set ns.err = "At least one environment is required, as a list of {name: ...} items." -%}
+    {%- endif -%}
+    {%- for raw in infra_environments if not ns.err -%}
+    {%- set raw = raw if raw is mapping else {} -%}
+    {%- set hosting = raw.compute_hosting | default(infra_compute_hosting) -%}
+    {%- set capacity = raw.database_capacity | default(infra_database_capacity) -%}
+    {%- set gateway_sku = raw.gateway_sku | default(infra_gateway_sku) -%}
+    {%- set name = raw.name | default('') | string -%}
+    {%- set region = raw.region | default(infra_region) | string -%}
+    {%- set sku = raw.compute_sku | default(infra_compute_sku if hosting == infra_compute_hosting else hostings.get(hosting, {}).get('sku', '')) | string -%}
+    {%- set throughput = raw.database_throughput | default(infra_database_throughput if capacity == infra_database_capacity else capacities.get(capacity, {}).get('throughput', 0)) -%}
+    {%- set gateway_capacity = raw.gateway_capacity | default(infra_gateway_capacity if gateway_sku == infra_gateway_sku else 1) -%}
+    {%- set rule = capacities.get(capacity, {}) -%}
+    {%- set where = "Environment '" ~ name ~ "'" -%}
+    {%- set unknown = raw.keys() | reject('in', keys) | list -%}
+    {%- if not raw -%}
+    {%- set ns.err = "Each environment must be a mapping such as {name: dev}." -%}
+    {%- elif unknown -%}
+    {%- set ns.err = where ~ " has unknown settings: " ~ (unknown | join(', ')) ~ ". Allowed: " ~ (keys | join(', ')) ~ "." -%}
+    {%- elif not (name | regex_search('^[a-z][a-z0-9]{0,7}\Z')) -%}
+    {%- set ns.err = "Environment name '" ~ name ~ "' must be lowercase letters and digits, start with a letter and be at most 8 characters." -%}
+    {%- elif name in ns.names -%}
+    {%- set ns.err = "Duplicate environment '" ~ name ~ "'." -%}
+    {%- elif not (region | regex_search('^[a-z][a-z0-9\-]*\Z')) -%}
+    {%- set ns.err = where ~ ": region '" ~ region ~ "' must be a lowercase region name." -%}
+    {%- elif hosting not in hostings -%}
+    {%- set ns.err = where ~ ": compute_hosting must be one of " ~ (hostings | list | join(', ')) ~ "." -%}
+    {%- elif not (sku | regex_search(hostings[hosting].skus)) -%}
+    {%- set ns.err = where ~ ": compute_sku '" ~ sku ~ "' does not fit " ~ hosting ~ " (expected " ~ hostings[hosting].skus ~ ")." -%}
+    {%- elif capacity not in capacities -%}
+    {%- set ns.err = where ~ ": database_capacity must be one of " ~ (capacities | list | join(', ')) ~ "." -%}
+    {%- elif rule.min is defined and not (throughput is integer and throughput >= rule.min and throughput % rule.step == 0) -%}
+    {%- set ns.err = where ~ ": " ~ capacity ~ " database_throughput must be at least " ~ rule.min ~ ", in steps of " ~ rule.step ~ "." -%}
+    {%- elif gateway_sku not in gateways -%}
+    {%- set ns.err = where ~ ": gateway_sku must be one of " ~ (gateways | list | join(', ')) ~ "." -%}
+    {%- elif not (gateway_capacity is integer and gateway_capacity >= 1 and gateway_capacity <= gateways[gateway_sku].max_capacity) -%}
+    {%- set ns.err = where ~ ": " ~ gateway_sku ~ " takes 1 to " ~ gateways[gateway_sku].max_capacity ~ " gateway units." -%}
+    {%- endif -%}
+    {%- set ns.names = ns.names + [name] -%}
+    {%- endfor -%}
+    {{ ns.err }}
+
+path_environments:
+  type: yaml
+  when: false
+  default: >-
+    [{%- if include_infrastructure and infra_cloud and infra_environments is sequence and infra_environments is not string -%}
+    {%- set hostings = infra_cloud.compute.hostings -%}
+    {%- set capacities = infra_cloud.database.capacities -%}
+    {%- for e in infra_environments if e is mapping -%}
+    {%- set hosting = e.compute_hosting | default(infra_compute_hosting) -%}
+    {%- set capacity = e.database_capacity | default(infra_database_capacity) -%}
+    {%- set gateway_sku = e.gateway_sku | default(infra_gateway_sku) -%}
+    {{ dict(
+    name=(e.name | default('') | string),
+    region=(e.region | default(infra_region) | string),
+    compute_hosting=hosting,
+    compute_sku=(e.compute_sku | default(infra_compute_sku if hosting == infra_compute_hosting else hostings.get(hosting, {}).get('sku', ''))),
+    compute_container=hostings.get(hosting, {}).get('container', false),
+    database_capacity=capacity,
+    database_throughput=(e.database_throughput | default(infra_database_throughput if capacity == infra_database_capacity else capacities.get(capacity, {}).get('throughput', 0))),
+    gateway_sku=gateway_sku,
+    gateway_capacity=(e.gateway_capacity | default(infra_gateway_capacity if gateway_sku == infra_gateway_sku else 1))) | tojson }}{{ "," if not loop.last }}
+    {%- endfor -%}
+    {%- endif -%}]
+
+infra_dir:
+  type: str
+  when: false
+  default: "{{ 'infra' if include_infrastructure else '' }}"
+
+infra_azure_dir:
+  type: str
+  when: false
+  default: "{{ 'infra' if include_infrastructure and infra_cloud.slug == 'azure' else '' }}"
+
+infra_containers:
+  type: bool
+  when: false
+  default: "{{ path_environments | selectattr('compute_container') | list | length > 0 }}"

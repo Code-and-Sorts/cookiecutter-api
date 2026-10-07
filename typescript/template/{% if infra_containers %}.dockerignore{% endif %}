@@ -1,0 +1,15 @@
+.git
+.github
+.vscode
+.yarn/cache
+.yarn/install-state.gz
+node_modules
+dist
+dist-scripts
+coverage
+infra
+.env
+.env.*
+local.settings.json
+Dockerfile
+.dockerignore

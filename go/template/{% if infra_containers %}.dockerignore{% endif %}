@@ -1,0 +1,13 @@
+.git
+.github
+.thunderclient
+.vscode
+infra
+handler
+*.test
+*.out
+.env*
+local.settings.json
+Dockerfile
+.dockerignore
+docker-compose.yml

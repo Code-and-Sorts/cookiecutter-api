@@ -20,6 +20,9 @@ on:
       - .github/actions/setup-copier-template/**
       - .github/actions/setup-runtime/**
 
+permissions:
+  contents: read
+
 jobs:
   build-python:
     runs-on: ${{ matrix.os }}
@@ -46,6 +49,11 @@ jobs:
             template-type: python
             cloud-service: "AWS Lambda"
             fixture: single
+          - os: ubuntu-24.04
+            template-type: python
+            cloud-service: "Azure Function App"
+            fixture: edge
+            infrastructure: "true"
       fail-fast: false
     steps:
       - name: Check out
@@ -57,6 +65,7 @@ jobs:
           template-language: ${{ matrix.template-type }}
           template-cloud-service: ${{ matrix.cloud-service }}
           resources-fixture: ${{ matrix.fixture }}
+          include-infrastructure: ${{ matrix.infrastructure || 'false' }}
 
       - name: Setup runtime
         uses: ./.github/actions/setup-runtime
@@ -65,29 +74,24 @@ jobs:
           cloud-service: ${{ matrix.cloud-service }}
 
       - name: Install dependencies
-        run: |
-          cd "KittenClaws"
-          uv sync
+        working-directory: KittenClaws
+        run: uv sync
         shell: bash
 
       - name: Run lint
-        run: |
-          cd "KittenClaws"
-          uv run ruff check .
+        working-directory: KittenClaws
+        run: uv run ruff check .
         shell: bash
 
       - name: Run unit tests
-        run: |
-            cd "KittenClaws"
-            uv run pytest --cov
+        working-directory: KittenClaws
+        run: uv run pytest --cov
         shell: bash
 
       - name: Run Makefile targets
         if: runner.os != 'Windows'
-        run: |
-            cd "KittenClaws"
-            make install
-            make test-unit
+        working-directory: KittenClaws
+        run: make install test-unit
         shell: bash
 
       - name: Run dependency vulnerability scan

@@ -48,7 +48,7 @@ Before you submit a pull request, check that it meets these guidelines:
 
 2. If the pull request adds functionality, the README should be updated. Add the feature to the list in README.md.
 
-3. Each template targets the newest runtime that Azure Functions, Cloud Run functions and AWS Lambda all support (Node 24 and Node 22 on Azure Functions, Python 3.14, .NET 10, Go 1.27), and CI tests against it. Check https://github.com/Code-and-Sorts/cookiecutter-api/pulls and make sure that the tests pass for all supported runtime versions.
+3. Each template targets the newest runtime that Azure Functions, Cloud Run functions and AWS Lambda all support, set once in `runtime_versions` in `copier.yml`, and CI tests against it. Check https://github.com/Code-and-Sorts/cookiecutter-api/pulls and make sure that the tests pass for all supported runtime versions.
 
 ## Add a New Test
 
