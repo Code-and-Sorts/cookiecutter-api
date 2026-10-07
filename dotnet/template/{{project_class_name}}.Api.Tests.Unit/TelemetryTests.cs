@@ -106,12 +106,12 @@ public class TelemetryTests
         }, TestContext.Current.CancellationToken);
 
         var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        var (path, contentType) = (context.Request.Url?.AbsolutePath, context.Request.ContentType);
         context.Response.Close();
 
         Assert.True(await flush);
-
-        Assert.Equal("/v1/logs", context.Request.Url?.AbsolutePath);
-        Assert.Equal("application/x-protobuf", context.Request.ContentType);
+        Assert.Equal("/v1/logs", path);
+        Assert.Equal("application/x-protobuf", contentType);
     }
 
     [Fact]
