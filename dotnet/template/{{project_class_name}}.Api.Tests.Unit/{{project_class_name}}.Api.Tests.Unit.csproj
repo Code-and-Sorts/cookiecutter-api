@@ -6,15 +6,15 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
 {%- if cloud_service == 'Azure Function App' %}
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.63.1" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.63.2" />
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
     <PackageReference Include="Amazon.Lambda.Core" Version="3.3.0" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="3.0.1" />
     <PackageReference Include="Amazon.Lambda.TestUtilities" Version="4.2.0" />
-    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.105" />
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.107" />
 {%- endif %}
-    <PackageReference Include="coverlet.collector" Version="10.0.1">
+    <PackageReference Include="coverlet.collector" Version="10.1.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
