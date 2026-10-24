@@ -55,43 +55,43 @@
 {%- if cloud_service == 'Azure Function App' %}
     "@azure/cosmos": "^4.10.1",
     "@azure/functions": "^4.16.5",
-    "@azure/identity": "^4.13.3",
+    "@azure/identity": "^4.14.0",
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
-    "@google-cloud/firestore": "^9.2.0",
+    "@google-cloud/firestore": "^9.3.1",
     "@google-cloud/functions-framework": "^5.0.5",
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    "@aws-sdk/client-dynamodb": "^3.1139.0",
-    "@aws-sdk/lib-dynamodb": "^3.1139.0",
+    "@aws-sdk/client-dynamodb": "^3.1154.0",
+    "@aws-sdk/lib-dynamodb": "^3.1154.0",
 {%- endif %}
-    "dotenv": "^18.0.3",
+    "dotenv": "^18.0.8",
     "inversify": "^8.2.3",
     "reflect-metadata": "^0.2.2",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@jest/globals": "^30.5.2",
 {%- if cloud_service == 'Azure Function App' %}
-    "@types/node": "^22.20.4",
+    "@types/node": "^22.20.5",
 {%- else %}
-    "@types/node": "^24.19.0",
+    "@types/node": "^24.19.2",
 {%- endif %}
 {%- if cloud_service == 'Azure Function App' %}
-    "azure-functions-core-tools": "^4.15.1",
+    "azure-functions-core-tools": "^4.16.0",
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
-    "@types/aws-lambda": "^8.10.163",
+    "@types/aws-lambda": "^8.10.164",
 {%- endif %}
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.11.0",
+    "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "jest": "^30.5.2",
-    "prettier": "^3.9.9",
-    "ts-jest": "^29.4.13",
-    "tsc-alias": "^1.9.5",
+    "prettier": "^3.9.10",
+    "ts-jest": "^29.4.15",
+    "tsc-alias": "^1.9.8",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.70.1"
+    "typescript-eslint": "^8.72.0"
   },
   "author": "{{author}}",
   "license": "ISC"
