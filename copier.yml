@@ -335,7 +335,7 @@ infra_tools:
   when: false
   default:
     terraform: "1.16.5"
-    atmos: "1.230.1"
+    atmos: "1.233.2"
 
 infra_cloud:
   type: yaml
