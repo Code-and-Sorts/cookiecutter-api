@@ -16,5 +16,6 @@ public class Startup : FunctionsStartup
         services.AddApplication();
         services.AddPersistence(configuration);
         services.AddHandlers();
+        services.AddTelemetry(configuration);
     }
 }

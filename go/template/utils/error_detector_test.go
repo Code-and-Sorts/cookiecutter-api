@@ -16,6 +16,9 @@ import (
 	"{{project_endpoint}}/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func captureLogs(t *testing.T) *bytes.Buffer {
@@ -52,7 +55,26 @@ func TestErrorStatus_TimedOutDatabaseCall_IsLoggedAsError(t *testing.T) {
 	assert.Equal(t, UnexpectedErrorMessage, message)
 	assert.Contains(t, logs.String(), "level=ERROR")
 	assert.Contains(t, logs.String(), "deadline exceeded")
-	assert.Contains(t, logs.String(), "stack=")
+	assert.Contains(t, logs.String(), "exception.stacktrace=")
+}
+
+func TestErrorStatus_UnexpectedError_EmitsAnExceptionRecordInTheTrace(t *testing.T) {
+	records := captureRecords(t)
+	ctx := trace.ContextWithRemoteSpanContext(context.Background(), testSpanContext)
+
+	status, message := errorStatus(ctx, errors.New("secret detail"))
+
+	assert.Equal(t, 500, status)
+	assert.Equal(t, UnexpectedErrorMessage, message)
+	require.Len(t, records.records, 1)
+	record := records.records[0]
+	assert.Equal(t, log.SeverityError, record.Severity())
+	assert.Equal(t, testSpanContext.TraceID(), record.TraceID())
+	assert.Equal(t, testSpanContext.SpanID(), record.SpanID())
+	attributes := recordAttributes(record)
+	assert.Equal(t, "*errors.errorString", attributes["exception.type"])
+	assert.Equal(t, "secret detail", attributes["exception.message"])
+	assert.Contains(t, attributes["exception.stacktrace"], "utils.LogUnexpected")
 }
 {%- if cloud_service != 'AWS Lambda' %}
 
@@ -94,7 +116,7 @@ func TestDetectError_WithGenericError_Returns500WithoutDetails(t *testing.T) {
 	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, w))
 	assert.Contains(t, logs.String(), "level=ERROR")
 	assert.Contains(t, logs.String(), "Mock exception")
-	assert.Contains(t, logs.String(), "stack=")
+	assert.Contains(t, logs.String(), "exception.stacktrace=")
 }
 
 func TestWriteJSON_LogsEncodingFailure(t *testing.T) {
@@ -140,7 +162,7 @@ func TestDetectError_WithGenericError_Returns500WithoutDetails(t *testing.T) {
 	assert.Equal(t, UnexpectedErrorMessage, decodeError(t, resp.Body))
 	assert.Contains(t, logs.String(), "level=ERROR")
 	assert.Contains(t, logs.String(), "Mock exception")
-	assert.Contains(t, logs.String(), "stack=")
+	assert.Contains(t, logs.String(), "exception.stacktrace=")
 }
 
 func TestGenerateErrorResponse_ReturnsJSONErrorBody(t *testing.T) {

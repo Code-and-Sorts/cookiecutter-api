@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 {%- if cloud_service != 'AWS Lambda' %}
 	"net/http"
@@ -36,13 +37,17 @@ func errorStatus(ctx context.Context, err error) (int, string) {
 		slog.InfoContext(ctx, "Request cancelled by the client", "error", err)
 		return 500, UnexpectedErrorMessage
 	default:
-		LogUnexpected(err)
+		LogUnexpected(ctx, err)
 		return 500, UnexpectedErrorMessage
 	}
 }
 
-func LogUnexpected(err any) {
-	slog.Error("Unexpected error", "error", err, "stack", string(debug.Stack()))
+// Named after the OpenTelemetry exception attributes, so log backends show the record as an exception.
+func LogUnexpected(ctx context.Context, err any) {
+	slog.ErrorContext(ctx, "Unexpected error",
+		"exception.type", fmt.Sprintf("%T", err),
+		"exception.message", fmt.Sprint(err),
+		"exception.stacktrace", string(debug.Stack()))
 }
 {%- if cloud_service != 'AWS Lambda' %}
 
@@ -67,7 +72,7 @@ func DetectError(ctx context.Context, w http.ResponseWriter, err error) {
 func JSONResponse(statusCode int, body any) events.APIGatewayProxyResponse {
 	data, err := json.Marshal(body)
 	if err != nil {
-		LogUnexpected(err)
+		LogUnexpected(context.Background(), err)
 		return GenerateErrorResponse(UnexpectedErrorMessage, 500)
 	}
 	return events.APIGatewayProxyResponse{

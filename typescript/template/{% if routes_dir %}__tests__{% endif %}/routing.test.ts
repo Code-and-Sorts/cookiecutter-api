@@ -24,11 +24,12 @@ import { describe, it, expect, beforeEach, beforeAll, afterEach, jest } from '@j
 {%- if not gcp %}
 import { APIGatewayProxyEvent } from 'aws-lambda';
 {%- endif %}
+import { context, trace } from '@opentelemetry/api';
 import { NotFoundError, ValidationError } from '@errors';
 {%- if gcp %}
 import { EventEmitter } from 'node:events';
-import { currentSignal } from '@utils';
 {%- endif %}
+import { {% if gcp %}currentSignal, {% endif %}logger{% if not gcp %}, loggerProvider{% endif %} } from '@utils';
 import { MockFn, mockController } from '../test/mocks';
 
 {% if gcp -%}
@@ -68,10 +69,10 @@ const mockResponse = () =>
         json: jest.fn<MockFn>().mockReturnThis(),
     });
 
-const send = async (method: string, path: string, body?: unknown) => {
+const send = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
     const res = mockResponse();
     const rawBody = body === undefined ? undefined : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
-    await api({ method, path, rawBody, query: {}, headers: {} }, res);
+    await api({ method, path, rawBody, query: {}, headers }, res);
     return { status: res.status.mock.calls[0][0], body: res.json.mock.calls[0][0] };
 };
 {%- else %}
@@ -82,7 +83,7 @@ beforeAll(async () => {
     ({ handler } = await import('../lambda'));
 });
 
-const send = async (method: string, path: string, body?: unknown) => {
+const send = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
     const segments = path.split('/').filter(Boolean);
     const event = {
         httpMethod: method,
@@ -92,6 +93,7 @@ const send = async (method: string, path: string, body?: unknown) => {
         queryStringParameters: null,
         body: body === undefined ? null : typeof body === 'string' ? body : JSON.stringify(body),
         isBase64Encoded: false,
+        headers,
     } as unknown as APIGatewayProxyEvent;
     const result = await handler(event);
     expect(result.headers).toEqual({ 'Content-Type': 'application/json' });
@@ -102,14 +104,14 @@ const send = async (method: string, path: string, body?: unknown) => {
 const notFound = { status: 404, body: { errorMessage: 'Not found.' } };
 
 describe('routing', () => {
-    let consoleError: jest.SpiedFunction<typeof console.error>;
+    let logError: jest.SpiedFunction<typeof logger.error>;
 
     beforeEach(() => {
         jest.clearAllMocks();
-        consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        logError = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
     });
 
-    afterEach(() => consoleError.mockRestore());
+    afterEach(() => logError.mockRestore());
 {%- if health_endpoint %}
 
     it('should dispatch GET /{{ health_endpoint }} to the health check', async () => {
@@ -147,7 +149,7 @@ describe('routing', () => {
         expect(await {{ call }}).toEqual({ status: 404, body: { errorMessage: '{{ first.name }} with id x was not found.' } });
         method.mockRejectedValueOnce(new ValidationError('name is required.'));
         expect(await {{ call }}).toEqual({ status: 400, body: { errorMessage: 'name is required.' } });
-        expect(consoleError).not.toHaveBeenCalled();
+        expect(logError).not.toHaveBeenCalled();
     });
 
     it('should log unexpected errors and answer with a generic 500', async () => {
@@ -155,8 +157,30 @@ describe('routing', () => {
         const error = new Error('secret details');
         method.mockRejectedValueOnce(error);
         expect(await {{ call }}).toEqual({ status: 500, body: { errorMessage: 'An unexpected error occurred.' } });
-        expect(consoleError).toHaveBeenCalledWith(expect.any(String), error);
+        expect(logError).toHaveBeenCalledWith(expect.any(String), error);
     });
+
+    it('should handle the request in the trace context of its traceparent header', async () => {
+        const method = controllers['{{ first.name | to_lower_camel }}Controller'].{{ p[3] }};
+        let spanContext: ReturnType<typeof trace.getSpanContext>;
+        method.mockImplementationOnce(async () => {
+            spanContext = trace.getSpanContext(context.active());
+            return {{ '[]' if p[3] == 'list' else '{}' }};
+        });
+        const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+        await send('{{ p[0] }}', {{ path(first, p[1]) }}{% if p[0] in ['POST', 'PATCH', 'PUT'] %}, { name: 'mockName' }{% else %}, undefined{% endif %}, { {{ "'traceparent'" if gcp else "'Traceparent'" }}: traceparent });
+        expect(spanContext).toMatchObject({ traceId: '4bf92f3577b34da6a3ce929d0e0e4736', spanId: '00f067aa0ba902b7', isRemote: true });
+        expect(trace.getSpanContext(context.active())).toBeUndefined();
+    });
+{%- if not gcp %}
+
+    it('should flush the logs before Lambda freezes the process', async () => {
+        const flush = jest.spyOn(loggerProvider, 'forceFlush');
+        await send('GET', '/unknown');
+        expect(flush).toHaveBeenCalledTimes(1);
+        flush.mockRestore();
+    });
+{%- endif %}
 {%- if ns.body_resource is not none %}
 {%- set bp = probes[ns.body_op] %}
 
@@ -231,12 +255,12 @@ describe('frameworkFinalHandler', () => {
     });
 
     it('should log other errors and answer with a generic 500', () => {
-        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const logError = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
         const res = run(new Error('boom'));
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ errorMessage: 'An unexpected error occurred.' });
-        expect(consoleError).toHaveBeenCalledTimes(1);
-        consoleError.mockRestore();
+        expect(logError).toHaveBeenCalledTimes(1);
+        logError.mockRestore();
     });
 
     it('should leave a response that was already sent alone', () => {

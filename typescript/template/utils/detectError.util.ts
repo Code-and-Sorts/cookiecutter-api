@@ -1,4 +1,5 @@
 import { BaseError } from '../types/errors/base.error';
+import { logger, type Logger } from './logger.util';
 
 export const UNEXPECTED_ERROR_MESSAGE = 'An unexpected error occurred.';
 export const NOT_FOUND_MESSAGE = 'Not found.';
@@ -10,10 +11,7 @@ export const isCancellation = (error: unknown): boolean =>
 export type ErrorResponse = { status: number; body: { errorMessage: string } };
 
 // Anything but a 4xx gets a generic 500 so exception text and SDK diagnostics never reach the client.
-export const detectError = (
-  error: unknown,
-  logError: (...args: unknown[]) => void = console.error,
-): ErrorResponse => {
+export const detectError = (error: unknown, log: Pick<Logger, 'warn' | 'error'> = logger): ErrorResponse => {
   if (error instanceof BaseError && error.statusCode !== undefined && error.statusCode < 500) {
     return {
       status: error.statusCode,
@@ -22,9 +20,9 @@ export const detectError = (
   }
   if (isCancellation(error)) {
     // A client that went away is not an application failure.
-    console.warn('Request was cancelled before it completed.');
+    log.warn('Request was cancelled before it completed.');
   } else {
-    logError('Unexpected error while handling the request.', error);
+    log.error('Unexpected error while handling the request.', error);
   }
   return {
     status: 500,

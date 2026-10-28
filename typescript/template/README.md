@@ -237,6 +237,15 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
 {% if include_infrastructure -%}
 {% include 'shared/_README.infra.md' %}
 {% endif -%}
+{%- set telemetry = {
+    'how': 'The API logs through the OpenTelemetry Logs SDK (`@opentelemetry/sdk-logs`), behind the small `logger` the code uses instead of `console`, set up once in `utils/logger.util.ts`' ~ (' (the Functions hooks are in `functions/telemetry.ts`).' if cloud_service == 'Azure Function App' else '.'),
+    'trace': 'the invocation the Functions host started' if cloud_service == 'Azure Function App' else "the request's W3C `traceparent` header",
+    'app_insights': 'Application Insights, through the Azure Monitor exporter',
+    'console': 'One JSON line per record through `console.log` (`console.error` for errors)',
+    'azure': 'The worker tells the host the app exports its own logs, so the host does not export them again.',
+    'flush': 'each invocation flushes its records before it returns',
+} -%}
+{% include 'shared/_README.telemetry.md' %}
 ## Deploy
 
 {% if cloud_service == 'Azure Function App' -%}
@@ -345,6 +354,7 @@ Each resource gets its own file in every layer, named after the resource in lowe
 │   ├── health.ts
 {%- endif %}
 │   ├── response.ts                 - JSON responses and the shared handler wrapper
+│   ├── telemetry.ts                - Continues the host's trace and flushes the logs on shutdown
 {%- for resource in resources %}
 │   {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.ts
 {%- endfor %}
@@ -380,7 +390,7 @@ Each resource gets its own file in every layer, named after the resource in lowe
 │       {{ '└──' if loop.last else '├──' }} {{ resource.name | to_lower_camel }}.schema.ts
 {%- endfor %}
 ├── test                            - Shared test mocks
-├── utils                           - Error mapping, JSON body parsing, list limits, clock and ids
+├── utils                           - Error mapping, OpenTelemetry logger, JSON body parsing, list limits, clock and ids
 {%- if cloud_service == 'GCP Cloud Function' %}
 ├── main.ts                         - Functions Framework entry point and JSON final handler
 {%- endif %}

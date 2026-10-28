@@ -23,5 +23,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/stretchr/testify v1.12.1
+	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0
+	go.opentelemetry.io/otel v1.47.0
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.23.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.23.0
+	go.opentelemetry.io/otel/log v1.47.0
+	go.opentelemetry.io/otel/sdk v1.47.0
+	go.opentelemetry.io/otel/sdk/log v1.47.0
+	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/text v0.42.0
 )

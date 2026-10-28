@@ -19,7 +19,9 @@ import (
 )
 
 func init() {
-	slog.SetDefault(utils.NewLogger())
+	logs, err := utils.SetupLogging(context.Background())
+	exitOnError("Failed to set up logging", err)
+	utils.ShutdownOnSignal(logs)
 	functions.HTTP("api", newAPI().ServeHTTP)
 }
 

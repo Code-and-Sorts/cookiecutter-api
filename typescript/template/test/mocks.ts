@@ -20,3 +20,11 @@ export const mockStore = (): Mocked<'read' | 'query' | 'create' | 'write' | 'sof
     write: jest.fn<MockFn>(),
     softDelete: jest.fn<MockFn>(),
 });
+{%- if cloud_service == 'Azure Function App' %}
+
+export const mockFunctionsApp = () => ({
+    http: jest.fn<MockFn>(),
+    setup: jest.fn<MockFn>(),
+    hook: { preInvocation: jest.fn<MockFn>(), appTerminate: jest.fn<MockFn>() },
+});
+{%- endif %}

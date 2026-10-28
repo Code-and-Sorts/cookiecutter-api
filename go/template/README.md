@@ -337,6 +337,15 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
 {% if include_infrastructure -%}
 {% include 'shared/_README.infra.md' %}
 {% endif -%}
+{%- set telemetry = {
+    'how': 'The API logs with `log/slog`, bridged through `otelslog` to the OpenTelemetry Logs SDK (`go.opentelemetry.io/otel/sdk/log`), set up once in `utils/logger.go`.',
+    'trace': "the request's W3C `traceparent` header",
+    'app_insights': 'The console only: Go has no Azure Monitor exporter (see below)',
+    'console': 'One JSON line per record on stdout (stderr for errors)',
+    'azure': 'Go has no Azure Monitor exporter, so the app writes JSON lines to the console, which Container Apps keep in Log Analytics (`ContainerAppConsoleLogs`); to get them into Application Insights, point `OTEL_EXPORTER_OTLP_ENDPOINT` at an OpenTelemetry Collector with the Azure Monitor exporter.',
+    'flush': 'each invocation flushes its records before it returns',
+} -%}
+{% include 'shared/_README.telemetry.md' %}
 ## Development Workflow
 
 ### Adding a New Dependency
@@ -450,7 +459,7 @@ checks, the schema validator, the generic database store, the base entity, error
 │   ├── error_detector_test.go
 │   ├── env.go                     # setting or default
 │   ├── env_test.go
-│   ├── logger.go                  # info logs to stdout, errors to stderr
+│   ├── logger.go                  # slog through OpenTelemetry: OTLP, or JSON lines on stdout and stderr
 │   └── logger_test.go
 {%- if cloud_service == 'Azure Function App' %}
 {%- for resource in resources %}

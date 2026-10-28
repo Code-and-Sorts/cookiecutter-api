@@ -1,3 +1,4 @@
+import { context } from '@opentelemetry/api';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import {
   errorResponse,
@@ -9,9 +10,10 @@ import {
   {{ resource.name | to_lower_camel }}Routes,
 {%- endfor %}
 } from '@routes';
+import { loggerProvider, traceContext } from '@utils';
 
 // template.yaml maps only the enabled operations; API Gateway answers other paths and methods itself.
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+const dispatch = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const segments = (event.resource || event.path || '').split('/').filter(Boolean);
   const endpoint = segments[0];
   const id = segments.length > 1 ? event.pathParameters?.id : undefined;
@@ -34,5 +36,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
   } catch (error) {
     return errorResponse(error);
+  }
+};
+
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  try {
+    return await context.with(traceContext(event.headers), () => dispatch(event));
+  } finally {
+    // Lambda freezes the process once the handler returns, so batched records are sent now.
+    await loggerProvider.forceFlush();
   }
 };

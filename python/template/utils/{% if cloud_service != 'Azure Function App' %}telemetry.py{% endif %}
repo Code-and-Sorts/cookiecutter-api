@@ -1,0 +1,74 @@
+import logging
+import os
+import sys
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from functools import cache
+from opentelemetry import context, propagate
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import (
+    BatchLogRecordProcessor,
+    ConsoleLogRecordExporter,
+    LogRecordExporter,
+    SimpleLogRecordProcessor,
+)
+from opentelemetry.sdk.resources import OTELResourceDetector, Resource
+
+RESOURCE = {
+{%- for key, value in telemetry_resource | dictsort %}
+    "{{ key }}": "{{ value }}",
+{%- endfor %}
+}
+
+
+def log_exporters(environ: Mapping[str, str]) -> list[LogRecordExporter]:
+    if environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or environ.get("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"):
+        return [OTLPLogExporter()]
+    return []
+
+
+def build_logger_provider(environ: Mapping[str, str], has_console: bool) -> LoggerProvider | None:
+    provider = LoggerProvider(resource=Resource.create({**RESOURCE, **OTELResourceDetector().detect().attributes}))
+    exporters = log_exporters(environ)
+    for exporter in exporters:
+        provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+    if exporters:
+        return provider
+    if has_console:
+        return None
+    console = ConsoleLogRecordExporter(out=sys.stdout, formatter=lambda record: record.to_json(indent=None) + os.linesep)
+    provider.add_log_record_processor(SimpleLogRecordProcessor(console))
+    return provider
+
+
+@cache
+def configure_logging() -> LoggerProvider | None:
+    root = logging.getLogger()
+    # The Lambda runtime gives the root logger a console handler already.
+    provider = build_logger_provider(os.environ, has_console=bool(root.handlers))
+    if provider is not None:
+        set_logger_provider(provider)
+        root.addHandler(LoggingHandler(logger_provider=provider))
+    return provider
+{%- if cloud_service == 'AWS Lambda' %}
+
+
+def flush_logs() -> None:
+    provider = configure_logging()
+    if provider is not None:
+        provider.force_flush()
+{%- endif %}
+
+
+@contextmanager
+def trace_context(headers: Mapping[str, str] | None) -> Iterator[None]:
+    # Logs carry the caller's trace and span ids when the request has a traceparent header, in any casing.
+    carrier = {name.lower(): value for name, value in (headers or {}).items()}
+    token = context.attach(propagate.extract(carrier))
+    try:
+        yield
+    finally:
+        context.detach(token)

@@ -131,7 +131,7 @@ that only has a private endpoint.
 | Resource | Collects |
 | --- | --- |
 | Log Analytics workspace | Every log below, in one place |
-| Application Insights | Requests, dependencies and traces from the API and API Management |
+| Application Insights | Requests, dependencies and traces from the API and API Management, and the API's OpenTelemetry logs |
 | Diagnostic settings | Platform logs of the function app, API Management and Cosmos DB |
 
 #### <img src="./.docs/imgs/aws.svg" height="18"> AWS 🚧
@@ -185,6 +185,16 @@ yarn emulator:up && yarn emulator:seed && yarn start:emulator   # TypeScript
 ```
 
 The generated README covers ports, settings and troubleshooting.
+
+### Logs and OpenTelemetry
+
+Every project logs through the OpenTelemetry Logs SDK of its language, set up in one module, with the
+trace and span ids of the request and a `service.name` resource. The standard environment variables pick the
+destination: `APPLICATIONINSIGHTS_CONNECTION_STRING` exports to Application Insights on Azure,
+`OTEL_EXPORTER_OTLP_ENDPOINT` to any OTLP endpoint or collector (the AWS Distro for OpenTelemetry layer, an
+OpenTelemetry Collector or Google's OTLP endpoint), and with neither the logs stay on the console, so local runs
+and the emulators need no collector. On Azure the Functions host runs in OpenTelemetry mode too: it exports the
+Python app's logs itself, and Go, which has no Azure Monitor exporter, stays on the console.
 
 ### Infrastructure (Atmos and Terraform)
 

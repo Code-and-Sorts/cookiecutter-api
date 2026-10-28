@@ -29,6 +29,7 @@ public static class FunctionRunner
             return mismatch;
         }
 
+        using var activity = Telemetry.StartRequestActivity(request.Headers);
         try
         {
             using var deadline = RequestDeadline.Start(CancellationToken.None);
