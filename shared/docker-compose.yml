@@ -42,7 +42,7 @@ services:
       start_period: 30s
 {%- else %}
   dynamodb:
-    image: amazon/dynamodb-local:3.3.1
+    image: amazon/dynamodb-local:3.3.2
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:
       - "8000:8000"
