@@ -67,7 +67,7 @@ runs:
       env:
         LANGUAGE: ${{ inputs.language }}
         CLOUD: ${{ inputs.cloud-service }}
-        HOST: ${{ inputs.host }}
+        HOST_KIND: ${{ inputs.host }}
         READY_TIMEOUT: ${{ inputs.ready-timeout }}
       run: ${{ github.action_path }}/start-local-api.sh host
       shell: bash
