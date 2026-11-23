@@ -11,7 +11,7 @@ run: ## Run function app.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 	@echo "🚀 Running the api Cloud Function on http://localhost:8080"
-	@uv run functions-framework --target=api --source=main.py --port=8080
+	@uv run functions-framework --target=api --source=main.py --host=0.0.0.0 --port=8080
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 	@echo "🚀 Building and running Lambda API locally via SAM"
@@ -27,7 +27,7 @@ run: ## Run function app.
 {%- endif %}
 {%- if cloud_service == 'GCP Cloud Function' %}
 	@echo "🚀 Running the api Cloud Function against the Firestore emulator on http://localhost:8080"
-	@set -a && . ./.env.emulator && set +a && uv run functions-framework --target=api --source=main.py --port=8080
+	@set -a && . ./.env.emulator && set +a && uv run functions-framework --target=api --source=main.py --host=0.0.0.0 --port=8080
 {%- endif %}
 {%- if cloud_service == 'AWS Lambda' %}
 	@echo "🚀 Building and running Lambda API locally via SAM against DynamoDB Local"
