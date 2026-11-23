@@ -1,11 +1,26 @@
 name: Integration Tests
 
 # Renders each language x cloud x resources fixture, starts the project's database emulator
-# and local function host, and runs tests/integration against it over HTTP. Too slow for
-# pull requests; run it on a branch with workflow_dispatch.
+# and local function host, and runs tests/integration against it over HTTP. Pull requests run
+# only the single fixture to keep them quick; main runs single and edge, and workflow_dispatch any set.
 
 on:
   push:
+    branches:
+      - main
+    paths:
+      - go/**
+      - python/**
+      - typescript/**
+      - dotnet/**
+      - copier.yml
+      - shared/**
+      - tests/integration/**
+      - .github/workflows/integration-tests.yaml
+      - .github/actions/setup-copier-template/**
+      - .github/actions/setup-runtime/**
+      - .github/actions/start-local-api/**
+  pull_request:
     branches:
       - main
     paths:
@@ -44,7 +59,7 @@ on:
 permissions:
   contents: read
 
-# Each push gets its own group so every commit to main is tested; a newer dispatch replaces an older one.
+# Each push gets its own group so every commit to main is tested; a newer dispatch or pull request commit replaces an older one.
 concurrency:
   group: integration-${{ github.event_name == 'push' && github.sha || github.ref }}-${{ inputs.language || 'all' }}-${{ inputs.cloud || 'all' }}-${{ inputs.fixture || 'all' }}-${{ inputs.host || 'local' }}
   cancel-in-progress: true
@@ -63,7 +78,7 @@ jobs:
         env:
           LANGUAGE: ${{ inputs.language || 'all' }}
           CLOUD: ${{ inputs.cloud || 'all' }}
-          FIXTURE: ${{ inputs.fixture || 'all' }}
+          FIXTURE: ${{ inputs.fixture || (github.event_name == 'pull_request' && 'single') || 'all' }}
           HOST: ${{ inputs.host || 'local' }}
         run: python .github/scripts/integration_matrix.py
 
