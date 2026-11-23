@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -90,6 +91,14 @@ func (p severitySplit) OnEmit(ctx context.Context, record *sdklog.Record) error 
 	}
 	// The console exporter refuses a cancelled context, which would drop the errors logged after a request deadline.
 	return p.Processor.OnEmit(context.WithoutCancel(ctx), record)
+}
+
+// Cloud Run functions only get CPU while they handle a request, so each request sends its batched records before it ends.
+func FlushLogsAfter(provider *sdklog.LoggerProvider, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { _ = provider.ForceFlush(context.WithoutCancel(r.Context())) }()
+		next.ServeHTTP(w, r)
+	})
 }
 
 func ShutdownOnSignal(provider *sdklog.LoggerProvider) {

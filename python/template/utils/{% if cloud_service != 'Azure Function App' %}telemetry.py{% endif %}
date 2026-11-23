@@ -53,14 +53,13 @@ def configure_logging() -> LoggerProvider | None:
         set_logger_provider(provider)
         root.addHandler(LoggingHandler(logger_provider=provider))
     return provider
-{%- if cloud_service == 'AWS Lambda' %}
 
 
+# Lambda freezes the process and Cloud Run functions throttle its CPU once a request ends, so batched records are sent first.
 def flush_logs() -> None:
     provider = configure_logging()
     if provider is not None:
         provider.force_flush()
-{%- endif %}
 
 
 @contextmanager

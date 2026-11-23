@@ -29,7 +29,7 @@ import { NotFoundError, ValidationError } from '@errors';
 {%- if gcp %}
 import { EventEmitter } from 'node:events';
 {%- endif %}
-import { {% if gcp %}currentSignal, {% endif %}logger{% if not gcp %}, loggerProvider{% endif %} } from '@utils';
+import { {% if gcp %}currentSignal, {% endif %}logger, loggerProvider } from '@utils';
 import { MockFn, mockController } from '../test/mocks';
 
 {% if gcp -%}
@@ -172,15 +172,14 @@ describe('routing', () => {
         expect(spanContext).toMatchObject({ traceId: '4bf92f3577b34da6a3ce929d0e0e4736', spanId: '00f067aa0ba902b7', isRemote: true });
         expect(trace.getSpanContext(context.active())).toBeUndefined();
     });
-{%- if not gcp %}
 
-    it('should flush the logs before Lambda freezes the process', async () => {
+
+    it('should flush the logs before the platform freezes or throttles the process', async () => {
         const flush = jest.spyOn(loggerProvider, 'forceFlush');
         await send('GET', '/unknown');
         expect(flush).toHaveBeenCalledTimes(1);
         flush.mockRestore();
     });
-{%- endif %}
 {%- if ns.body_resource is not none %}
 {%- set bp = probes[ns.body_op] %}
 

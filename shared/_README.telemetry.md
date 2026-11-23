@@ -26,7 +26,8 @@ OpenTelemetry to the same places. {{ telemetry.azure }}
 sets `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` (stage, region and platform).{% endif %}
 {%- elif cloud_service == 'GCP Cloud Function' -%}
 Cloud Logging reads the console lines as they are. To send OTLP instead, point `OTEL_EXPORTER_OTLP_ENDPOINT` at an
-OpenTelemetry Collector or at Google's OTLP endpoint (`https://telemetry.googleapis.com`) with the credentials it needs.
+OpenTelemetry Collector or at Google's OTLP endpoint (`https://telemetry.googleapis.com`) with the credentials it needs;
+{{ telemetry.flush }}, because Cloud Run functions only get CPU while they handle a request.
 {%- else -%}
 CloudWatch Logs reads the console lines as they are. To send OTLP instead, add the
 [AWS Distro for OpenTelemetry](https://aws-otel.github.io/docs/getting-started/lambda) collector layer to the function

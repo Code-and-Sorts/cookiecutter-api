@@ -3,7 +3,7 @@ from flask import Request
 from blueprints import ROUTES
 from utils import detect_error, response_generator
 from utils.routing import resolve
-from utils.telemetry import configure_logging, trace_context
+from utils.telemetry import configure_logging, flush_logs, trace_context
 
 configure_logging()
 
@@ -17,3 +17,6 @@ def api(request: Request):
             return response_generator(payload, status_code)
         except Exception as error:
             return detect_error(error)
+        finally:
+            # Cloud Run functions throttle the CPU once the response is sent, so batched records are sent now.
+            flush_logs()

@@ -81,8 +81,8 @@ public static class Telemetry
                         {
                             exporter.Protocol = OtlpExportProtocol.HttpProtobuf;
                         }
-{%- if aws %}
-                        // Lambda freezes the process once a handler returns, so records are sent as they are written.
+{%- if not azure %}
+                        // {{ 'Lambda freezes the process' if aws else 'Cloud Run functions throttle the CPU' }} once a request ends, so records are sent as they are written.
                         processor.ExportProcessorType = ExportProcessorType.Simple;
 {%- endif %}
                     });

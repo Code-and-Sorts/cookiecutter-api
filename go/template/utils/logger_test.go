@@ -170,3 +170,19 @@ func TestSetupLogging_SendsSlogThroughOpenTelemetry(t *testing.T) {
 	assert.NotNil(t, provider)
 	assert.NotSame(t, previous, slog.Default())
 }
+
+func TestFlushLogsAfter_SendsTheRequestsRecordsBeforeItEnds(t *testing.T) {
+	exporter := &memoryExporter{}
+	provider := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	logger := otelslog.NewLogger(ScopeName, otelslog.WithLoggerProvider(provider))
+	handler := FlushLogsAfter(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.InfoContext(r.Context(), "served")
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/items", nil))
+
+	exporter.mu.Lock()
+	defer exporter.mu.Unlock()
+	assert.Len(t, exporter.records, 1)
+}

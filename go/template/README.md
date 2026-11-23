@@ -343,7 +343,7 @@ Dependency management is handled using [Go Modules](https://go.dev/ref/mod), ens
     'app_insights': 'The console only: Go has no Azure Monitor exporter (see below)',
     'console': 'One JSON line per record on stdout (stderr for errors)',
     'azure': 'Go has no Azure Monitor exporter, so the app writes JSON lines to the console, which Container Apps keep in Log Analytics (`ContainerAppConsoleLogs`); to get them into Application Insights, point `OTEL_EXPORTER_OTLP_ENDPOINT` at an OpenTelemetry Collector with the Azure Monitor exporter.',
-    'flush': 'each invocation flushes its records before it returns',
+    'flush': 'each request flushes its records before it returns',
 } -%}
 {% include 'shared/_README.telemetry.md' %}
 ## Development Workflow

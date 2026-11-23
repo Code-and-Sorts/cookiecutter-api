@@ -243,7 +243,7 @@ The `.thunderclient` directory contains a [Thunder Client](https://www.thundercl
     'app_insights': 'Application Insights, through the Azure Monitor exporter',
     'console': 'One JSON line per record through `console.log` (`console.error` for errors)',
     'azure': 'The worker tells the host the app exports its own logs, so the host does not export them again.',
-    'flush': 'each invocation flushes its records before it returns',
+    'flush': 'each request flushes its records before it returns',
 } -%}
 {% include 'shared/_README.telemetry.md' %}
 ## Deploy
