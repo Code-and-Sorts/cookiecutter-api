@@ -10,9 +10,19 @@ locals {
     AzureWebJobsStorage__clientId    = azurerm_user_assigned_identity.api.client_id
   }
 
+  telemetry_settings = {
+    OTEL_SERVICE_NAME = var.name
+    OTEL_RESOURCE_ATTRIBUTES = join(",", [
+      "deployment.environment.name=${var.stage}",
+      "cloud.region=${var.region}",
+      "cloud.platform=${local.functions_hosting ? "azure_functions" : "azure_container_apps"}",
+    ])
+  }
+
   app_settings = merge(
     { for name, value in var.compute.app_settings : name => templatestring(value, local.setting_values) },
     local.storage_identity_settings,
+    local.telemetry_settings,
     { AZURE_CLIENT_ID = azurerm_user_assigned_identity.api.client_id },
   )
 

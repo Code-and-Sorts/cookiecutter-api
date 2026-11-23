@@ -28,6 +28,7 @@ import (
 {%- endif %}
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel/trace"
 )
 
 {%- if need_write %}
@@ -82,6 +83,12 @@ func TestWithUserID(t *testing.T) {
 }
 {%- endif %}
 
+const (
+	traceID     = "4bf92f3577b34da6a3ce929d0e0e4736"
+	spanID      = "00f067aa0ba902b7"
+	traceparent = "00-" + traceID + "-" + spanID + "-01"
+)
+
 func captureLogs(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var logs bytes.Buffer
@@ -126,6 +133,22 @@ func TestMiddleware_LogsRequestAndSetsDeadline(t *testing.T) {
 
 	assert.True(t, hasDeadline)
 	assert.Contains(t, logs.String(), "method=GET path=/items")
+}
+
+func TestMiddleware_RequestCarriesTheCallersTraceContext(t *testing.T) {
+	captureLogs(t)
+	var spanContext trace.SpanContext
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		spanContext = trace.SpanContextFromContext(r.Context())
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/items", nil)
+	request.Header.Set("traceparent", traceparent)
+
+	handler.ServeHTTP(httptest.NewRecorder(), request)
+
+	assert.Equal(t, traceID, spanContext.TraceID().String())
+	assert.Equal(t, spanID, spanContext.SpanID().String())
+	assert.True(t, spanContext.IsRemote())
 }
 
 func TestRecover_Panic_ReturnsJSON500(t *testing.T) {
@@ -191,6 +214,26 @@ func TestRouter_LogsRequest(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, logs.String(), "method=GET path=/unknown")
+}
+
+func TestRouter_RequestCarriesTheCallersTraceContext(t *testing.T) {
+	captureLogs(t)
+	var spanContext trace.SpanContext
+	router := NewRouter()
+	router.Handle("/items", func(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+		spanContext = trace.SpanContextFromContext(ctx)
+		return methodNotAllowed()
+	})
+
+	_, err := router.ServeRequest(context.Background(), events.APIGatewayProxyRequest{
+		HTTPMethod: http.MethodGet,
+		Resource:   "/items",
+		Headers:    map[string]string{"Traceparent": traceparent},
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, traceID, spanContext.TraceID().String())
+	assert.Equal(t, spanID, spanContext.SpanID().String())
 }
 
 func TestRouter_Panic_ReturnsJSON500(t *testing.T) {

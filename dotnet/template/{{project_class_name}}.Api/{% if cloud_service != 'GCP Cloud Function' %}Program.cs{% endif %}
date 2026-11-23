@@ -14,6 +14,7 @@ builder.Configuration
 
 builder.Services.AddApplication();
 builder.Services.AddPersistence(builder.Configuration);
+builder.Services.AddTelemetry(builder.Configuration);
 
 builder.Build().Run();
 {%- endif %}
@@ -35,9 +36,11 @@ public class Startup
 {
     public void ConfigureServices(IServiceCollection services)
     {
+        var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         services.AddLogging(logging => logging.AddConsole());
         services.AddApplication();
-        services.AddPersistence(new ConfigurationBuilder().AddEnvironmentVariables().Build());
+        services.AddPersistence(configuration);
+        services.AddTelemetry(configuration);
     }
 }
 {%- endif %}

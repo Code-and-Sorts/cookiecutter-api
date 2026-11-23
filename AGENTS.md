@@ -61,6 +61,19 @@ Entry Point (Azure functions, GCP main, or AWS Lambda handler)
 - **Schema Validation**: TypeScript uses [Zod](https://zod.dev/), Python uses [Pydantic](https://docs.pydantic.dev/), .NET uses [FluentValidation](https://docs.fluentvalidation.net/), Go uses JSON Schema
 - **Soft Deletes**: All templates use an `isDeleted` flag rather than hard deletes
 - **Base Records**: All entities extend a base schema with `id`, `isDeleted`, `createdTimestamp`, `updatedTimestamp`
+- **OpenTelemetry logs**: one cloud-agnostic module per language sets up the Logs SDK and every log goes through it:
+  Python `utils/telemetry.py` (stdlib `logging` and the `opentelemetry-instrumentation-logging` handler), TypeScript
+  `utils/logger.util.ts` (a `logger` instead of `console`), .NET `Telemetry.cs` (`ILogger` with
+  `AddOpenTelemetry`), Go `utils/logger.go` (`log/slog` through `otelslog`). `OTEL_EXPORTER_OTLP_ENDPOINT` or
+  `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` adds the OTLP/HTTP exporter, `APPLICATIONINSIGHTS_CONNECTION_STRING` the Azure
+  Monitor exporter (TypeScript and .NET on Azure), and with neither the logs stay on the console. The resource comes
+  from `telemetry_resource` in `copier.yml`. Entry points only continue the request's `traceparent` and flush where
+  the platform freezes the process (Lambda). On Azure, `host.json` sets `"telemetryMode": "OpenTelemetry"` and the
+  TypeScript and .NET workers tell the host they export their own logs, so nothing is sent twice; Python on Azure has
+  no module of its own, because the Python 3.14 worker crashes on the OTLP exporter's protobuf and fails every
+  invocation with `PYTHON_ENABLE_OPENTELEMETRY`, so the host exports its `logging` records; Go has no Azure Monitor
+  exporter and stays on the console. Log unexpected errors with the exception (`exception.type`,
+  `exception.message`, `exception.stacktrace`).
 
 ### Resources
 
@@ -228,7 +241,9 @@ Per language: the bootstrap, the `run-emulator` recipe or TypeScript package scr
   (login and credentials are a branch in `deploy.yml`).
 - **App settings** are names the code reads, with `${database_endpoint}` and `${database_name}` filled in by
   Terraform (`templatestring`); the per-container names default to the container id, so they match the store
-  Terraform creates. CI checks every name appears in the generated code.
+  Terraform creates. CI checks every name appears in the generated code. Terraform adds the cloud-neutral telemetry
+  settings itself: `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` (stage, region, platform) on every hosting, and
+  `APPLICATIONINSIGHTS_CONNECTION_STRING` through the function app's `site_config` or the container's environment.
 - **Azure:** API Management (`Developer`, `StandardV2` or `Premium`, the tiers that reach a private backend) in the
   virtual network; Functions (Flex Consumption, App Service plan or Premium) behind a private endpoint, or Container
   Apps in an internal environment; Cosmos DB with public access and keys off, reached by a user-assigned identity
@@ -318,6 +333,7 @@ To add a new cloud provider to an existing language template:
 | `project_slug` | snake_case (the Python module name) | `"my_api"` |
 | `cloud_service` | Target cloud platform | `"Azure Function App"` |
 | `health_endpoint` | Health check URL segment; empty skips the health check | `"health"` |
+| `telemetry_resource` | Derived OpenTelemetry resource attributes (`service.name`, `cloud.provider`, `cloud.platform`) | `{"service.name": "my-api", ...}` |
 | `resources` | REST resources to generate | see [Resources](#resources) |
 | `author` | Project author | `"Your Name"` |
 | `open_source_license` | License type | `"MIT license"` |

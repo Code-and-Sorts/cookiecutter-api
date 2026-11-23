@@ -135,6 +135,18 @@ runtime:
     {%- endfor -%}
     {{ dict(ns.versions, **runtime_versions.clouds.get(cloud_service, {})) | tojson }}
 
+# OpenTelemetry resource attributes every language sets; OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES override them.
+telemetry_resource:
+  type: yaml
+  when: false
+  default: >-
+    {%- set cloud = {
+    'Azure Function App': ('azure', 'azure_functions'),
+    'GCP Cloud Function': ('gcp', 'gcp_cloud_functions'),
+    'AWS Lambda': ('aws', 'aws_lambda'),
+    }[cloud_service] -%}
+    {{ {'service.name': project_endpoint, 'cloud.provider': cloud[0], 'cloud.platform': cloud[1]} | tojson }}
+
 health_endpoint:
   type: str
   default: "health"
