@@ -398,8 +398,10 @@ The suite is a uv project with its own `uv.lock`: `uv sync --project tests/integ
 `uv run --project tests/integration pytest tests/integration --project-dir <project> --base-url <url>`.
 
 `.github/workflows/integration-tests.yaml` runs every language x cloud x fixture (`single` and `edge`; `multi` on
-request) on pushes to `main` and on `workflow_dispatch`, never on pull requests: dispatch it on your branch before merging a
-contract or emulator change. Each job renders the project, then `.github/actions/start-local-api` starts the
+request) on pushes to `main` and on `workflow_dispatch`. Pull requests to `main` run every language x cloud with the
+`single` fixture only; dispatch it on your branch (`fixture: edge`) before merging a contract or emulator change. The
+host step reads its mode from `HOST_KIND`, never `HOST`, because the Python Functions Framework reads `HOST` as its bind
+address. Each job renders the project, then `.github/actions/start-local-api` starts the
 emulator and host with the project's own commands (`make emulator-up emulator-seed run-emulator`, or the
 TypeScript `yarn` scripts) and outputs the base URL. The `host` input `container` renders Azure projects with
 infrastructure and starts `run-container` or `start:container` instead, so the suite tests the Container Apps image.

@@ -299,7 +299,7 @@ Settings are read from environment variables (case-insensitive).
     make run
     ```
 
-    This serves the `api` function with the Functions Framework (`uv run functions-framework --target=api --source=main.py --port=8080`), so every route is available under `http://localhost:8080`. To run against the Firestore emulator instead of a GCP project, see [Run locally against the emulator](#run-locally-against-the-emulator).
+    This serves the `api` function with the Functions Framework (`uv run functions-framework --target=api --source=main.py --host=0.0.0.0 --port=8080`), so every route is available under `http://localhost:8080`. To run against the Firestore emulator instead of a GCP project, see [Run locally against the emulator](#run-locally-against-the-emulator).
 
 6. Deploy to GCP
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: start-local-api.sh install|emulator|host
-# Runs in the generated project's directory with LANGUAGE, CLOUD, HOST_KIND and READY_TIMEOUT set (not HOST: the Python Functions Framework binds to it).
+# Runs in the generated project's directory with LANGUAGE, CLOUD, HOST_KIND and READY_TIMEOUT set.
 set -euo pipefail
 
 # TypeScript projects use their package scripts; the other languages share the Make targets.
